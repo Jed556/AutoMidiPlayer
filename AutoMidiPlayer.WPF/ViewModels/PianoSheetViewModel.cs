@@ -21,7 +21,7 @@ public class PianoSheetViewModel : Screen
 
     public PianoSheetViewModel(MainWindowViewModel main) { _main = main; }
 
-    [OnChangedMethod(nameof(Update))] public char Delimiter { get; set; } = '.';
+    [OnChangedMethod(nameof(Update))] public char Delimiter { get; set; } = '#';
 
     [OnChangedMethod(nameof(Update))]
     public KeyValuePair<Keyboard.Layout, string> SelectedLayout
