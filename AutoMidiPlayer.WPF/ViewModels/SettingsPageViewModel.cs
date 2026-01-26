@@ -32,32 +32,9 @@ namespace AutoMidiPlayer.WPF.ViewModels;
 
 public class SettingsPageViewModel : Screen
 {
-    public static readonly Dictionary<Transpose, string> TransposeNames = new()
-    {
-        [Up] = "Up (1 Semitone up)",
-        [Ignore] = "Ignore (Skip notes)",
-        [Down] = "Down (1 Semitone down)"
-    };
-
-    public static readonly Dictionary<Transpose, string> TransposeTooltips = new()
-    {
-        [Up] = "Transpose out-of-range notes 1 semitone up",
-        [Ignore] = "Skip out-of-range notes",
-        [Down] = "Transpose out-of-range notes 1 semitone down"
-    };
-
-    // Key and Speed option wrapper class for ComboBox binding
-    public class KeyOption
-    {
-        public int Value { get; set; }
-        public string Display { get; set; } = string.Empty;
-    }
-
-    public class SpeedOption
-    {
-        public double Value { get; set; }
-        public string Display { get; set; } = string.Empty;
-    }
+    // Re-export from MusicConstants for backward compatibility
+    public static Dictionary<Transpose, string> TransposeNames => MusicConstants.TransposeNames;
+    public static Dictionary<Transpose, string> TransposeTooltips => MusicConstants.TransposeTooltips;
 
     private static readonly Settings Settings = Settings.Default;
     private readonly IContainer _ioc;
@@ -112,61 +89,7 @@ public class SettingsPageViewModel : Screen
     public DateTime DateTime { get; set; } = DateTime.Now;
 
     [UsedImplicitly]
-    public Dictionary<int, string> KeyOffsets { get; set; } = new()
-    {
-        [-27] = "A0",
-        [-26] = "A♯0",
-        [-25] = "B0",
-        [-24] = "C1",
-        [-23] = "C♯1",
-        [-22] = "D1",
-        [-21] = "D♯1",
-        [-20] = "E1",
-        [-19] = "F1",
-        [-18] = "F♯1",
-        [-17] = "G1",
-        [-16] = "G♯1",
-        [-15] = "A1",
-        [-14] = "A♯1",
-        [-13] = "B1",
-        [-12] = "C2",
-        [-11] = "C♯2",
-        [-10] = "D2",
-        [-9] = "D♯2",
-        [-8] = "E2",
-        [-7] = "F2",
-        [-6] = "F♯2",
-        [-5] = "G2",
-        [-4] = "G♯2",
-        [-3] = "A2",
-        [-2] = "A♯2",
-        [-1] = "B2",
-        [0] = "C3",
-        [1] = "C♯3",
-        [2] = "D3",
-        [3] = "D♯3",
-        [4] = "E3",
-        [5] = "F3",
-        [6] = "F♯3",
-        [7] = "G3",
-        [8] = "G♯3",
-        [9] = "A3",
-        [10] = "A♯3",
-        [11] = "B3",
-        [12] = "C4 Middle C",
-        [13] = "C♯4",
-        [14] = "D4",
-        [15] = "D♯4",
-        [16] = "E4",
-        [17] = "F4",
-        [18] = "F♯4",
-        [19] = "G4",
-        [20] = "G♯4",
-        [21] = "A4 Concert Pitch",
-        [22] = "A♯4",
-        [23] = "B4",
-        [24] = "C5"
-    };
+    public Dictionary<int, string> KeyOffsets => MusicConstants.KeyOffsets;
 
     public GitVersion LatestVersion { get; set; } = new();
 
@@ -216,68 +139,11 @@ public class SettingsPageViewModel : Screen
 
     public string Key => $"{KeyOffsets[KeyOffset]}";
 
-    // KeyOptions for ComboBox binding
-    public List<KeyOption> KeyOptions { get; } = new()
-    {
-        new() { Value = -27, Display = "-27 (A0)" },
-        new() { Value = -26, Display = "-26 (A♯0)" },
-        new() { Value = -25, Display = "-25 (B0)" },
-        new() { Value = -24, Display = "-24 (C1)" },
-        new() { Value = -23, Display = "-23 (C♯1)" },
-        new() { Value = -22, Display = "-22 (D1)" },
-        new() { Value = -21, Display = "-21 (D♯1)" },
-        new() { Value = -20, Display = "-20 (E1)" },
-        new() { Value = -19, Display = "-19 (F1)" },
-        new() { Value = -18, Display = "-18 (F♯1)" },
-        new() { Value = -17, Display = "-17 (G1)" },
-        new() { Value = -16, Display = "-16 (G♯1)" },
-        new() { Value = -15, Display = "-15 (A1)" },
-        new() { Value = -14, Display = "-14 (A♯1)" },
-        new() { Value = -13, Display = "-13 (B1)" },
-        new() { Value = -12, Display = "-12 (C2)" },
-        new() { Value = -11, Display = "-11 (C♯2)" },
-        new() { Value = -10, Display = "-10 (D2)" },
-        new() { Value = -9, Display = "-9 (D♯2)" },
-        new() { Value = -8, Display = "-8 (E2)" },
-        new() { Value = -7, Display = "-7 (F2)" },
-        new() { Value = -6, Display = "-6 (F♯2)" },
-        new() { Value = -5, Display = "-5 (G2)" },
-        new() { Value = -4, Display = "-4 (G♯2)" },
-        new() { Value = -3, Display = "-3 (A2)" },
-        new() { Value = -2, Display = "-2 (A♯2)" },
-        new() { Value = -1, Display = "-1 (B2)" },
-        new() { Value = 0, Display = "0 (C3)" },
-        new() { Value = 1, Display = "+1 (C♯3)" },
-        new() { Value = 2, Display = "+2 (D3)" },
-        new() { Value = 3, Display = "+3 (D♯3)" },
-        new() { Value = 4, Display = "+4 (E3)" },
-        new() { Value = 5, Display = "+5 (F3)" },
-        new() { Value = 6, Display = "+6 (F♯3)" },
-        new() { Value = 7, Display = "+7 (G3)" },
-        new() { Value = 8, Display = "+8 (G♯3)" },
-        new() { Value = 9, Display = "+9 (A3)" },
-        new() { Value = 10, Display = "+10 (A♯3)" },
-        new() { Value = 11, Display = "+11 (B3)" },
-        new() { Value = 12, Display = "+12 (C4)" },
-        new() { Value = 13, Display = "+13 (C♯4)" },
-        new() { Value = 14, Display = "+14 (D4)" },
-        new() { Value = 15, Display = "+15 (D♯4)" },
-        new() { Value = 16, Display = "+16 (E4)" },
-        new() { Value = 17, Display = "+17 (F4)" },
-        new() { Value = 18, Display = "+18 (F♯4)" },
-        new() { Value = 19, Display = "+19 (G4)" },
-        new() { Value = 20, Display = "+20 (G♯4)" },
-        new() { Value = 21, Display = "+21 (A4)" },
-        new() { Value = 22, Display = "+22 (A♯4)" },
-        new() { Value = 23, Display = "+23 (B4)" },
-        new() { Value = 24, Display = "+24 (C5)" },
-        new() { Value = 25, Display = "+25 (C♯5)" },
-        new() { Value = 26, Display = "+26 (D5)" },
-        new() { Value = 27, Display = "+27 (D♯5)" }
-    };
+    // KeyOptions for ComboBox binding - generated from MusicConstants
+    public List<MusicConstants.KeyOption> KeyOptions { get; } = MusicConstants.GenerateKeyOptions();
 
-    private KeyOption? _selectedKeyOption;
-    public KeyOption? SelectedKeyOption
+    private MusicConstants.KeyOption? _selectedKeyOption;
+    public MusicConstants.KeyOption? SelectedKeyOption
     {
         get => _selectedKeyOption ??= KeyOptions.FirstOrDefault(k => k.Value == KeyOffset);
         set
@@ -289,37 +155,11 @@ public class SettingsPageViewModel : Screen
         }
     }
 
-    // SpeedOptions for ComboBox binding
-    public List<SpeedOption> SpeedOptions { get; } = new()
-    {
-        new() { Value = 0.1, Display = "0.1x" },
-        new() { Value = 0.2, Display = "0.2x" },
-        new() { Value = 0.3, Display = "0.3x" },
-        new() { Value = 0.4, Display = "0.4x" },
-        new() { Value = 0.5, Display = "0.5x" },
-        new() { Value = 0.6, Display = "0.6x" },
-        new() { Value = 0.7, Display = "0.7x" },
-        new() { Value = 0.8, Display = "0.8x" },
-        new() { Value = 0.9, Display = "0.9x" },
-        new() { Value = 1.0, Display = "1.0x" },
-        new() { Value = 1.1, Display = "1.1x" },
-        new() { Value = 1.2, Display = "1.2x" },
-        new() { Value = 1.3, Display = "1.3x" },
-        new() { Value = 1.4, Display = "1.4x" },
-        new() { Value = 1.5, Display = "1.5x" },
-        new() { Value = 1.6, Display = "1.6x" },
-        new() { Value = 1.7, Display = "1.7x" },
-        new() { Value = 1.8, Display = "1.8x" },
-        new() { Value = 1.9, Display = "1.9x" },
-        new() { Value = 2.0, Display = "2.0x" },
-        new() { Value = 2.5, Display = "2.5x" },
-        new() { Value = 3.0, Display = "3.0x" },
-        new() { Value = 3.5, Display = "3.5x" },
-        new() { Value = 4.0, Display = "4.0x" }
-    };
+    // SpeedOptions for ComboBox binding - generated from MusicConstants
+    public List<MusicConstants.SpeedOption> SpeedOptions { get; } = MusicConstants.GenerateSpeedOptions();
 
-    private SpeedOption? _selectedSpeedOption;
-    public SpeedOption? SelectedSpeedOption
+    private MusicConstants.SpeedOption? _selectedSpeedOption;
+    public MusicConstants.SpeedOption? SelectedSpeedOption
     {
         get => _selectedSpeedOption ??= SpeedOptions.FirstOrDefault(s => Math.Abs(s.Value - Speed) < 0.01) ?? SpeedOptions.First(s => s.Value == 1.0);
         set
