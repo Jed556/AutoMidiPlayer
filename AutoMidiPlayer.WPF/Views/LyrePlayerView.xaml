@@ -4,7 +4,7 @@
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 	xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-		mc:Ignorable="d"
+	mc:Ignorable="d"
 	xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
 	xmlns:modern="http://schemas.modernwpf.com/2019"
 	xmlns:s="https://github.com/canton7/Stylet"
@@ -21,54 +21,54 @@
 		</Grid.RowDefinitions>
 
 		<modern:SimpleStackPanel Orientation="Horizontal"
-				Grid.Row="0">
+								 Grid.Row="0">
 			<Button Command="{s:Action OpenFile}"
 					Background="Transparent">
 				<ui:FontIcon Glyph="&#xE8E5;"
-						FontFamily="Segoe MDL2 Assets"/>
+							 FontFamily="Segoe MDL2 Assets"/>
 			</Button>
 			<TextBlock VerticalAlignment="Center"
-					Text="{Binding Playlist.OpenedFile.Title, Mode=OneWay, FallbackValue=Open...}"/>
+					   Text="{Binding Playlist.OpenedFile.Title, Mode=OneWay, FallbackValue=Open...}"/>
 		</modern:SimpleStackPanel>
 
 		<modern:SimpleStackPanel
 			Grid.Row="1"
-				Margin="0,50"
+			Margin="0,50"
 			Orientation="Horizontal"
 			HorizontalAlignment="Center">
 
 			<Button s:View.ActionTarget="{Binding Playlist}"
 					Command="{s:Action ToggleShuffle}">
 				<ui:FontIcon Glyph="&#xE14B;"
-						FontFamily="Segoe MDL2 Assets"
+							 FontFamily="Segoe MDL2 Assets"
 							 Foreground="{Binding Playlist.ShuffleStateColor}"/>
 			</Button>
 
 			<Button Command="{s:Action Previous}"
 					IsHitTestVisible="{Binding CanHitPrevious}">
 				<ui:FontIcon Glyph="&#xE892;"
-						FontFamily="Segoe MDL2 Assets"/>
+							 FontFamily="Segoe MDL2 Assets"/>
 			</Button>
 			<Button Command="{s:Action PlayPause}"
 					IsHitTestVisible="{Binding CanHitPlayPause}">
 				<ui:FontIcon Glyph="{Binding PlayPauseIcon}"
-						FontFamily="Segoe MDL2 Assets"/>
+							 FontFamily="Segoe MDL2 Assets"/>
 			</Button>
 			<Button Command="{s:Action Next}"
 					IsHitTestVisible="{Binding CanHitNext}">
 				<ui:FontIcon Glyph="&#xE893;"
-						FontFamily="Segoe MDL2 Assets"/>
+							 FontFamily="Segoe MDL2 Assets"/>
 			</Button>
 
 			<Button s:View.ActionTarget="{Binding Playlist}"
 					Command="{s:Action ToggleLoop}">
 				<ui:FontIcon Glyph="{Binding Playlist.LoopStateString}"
-						FontFamily="Segoe MDL2 Assets"/>
+							 FontFamily="Segoe MDL2 Assets"/>
 			</Button>
 		</modern:SimpleStackPanel>
 
 		<Grid Row="2"
-				Margin="10,0">
+			  Margin="10,0">
 			<Grid.ColumnDefinitions>
 				<ColumnDefinition Width="Auto"/>
 				<ColumnDefinition Width="*"/>
@@ -76,54 +76,111 @@
 			</Grid.ColumnDefinitions>
 
 			<TextBlock Grid.Column="0"
-					VerticalAlignment="Center"
+					   VerticalAlignment="Center"
 					   Text="{Binding CurrentTime, StringFormat=m\\:ss}"/>
 			<Slider
 				Grid.Column="1"
-					Margin="10,0"
+				Margin="10,0"
 				IsMoveToPointEnabled="True"
 				IsEnabled="{Binding CanHitPlayPause}"
 				Value="{Binding SongPosition}"
 				Maximum="{Binding Path=MaximumTime.TotalSeconds}"/>
 			<TextBlock Grid.Column="2"
-					VerticalAlignment="Center"
+					   VerticalAlignment="Center"
 					   Text="{Binding MaximumTime, StringFormat=m\\:ss}"/>
 		</Grid>
 
 		<GroupBox Grid.Row="3"
-				Header="MIDI Tracks">
+				  Header="MIDI Tracks">
 			<Grid>
 				<Grid.RowDefinitions>
 					<RowDefinition Height="Auto"/>
 					<RowDefinition Height="*"/>
 				</Grid.RowDefinitions>
 				<Separator Grid.Row="0"
-						Margin="0,0,0,15"/>
+						   Margin="0,0,0,15"/>
 				<ScrollViewer Grid.Row="1">
 					<ItemsControl ItemsSource="{Binding MidiTracks}">
-						<ItemsControl.Resources>
-							<Style x:Key="TracksSwitch"
-									TargetType="modern:ToggleSwitch">
-								<Style.Triggers>
-									<Trigger Property="IsEnabled"
-											Value="False">
-										<Setter Property="ToolTip"
-												Value="Cannot disable track containing tempo settings."/>
-										<Setter Property="ToolTipService.ShowOnDisabled"
-												Value="True"/>
-									</Trigger>
-								</Style.Triggers>
-							</Style>
-						</ItemsControl.Resources>
-
 						<ItemsControl.ItemTemplate>
 							<DataTemplate>
-								<modern:ToggleSwitch
-									Style="{StaticResource TracksSwitch}"
-									IsOn="{Binding IsChecked}"
-										IsEnabled="{Binding CanBePlayed}"
-									OffContent="{Binding TrackName, TargetNullValue=Unknown}"
-									OnContent="{Binding TrackName, TargetNullValue=Unknown}"/>
+								<Border Margin="0,4"
+										Padding="12,8"
+										BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+										BorderThickness="1"
+										CornerRadius="6"
+										Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+									<Grid>
+										<Grid.ColumnDefinitions>
+											<ColumnDefinition Width="Auto"/>
+											<ColumnDefinition Width="*"/>
+										</Grid.ColumnDefinitions>
+
+										<!-- Toggle and Track Name -->
+										<modern:ToggleSwitch Grid.Column="0"
+															 IsOn="{Binding IsChecked}"
+															 IsEnabled="{Binding CanBePlayed}"
+															 OffContent="{Binding TrackName, TargetNullValue=Unknown}"
+															 OnContent="{Binding TrackName, TargetNullValue=Unknown}"
+															 MinWidth="180">
+											<modern:ToggleSwitch.Style>
+												<Style TargetType="modern:ToggleSwitch">
+													<Style.Triggers>
+														<Trigger Property="IsEnabled"
+																Value="False">
+															<Setter Property="ToolTip"
+																	Value="Cannot disable track containing tempo settings."/>
+															<Setter Property="ToolTipService.ShowOnDisabled"
+																	Value="True"/>
+														</Trigger>
+													</Style.Triggers>
+												</Style>
+											</modern:ToggleSwitch.Style>
+										</modern:ToggleSwitch>
+
+										<!-- Statistics -->
+										<modern:SimpleStackPanel Grid.Column="1"
+												Orientation="Horizontal"
+																 HorizontalAlignment="Right"
+												Spacing="16">
+											<StackPanel ToolTip="Total number of notes">
+												<TextBlock Text="Notes"
+														FontSize="10"
+														Opacity="0.6"
+														HorizontalAlignment="Center"/>
+												<TextBlock Text="{Binding NotesCountDisplay}"
+														FontWeight="SemiBold"
+														HorizontalAlignment="Center"/>
+											</StackPanel>
+											<StackPanel ToolTip="Percentage of black keys (sharps/flats)">
+												<TextBlock Text="Black Keys"
+														FontSize="10"
+														Opacity="0.6"
+														HorizontalAlignment="Center"/>
+												<TextBlock Text="{Binding BlackKeyRatioDisplay}"
+														FontWeight="SemiBold"
+														HorizontalAlignment="Center"/>
+											</StackPanel>
+											<StackPanel ToolTip="Average note duration">
+												<TextBlock Text="Avg Duration"
+														FontSize="10"
+														Opacity="0.6"
+														HorizontalAlignment="Center"/>
+												<TextBlock Text="{Binding AverageDurationDisplay}"
+														FontWeight="SemiBold"
+														HorizontalAlignment="Center"/>
+											</StackPanel>
+											<StackPanel ToolTip="Ratio of frequently repeating notes">
+												<TextBlock Text="Frequent"
+														FontSize="10"
+														Opacity="0.6"
+														HorizontalAlignment="Center"/>
+												<TextBlock Text="{Binding FrequentNotesRatioDisplay}"
+														FontWeight="SemiBold"
+														HorizontalAlignment="Center"/>
+											</StackPanel>
+										</modern:SimpleStackPanel>
+									</Grid>
+								</Border>
 							</DataTemplate>
 						</ItemsControl.ItemTemplate>
 					</ItemsControl>
@@ -132,7 +189,7 @@
 		</GroupBox>
 
 		<GroupBox Grid.Row="4"
-				Header="MIDI Instrument">
+				  Header="MIDI Instrument">
 			<modern:SimpleStackPanel Orientation="Horizontal">
 				<ComboBox
 					ItemsSource="{Binding MidiInputs}"
@@ -140,7 +197,7 @@
 					DisplayMemberPath="DeviceName"/>
 				<Button Command="{s:Action RefreshDevices}">
 					<ui:FontIcon Glyph="&#xE72C;"
-							FontFamily="Segoe MDL2 Assets"/>
+								 FontFamily="Segoe MDL2 Assets"/>
 				</Button>
 			</modern:SimpleStackPanel>
 		</GroupBox>
