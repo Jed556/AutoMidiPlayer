@@ -5,9 +5,9 @@ using System.Threading.Tasks;
 using System.Windows.Media;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Entities;
+using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.ModernWPF.Errors;
 using Melanchall.DryWetMidi.Core;
-using Microsoft.Win32;
 using ModernWpf;
 using Stylet;
 using StyletIoC;
@@ -15,7 +15,7 @@ using MidiFile = AutoMidiPlayer.Data.Midi.MidiFile;
 
 namespace AutoMidiPlayer.WPF.ViewModels;
 
-public class PlaylistViewModel : Screen
+public class QueueViewModel : Screen
 {
     public enum LoopMode
     {
@@ -25,15 +25,20 @@ public class PlaylistViewModel : Screen
         All
     }
 
+    private static readonly Settings Settings = Settings.Default;
     private readonly IContainer _ioc;
     private readonly IEventAggregator _events;
     private readonly MainWindowViewModel _main;
 
-    public PlaylistViewModel(IContainer ioc, MainWindowViewModel main)
+    public QueueViewModel(IContainer ioc, MainWindowViewModel main)
     {
         _ioc = ioc;
         _events = ioc.Get<IEventAggregator>();
         _main = main;
+
+        // Load saved queue settings
+        Shuffle = Settings.QueueShuffle;
+        Loop = (LoopMode)Settings.QueueLoopMode;
     }
 
     public BindableCollection<MidiFile> FilteredTracks => string.IsNullOrWhiteSpace(FilterText)
@@ -94,80 +99,83 @@ public class PlaylistViewModel : Screen
         return playlist.ElementAtOrDefault(next);
     }
 
-    public async Task AddFiles(IEnumerable<string> files)
+    public void AddFiles(IEnumerable<MidiFile> files)
     {
         foreach (var file in files)
         {
-            await AddFile(file);
+            if (!Tracks.Contains(file))
+                Tracks.Add(file);
         }
 
         ShuffledTracks = new(Tracks.OrderBy(_ => Guid.NewGuid()));
-        RefreshPlaylist();
+        OnQueueModified();
 
         var next = Next();
         if (OpenedFile is null && Tracks.Count > 0 && next is not null)
             _events.Publish(Next());
     }
 
-    public async Task AddFiles(IEnumerable<History> files)
+    public void AddFile(MidiFile file)
     {
-        foreach (var file in files)
+        if (!Tracks.Contains(file))
         {
-            await AddFile(file);
+            Tracks.Add(file);
+            ShuffledTracks = new(Tracks.OrderBy(_ => Guid.NewGuid()));
+            OnQueueModified();
         }
-
-        RefreshPlaylist();
     }
 
-    public async Task ClearPlaylist()
+    public void PlayFromQueue(MidiFile? file)
     {
-        await using var db = _ioc.Get<LyreContext>();
-        db.History.RemoveRange(db.History);
-        await db.SaveChangesAsync();
+        if (file is not null)
+        {
+            _events.Publish(file);
+        }
+    }
 
+    public void ClearQueue()
+    {
         Tracks.Clear();
         FilteredTracks.Clear();
         History.Clear();
 
-
         OpenedFile = null;
         SelectedFile = null;
+        SaveQueue();
     }
 
-    public async Task OpenFile()
-    {
-        var openFileDialog = new OpenFileDialog
-        {
-            Filter = "MIDI file|*.mid;*.midi|All files (*.*)|*.*",
-            Multiselect = true
-        };
-
-        if (openFileDialog.ShowDialog() != true)
-            return;
-
-        await AddFiles(openFileDialog.FileNames);
-    }
-
-    public async Task RemoveTrack()
+    public void RemoveTrack()
     {
         if (SelectedFile is not null)
         {
-            await using var db = _ioc.Get<LyreContext>();
-            db.History.Remove(SelectedFile.History);
-            await db.SaveChangesAsync();
-
             OpenedFile = OpenedFile == SelectedFile ? null : OpenedFile;
             Tracks.Remove(SelectedFile);
-
-            RefreshPlaylist();
+            OnQueueModified();
         }
     }
 
-    public async Task UpdateHistory()
+    public void MoveUp()
     {
-        await using var db = _ioc.Get<LyreContext>();
-        db.UpdateRange(Tracks.Select(t => t.History));
-        await db.SaveChangesAsync();
+        if (SelectedFile is null) return;
+
+        var index = Tracks.IndexOf(SelectedFile);
+        if (index > 0)
+        {
+            Tracks.Move(index, index - 1);
+            OnQueueModified();
+        }
+    }
+
+    public void MoveDown()
+    {
+        if (SelectedFile is null) return;
+
+        var index = Tracks.IndexOf(SelectedFile);
+        if (index < Tracks.Count - 1)
+        {
+            Tracks.Move(index, index + 1);
+            OnQueueModified();
+        }
     }
 
     public void OnFileChanged(object sender, EventArgs e)
@@ -181,12 +189,12 @@ public class PlaylistViewModel : Screen
         if (OpenedFile is null) return;
 
         var transpose = SettingsPageViewModel.TransposeNames
-            .FirstOrDefault(e => e.Key == OpenedFile.History.Transpose);
+            .FirstOrDefault(e => e.Key == OpenedFile.Song.Transpose);
 
-        if (OpenedFile.History.Transpose is not null)
+        if (OpenedFile.Song.Transpose is not null)
             _main.SettingsView.Transpose = transpose;
-        _main.SettingsView.KeyOffset = OpenedFile.History.Key;
-        _main.SettingsView.Speed = OpenedFile.History.Speed ?? 1.0;
+        _main.SettingsView.KeyOffset = OpenedFile.Song.Key;
+        _main.SettingsView.Speed = OpenedFile.Song.Speed ?? 1.0;
     }
 
     public void Previous()
@@ -202,6 +210,10 @@ public class PlaylistViewModel : Screen
 
         var newState = (loopState + 1) % loopStates;
         Loop = (LoopMode)newState;
+
+        // Save to settings
+        Settings.QueueLoopMode = (int)Loop;
+        Settings.Save();
     }
 
     public void ToggleShuffle()
@@ -211,35 +223,62 @@ public class PlaylistViewModel : Screen
         if (Shuffle)
             ShuffledTracks = new(Tracks.OrderBy(_ => Guid.NewGuid()));
 
-        RefreshPlaylist();
+        // Save to settings
+        Settings.QueueShuffle = Shuffle;
+        Settings.Save();
+
+        RefreshQueue();
     }
 
-    private async Task AddFile(History history, ReadingSettings? settings = null)
+    /// <summary>
+    /// Save queue song IDs to settings
+    /// </summary>
+    public void SaveQueue()
     {
-        try
-        {
-            Tracks.Add(new(history, settings));
-        }
-        catch (Exception e)
-        {
-            settings ??= new();
-            if (await ExceptionHandler.TryHandleException(e, settings))
-                await AddFile(history, settings);
-        }
+        var songIds = Tracks.Select(t => t.Song.Id.ToString());
+        Settings.QueueSongIds = string.Join(",", songIds);
+        Settings.Save();
     }
 
-    private async Task AddFile(string fileName)
+    /// <summary>
+    /// Restore queue from saved song IDs
+    /// </summary>
+    public void RestoreQueue(IEnumerable<MidiFile> availableTracks)
     {
-        var history = new History(fileName, _main.SettingsView.KeyOffset);
+        if (string.IsNullOrEmpty(Settings.QueueSongIds)) return;
 
-        await AddFile(history);
+        var savedIds = Settings.QueueSongIds
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(id => Guid.TryParse(id, out var guid) ? guid : Guid.Empty)
+            .Where(g => g != Guid.Empty)
+            .ToList();
 
-        await using var db = _ioc.Get<LyreContext>();
-        db.History.Add(history);
-        await db.SaveChangesAsync();
+        var trackDict = availableTracks.ToDictionary(t => t.Song.Id);
+
+        foreach (var id in savedIds)
+        {
+            if (trackDict.TryGetValue(id, out var track) && !Tracks.Contains(track))
+            {
+                Tracks.Add(track);
+            }
+        }
+
+        if (Shuffle)
+            ShuffledTracks = new(Tracks.OrderBy(_ => Guid.NewGuid()));
+
+        RefreshQueue();
     }
 
-    private void RefreshPlaylist()
+    /// <summary>
+    /// Called when queue is modified to auto-save
+    /// </summary>
+    public void OnQueueModified()
+    {
+        SaveQueue();
+        RefreshQueue();
+    }
+
+    private void RefreshQueue()
     {
         var playlist = GetPlaylist();
         foreach (var file in playlist)

@@ -1,16 +1,17 @@
-﻿using System;
+using System;
 
 namespace AutoMidiPlayer.Data.Entities;
 
-public class History
+public class Song
 {
-    protected History() { }
+    protected Song() { }
 
-    public History(string path, int key)
+    public Song(string path, int key)
     {
         Key = key;
         Path = path;
         Transpose = Entities.Transpose.Ignore; // Default to Ignore
+        DateAdded = DateTime.Now;
     }
 
     public Guid Id { get; set; }
@@ -22,6 +23,10 @@ public class History
     public string? Title { get; set; }
 
     public string? Author { get; set; }
+
+    public string? Album { get; set; }
+
+    public DateTime? DateAdded { get; set; }
 
     public Transpose? Transpose { get; set; } = Entities.Transpose.Ignore;
 

@@ -93,6 +93,34 @@
                 </modern:SimpleStackPanel>
             </GroupBox>
 
+            <GroupBox Header="MIDI Folder">
+                <modern:SimpleStackPanel Orientation="Horizontal">
+                    <Button Command="{s:Action BrowseMidiFolder}"
+                            Background="Transparent"
+                            ToolTip="Browse for MIDI folder">
+                        <ui:FontIcon Glyph="&#xE838;"
+                                     FontFamily="Segoe MDL2 Assets"/>
+                    </Button>
+                    <TextBlock Text="{Binding MidiFolder, TargetNullValue='No folder selected'}"
+                               VerticalAlignment="Center"
+                               MinWidth="200"/>
+                    <Button Command="{s:Action ScanMidiFolder}"
+                            Background="Transparent"
+                            ToolTip="Refresh/Scan folder for new MIDI files"
+                            Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                        <ui:FontIcon Glyph="&#xE72C;"
+                                     FontFamily="Segoe MDL2 Assets"/>
+                    </Button>
+                    <Button Command="{s:Action ClearMidiFolder}"
+                            Background="Transparent"
+                            ToolTip="Clear MIDI folder"
+                            Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                        <ui:FontIcon Glyph="&#xE711;"
+                                     FontFamily="Segoe MDL2 Assets"/>
+                    </Button>
+                </modern:SimpleStackPanel>
+            </GroupBox>
+
             <GroupBox Header="Version">
                 <modern:SimpleStackPanel>
                     <modern:SimpleStackPanel Orientation="Horizontal">

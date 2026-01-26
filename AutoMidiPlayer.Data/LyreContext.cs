@@ -7,5 +7,5 @@ public class LyreContext : DbContext
 {
     public LyreContext(DbContextOptions<LyreContext> options) : base(options) { }
 
-    public DbSet<History> History { get; set; } = null!;
+    public DbSet<Song> Songs { get; set; } = null!;
 }

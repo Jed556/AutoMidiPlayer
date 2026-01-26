@@ -92,11 +92,11 @@ public class LyrePlayerViewModel : Screen,
     {
         get
         {
-            if (Playlist.Loop is not PlaylistViewModel.LoopMode.Playlist)
+            if (Queue.Loop is not QueueViewModel.LoopMode.Playlist)
                 return true;
 
-            var last = Playlist.GetPlaylist().LastOrDefault();
-            return Playlist.OpenedFile != last;
+            var last = Queue.GetPlaylist().LastOrDefault();
+            return Queue.OpenedFile != last;
         }
     }
 
@@ -114,7 +114,7 @@ public class LyrePlayerViewModel : Screen,
         }
     }
 
-    public bool CanHitPrevious => CurrentTime > TimeSpan.FromSeconds(3) || Playlist.History.Count > 1;
+    public bool CanHitPrevious => CurrentTime > TimeSpan.FromSeconds(3) || Queue.History.Count > 1;
 
     public double SongPosition
     {
@@ -126,13 +126,13 @@ public class LyrePlayerViewModel : Screen,
 
     public Playback? Playback { get; private set; }
 
-    public PlaylistViewModel Playlist => _main.PlaylistView;
+    public QueueViewModel Queue => _main.QueueView;
 
     public string PlayPauseIcon => Playback?.IsRunning ?? false ? PauseIcon : PlayIcon;
 
     public TimeSpan CurrentTime => _songPosition;
 
-    public TimeSpan MaximumTime => Playlist.OpenedFile?.Duration ?? TimeSpan.Zero;
+    public TimeSpan MaximumTime => Queue.OpenedFile?.Duration ?? TimeSpan.Zero;
 
     private MusicDisplayProperties? Display =>
         _player?.SystemMediaTransportControls.DisplayUpdater.MusicProperties;
@@ -150,7 +150,7 @@ public class LyrePlayerViewModel : Screen,
     {
         if (!message.Merge)
         {
-            Playlist.OpenedFile?.InitializeMidi();
+            Queue.OpenedFile?.InitializeMidi();
             InitializeTracks();
         }
 
@@ -160,8 +160,8 @@ public class LyrePlayerViewModel : Screen,
     public async void Handle(MidiFile file)
     {
         CloseFile();
-        Playlist.OpenedFile = file;
-        Playlist.History.Push(file);
+        Queue.OpenedFile = file;
+        Queue.History.Push(file);
 
         // Re-read the MIDI file from disk to restore all tracks
         // (InitializePlayback modifies the in-memory MIDI by removing unchecked tracks)
@@ -172,17 +172,17 @@ public class LyrePlayerViewModel : Screen,
 
     public async void Handle(MidiTrack track)
     {
-        // Save disabled tracks state to history
-        if (Playlist.OpenedFile is not null)
+        // Save disabled tracks state to song
+        if (Queue.OpenedFile is not null)
         {
             var disabledIndices = MidiTracks
                 .Where(t => !t.IsChecked)
                 .Select(t => t.Index);
-            Playlist.OpenedFile.History.DisabledTracks = string.Join(",", disabledIndices);
+            Queue.OpenedFile.Song.DisabledTracks = string.Join(",", disabledIndices);
 
             // Save directly to database
             await using var db = _ioc.Get<LyreContext>();
-            db.History.Update(Playlist.OpenedFile.History);
+            db.Songs.Update(Queue.OpenedFile.Song);
             await db.SaveChangesAsync();
         }
 
@@ -198,7 +198,8 @@ public class LyrePlayerViewModel : Screen,
 
     public async Task OpenFile()
     {
-        await Playlist.OpenFile();
+        // Note: OpenFile has been removed from QueueViewModel
+        // Songs should be added via SongsView instead
         UpdateButtons();
     }
 
@@ -245,13 +246,13 @@ public class LyrePlayerViewModel : Screen,
         MoveSlider(TimeSpan.Zero);
 
         Playback = null;
-        Playlist.OpenedFile = null;
+        Queue.OpenedFile = null;
         SettingsPage.Transpose = null;
     }
 
     public async void Next()
     {
-        var next = Playlist.Next();
+        var next = Queue.Next();
         if (next is null)
         {
             if (Playback is not null)
@@ -325,7 +326,7 @@ public class LyrePlayerViewModel : Screen,
             Playback?.Start();
         }
         else
-            Playlist.Previous();
+            Queue.Previous();
     }
 
     public void RefreshDevices()
@@ -360,15 +361,15 @@ public class LyrePlayerViewModel : Screen,
             Controls.IsPreviousEnabled = CanHitPrevious;
 
             Controls.PlaybackStatus =
-                Playlist.OpenedFile is null ? MediaPlaybackStatus.Closed :
+                Queue.OpenedFile is null ? MediaPlaybackStatus.Closed :
                 Playback is null ? MediaPlaybackStatus.Stopped :
                 Playback.IsRunning ? MediaPlaybackStatus.Playing :
                 MediaPlaybackStatus.Paused;
 
-            var file = Playlist.OpenedFile;
+            var file = Queue.OpenedFile;
             if (file is not null)
             {
-                var position = $"{file.Position}/{Playlist.GetPlaylist().Count}";
+                var position = $"{file.Position}/{Queue.GetPlaylist().Count}";
 
                 Display.Title = file.Title;
                 Display.Artist = $"Playing {position} {CurrentTime:mm\\:ss}";
@@ -380,21 +381,21 @@ public class LyrePlayerViewModel : Screen,
 
     private int ApplyNoteSettings(Keyboard.Instrument instrument, int noteId)
     {
-        noteId -= Playlist.OpenedFile?.History.Key ?? SettingsPage.KeyOffset;
+        noteId -= Queue.OpenedFile?.Song.Key ?? SettingsPage.KeyOffset;
         return Settings.TransposeNotes && SettingsPage.Transpose is not null
             ? LyrePlayer.TransposeNote(instrument, ref noteId, SettingsPage.Transpose.Value.Key)
             : noteId;
     }
 
-    private async Task InitializePlayback()
+    private Task InitializePlayback()
     {
         Playback?.Stop();
         Playback?.Dispose();
 
-        if (Playlist.OpenedFile is null)
-            return;
+        if (Queue.OpenedFile is null)
+            return Task.CompletedTask;
 
-        var midi = Playlist.OpenedFile.Midi;
+        var midi = Queue.OpenedFile.Midi;
 
         midi.Chunks.Clear();
         midi.Chunks.AddRange(MidiTracks
@@ -410,34 +411,8 @@ public class LyrePlayerViewModel : Screen,
             });
         }
 
-        // Check for notes that cannot be played even after transposing.
-        var outOfRange = midi.GetNotes().Where(n => !LyrePlayer.TryGetKey(
-            SettingsPage.SelectedLayout.Key,
-            SettingsPage.SelectedInstrument.Key,
-            ApplyNoteSettings(SettingsPage.SelectedInstrument.Key, n.NoteNumber), out _));
-
-        if (Playlist.OpenedFile.History.Transpose is null && outOfRange.Any())
-        {
-            await Application.Current.Dispatcher.Invoke(async () =>
-            {
-                var options = new Enum[] { Transpose.Up, Transpose.Down };
-                var exceptionDialog = new ErrorContentDialog(
-                    new MissingNotesException(
-                        "Some notes cannot be played by this instrument, and may play incorrectly. " +
-                        "This can be solved by snapping to the nearest semitone. " +
-                        "You can choose to shift the notes up or down, or ignore the missing notes."),
-                    options, "Ignore");
-
-                var result = await exceptionDialog.ShowAsync();
-
-                SettingsPage.Transpose = result switch
-                {
-                    ContentDialogResult.Primary => TransposeNames.ElementAt(1),
-                    ContentDialogResult.Secondary => TransposeNames.ElementAt(2),
-                    _ => TransposeNames.ElementAt(0)
-                };
-            });
-        }
+        // Transpose setting is now handled per-song in the import dialog
+        // The song's transpose setting (defaulting to Ignore) will be used
 
         var playback = midi.GetPlayback();
 
@@ -464,18 +439,19 @@ public class LyrePlayerViewModel : Screen,
         };
 
         UpdateButtons();
+        return Task.CompletedTask;
     }
 
     private void InitializeTracks()
     {
-        if (Playlist.OpenedFile?.Midi is null)
+        if (Queue.OpenedFile?.Midi is null)
             return;
 
-        // Get disabled track indices from history
+        // Get disabled track indices from song
         var disabledIndices = new HashSet<int>();
-        if (!string.IsNullOrEmpty(Playlist.OpenedFile.History.DisabledTracks))
+        if (!string.IsNullOrEmpty(Queue.OpenedFile.Song.DisabledTracks))
         {
-            foreach (var indexStr in Playlist.OpenedFile.History.DisabledTracks.Split(','))
+            foreach (var indexStr in Queue.OpenedFile.Song.DisabledTracks.Split(','))
             {
                 if (int.TryParse(indexStr.Trim(), out var index))
                     disabledIndices.Add(index);
@@ -483,7 +459,7 @@ public class LyrePlayerViewModel : Screen,
         }
 
         MidiTracks.Clear();
-        var trackChunks = Playlist.OpenedFile.Midi.GetTrackChunks().ToList();
+        var trackChunks = Queue.OpenedFile.Midi.GetTrackChunks().ToList();
         for (var i = 0; i < trackChunks.Count; i++)
         {
             var isChecked = !disabledIndices.Contains(i);

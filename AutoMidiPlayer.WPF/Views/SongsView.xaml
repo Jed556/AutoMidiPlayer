@@ -1,0 +1,361 @@
+<UserControl
+    x:Class="AutoMidiPlayer.WPF.Views.SongsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    mc:Ignorable="d"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:modern="http://schemas.modernwpf.com/2019"
+    xmlns:s="https://github.com/canton7/Stylet"
+    xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
+    xmlns:midi="clr-namespace:AutoMidiPlayer.Data.Midi;assembly=AutoMidiPlayer.Data"
+    xmlns:modernWpf="clr-namespace:AutoMidiPlayer.WPF.ModernWPF"
+    d:DataContext="{d:DesignInstance Type=viewModels:SongsViewModel}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Top Bar: Search and Actions -->
+        <Grid Grid.Row="0"
+                Margin="0,0,0,5">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Search Box with Add Button -->
+            <modern:SimpleStackPanel Grid.Column="0"
+                                     Orientation="Horizontal"
+                                     Spacing="4">
+                <ui:TextBox PlaceholderText="Search songs..."
+                            Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                            Width="250"
+                            VerticalAlignment="Center"/>
+                <Button Command="{s:Action OpenFile}"
+                        Background="Transparent"
+                        Padding="8"
+                        ToolTip="Import MIDI files">
+                    <ui:FontIcon Glyph="&#xE710;"
+                                 FontFamily="Segoe MDL2 Assets"
+                                 FontSize="16"/>
+                </Button>
+                <TextBlock Margin="10,0"
+                           VerticalAlignment="Center"
+                           Opacity="0.7"
+                           Style="{DynamicResource BodyTextBlockStyle}">
+                    <Run Text="{Binding Tracks.Count, Mode=OneWay}"/> songs
+                </TextBlock>
+            </modern:SimpleStackPanel>
+
+            <modern:SimpleStackPanel Grid.Column="1"
+                                     Orientation="Horizontal"
+                                     Spacing="4">
+                <Button Command="{s:Action DeleteSelected}"
+                        Content="Remove"
+                        ToolTip="Remove selected"/>
+                <Button Command="{s:Action ClearSongs}"
+                        Content="Clear All"/>
+            </modern:SimpleStackPanel>
+        </Grid>
+
+        <!-- Sort Dropdown Bar (Spotify-style) -->
+        <Grid Grid.Row="1"
+                Margin="0,0,0,5">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <modern:SimpleStackPanel Grid.Column="0"
+                                     Orientation="Horizontal"
+                                     Spacing="8">
+                <!-- Sort Dropdown -->
+                <ComboBox Width="150"
+                          SelectedIndex="{Binding SortModeIndex, Mode=TwoWay}"
+                          ToolTip="Sort by">
+                    <ComboBoxItem Content="Custom order"/>
+                    <ComboBoxItem Content="Title"/>
+                    <ComboBoxItem Content="Recently added"/>
+                    <ComboBoxItem Content="Duration"/>
+                </ComboBox>
+
+                <!-- Sort Direction Toggle -->
+                <Button Command="{s:Action ToggleSortDirection}"
+                        Background="Transparent"
+                        Padding="8,6"
+                        ToolTip="Toggle sort direction">
+                    <ui:FontIcon Glyph="{Binding SortDirectionIcon}"
+                                 FontFamily="Segoe MDL2 Assets"
+                                 FontSize="12"/>
+                </Button>
+            </modern:SimpleStackPanel>
+        </Grid>
+
+        <!-- Column Headers (Spotify-style) -->
+        <Border Grid.Row="2"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="12,8"
+                Margin="0,0,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="40"/>
+                    <ColumnDefinition Width="*"
+                            MinWidth="150"/>
+                    <ColumnDefinition Width="100"/>
+                    <ColumnDefinition Width="60"/>
+                    <ColumnDefinition Width="70"/>
+                    <ColumnDefinition Width="80"/>
+                    <ColumnDefinition Width="60"/>
+                    <ColumnDefinition Width="40"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0"
+                           Text="#"
+                           Opacity="0.6"
+                           FontSize="12"/>
+                <Button Grid.Column="1"
+                        Content="Title"
+                        Background="Transparent"
+                        HorizontalAlignment="Left"
+                        Padding="0"
+                        Command="{s:Action SetSortTitle}"
+                        Opacity="0.6"
+                        FontSize="12"/>
+                <TextBlock Grid.Column="2"
+                           Text="Album"
+                           Opacity="0.6"
+                           FontSize="12"/>
+                <TextBlock Grid.Column="3"
+                           Text="Key"
+                           Opacity="0.6"
+                           FontSize="12"/>
+                <TextBlock Grid.Column="4"
+                           Text="Transpose"
+                           Opacity="0.6"
+                           FontSize="12"/>
+                <Button Grid.Column="5"
+                        Content="Date Added"
+                        Background="Transparent"
+                        HorizontalAlignment="Left"
+                        Padding="0"
+                        Command="{s:Action SetSortDateAdded}"
+                        Opacity="0.6"
+                        FontSize="12"/>
+                <Button Grid.Column="6"
+                        Background="Transparent"
+                        HorizontalAlignment="Right"
+                        Padding="0"
+                        Command="{s:Action SetSortDuration}"
+                        ToolTip="Duration">
+                    <ui:FontIcon Glyph="&#xE916;"
+                                 FontFamily="Segoe MDL2 Assets"
+                                 FontSize="12"
+                                 Opacity="0.6"/>
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- Songs List (Spotify-style rows) with multi-select -->
+        <ListView x:Name="SongsListView"
+                  Grid.Row="3"
+                  Margin="0,0,0,5"
+                  ItemsSource="{Binding SortedTracks}"
+                  VirtualizingPanel.VirtualizationMode="Recycling"
+                  MouseDoubleClick="{s:Action OnFileDoubleClick}"
+                  SelectedItem="{Binding SelectedFile}"
+                  SelectionMode="Extended"
+                  SelectionChanged="SongsListView_SelectionChanged"
+                  BorderThickness="0"
+                  Background="Transparent">
+            <ListView.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Header="Add to Queue"
+                            Click="AddToQueue_Click">
+                        <MenuItem.Icon>
+                            <ui:FontIcon Glyph="&#xE710;"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="12"/>
+                        </MenuItem.Icon>
+                    </MenuItem>
+                    <MenuItem Header="Edit"
+                            Click="EditSong_Click">
+                        <MenuItem.Icon>
+                            <ui:FontIcon Glyph="&#xE70F;"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="12"/>
+                        </MenuItem.Icon>
+                    </MenuItem>
+                    <Separator/>
+                    <MenuItem Header="Delete"
+                            Click="DeleteSong_Click">
+                        <MenuItem.Icon>
+                            <ui:FontIcon Glyph="&#xE74D;"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="12"/>
+                        </MenuItem.Icon>
+                    </MenuItem>
+                </ContextMenu>
+            </ListView.ContextMenu>
+            <ListView.ItemTemplate>
+                <DataTemplate DataType="midi:MidiFile">
+                    <Grid Margin="0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="40"/>
+                            <ColumnDefinition Width="*"
+                                    MinWidth="150"/>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="60"/>
+                            <ColumnDefinition Width="70"/>
+                            <ColumnDefinition Width="80"/>
+                            <ColumnDefinition Width="60"/>
+                            <ColumnDefinition Width="40"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- # Position / Play Button on hover -->
+                        <Grid Grid.Column="0">
+                            <TextBlock x:Name="PositionText"
+                                       Text="{Binding Position}"
+                                       VerticalAlignment="Center"
+                                       Opacity="0.6"/>
+                            <Button x:Name="PlayButton"
+                                    Visibility="Collapsed"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Padding="0"
+                                    VerticalAlignment="Center"
+                                    HorizontalAlignment="Left"
+                                    Click="PlayButton_Click"
+                                    Tag="{Binding}"
+                                    ToolTip="Play">
+                                <ui:FontIcon Glyph="&#xF5B0;"
+                                             FontFamily="Segoe MDL2 Assets"
+                                             FontSize="14"/>
+                            </Button>
+                        </Grid>
+
+                        <!-- Title + Author (Spotify-style stacked) -->
+                        <StackPanel Grid.Column="1"
+                                    VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Title}"
+                                       TextTrimming="CharacterEllipsis"
+                                       Style="{DynamicResource BodyTextBlockStyle}"/>
+                            <TextBlock Text="{Binding Song.Author}"
+                                       TextTrimming="CharacterEllipsis"
+                                       FontSize="12"
+                                       Opacity="0.6"
+                                       Visibility="{Binding Song.Author, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                        </StackPanel>
+
+                        <!-- Album -->
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding Song.Album}"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
+                                   Opacity="0.7"/>
+
+                        <!-- Key -->
+                        <TextBlock Grid.Column="3"
+                                   Text="{Binding Song.Key, Converter={x:Static modernWpf:KeyToNoteConverter.Instance}}"
+                                   VerticalAlignment="Center"
+                                   Opacity="0.7"/>
+
+                        <!-- Transpose -->
+                        <TextBlock Grid.Column="4"
+                                   Text="{Binding Song.Transpose, Converter={x:Static modernWpf:TransposeToDisplayConverter.Instance}}"
+                                   ToolTip="{Binding Song.Transpose, Converter={x:Static modernWpf:TransposeToTooltipConverter.Instance}}"
+                                   VerticalAlignment="Center"
+                                   Opacity="0.6"/>
+
+                        <!-- Date Added -->
+                        <TextBlock Grid.Column="5"
+                                   Text="{Binding Song.DateAdded, StringFormat={}{0:MMM d, yyyy}}"
+                                   VerticalAlignment="Center"
+                                   Opacity="0.6"/>
+
+                        <!-- Duration -->
+                        <TextBlock Grid.Column="6"
+                                   Text="{Binding Duration, StringFormat=m\\:ss}"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Right"
+                                   Opacity="0.6"/>
+
+                        <!-- 3-dot menu -->
+                        <Button Grid.Column="7"
+                                x:Name="MenuButton"
+                                Visibility="Collapsed"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Padding="8,0"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
+                                ToolTip="More options"
+                                Click="MenuButton_Click"
+                                Tag="{Binding}">
+                            <ui:FontIcon Glyph="&#xE712;"
+                                         FontFamily="Segoe MDL2 Assets"
+                                         FontSize="14"
+                                         Opacity="0.6"/>
+                        </Button>
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem"
+                        BasedOn="{StaticResource DefaultListViewItemStyle}">
+                    <Setter Property="HorizontalContentAlignment"
+                            Value="Stretch"/>
+                    <Setter Property="Padding"
+                            Value="12,4"/>
+                    <EventSetter Event="MouseEnter"
+                            Handler="ListViewItem_MouseEnter"/>
+                    <EventSetter Event="MouseLeave"
+                            Handler="ListViewItem_MouseLeave"/>
+                </Style>
+            </ListView.ItemContainerStyle>
+        </ListView>
+
+        <!-- Bottom Actions -->
+        <Border Grid.Row="4"
+                Margin="0,5"
+                Padding="8"
+                CornerRadius="4"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Drag hint (only for Custom sort) -->
+                <TextBlock Grid.Column="0"
+                           VerticalAlignment="Center"
+                           Opacity="0.5"
+                           FontSize="11"
+                           Visibility="{Binding IsCustomSort, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                    Drag rows to reorder
+                </TextBlock>
+
+                <!-- Add to Queue actions -->
+                <modern:SimpleStackPanel Grid.Column="2"
+                                         Orientation="Horizontal"
+                                         Spacing="4">
+                    <Button Command="{s:Action AddToQueue}"
+                            Content="Add to Queue"
+                            Padding="12,6"/>
+                    <Button Command="{s:Action AddAllToQueue}"
+                            Content="Add All"
+                            Padding="12,6"/>
+                </modern:SimpleStackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

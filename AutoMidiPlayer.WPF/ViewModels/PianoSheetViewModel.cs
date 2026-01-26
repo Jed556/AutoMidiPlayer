@@ -30,7 +30,7 @@ public class PianoSheetViewModel : Screen
         set => SettingsPage.SelectedLayout = value;
     }
 
-    public PlaylistViewModel PlaylistView => _main.PlaylistView;
+    public QueueViewModel QueueView => _main.QueueView;
 
     public SettingsPageViewModel SettingsPage => _main.SettingsView;
 
@@ -59,7 +59,7 @@ public class PianoSheetViewModel : Screen
 
     public void Update()
     {
-        if (PlaylistView.OpenedFile is null)
+        if (QueueView.OpenedFile is null)
             return;
 
         if (Bars == 0 && Beats == 0)
@@ -69,7 +69,7 @@ public class PianoSheetViewModel : Screen
         var instrument = SettingsPage.SelectedInstrument.Key;
 
         // Ticks is too small so it is not included
-        var split = PlaylistView.OpenedFile.Split(Bars, Beats, 0);
+        var split = QueueView.OpenedFile.Split(Bars, Beats, 0);
 
         var sb = new StringBuilder();
         foreach (var bar in split)

@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Windows;
 using System.Windows.Controls;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.WPF.Views;
@@ -22,6 +23,8 @@ public class MainWindowViewModel : Conductor<IScreen>
     private readonly IContainer _ioc;
     private readonly IThemeService _theme;
 
+    private static readonly string[] MidiExtensions = { ".mid", ".midi" };
+
     public MainWindowViewModel(IContainer ioc, IThemeService theme)
     {
         Title = $"Auto MIDI Player {SettingsPageViewModel.ProgramVersion}";
@@ -29,7 +32,8 @@ public class MainWindowViewModel : Conductor<IScreen>
         _ioc = ioc;
         _theme = theme;
 
-        PlaylistView = new(ioc, this);
+        QueueView = new(ioc, this);
+        SongsView = new(ioc, this);
         SettingsView = new(ioc, this);
         PianoSheetView = new(this);
 
@@ -38,11 +42,13 @@ public class MainWindowViewModel : Conductor<IScreen>
 
     public bool ShowUpdate => SettingsView.NeedsUpdate && ActiveItem != SettingsView;
 
+    public SongsViewModel SongsView { get; }
+
     public LyrePlayerViewModel PlayerView { get; }
 
     public PianoSheetViewModel PianoSheetView { get; }
 
-    public PlaylistViewModel PlaylistView { get; }
+    public QueueViewModel QueueView { get; }
 
     public SettingsPageViewModel SettingsView { get; }
 
@@ -74,18 +80,57 @@ public class MainWindowViewModel : Conductor<IScreen>
 
     public void SearchSong(AutoSuggestBox sender, TextChangedEventArgs e)
     {
-        if (ActiveItem != PlaylistView)
+        if (ActiveItem != QueueView)
         {
-            ActivateItem(PlaylistView);
+            ActivateItem(QueueView);
 
-            var playlist = Navigation.Items
+            var queue = Navigation.Items
                 .OfType<NavigationItem>()
-                .First(nav => nav.Tag == PlaylistView);
-            var index = Navigation.Items.IndexOf(playlist);
+                .First(nav => nav.Tag == QueueView);
+            var index = Navigation.Items.IndexOf(queue);
             Navigation.SelectedPageIndex = index;
         }
 
-        PlaylistView.FilterText = sender.Text;
+        QueueView.FilterText = sender.Text;
+    }
+
+    public void OnDragOver(DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            var files = (string[])e.Data.GetData(DataFormats.FileDrop)!;
+            var hasMidiFiles = files.Any(f => MidiExtensions.Contains(
+                System.IO.Path.GetExtension(f).ToLowerInvariant()));
+
+            e.Effects = hasMidiFiles ? DragDropEffects.Copy : DragDropEffects.None;
+        }
+        else
+        {
+            e.Effects = DragDropEffects.None;
+        }
+        e.Handled = true;
+    }
+
+    public async void OnFileDrop(DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
+
+        var files = (string[])e.Data.GetData(DataFormats.FileDrop)!;
+        var midiFiles = files.Where(f => MidiExtensions.Contains(
+            System.IO.Path.GetExtension(f).ToLowerInvariant())).ToArray();
+
+        if (midiFiles.Length > 0)
+        {
+            await SongsView.AddFiles(midiFiles);
+
+            // Navigate to songs view
+            ActivateItem(SongsView);
+            var songs = Navigation.Items
+                .OfType<NavigationItem>()
+                .First(nav => nav.Tag == SongsView);
+            var index = Navigation.Items.IndexOf(songs);
+            Navigation.SelectedPageIndex = index;
+        }
     }
 
     protected override async void OnViewLoaded()
@@ -100,7 +145,17 @@ public class MainWindowViewModel : Conductor<IScreen>
                 .ContinueWith(_ => { NotifyOfPropertyChange(() => ShowUpdate); });
         }
 
+        // Load songs from database into Songs library
         await using var db = _ioc.Get<LyreContext>();
-        await PlaylistView.AddFiles(db.History);
+        await SongsView.AddFiles(db.Songs);
+
+        // Auto-scan MIDI folder if configured
+        if (!string.IsNullOrEmpty(SettingsView.MidiFolder))
+        {
+            await SongsView.ScanFolder(SettingsView.MidiFolder);
+        }
+
+        // Restore queue from saved state
+        QueueView.RestoreQueue(SongsView.Tracks);
     }
 }

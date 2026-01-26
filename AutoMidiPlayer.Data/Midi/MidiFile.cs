@@ -14,15 +14,15 @@ public class MidiFile : Screen
     private readonly ReadingSettings? _settings;
     private int _position;
 
-    public MidiFile(History history, ReadingSettings? settings = null)
+    public MidiFile(Song song, ReadingSettings? settings = null)
     {
         _settings = settings;
 
-        History = history;
+        Song = song;
         InitializeMidi();
     }
 
-    public History History { get; }
+    public Song Song { get; }
 
     public int Position
     {
@@ -32,9 +32,11 @@ public class MidiFile : Screen
 
     public Melanchall.DryWetMidi.Core.MidiFile Midi { get; private set; } = null!;
 
-    public string Path => History.Path;
+    public string Path => Song.Path;
 
-    public string Title => GetFileNameWithoutExtension(Path);
+    public string Title => Song.Title ?? GetFileNameWithoutExtension(Path);
+
+    public string? Author => Song.Author;
 
     public TimeSpan Duration => Midi.GetDuration<MetricTimeSpan>();
 

@@ -88,20 +88,14 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <Button Command="{s:Action OpenFile}"
-                    Background="Transparent">
-                <ui:FontIcon Glyph="&#xE8E5;"
-                             FontFamily="Segoe MDL2 Assets"/>
-            </Button>
-
-            <TextBlock Grid.Column="1"
+            <TextBlock Grid.Column="0"
                        Margin="10,0"
                        VerticalAlignment="Center">
                 Current song: <Run Text="{Binding OpenedFile.Title, Mode=OneWay, FallbackValue=Open...}"/>
             </TextBlock>
 
             <modern:SimpleStackPanel
-                Grid.Column="2"
+                Grid.Column="1"
                 Orientation="Horizontal"
                 HorizontalAlignment="Center">
                 <Button Command="{s:Action RemoveTrack}"

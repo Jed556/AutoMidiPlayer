@@ -273,5 +273,95 @@ namespace AutoMidiPlayer.Data.Properties
                 this["SelectedInstrument"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string MidiFolder
+        {
+            get
+            {
+                return ((string)(this["MidiFolder"]));
+            }
+            set
+            {
+                this["MidiFolder"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int SongsSortMode
+        {
+            get
+            {
+                return ((int)(this["SongsSortMode"]));
+            }
+            set
+            {
+                this["SongsSortMode"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool SongsSortAscending
+        {
+            get
+            {
+                return ((bool)(this["SongsSortAscending"]));
+            }
+            set
+            {
+                this["SongsSortAscending"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string QueueSongIds
+        {
+            get
+            {
+                return ((string)(this["QueueSongIds"]));
+            }
+            set
+            {
+                this["QueueSongIds"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool QueueShuffle
+        {
+            get
+            {
+                return ((bool)(this["QueueShuffle"]));
+            }
+            set
+            {
+                this["QueueShuffle"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("3")]
+        public int QueueLoopMode
+        {
+            get
+            {
+                return ((int)(this["QueueLoopMode"]));
+            }
+            set
+            {
+                this["QueueLoopMode"] = value;
+            }
+        }
     }
 }

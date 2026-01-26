@@ -17,20 +17,12 @@
 			<RowDefinition Height="Auto"/>
 		</Grid.RowDefinitions>
 
-		<!-- Header with Open button -->
-		<modern:SimpleStackPanel Grid.Row="0"
-								 Orientation="Horizontal"
-								 Margin="0,0,0,10">
-			<Button Command="{s:Action OpenFile}"
-					Background="Transparent"
-					ToolTip="Open MIDI file">
-				<ui:FontIcon Glyph="&#xE8E5;"
-							 FontFamily="Segoe MDL2 Assets"/>
-			</Button>
-			<TextBlock VerticalAlignment="Center"
-					   FontSize="16"
-					   Text="{Binding Playlist.OpenedFile.Title, Mode=OneWay, FallbackValue=Open a MIDI file...}"/>
-		</modern:SimpleStackPanel>
+		<!-- Header -->
+		<TextBlock Grid.Row="0"
+				   VerticalAlignment="Center"
+				   FontSize="16"
+				   Margin="0,0,0,10"
+				   Text="{Binding Playlist.OpenedFile.Title, Mode=OneWay, FallbackValue=Select a song from Songs or Playlist}"/>
 
 		<!-- Track Cards -->
 		<ScrollViewer Grid.Row="1">
@@ -60,7 +52,7 @@
 										<Style TargetType="modern:ToggleSwitch">
 											<Style.Triggers>
 												<Trigger Property="IsEnabled"
-														Value="False">
+														 Value="False">
 													<Setter Property="ToolTip"
 															Value="Cannot disable track containing tempo settings."/>
 													<Setter Property="ToolTipService.ShowOnDisabled"
