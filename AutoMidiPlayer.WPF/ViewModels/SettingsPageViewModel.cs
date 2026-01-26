@@ -22,6 +22,7 @@ using JetBrains.Annotations;
 using Microsoft.Win32;
 using ModernWpf;
 using ModernWpf.Controls;
+using PropertyChanged;
 using Stylet;
 using StyletIoC;
 using Wpf.Ui.Appearance;
@@ -363,6 +364,7 @@ public class SettingsPageViewModel : Screen
     }
 
     [UsedImplicitly]
+    [SuppressPropertyChangedWarnings]
     public void OnThemeChanged()
     {
         _theme.SetTheme(ThemeManager.Current.ApplicationTheme switch

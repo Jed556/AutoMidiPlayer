@@ -60,6 +60,18 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
             var db = new LyreContext(options);
             db.Database.EnsureCreated();
 
+            // Add ImagePath column if it doesn't exist (migration for existing databases)
+            try
+            {
+                db.Database.ExecuteSqlRaw(@"
+                    ALTER TABLE Songs ADD COLUMN ImagePath TEXT NULL;
+                ");
+            }
+            catch
+            {
+                // Column already exists or other error - ignore
+            }
+
             return db;
         });
 

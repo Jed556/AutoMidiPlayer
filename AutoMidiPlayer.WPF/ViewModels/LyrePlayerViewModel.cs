@@ -130,6 +130,8 @@ public class LyrePlayerViewModel : Screen,
 
     public string PlayPauseIcon => Playback?.IsRunning ?? false ? PauseIcon : PlayIcon;
 
+    public string PlayPauseTooltip => Playback?.IsRunning ?? false ? "Pause" : "Play";
+
     public TimeSpan CurrentTime => _songPosition;
 
     public TimeSpan MaximumTime => Queue.OpenedFile?.Duration ?? TimeSpan.Zero;
@@ -196,7 +198,7 @@ public class LyrePlayerViewModel : Screen,
 
     public async void Handle(SettingsPageViewModel message) => await InitializePlayback();
 
-    public async Task OpenFile()
+    public void OpenFile()
     {
         // Note: OpenFile has been removed from QueueViewModel
         // Songs should be added via SongsView instead
@@ -349,6 +351,7 @@ public class LyrePlayerViewModel : Screen,
         NotifyOfPropertyChange(() => CanHitPlayPause);
 
         NotifyOfPropertyChange(() => PlayPauseIcon);
+        NotifyOfPropertyChange(() => PlayPauseTooltip);
         NotifyOfPropertyChange(() => MaximumTime);
         NotifyOfPropertyChange(() => CurrentTime);
 

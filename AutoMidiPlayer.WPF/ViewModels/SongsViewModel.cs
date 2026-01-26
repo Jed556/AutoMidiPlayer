@@ -44,6 +44,8 @@ public class SongsViewModel : Screen
         IsAscending = Settings.SongsSortAscending;
     }
 
+    public QueueViewModel QueueView => _main.QueueView;
+
     public BindableCollection<MidiFile> Tracks { get; } = new();
 
     public BindableCollection<MidiFile> SortedTracks { get; private set; } = new();
@@ -76,6 +78,14 @@ public class SongsViewModel : Screen
     public string SortDirectionIcon => IsAscending ? "\xE74A" : "\xE74B";
 
     public bool IsCustomSort => CurrentSortMode == SortMode.CustomOrder;
+
+    /// <summary>
+    /// Gets the currently selected files (multi-select or single select fallback)
+    /// </summary>
+    private List<MidiFile> GetSelectedFiles() =>
+        SelectedFiles.Count > 0
+            ? SelectedFiles.ToList()
+            : (SelectedFile != null ? new List<MidiFile> { SelectedFile } : new List<MidiFile>());
 
     public void OnCurrentSortModeChanged()
     {
@@ -296,8 +306,7 @@ public class SongsViewModel : Screen
         if (SelectedFile is not null)
         {
             // Add to queue and play
-            if (!_main.QueueView.Tracks.Contains(SelectedFile))
-                _main.QueueView.Tracks.Add(SelectedFile);
+            _main.QueueView.AddFile(SelectedFile);
             _events.Publish(SelectedFile);
         }
     }
@@ -307,27 +316,20 @@ public class SongsViewModel : Screen
         if (file is not null)
         {
             // Add to queue if not already there and play
-            if (!_main.QueueView.Tracks.Contains(file))
-                _main.QueueView.Tracks.Add(file);
+            _main.QueueView.AddFile(file);
             _events.Publish(file);
         }
     }
 
     public void AddSelectedToQueue()
     {
-        var filesToAdd = SelectedFiles.Count > 0 ? SelectedFiles.ToList() : (SelectedFile != null ? new List<MidiFile> { SelectedFile } : new List<MidiFile>());
-        foreach (var file in filesToAdd)
-        {
-            if (!_main.QueueView.Tracks.Contains(file))
-            {
-                _main.QueueView.AddFile(file);
-            }
-        }
+        foreach (var file in GetSelectedFiles())
+            _main.QueueView.AddFile(file);
     }
 
     public async Task DeleteSelected()
     {
-        var filesToDelete = SelectedFiles.Count > 0 ? SelectedFiles.ToList() : (SelectedFile != null ? new List<MidiFile> { SelectedFile } : new List<MidiFile>());
+        var filesToDelete = GetSelectedFiles();
         if (filesToDelete.Count == 0) return;
 
         await using var db = _ioc.Get<LyreContext>();
@@ -383,12 +385,7 @@ public class SongsViewModel : Screen
     public void AddAllToQueue()
     {
         foreach (var track in SortedTracks)
-        {
-            if (!_main.QueueView.Tracks.Contains(track))
-            {
-                _main.QueueView.Tracks.Add(track);
-            }
-        }
+            _main.QueueView.AddFile(track);
     }
 
     private void RefreshPositions()

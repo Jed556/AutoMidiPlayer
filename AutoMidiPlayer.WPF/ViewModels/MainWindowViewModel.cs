@@ -13,24 +13,29 @@ using Wpf.Ui.Controls;
 using Wpf.Ui.Controls.Interfaces;
 using Wpf.Ui.Mvvm.Contracts;
 using AutoSuggestBox = Wpf.Ui.Controls.AutoSuggestBox;
+using MidiFile = AutoMidiPlayer.Data.Midi.MidiFile;
 
 namespace AutoMidiPlayer.WPF.ViewModels;
 
 [UsedImplicitly]
-public class MainWindowViewModel : Conductor<IScreen>
+public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 {
     public static NavigationStore Navigation = null!;
     private readonly IContainer _ioc;
     private readonly IThemeService _theme;
+    private readonly IEventAggregator _events;
 
+    private static readonly string AppName = $"Auto MIDI Player {SettingsPageViewModel.ProgramVersion}";
     private static readonly string[] MidiExtensions = { ".mid", ".midi" };
 
     public MainWindowViewModel(IContainer ioc, IThemeService theme)
     {
-        Title = $"Auto MIDI Player {SettingsPageViewModel.ProgramVersion}";
+        Title = AppName;
 
         _ioc = ioc;
         _theme = theme;
+        _events = ioc.Get<IEventAggregator>();
+        _events.Subscribe(this);
 
         QueueView = new(ioc, this);
         SongsView = new(ioc, this);
@@ -38,6 +43,18 @@ public class MainWindowViewModel : Conductor<IScreen>
         PianoSheetView = new(this);
 
         ActiveItem = PlayerView = new(ioc, this);
+    }
+
+    public void Handle(MidiFile message)
+    {
+        Title = $"{message.Title} - {AppName}";
+    }
+
+    public void UpdateTitle()
+    {
+        Title = QueueView.OpenedFile is not null
+            ? $"{QueueView.OpenedFile.Title} - {AppName}"
+            : AppName;
     }
 
     public bool ShowUpdate => SettingsView.NeedsUpdate && ActiveItem != SettingsView;

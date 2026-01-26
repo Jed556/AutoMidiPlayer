@@ -121,7 +121,8 @@
 					</Grid.RowDefinitions>
 					<ui:Breadcrumb
 						Grid.Row="0"
-						Margin="18,12,18,0"
+						Margin="18,8,18,4"
+						Padding="0"
 						HorizontalAlignment="Left"
 						VerticalAlignment="Top"
 						FontSize="24"
@@ -130,7 +131,7 @@
 						   x:Name="RootFrame"
 						   Visibility="Hidden"/>
 					<modernWpf:AnimatedContentControl Grid.Row="1"
-													  Margin="10,0,10,10"
+													  Margin="16,4,16,10"
 													  s:View.Model="{Binding ActiveItem}"/>
 				</Grid>
 			</Border>
@@ -160,7 +161,7 @@
 							CornerRadius="4"
 							Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}">
 						<ui:FontIcon Glyph="&#xEC4F;"
-									 FontFamily="Segoe MDL2 Assets"
+									 FontFamily="{StaticResource MdlFontFamily}"
 									 FontSize="24"/>
 					</Border>
 					<StackPanel Margin="12,0,0,0"
@@ -187,11 +188,10 @@
 											 Spacing="4">
 						<Button s:View.ActionTarget="{Binding PlayerView.Queue}"
 								Command="{s:Action ToggleShuffle}"
-								Background="Transparent"
-								Padding="8"
+								Style="{StaticResource PlayerControlButton}"
 								ToolTip="Shuffle">
 							<ui:FontIcon Glyph="&#xE14B;"
-										 FontFamily="Segoe MDL2 Assets"
+										 FontFamily="{StaticResource MdlFontFamily}"
 										 FontSize="14"
 										 Foreground="{Binding PlayerView.Queue.ShuffleStateColor}"/>
 						</Button>
@@ -199,42 +199,40 @@
 						<Button s:View.ActionTarget="{Binding PlayerView}"
 								Command="{s:Action Previous}"
 								IsHitTestVisible="{Binding PlayerView.CanHitPrevious}"
-								Background="Transparent"
-								Padding="8"
+								Style="{StaticResource PlayerControlButton}"
 								ToolTip="Previous">
 							<ui:FontIcon Glyph="&#xE892;"
-										 FontFamily="Segoe MDL2 Assets"
-										 FontSize="18"/>
+										 FontFamily="{StaticResource MdlFontFamily}"
+										 FontSize="16"/>
 						</Button>
 
 						<Button s:View.ActionTarget="{Binding PlayerView}"
 								Command="{s:Action PlayPause}"
 								IsHitTestVisible="{Binding PlayerView.CanHitPlayPause}"
-								Padding="12"
-								ToolTip="Play/Pause">
+								Style="{StaticResource PlayPauseButton}"
+								ToolTip="{Binding PlayerView.PlayPauseTooltip}">
 							<ui:FontIcon Glyph="{Binding PlayerView.PlayPauseIcon}"
-										 FontFamily="Segoe MDL2 Assets"
-										 FontSize="20"/>
+										 FontFamily="{StaticResource MdlFontFamily}"
+										 FontSize="16"
+										 Foreground="{DynamicResource SystemControlBackgroundAltHighBrush}"/>
 						</Button>
 
 						<Button s:View.ActionTarget="{Binding PlayerView}"
 								Command="{s:Action Next}"
 								IsHitTestVisible="{Binding PlayerView.CanHitNext}"
-								Background="Transparent"
-								Padding="8"
+								Style="{StaticResource PlayerControlButton}"
 								ToolTip="Next">
 							<ui:FontIcon Glyph="&#xE893;"
-										 FontFamily="Segoe MDL2 Assets"
-										 FontSize="18"/>
+										 FontFamily="{StaticResource MdlFontFamily}"
+										 FontSize="16"/>
 						</Button>
 
 						<Button s:View.ActionTarget="{Binding PlayerView.Queue}"
 								Command="{s:Action ToggleLoop}"
-								Background="Transparent"
-								Padding="8"
-								ToolTip="Loop">
+								Style="{StaticResource PlayerControlButton}"
+								ToolTip="{Binding PlayerView.Queue.LoopTooltip}">
 							<ui:FontIcon Glyph="{Binding PlayerView.Queue.LoopStateString}"
-										 FontFamily="Segoe MDL2 Assets"
+										 FontFamily="{StaticResource MdlFontFamily}"
 										 FontSize="14"/>
 						</Button>
 					</modern:SimpleStackPanel>
@@ -258,7 +256,10 @@
 								IsMoveToPointEnabled="True"
 								IsEnabled="{Binding PlayerView.CanHitPlayPause}"
 								Value="{Binding PlayerView.SongPosition}"
-								Maximum="{Binding PlayerView.MaximumTime.TotalSeconds}"/>
+								Maximum="{Binding PlayerView.MaximumTime.TotalSeconds}"
+								IsSelectionRangeEnabled="True"
+								SelectionStart="0"
+								SelectionEnd="{Binding PlayerView.SongPosition, Mode=OneWay}"/>
 						<TextBlock Grid.Column="2"
 								   VerticalAlignment="Center"
 								   FontSize="11"

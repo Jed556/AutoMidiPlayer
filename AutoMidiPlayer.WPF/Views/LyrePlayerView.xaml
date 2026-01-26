@@ -124,7 +124,7 @@
 				<Button Command="{s:Action RefreshDevices}"
 						ToolTip="Refresh MIDI devices">
 					<ui:FontIcon Glyph="&#xE72C;"
-								 FontFamily="Segoe MDL2 Assets"/>
+								 FontFamily="{StaticResource MdlFontFamily}"/>
 				</Button>
 			</modern:SimpleStackPanel>
 		</GroupBox>

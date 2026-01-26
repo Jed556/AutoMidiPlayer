@@ -46,7 +46,7 @@
                     VerticalAlignment="Center"
                     HorizontalAlignment="Center"
                     Glyph="&#xEC4F;"
-                    FontFamily="Segoe MDL2 Assets"/>
+                    FontFamily="{StaticResource MdlFontFamily}"/>
 
                 <TextBlock
                     Grid.Column="0"

@@ -24,11 +24,6 @@
         </Grid.RowDefinitions>
 
         <modern:SimpleStackPanel Grid.Row="0">
-            <TextBlock VerticalAlignment="Center">
-                Current song:
-                <Run Text="{Binding QueueView.OpenedFile.Title, Mode=OneWay, FallbackValue=Nothing}"/>
-            </TextBlock>
-
             <modern:SimpleStackPanel Orientation="Horizontal">
                 <GroupBox Header="Delimiter">
                     <TextBox Text="{Binding Delimiter, UpdateSourceTrigger=PropertyChanged}"/>

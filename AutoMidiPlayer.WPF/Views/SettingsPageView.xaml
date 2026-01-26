@@ -20,190 +20,222 @@
     </UserControl.Resources>
 
     <ScrollViewer>
-        <modern:SimpleStackPanel>
-            <modern:SimpleStackPanel Orientation="Horizontal">
-                <modern:ToggleSwitch
-                    Header="Test Mode (Speakers)"
-                    IsEnabled="{Binding CanUseSpeakers}"
-                    IsOn="{Binding Default.UseSpeakers, Source={StaticResource Settings}}"/>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-                <modern:ToggleSwitch
-                    Header="Transpose Notes"
-                    IsOn="{Binding Default.TransposeNotes, Source={StaticResource Settings}}"/>
-            </modern:SimpleStackPanel>
+            <!-- Left Column -->
+            <modern:SimpleStackPanel Grid.Column="0"
+                                     Margin="0,0,10,0">
 
-            <modern:SimpleStackPanel Orientation="Horizontal">
-                <modern:ToggleSwitch
-                    Header="Hold notes"
-                    IsOn="{Binding Default.HoldNotes, Source={StaticResource Settings}}"/>
+                <!-- Player Section -->
+                <TextBlock Text="Player"
+                           Style="{DynamicResource SubtitleTextBlockStyle}"
+                           Margin="0,0,0,8"/>
 
-                <modern:ToggleSwitch
-                    Header="Merge nearby notes"
-                    IsOn="{Binding MergeNotes}"/>
-
-                <modern:NumberBox
-                    Header="Tolerance (ms)"
-                    IsEnabled="{Binding MergeNotes}"
-                    Value="{Binding MergeMilliseconds}"/>
-            </modern:SimpleStackPanel>
-
-            <modern:SimpleStackPanel Orientation="Horizontal">
-                <GroupBox Header="Layout">
-                    <ComboBox
-                        ItemsSource="{x:Static core:Keyboard.LayoutNames}"
-                        SelectedItem="{Binding SelectedLayout}"
-                        SelectedIndex="{Binding Default.SelectedLayout, Source={StaticResource Settings}}"
-                        DisplayMemberPath="Value"/>
-                </GroupBox>
-
-                <GroupBox Header="Instrument">
-                    <ComboBox
-                        ItemsSource="{x:Static core:Keyboard.InstrumentNames}"
-                        SelectedItem="{Binding SelectedInstrument}"
-                        SelectedIndex="{Binding Default.SelectedInstrument, Source={StaticResource Settings}}"
-                        DisplayMemberPath="Value"/>
-                </GroupBox>
-            </modern:SimpleStackPanel>
-
-            <GroupBox Header="Timer">
-                <modern:SimpleStackPanel Orientation="Horizontal">
-                    <modern:SimpleStackPanel.Resources>
-                        <Style TargetType="Button"
-                               BasedOn="{StaticResource {x:Type Button}}"/>
-                    </modern:SimpleStackPanel.Resources>
-
-                    <modern:SimpleTimePicker SelectedDateTime="{Binding DateTime}"
-                                             IsEnabled="{Binding CanChangeTime}"/>
-                    <Button Command="{s:Action SetTimeToNow}"
-                            IsEnabled="{Binding CanChangeTime}">Now</Button>
-                    <Button Command="{s:Action StartStopTimer}"
-                            Content="{Binding TimerText}"/>
+                <modern:SimpleStackPanel Orientation="Horizontal"
+                                         Spacing="20">
+                    <modern:ToggleSwitch
+                        Header="Test Mode (Speakers)"
+                        IsEnabled="{Binding CanUseSpeakers}"
+                        IsOn="{Binding Default.UseSpeakers, Source={StaticResource Settings}}"/>
                 </modern:SimpleStackPanel>
-            </GroupBox>
 
-            <GroupBox Header="Location">
-                <modern:SimpleStackPanel Orientation="Horizontal">
-                    <Button Command="{s:Action SetLocation}"
-                            Background="Transparent">
-                        <ui:FontIcon Glyph="&#xE8E5;"
-                                     FontFamily="Segoe MDL2 Assets"/>
-                    </Button>
-                    <TextBlock Text="{x:Static viewModels:SettingsPageViewModel.GenshinLocation}"
-                               VerticalAlignment="Center"/>
+                <modern:SimpleStackPanel Orientation="Horizontal"
+                                         Spacing="20">
+                    <modern:ToggleSwitch
+                        Header="Hold notes"
+                        IsOn="{Binding Default.HoldNotes, Source={StaticResource Settings}}"/>
+                    <modern:ToggleSwitch
+                        Header="Merge nearby notes"
+                        IsOn="{Binding MergeNotes}"/>
+                    <modern:NumberBox
+                        Header="Tolerance (ms)"
+                        IsEnabled="{Binding MergeNotes}"
+                        Value="{Binding MergeMilliseconds}"
+                        MinWidth="100"/>
                 </modern:SimpleStackPanel>
-            </GroupBox>
 
-            <GroupBox Header="MIDI Folder">
-                <modern:SimpleStackPanel Orientation="Horizontal">
-                    <Button Command="{s:Action BrowseMidiFolder}"
-                            Background="Transparent"
-                            ToolTip="Browse for MIDI folder">
-                        <ui:FontIcon Glyph="&#xE838;"
-                                     FontFamily="Segoe MDL2 Assets"/>
-                    </Button>
-                    <TextBlock Text="{Binding MidiFolder, TargetNullValue='No folder selected'}"
-                               VerticalAlignment="Center"
-                               MinWidth="200"/>
-                    <Button Command="{s:Action ScanMidiFolder}"
-                            Background="Transparent"
-                            ToolTip="Refresh/Scan folder for new MIDI files"
-                            Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                        <ui:FontIcon Glyph="&#xE72C;"
-                                     FontFamily="Segoe MDL2 Assets"/>
-                    </Button>
-                    <Button Command="{s:Action ClearMidiFolder}"
-                            Background="Transparent"
-                            ToolTip="Clear MIDI folder"
-                            Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                        <ui:FontIcon Glyph="&#xE711;"
-                                     FontFamily="Segoe MDL2 Assets"/>
-                    </Button>
+                <modern:SimpleStackPanel Orientation="Horizontal"
+                                         Spacing="10">
+                    <GroupBox Header="Layout">
+                        <ComboBox
+                            ItemsSource="{x:Static core:Keyboard.LayoutNames}"
+                            SelectedItem="{Binding SelectedLayout}"
+                            SelectedIndex="{Binding Default.SelectedLayout, Source={StaticResource Settings}}"
+                            DisplayMemberPath="Value"
+                            MinWidth="120"/>
+                    </GroupBox>
+                    <GroupBox Header="Instrument">
+                        <ComboBox
+                            ItemsSource="{x:Static core:Keyboard.InstrumentNames}"
+                            SelectedItem="{Binding SelectedInstrument}"
+                            SelectedIndex="{Binding Default.SelectedInstrument, Source={StaticResource Settings}}"
+                            DisplayMemberPath="Value"
+                            MinWidth="150"/>
+                    </GroupBox>
                 </modern:SimpleStackPanel>
-            </GroupBox>
 
-            <GroupBox Header="Version">
-                <modern:SimpleStackPanel>
+                <GroupBox Header="Timer">
                     <modern:SimpleStackPanel Orientation="Horizontal">
-                        <TextBlock x:Name="VersionText"
-                                   VerticalAlignment="Center"
-                                   Style="{DynamicResource SubtitleTextBlockStyle}">
-		                    You are running version
-		                    v<Run Text="{Binding ProgramVersion, Mode=OneTime}"/>
-                        </TextBlock>
-                        <Button Command="{s:Action CheckForUpdate}"
-                                Visibility="{Binding IsCheckingUpdate, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}">
-                            <ui:FontIcon Glyph="&#xE72C;"
-                                         FontFamily="Segoe MDL2 Assets"/>
-                        </Button>
-                        <ui:ProgressRing
-                            IsIndeterminate="True"
-                            IsEnabled="{Binding IsCheckingUpdate}"
-                            Visibility="{Binding IsCheckingUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                        <modern:SimpleStackPanel.Resources>
+                            <Style TargetType="Button"
+                                   BasedOn="{StaticResource {x:Type Button}}"/>
+                        </modern:SimpleStackPanel.Resources>
+                        <modern:SimpleTimePicker SelectedDateTime="{Binding DateTime}"
+                                                 IsEnabled="{Binding CanChangeTime}"/>
+                        <Button Command="{s:Action SetTimeToNow}"
+                                IsEnabled="{Binding CanChangeTime}">Now</Button>
+                        <Button Command="{s:Action StartStopTimer}"
+                                Content="{Binding TimerText}"/>
                     </modern:SimpleStackPanel>
+                </GroupBox>
 
-                    <TextBlock
-                        Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                        Click to download update:
-                        <Hyperlink
-                            NavigateUri="{Binding LatestVersion.Url}">
-                            <Run Text="{Binding LatestVersion.TagName}"/> -
-                            <Run Text="{Binding LatestVersion.Name}"/>
-                        </Hyperlink>
-                    </TextBlock>
+                <!-- Locations Section -->
+                <TextBlock Text="Locations"
+                           Style="{DynamicResource SubtitleTextBlockStyle}"
+                           Margin="0,16,0,8"/>
 
-                    <modern:ToggleSwitch Header="Automatically check updates"
-                                         IsOn="{Binding AutoCheckUpdates}"/>
-                    <modern:ToggleSwitch Header="Include beta updates"
-                                         IsOn="{Binding IncludeBetaUpdates}"/>
-                </modern:SimpleStackPanel>
-            </GroupBox>
+                <GroupBox Header="Game Location">
+                    <modern:SimpleStackPanel Orientation="Horizontal">
+                        <Button Command="{s:Action SetLocation}"
+                                Background="Transparent">
+                            <ui:FontIcon Glyph="&#xE8E5;"
+                                         FontFamily="{StaticResource MdlFontFamily}"/>
+                        </Button>
+                        <TextBlock Text="{x:Static viewModels:SettingsPageViewModel.GenshinLocation}"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </modern:SimpleStackPanel>
+                </GroupBox>
 
-            <GroupBox Header="Theme Mode">
-                <modern:RadioButtons
-                    SelectedItem="{Binding
-                        Source={x:Static modern:ThemeManager.Current}, Path=ApplicationTheme,
-                        Converter={StaticResource AppThemeConverter}}"
-                    SelectionChanged="{s:Action OnThemeChanged}"
-                    SelectedIndex="{Binding Default.AppTheme, Source={StaticResource Settings}}">
-                    <modern:RadioButtons.ItemsSource>
-                        <theme:AppThemes/>
-                    </modern:RadioButtons.ItemsSource>
-                </modern:RadioButtons>
-            </GroupBox>
+                <GroupBox Header="MIDI Folder">
+                    <modern:SimpleStackPanel Orientation="Horizontal">
+                        <Button Command="{s:Action BrowseMidiFolder}"
+                                Background="Transparent"
+                                ToolTip="Browse for MIDI folder">
+                            <ui:FontIcon Glyph="&#xE838;"
+                                         FontFamily="{StaticResource MdlFontFamily}"/>
+                        </Button>
+                        <TextBlock Text="{Binding MidiFolder, TargetNullValue='No folder selected'}"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
+                                   MaxWidth="200"/>
+                        <Button Command="{s:Action ScanMidiFolder}"
+                                Background="Transparent"
+                                ToolTip="Refresh/Scan folder for new MIDI files"
+                                Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                            <ui:FontIcon Glyph="&#xE72C;"
+                                         FontFamily="{StaticResource MdlFontFamily}"/>
+                        </Button>
+                        <Button Command="{s:Action ClearMidiFolder}"
+                                Background="Transparent"
+                                ToolTip="Clear MIDI folder"
+                                Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                            <ui:FontIcon Glyph="&#xE711;"
+                                         FontFamily="{StaticResource MdlFontFamily}"/>
+                        </Button>
+                    </modern:SimpleStackPanel>
+                </GroupBox>
 
-            <GroupBox Header="Transition style">
-                <ComboBox
-                    SelectedItem="{Binding Transition}"
-                    SelectedIndex="{Binding Default.SelectedTransition, Source={StaticResource Settings}}"
-                    ItemsSource="{x:Static transitions:TransitionCollection.Transitions}"/>
-            </GroupBox>
+                <!-- License Section -->
+                <TextBlock Text="License"
+                           Style="{DynamicResource SubtitleTextBlockStyle}"
+                           Margin="0,16,0,8"/>
 
-            <GroupBox Header="License">
-                <modern:SimpleStackPanel Margin="10">
-                    <TextBlock>
+                <modern:SimpleStackPanel Spacing="4">
+                    <TextBlock TextWrapping="Wrap"
+                               FontSize="12">
                         Originally created by © 2022 sabihoshi. Modified by © 2026 Jed556 for multi-game support.
                         Licensed under the
-                        <Hyperlink NavigateUri="{Binding Default.LicenseUri, Source={StaticResource Settings}}">
-                            MIT License
-                        </Hyperlink>
-                        .
+                        <Hyperlink NavigateUri="{Binding Default.LicenseUri, Source={StaticResource Settings}}">MIT License</Hyperlink>.
                     </TextBlock>
-                    <TextBlock TextWrapping="Wrap">
-                        This project uses third-party libraries or other resources that may be distributed under
-                        <Hyperlink
-                            NavigateUri="{Binding Default.ThirdPartyLicenseUri, Source={StaticResource Settings}}">
-                            different licenses
-                        </Hyperlink>
-                        .
+                    <TextBlock TextWrapping="Wrap"
+                               FontSize="12">
+                        This project uses third-party libraries that may be distributed under
+                        <Hyperlink NavigateUri="{Binding Default.ThirdPartyLicenseUri, Source={StaticResource Settings}}">different licenses</Hyperlink>.
                     </TextBlock>
-                    <TextBlock Style="{DynamicResource BaseTextBlockStyle}"
-                               TextWrapping="Wrap">
+                    <TextBlock TextWrapping="Wrap"
+                               FontSize="11"
+                               Opacity="0.7">
                         All rights reserved by © miHoYo Co., Ltd. and © XD Inc.
-                        This project is not affiliated nor endorsed by miHoYo or XD.
-                        Genshin Impact™, Heartopia™, and other properties belong to their respective owners.
+                        Not affiliated with miHoYo or XD.
                     </TextBlock>
                 </modern:SimpleStackPanel>
-            </GroupBox>
-        </modern:SimpleStackPanel>
+            </modern:SimpleStackPanel>
+
+            <!-- Right Column -->
+            <modern:SimpleStackPanel Grid.Column="1"
+                                     Margin="10,0,0,0">
+
+                <!-- Version Section -->
+                <TextBlock Text="Version"
+                           Style="{DynamicResource SubtitleTextBlockStyle}"
+                           Margin="0,0,0,8"/>
+
+                <modern:SimpleStackPanel Orientation="Horizontal"
+                                         Spacing="8">
+                    <TextBlock VerticalAlignment="Center">
+                        v<Run Text="{Binding ProgramVersion, Mode=OneTime}"/>
+                    </TextBlock>
+                    <Button Command="{s:Action CheckForUpdate}"
+                            Background="Transparent"
+                            Padding="4"
+                            ToolTip="Check for updates"
+                            Visibility="{Binding IsCheckingUpdate, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}">
+                        <ui:FontIcon Glyph="&#xE72C;"
+                                     FontFamily="{StaticResource MdlFontFamily}"
+                                     FontSize="14"/>
+                    </Button>
+                    <ui:ProgressRing
+                        IsIndeterminate="True"
+                        Width="16"
+                        Height="16"
+                        IsEnabled="{Binding IsCheckingUpdate}"
+                        Visibility="{Binding IsCheckingUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                </modern:SimpleStackPanel>
+
+                <TextBlock Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                           Margin="0,4,0,0">
+                    Update available:
+                    <Hyperlink NavigateUri="{Binding LatestVersion.Url}">
+                        <Run Text="{Binding LatestVersion.TagName}"/>
+                    </Hyperlink>
+                </TextBlock>
+
+                <modern:ToggleSwitch Header="Auto-check updates"
+                                     IsOn="{Binding AutoCheckUpdates}"/>
+                <modern:ToggleSwitch Header="Include beta updates"
+                                     IsOn="{Binding IncludeBetaUpdates}"/>
+
+                <!-- Style Section -->
+                <TextBlock Text="Style"
+                           Style="{DynamicResource SubtitleTextBlockStyle}"
+                           Margin="0,16,0,8"/>
+
+                <GroupBox Header="Theme Mode">
+                    <modern:RadioButtons
+                        SelectedItem="{Binding
+                            Source={x:Static modern:ThemeManager.Current}, Path=ApplicationTheme,
+                            Converter={StaticResource AppThemeConverter}}"
+                        SelectionChanged="{s:Action OnThemeChanged}"
+                        SelectedIndex="{Binding Default.AppTheme, Source={StaticResource Settings}}">
+                        <modern:RadioButtons.ItemsSource>
+                            <theme:AppThemes/>
+                        </modern:RadioButtons.ItemsSource>
+                    </modern:RadioButtons>
+                </GroupBox>
+
+                <GroupBox Header="Transition Style">
+                    <ComboBox
+                        SelectedItem="{Binding Transition}"
+                        SelectedIndex="{Binding Default.SelectedTransition, Source={StaticResource Settings}}"
+                        ItemsSource="{x:Static transitions:TransitionCollection.Transitions}"
+                        MinWidth="150"/>
+                </GroupBox>
+            </modern:SimpleStackPanel>
+        </Grid>
     </ScrollViewer>
 </UserControl>

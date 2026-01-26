@@ -23,7 +23,7 @@
 
         <!-- Top Bar: Search and Actions -->
         <Grid Grid.Row="0"
-                Margin="0,0,0,5">
+              Margin="0,0,0,5">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
@@ -66,7 +66,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="40"/>
                     <ColumnDefinition Width="*"
-                            MinWidth="150"/>
+                                      MinWidth="150"/>
                     <ColumnDefinition Width="100"/>
                     <ColumnDefinition Width="60"/>
                     <ColumnDefinition Width="70"/>
@@ -100,7 +100,7 @@
                            FontSize="12"/>
                 <ui:FontIcon Grid.Column="6"
                              Glyph="&#xE916;"
-                             FontFamily="Segoe MDL2 Assets"
+                             FontFamily="{StaticResource MdlFontFamily}"
                              FontSize="12"
                              HorizontalAlignment="Right"
                              Opacity="0.6"
@@ -121,12 +121,12 @@
                   AllowDrop="True">
             <ListView.ItemTemplate>
                 <DataTemplate DataType="midi:MidiFile">
-                    <Grid Margin="0,4"
-                            x:Name="RowGrid">
+                    <Grid Margin="0,2"
+                          x:Name="RowGrid">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="40"/>
                             <ColumnDefinition Width="*"
-                                    MinWidth="150"/>
+                                              MinWidth="150"/>
                             <ColumnDefinition Width="100"/>
                             <ColumnDefinition Width="60"/>
                             <ColumnDefinition Width="70"/>
@@ -139,7 +139,27 @@
                             <TextBlock x:Name="PositionText"
                                        Text="{Binding Position}"
                                        VerticalAlignment="Center"
-                                       Opacity="0.6"/>
+                                       Opacity="0.6">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Value="True">
+                                                <DataTrigger.Binding>
+                                                    <MultiBinding Converter="{x:Static modernWpf:IsPlayingToBoolConverter.Instance}">
+                                                        <Binding/>
+                                                        <Binding Path="DataContext.OpenedFile"
+                                                                RelativeSource="{RelativeSource AncestorType=UserControl}"/>
+                                                    </MultiBinding>
+                                                </DataTrigger.Binding>
+                                                <Setter Property="Foreground"
+                                                        Value="{DynamicResource SystemControlHighlightAccentBrush}"/>
+                                                <Setter Property="Opacity"
+                                                        Value="1"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                             <Button x:Name="PlayButton"
                                     Visibility="Hidden"
                                     Background="Transparent"
@@ -151,7 +171,7 @@
                                     CommandParameter="{Binding}"
                                     ToolTip="Play">
                                 <ui:FontIcon Glyph="&#xF5B0;"
-                                             FontFamily="Segoe MDL2 Assets"
+                                             FontFamily="{StaticResource MdlFontFamily}"
                                              FontSize="14"/>
                             </Button>
                         </Grid>
@@ -160,8 +180,26 @@
                         <StackPanel Grid.Column="1"
                                     VerticalAlignment="Center">
                             <TextBlock Text="{Binding Title}"
-                                       TextTrimming="CharacterEllipsis"
-                                       Style="{DynamicResource BodyTextBlockStyle}"/>
+                                       TextTrimming="CharacterEllipsis">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock"
+                                            BasedOn="{StaticResource BodyTextBlockStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Value="True">
+                                                <DataTrigger.Binding>
+                                                    <MultiBinding Converter="{x:Static modernWpf:IsPlayingToBoolConverter.Instance}">
+                                                        <Binding/>
+                                                        <Binding Path="DataContext.OpenedFile"
+                                                                RelativeSource="{RelativeSource AncestorType=UserControl}"/>
+                                                    </MultiBinding>
+                                                </DataTrigger.Binding>
+                                                <Setter Property="Foreground"
+                                                        Value="{DynamicResource SystemControlHighlightAccentBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                             <TextBlock Text="{Binding Song.Author}"
                                        TextTrimming="CharacterEllipsis"
                                        FontSize="12"
@@ -204,7 +242,7 @@
                     </Grid>
                     <DataTemplate.Triggers>
                         <Trigger Property="IsMouseOver"
-                                Value="True">
+                                 Value="True">
                             <Setter TargetName="PositionText"
                                     Property="Visibility"
                                     Value="Hidden"/>
@@ -217,11 +255,13 @@
             </ListView.ItemTemplate>
             <ListView.ItemContainerStyle>
                 <Style TargetType="ListViewItem"
-                        BasedOn="{StaticResource DefaultListViewItemStyle}">
+                       BasedOn="{StaticResource DefaultListViewItemStyle}">
                     <Setter Property="HorizontalContentAlignment"
                             Value="Stretch"/>
                     <Setter Property="Padding"
-                            Value="12,4"/>
+                            Value="12,2"/>
+                    <Setter Property="MinHeight"
+                            Value="36"/>
                 </Style>
             </ListView.ItemContainerStyle>
         </ListView>
@@ -237,14 +277,6 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-
-                <!-- Drag hint -->
-                <TextBlock Grid.Column="0"
-                           VerticalAlignment="Center"
-                           Opacity="0.5"
-                           FontSize="11">
-                    Drag rows to reorder
-                </TextBlock>
 
                 <!-- Current song info -->
                 <TextBlock Grid.Column="1"

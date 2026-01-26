@@ -30,22 +30,22 @@
                         Value="10"/>
                 <Style.Resources>
                     <Style TargetType="ComboBox"
-                            BasedOn="{StaticResource {x:Type ComboBox}}">
+                           BasedOn="{StaticResource {x:Type ComboBox}}">
                         <Setter Property="MinWidth"
                                 Value="200"/>
                     </Style>
                     <Style TargetType="TextBox"
-                            BasedOn="{StaticResource {x:Type TextBox}}">
+                           BasedOn="{StaticResource {x:Type TextBox}}">
                         <Setter Property="MinWidth"
                                 Value="200"/>
                     </Style>
                     <Style TargetType="Button"
-                            BasedOn="{StaticResource {x:Type Button}}">
+                           BasedOn="{StaticResource {x:Type Button}}">
                         <Setter Property="Background"
                                 Value="Transparent"/>
                         <Style.Triggers>
                             <Trigger Property="IsHitTestVisible"
-                                    Value="False">
+                                     Value="False">
                                 <Setter Property="Foreground"
                                         Value="Gray"/>
                             </Trigger>
@@ -59,6 +59,136 @@
                         Value="0"/>
                 <Setter Property="SpinButtonPlacementMode"
                         Value="Compact"/>
+            </Style>
+
+            <!-- Shared FontIcon style for MDL2 Assets icons -->
+            <Style x:Key="MdlFontIcon"
+                    TargetType="ui:FontIcon">
+                <Setter Property="FontFamily"
+                        Value="Segoe MDL2 Assets"/>
+                <Setter Property="FontSize"
+                        Value="14"/>
+            </Style>
+
+            <!-- FontFamily resource for direct use -->
+            <FontFamily x:Key="MdlFontFamily">Segoe MDL2 Assets</FontFamily>
+
+            <!-- Player control button style with Spotify-like animations -->
+            <Style x:Key="PlayerControlButton"
+                    TargetType="Button"
+                    BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="Background"
+                        Value="Transparent"/>
+                <Setter Property="Opacity"
+                        Value="0.7"/>
+                <Setter Property="Padding"
+                        Value="8"/>
+                <Setter Property="RenderTransformOrigin"
+                        Value="0.5,0.5"/>
+                <Setter Property="RenderTransform">
+                    <Setter.Value>
+                        <ScaleTransform ScaleX="1"
+                                ScaleY="1"/>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver"
+                            Value="True">
+                        <Setter Property="Opacity"
+                                Value="1"/>
+                        <Setter Property="RenderTransform">
+                            <Setter.Value>
+                                <ScaleTransform ScaleX="1.04"
+                                        ScaleY="1.04"/>
+                            </Setter.Value>
+                        </Setter>
+                    </Trigger>
+                    <Trigger Property="IsPressed"
+                            Value="True">
+                        <Setter Property="RenderTransform">
+                            <Setter.Value>
+                                <ScaleTransform ScaleX="0.95"
+                                        ScaleY="0.95"/>
+                            </Setter.Value>
+                        </Setter>
+                    </Trigger>
+                    <Trigger Property="IsHitTestVisible"
+                            Value="False">
+                        <Setter Property="Foreground"
+                                Value="Gray"/>
+                        <Setter Property="Opacity"
+                                Value="0.4"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- Spotify-style Play button (circle with inverted colors) -->
+            <Style x:Key="PlayPauseButton"
+                    TargetType="Button"
+                    BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="Width"
+                        Value="36"/>
+                <Setter Property="Height"
+                        Value="36"/>
+                <Setter Property="Padding"
+                        Value="0"/>
+                <Setter Property="Background"
+                        Value="{DynamicResource SystemControlForegroundBaseHighBrush}"/>
+                <Setter Property="Foreground"
+                        Value="{DynamicResource SystemControlBackgroundAltHighBrush}"/>
+                <Setter Property="RenderTransformOrigin"
+                        Value="0.5,0.5"/>
+                <Setter Property="RenderTransform">
+                    <Setter.Value>
+                        <ScaleTransform ScaleX="1"
+                                ScaleY="1"/>
+                    </Setter.Value>
+                </Setter>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Grid>
+                                <Ellipse Fill="{TemplateBinding Background}"/>
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver"
+                            Value="True">
+                        <Setter Property="RenderTransform">
+                            <Setter.Value>
+                                <ScaleTransform ScaleX="1.06"
+                                        ScaleY="1.06"/>
+                            </Setter.Value>
+                        </Setter>
+                    </Trigger>
+                    <Trigger Property="IsPressed"
+                            Value="True">
+                        <Setter Property="RenderTransform">
+                            <Setter.Value>
+                                <ScaleTransform ScaleX="0.95"
+                                        ScaleY="0.95"/>
+                            </Setter.Value>
+                        </Setter>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- Progress slider style with filled track -->
+            <Style x:Key="ProgressSlider"
+                    TargetType="Slider"
+                    BasedOn="{StaticResource {x:Type Slider}}">
+                <Setter Property="IsMoveToPointEnabled"
+                        Value="True"/>
+                <Setter Property="Margin"
+                        Value="8,0"/>
+                <Style.Resources>
+                    <SolidColorBrush x:Key="SliderTrackValueFill"
+                            Color="{DynamicResource SystemAccentColor}"/>
+                </Style.Resources>
             </Style>
         </ResourceDictionary>
     </Application.Resources>

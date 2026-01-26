@@ -9,6 +9,7 @@ using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.ModernWPF.Errors;
 using Melanchall.DryWetMidi.Core;
 using ModernWpf;
+using PropertyChanged;
 using Stylet;
 using StyletIoC;
 using MidiFile = AutoMidiPlayer.Data.Midi.MidiFile;
@@ -71,6 +72,16 @@ public class QueueViewModel : Screen
             LoopMode.Playlist => "\xEBE7",
             LoopMode.All => "\xE8EE",
             _ => string.Empty
+        };
+
+    public string LoopTooltip =>
+        Loop switch
+        {
+            LoopMode.Once => "Loop: Off",
+            LoopMode.Track => "Loop: Track",
+            LoopMode.Playlist => "Loop: Playlist",
+            LoopMode.All => "Loop: All",
+            _ => "Loop"
         };
 
     public string? FilterText { get; set; }
@@ -178,6 +189,7 @@ public class QueueViewModel : Screen
         }
     }
 
+    [SuppressPropertyChangedWarnings]
     public void OnFileChanged(object sender, EventArgs e)
     {
         if (SelectedFile is not null)

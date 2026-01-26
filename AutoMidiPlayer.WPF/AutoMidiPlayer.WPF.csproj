@@ -6,7 +6,7 @@
         <UseWPF>true</UseWPF>
         <StartupObject>AutoMidiPlayer.WPF.App</StartupObject>
         <ApplicationManifest>app.manifest</ApplicationManifest>
-        <Version>5.6.4</Version>
+        <Version>5.6.6</Version>
         <ApplicationIcon>item_windsong_lyre.ico</ApplicationIcon>
         <Nullable>enable</Nullable>
         <RepositoryUrl>https://github.com/Jed556/AutoMidiPlayer</RepositoryUrl>
