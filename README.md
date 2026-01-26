@@ -78,11 +78,6 @@ MIDI files (.mid) is a set of instructions that play various instruments on what
 ### Can this get me banned?
 The short answer is that it's uncertain. Use it at your own risk. Do not play songs that will spam the keyboard, listen to the MIDI file first and make sure to play only one instrument so that the tool doesn't spam keyboard inputs. For Genshin Impact, [here is miHoYo's response](https://genshin.mihoyo.com/en/news/detail/5763) to using 3rd party tools.
 
-# Contributing
-When contributing to this repository, please first discuss the change you wish to make via issue, email (sabihoshi.dev@gmail.com), or any other method with me or the maintainers of this repository before making a change.
-
-This project has a [Code of Conduct](CODE_OF_CONDUCT.md), please follow it in all your interactions with the project.
-
 ## Pull Request Process
 
 1. Do not include the build itself where the project is cleaned using `dotnet clean`.

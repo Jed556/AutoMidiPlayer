@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <OutputType>WinExe</OutputType>
-        <TargetFramework>net6.0-windows10.0.22621.0</TargetFramework>
+        <TargetFramework>net8.0-windows10.0.22621.0</TargetFramework>
         <UseWPF>true</UseWPF>
         <StartupObject>AutoMidiPlayer.WPF.App</StartupObject>
         <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -10,11 +10,11 @@
         <ApplicationIcon>item_windsong_lyre.ico</ApplicationIcon>
         <Nullable>enable</Nullable>
         <RepositoryUrl>https://github.com/Jed556/AutoMidiPlayer</RepositoryUrl>
-        <Authors>Jed556,sabihoshi</Authors>
+        <Authors>Jed556</Authors>
         <Product>Auto MIDI Player</Product>
         <Company />
-        <Copyright>Copyright (c) 2021 sabihoshi, 2026 Jed556</Copyright>
-        <Description>A MIDI to key player for in-game instruments. Supports Genshin Impact (Windsong Lyre, Floral Zither, Vintage Lyre) and Heartopia.</Description>
+        <Copyright>Copyright (c) 2026 Jed556</Copyright>
+        <Description>A MIDI to key player for in-game instruments. Supports Genshin Impact and Heartopia.</Description>
         <LangVersion>latest</LangVersion>
         <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
         <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>

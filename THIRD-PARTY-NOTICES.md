@@ -2,7 +2,7 @@ AutoMidiPlayer uses third-party libraries or other resources that may be
 distributed under licenses different than the project.
 
 In the event that we accidentally failed to list a required notice, please
-bring it to our attention. Post an issue or email me at sabihoshi.dev@gmail.com
+bring it to our attention.
 
 The attached notices are provided for information only.
 

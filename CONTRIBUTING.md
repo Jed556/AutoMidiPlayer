@@ -1,5 +1,5 @@
 # Contributing
-When contributing to this repository, please first discuss the change you wish to make via issue, email (sabihoshi.dev@gmail.com), or any other method with me or the maintainers of this repository before making a change.
+When contributing to this repository, please first discuss the change you wish to make via issue, or any other method with me or the maintainers of this repository before making a change.
 
 This project has a [Code of Conduct](CODE_OF_CONDUCT.md), please follow it in all your interactions with the project.
 

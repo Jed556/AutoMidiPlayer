@@ -4,116 +4,116 @@
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 	xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-		mc:Ignorable="d"
+	mc:Ignorable="d"
 	xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
 	xmlns:modern="http://schemas.modernwpf.com/2019"
 	xmlns:s="https://github.com/canton7/Stylet"
 	xmlns:pages="clr-namespace:AutoMidiPlayer.WPF.Views"
 	xmlns:modernWpf="clr-namespace:AutoMidiPlayer.WPF.ModernWPF"
 	xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
+	xmlns:core="clr-namespace:AutoMidiPlayer.WPF.Core"
 	d:DataContext="{d:DesignInstance Type=viewModels:MainWindowViewModel}"
 	Title="{Binding Title}"
-		Height="850"
-		Width="650"
-		MinWidth="435"
+	Height="850"
+	Width="750"
+	MinWidth="550"
+	MinHeight="600"
 	Background="{ui:ThemeResource ApplicationBackgroundBrush}"
-		ExtendsContentIntoTitleBar="True"
+	ExtendsContentIntoTitleBar="True"
 	WindowBackdropType="Mica"
-		WindowCornerPreference="Round"
-		WindowStartupLocation="CenterScreen">
+	WindowCornerPreference="Round"
+	WindowStartupLocation="CenterScreen">
+
 	<Grid>
 		<Grid.RowDefinitions>
 			<RowDefinition Height="Auto"/>
 			<RowDefinition Height="*"/>
+			<RowDefinition Height="Auto"/>
 		</Grid.RowDefinitions>
 
+		<!-- Title Bar -->
 		<ui:TitleBar Grid.Row="0"
-				Title="{Binding Title}"
-				Grid.Column="0">
+					 Title="{Binding Title}">
 			<ui:TitleBar.Header>
 				<modern:SimpleStackPanel Margin="250,0,0,0"
-						Orientation="Horizontal">
+										 Orientation="Horizontal">
 					<ui:Hyperlink
 						VerticalAlignment="Center"
-							Command="{s:Action NavigateToSettings}"
+						Command="{s:Action NavigateToSettings}"
 						Visibility="{Binding ShowUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
 						New update!
 					</ui:Hyperlink>
 					<ui:AutoSuggestBox
 						MinWidth="200"
-							MaxWidth="250"
-							PlaceholderText="Search..."
+						MaxWidth="250"
+						PlaceholderText="Search..."
 						TextChanged="{s:Action SearchSong}"
-							ItemsSource="{Binding PlaylistView.TrackTitles}"
+						ItemsSource="{Binding PlaylistView.TrackTitles}"
 						Text="{Binding PlaylistView.FilterText}"/>
 				</modern:SimpleStackPanel>
-
 			</ui:TitleBar.Header>
 			<ui:TitleBar.Tray>
 				<ui:NotifyIcon FocusOnLeftClick="True"
-						MenuOnRightClick="True"
-						TooltipText="MIDI Player">
+							   MenuOnRightClick="True"
+							   TooltipText="MIDI Player">
 					<ui:NotifyIcon.Menu>
 						<ContextMenu>
-							<!-- ReSharper disable Xaml.RedundantResource -->
-							<ui:MenuItem Command="{s:Action PlayPause, Target=PlaylistView}"
-									Header="Play"
-									SymbolIcon="Play16"/>
-							<ui:MenuItem Command="{s:Action Next}"
-									Header="Next"
-									SymbolIcon="Next16"/>
-							<!-- ReSharper restore Xaml.RedundantResource -->
+							<ui:MenuItem Command="{s:Action PlayPause, Target=PlayerView}"
+										 Header="Play"
+										 SymbolIcon="Play16"/>
+							<ui:MenuItem Command="{s:Action Next, Target=PlayerView}"
+										 Header="Next"
+										 SymbolIcon="Next16"/>
 						</ContextMenu>
 					</ui:NotifyIcon.Menu>
 				</ui:NotifyIcon>
 			</ui:TitleBar.Tray>
 		</ui:TitleBar>
 
-		<Grid Grid.Row="1"
-				Margin="0">
+		<!-- Main Content Area -->
+		<Grid Grid.Row="1">
 			<Grid.ColumnDefinitions>
 				<ColumnDefinition Width="Auto"/>
 				<ColumnDefinition Width="*"/>
 			</Grid.ColumnDefinitions>
 
+			<!-- Left Navigation -->
 			<ui:NavigationStore
 				x:Name="RootNavigation"
-					Margin="6,0"
-					Precache="False"
+				Margin="6,0"
+				Precache="False"
 				SelectedPageIndex="0"
-					Navigated="{s:Action Navigate}"
+				Navigated="{s:Action Navigate}"
 				Frame="{Binding ElementName=RootFrame, Mode=OneWay}">
 				<ui:NavigationStore.Items>
-					<ui:NavigationItem Content="Player"
-							Icon="Play12"
-									   PageType="{x:Type pages:LyrePlayerView}"
-									   Tag="{Binding PlayerView}"/>
-					<ui:NavigationSeparator/>
 					<ui:NavigationItem Content="Playlist"
-							Icon="TextBulletListSquareSearch20"
-									   PageType="{x:Type pages:LyrePlayerView}"
+									   Icon="TextBulletListSquareSearch20"
+									   PageType="{x:Type pages:PlaylistView}"
 									   Tag="{Binding PlaylistView}"/>
 					<ui:NavigationItem Content="Sheet"
-							Icon="BookOpenMicrophone20"
-									   PageType="{x:Type pages:LyrePlayerView}"
+									   Icon="BookOpenMicrophone20"
+									   PageType="{x:Type pages:PianoSheetView}"
 									   Tag="{Binding PianoSheetView}"/>
+					<ui:NavigationItem Content="Tracks"
+									   Icon="MusicNote220"
+									   PageType="{x:Type pages:LyrePlayerView}"
+									   Tag="{Binding PlayerView}"/>
 				</ui:NavigationStore.Items>
 				<ui:NavigationStore.Footer>
 					<ui:NavigationItem Content="Theme"
-							Icon="DarkTheme24"
-							Command="{s:Action ToggleTheme}"/>
+									   Icon="DarkTheme24"
+									   Command="{s:Action ToggleTheme}"/>
 					<ui:NavigationItem Content="Settings"
-							Icon="Settings16"
+									   Icon="Settings16"
 									   PageType="{x:Type pages:SettingsPageView}"
 									   Tag="{Binding SettingsView}"/>
 				</ui:NavigationStore.Footer>
-
 			</ui:NavigationStore>
 
-			<Border
-				Grid.Column="1"
+			<!-- Content Panel -->
+			<Border Grid.Column="1"
 					CornerRadius="8,0,0,0"
-				Background="{ui:ThemeResource ControlFillColorDefaultBrush}">
+					Background="{ui:ThemeResource ControlFillColorDefaultBrush}">
 				<Grid>
 					<Grid.RowDefinitions>
 						<RowDefinition Height="Auto"/>
@@ -121,19 +121,235 @@
 					</Grid.RowDefinitions>
 					<ui:Breadcrumb
 						Grid.Row="0"
-							Margin="18"
+						Margin="18"
 						HorizontalAlignment="Left"
-							VerticalAlignment="Top"
+						VerticalAlignment="Top"
 						FontSize="24"
-							Navigation="{Binding ElementName=RootNavigation, Mode=OneWay}"/>
+						Navigation="{Binding ElementName=RootNavigation, Mode=OneWay}"/>
 					<Frame Grid.Row="0"
-							x:Name="RootFrame"
-							Visibility="Hidden"/>
+						   x:Name="RootFrame"
+						   Visibility="Hidden"/>
 					<modernWpf:AnimatedContentControl Grid.Row="1"
-							Margin="10"
-							s:View.Model="{Binding ActiveItem}"/>
+													  Margin="10"
+													  s:View.Model="{Binding ActiveItem}"/>
 				</Grid>
 			</Border>
 		</Grid>
+
+		<!-- Fixed Bottom Player Controls (Spotify-style) -->
+		<Border Grid.Row="2"
+				Background="{ui:ThemeResource ControlFillColorDefaultBrush}"
+				BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+				BorderThickness="0,1,0,0"
+				Padding="16,12">
+			<Grid>
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="*"
+							MinWidth="180"/>
+					<ColumnDefinition Width="Auto"/>
+					<ColumnDefinition Width="*"
+							MinWidth="180"/>
+				</Grid.ColumnDefinitions>
+
+				<!-- Left: Song Info -->
+				<StackPanel Grid.Column="0"
+							Orientation="Horizontal"
+							VerticalAlignment="Center">
+					<Border Width="56"
+							Height="56"
+							CornerRadius="4"
+							Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}">
+						<ui:FontIcon Glyph="&#xEC4F;"
+									 FontFamily="Segoe MDL2 Assets"
+									 FontSize="24"/>
+					</Border>
+					<StackPanel Margin="12,0,0,0"
+							VerticalAlignment="Center">
+						<TextBlock Text="{Binding PlayerView.Playlist.OpenedFile.Title, FallbackValue=No song playing}"
+								   FontWeight="SemiBold"
+								   FontSize="14"
+								   TextTrimming="CharacterEllipsis"
+								   MaxWidth="200"/>
+						<TextBlock Text="{Binding PlayerView.MaximumTime, StringFormat=Duration: m\\:ss, FallbackValue=--:--}"
+								   Opacity="0.6"
+								   FontSize="12"/>
+					</StackPanel>
+				</StackPanel>
+
+				<!-- Center: Playback Controls -->
+				<StackPanel Grid.Column="1"
+						HorizontalAlignment="Center">
+					<!-- Control Buttons -->
+					<modern:SimpleStackPanel Orientation="Horizontal"
+											 HorizontalAlignment="Center"
+											 Spacing="4">
+						<Button s:View.ActionTarget="{Binding PlayerView.Playlist}"
+								Command="{s:Action ToggleShuffle}"
+								Background="Transparent"
+								Padding="8"
+								ToolTip="Shuffle">
+							<ui:FontIcon Glyph="&#xE14B;"
+										 FontFamily="Segoe MDL2 Assets"
+										 FontSize="14"
+										 Foreground="{Binding PlayerView.Playlist.ShuffleStateColor}"/>
+						</Button>
+
+						<Button s:View.ActionTarget="{Binding PlayerView}"
+								Command="{s:Action Previous}"
+								IsHitTestVisible="{Binding PlayerView.CanHitPrevious}"
+								Background="Transparent"
+								Padding="8"
+								ToolTip="Previous">
+							<ui:FontIcon Glyph="&#xE892;"
+										 FontFamily="Segoe MDL2 Assets"
+										 FontSize="18"/>
+						</Button>
+
+						<Button s:View.ActionTarget="{Binding PlayerView}"
+								Command="{s:Action PlayPause}"
+								IsHitTestVisible="{Binding PlayerView.CanHitPlayPause}"
+								Padding="12"
+								ToolTip="Play/Pause">
+							<ui:FontIcon Glyph="{Binding PlayerView.PlayPauseIcon}"
+										 FontFamily="Segoe MDL2 Assets"
+										 FontSize="20"/>
+						</Button>
+
+						<Button s:View.ActionTarget="{Binding PlayerView}"
+								Command="{s:Action Next}"
+								IsHitTestVisible="{Binding PlayerView.CanHitNext}"
+								Background="Transparent"
+								Padding="8"
+								ToolTip="Next">
+							<ui:FontIcon Glyph="&#xE893;"
+										 FontFamily="Segoe MDL2 Assets"
+										 FontSize="18"/>
+						</Button>
+
+						<Button s:View.ActionTarget="{Binding PlayerView.Playlist}"
+								Command="{s:Action ToggleLoop}"
+								Background="Transparent"
+								Padding="8"
+								ToolTip="Loop">
+							<ui:FontIcon Glyph="{Binding PlayerView.Playlist.LoopStateString}"
+										 FontFamily="Segoe MDL2 Assets"
+										 FontSize="14"/>
+						</Button>
+					</modern:SimpleStackPanel>
+
+					<!-- Progress Bar -->
+					<Grid Margin="0,8,0,0"
+							MinWidth="400">
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="Auto"/>
+							<ColumnDefinition Width="*"/>
+							<ColumnDefinition Width="Auto"/>
+						</Grid.ColumnDefinitions>
+
+						<TextBlock Grid.Column="0"
+								   VerticalAlignment="Center"
+								   FontSize="11"
+								   Opacity="0.7"
+								   Text="{Binding PlayerView.CurrentTime, StringFormat=m\\:ss}"/>
+						<Slider Grid.Column="1"
+								Margin="8,0"
+								IsMoveToPointEnabled="True"
+								IsEnabled="{Binding PlayerView.CanHitPlayPause}"
+								Value="{Binding PlayerView.SongPosition}"
+								Maximum="{Binding PlayerView.MaximumTime.TotalSeconds}"/>
+						<TextBlock Grid.Column="2"
+								   VerticalAlignment="Center"
+								   FontSize="11"
+								   Opacity="0.7"
+								   Text="{Binding PlayerView.MaximumTime, StringFormat=m\\:ss}"/>
+					</Grid>
+				</StackPanel>
+
+				<!-- Right: Per-song Settings -->
+				<modern:SimpleStackPanel Grid.Column="2"
+										 Orientation="Horizontal"
+										 HorizontalAlignment="Right"
+										 VerticalAlignment="Center"
+										 Spacing="12">
+
+					<!-- Key -->
+					<StackPanel ToolTip="Key offset for transposition">
+						<TextBlock Text="Key"
+								FontSize="10"
+								Opacity="0.6"
+								HorizontalAlignment="Center"/>
+						<modern:SimpleStackPanel Orientation="Horizontal"
+								Spacing="2">
+							<Button Padding="4,2"
+									Background="Transparent"
+									s:View.ActionTarget="{Binding SettingsView}"
+									Command="{s:Action DecreaseKey}">
+								<ui:FontIcon Glyph="&#xE70E;"
+										FontFamily="Segoe MDL2 Assets"
+										FontSize="10"/>
+							</Button>
+							<TextBlock Text="{Binding SettingsView.Key}"
+									   FontWeight="SemiBold"
+									   VerticalAlignment="Center"
+									   MinWidth="40"
+									   TextAlignment="Center"/>
+							<Button Padding="4,2"
+									Background="Transparent"
+									s:View.ActionTarget="{Binding SettingsView}"
+									Command="{s:Action IncreaseKey}">
+								<ui:FontIcon Glyph="&#xE70D;"
+										FontFamily="Segoe MDL2 Assets"
+										FontSize="10"/>
+							</Button>
+						</modern:SimpleStackPanel>
+					</StackPanel>
+
+					<!-- Speed -->
+					<StackPanel ToolTip="Playback speed">
+						<TextBlock Text="Speed"
+								FontSize="10"
+								Opacity="0.6"
+								HorizontalAlignment="Center"/>
+						<modern:SimpleStackPanel Orientation="Horizontal"
+								Spacing="2">
+							<Button Padding="4,2"
+									Background="Transparent"
+									s:View.ActionTarget="{Binding SettingsView}"
+									Command="{s:Action DecreaseSpeed}">
+								<ui:FontIcon Glyph="&#xE70E;"
+										FontFamily="Segoe MDL2 Assets"
+										FontSize="10"/>
+							</Button>
+							<TextBlock Text="{Binding SettingsView.Speed, StringFormat={}{0:0.0}x}"
+									   FontWeight="SemiBold"
+									   VerticalAlignment="Center"
+									   MinWidth="35"
+									   TextAlignment="Center"/>
+							<Button Padding="4,2"
+									Background="Transparent"
+									s:View.ActionTarget="{Binding SettingsView}"
+									Command="{s:Action IncreaseSpeed}">
+								<ui:FontIcon Glyph="&#xE70D;"
+										FontFamily="Segoe MDL2 Assets"
+										FontSize="10"/>
+							</Button>
+						</modern:SimpleStackPanel>
+					</StackPanel>
+
+					<!-- Transpose Mode -->
+					<StackPanel ToolTip="Transpose mode for out-of-range notes">
+						<TextBlock Text="Transpose"
+								FontSize="10"
+								Opacity="0.6"
+								HorizontalAlignment="Center"/>
+						<ComboBox MinWidth="80"
+								  Padding="8,4"
+								  ItemsSource="{x:Static viewModels:SettingsPageViewModel.TransposeNames}"
+								  SelectedItem="{Binding SettingsView.Transpose}"
+								  DisplayMemberPath="Value"/>
+					</StackPanel>
+				</modern:SimpleStackPanel>
+			</Grid>
+		</Border>
 	</Grid>
 </ui:UiWindow>

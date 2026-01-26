@@ -273,6 +273,14 @@ public class SettingsPageViewModel : Screen
         }
     }
 
+    // Key offset controls
+    public void IncreaseKey() => KeyOffset++;
+    public void DecreaseKey() => KeyOffset--;
+
+    // Speed controls
+    public void IncreaseSpeed() => Speed = Math.Round(Speed + 0.1, 1);
+    public void DecreaseSpeed() => Speed = Math.Round(Speed - 0.1, 1);
+
     public async Task LocationMissing()
     {
         var dialog = new ContentDialog

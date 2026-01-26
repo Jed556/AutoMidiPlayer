@@ -28,14 +28,8 @@
                     IsOn="{Binding Default.UseSpeakers, Source={StaticResource Settings}}"/>
 
                 <modern:ToggleSwitch
-                    Header="Transpose"
+                    Header="Transpose Notes"
                     IsOn="{Binding Default.TransposeNotes, Source={StaticResource Settings}}"/>
-
-                <modern:NumberBox
-                    Header="{Binding Key}"
-                    Value="{Binding KeyOffset}"
-                    Minimum="{Binding MinOffset}"
-                    Maximum="{Binding MaxOffset}"/>
             </modern:SimpleStackPanel>
 
             <modern:SimpleStackPanel Orientation="Horizontal">
@@ -69,23 +63,6 @@
                         SelectedIndex="{Binding Default.SelectedInstrument, Source={StaticResource Settings}}"
                         DisplayMemberPath="Value"/>
                 </GroupBox>
-            </modern:SimpleStackPanel>
-
-            <modern:SimpleStackPanel Orientation="Horizontal">
-                <GroupBox Header="Transpose">
-                    <ComboBox
-                        ItemsSource="{x:Static viewModels:SettingsPageViewModel.TransposeNames}"
-                        SelectedItem="{Binding Transpose}"
-                        DisplayMemberPath="Value"/>
-                </GroupBox>
-
-                <modern:NumberBox
-                    Header="{Binding SpeedDisplay}"
-                    Value="{Binding Speed}"
-                    Minimum="0.1"
-                    Maximum="4.0"
-                    SmallChange="0.1"
-                    LargeChange="0.5"/>
             </modern:SimpleStackPanel>
 
             <GroupBox Header="Timer">
