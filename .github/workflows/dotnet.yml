@@ -23,13 +23,13 @@ jobs:
 
     - name: Publish with dotnet
       run: |
-        dotnet publish GenshinLyreMidiPlayer.WPF -r win-x64 -c Release -o .\install --self-contained false -p:PublishSingleFile=true
-        dotnet publish GenshinLyreMidiPlayer.WPF -r win-x64 -c Release -o .\portable --self-contained true -p:PublishSingleFile=true
+        dotnet publish AutoMidiPlayer.WPF -r win-x64 -c Release -o .\install --self-contained false -p:PublishSingleFile=true
+        dotnet publish AutoMidiPlayer.WPF -r win-x64 -c Release -o .\portable --self-contained true -p:PublishSingleFile=true
 
     - name: Zip release
       run: |
-        7z a GenshinLyreMidiPlayer_${{ steps.tag.outputs.VERSION }}_win-x64_net-install.zip .\install\* -mx9
-        7z a GenshinLyreMidiPlayer_${{ steps.tag.outputs.VERSION }}_win-x64_portable.zip .\portable\* -mx9
+        7z a AutoMidiPlayer_${{ steps.tag.outputs.VERSION }}_win-x64_net-install.zip .\install\* -mx9
+        7z a AutoMidiPlayer_${{ steps.tag.outputs.VERSION }}_win-x64_portable.zip .\portable\* -mx9
 
     - name: Create Release
       uses: ncipollo/release-action@v1.10.0
@@ -38,7 +38,7 @@ jobs:
           omitBodyDuringUpdate: true
           omitNameDuringUpdate: true
           artifacts:
-              ./GenshinLyreMidiPlayer_${{ steps.tag.outputs.VERSION }}_win-x64_net-install.zip,
-              ./GenshinLyreMidiPlayer_${{ steps.tag.outputs.VERSION }}_win-x64_portable.zip
+              ./AutoMidiPlayer_${{ steps.tag.outputs.VERSION }}_win-x64_net-install.zip,
+              ./AutoMidiPlayer_${{ steps.tag.outputs.VERSION }}_win-x64_portable.zip
           artifactContentType: application/zip
           token: ${{ secrets.GITHUB_TOKEN }}

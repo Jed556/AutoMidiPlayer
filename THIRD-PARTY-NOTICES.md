@@ -1,4 +1,4 @@
-GenshinLyreMIDIPlayer uses third-party libraries or other resources that may be
+AutoMidiPlayer uses third-party libraries or other resources that may be
 distributed under licenses different than the project.
 
 In the event that we accidentally failed to list a required notice, please

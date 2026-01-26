@@ -12,15 +12,15 @@ This project has a [Code of Conduct](CODE_OF_CONDUCT.md), please follow it in al
 4. You may merge the Pull Request in once you have the the approval of the maintainers.
 
 ## Build
-If you just want to run the program, there are precompiled releases that can be found in [here](https://github.com/sabihoshi/GenshinLyreMidiPlayer/releases).
+If you just want to run the program, there are precompiled releases that can be found in [here](https://github.com/sabihoshi/AutoMidiPlayer/releases).
 ### Requirements
 * [Git](https://git-scm.com) for cloning the project
 * [.NET 5.0](https://dotnet.microsoft.com/download/dotnet/5.0) SDK
 
 #### Publish a single binary for Windows
 ```bat
-git clone https://github.com/sabihoshi/GenshinLyreMidiPlayer.git
-cd GenshinLyreMidiPlayer\GenshinLyreMidiPlayer
+git clone https://github.com/sabihoshi/AutoMidiPlayer.git
+cd AutoMidiPlayer\AutoMidiPlayer
 
 dotnet publish -r win-x86 -c Release -o bin\publish --self-contained false -p:PublishSingleFile=true
 ```
@@ -28,16 +28,16 @@ dotnet publish -r win-x86 -c Release -o bin\publish --self-contained false -p:Pu
 
 #### Build the project (not necessary if you published)
 ```bat
-git clone https://github.com/sabihoshi/GenshinLyreMidiPlayer.git
-cd GenshinLyreMidiPlayer
+git clone https://github.com/sabihoshi/AutoMidiPlayer.git
+cd AutoMidiPlayer
 
 dotnet build
 ```
 
 #### Publish the project using defaults
 ```bat
-git clone https://github.com/sabihoshi/GenshinLyreMidiPlayer.git
-cd GenshinLyreMidiPlayer
+git clone https://github.com/sabihoshi/AutoMidiPlayer.git
+cd AutoMidiPlayer
 
 dotnet publish
 ```
@@ -46,7 +46,7 @@ dotnet publish
 If you want to build using the [.Net Core 3.1 SDK](https://dotnet.microsoft.com/download), you need to make a few changes to the project files.
 
 #### Project SDK
-Change the Project SDK of `GenshinLyreMidiPlayer.WPF.csproj` into `Microsoft.NET.Sdk.WindowsDesktop`.
+Change the Project SDK of `AutoMidiPlayer.WPF.csproj` into `Microsoft.NET.Sdk.WindowsDesktop`.
 ```diff
 - <Project Sdk="Microsoft.NET.Sdk">
 + <Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
