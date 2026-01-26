@@ -10,7 +10,7 @@ If you enjoyed this project, consider [contributing](#contributing) or 🌟 star
 
 ## **[Download latest version][latest]** [![GitHub all releases](https://img.shields.io/github/downloads/Jed556/AutoMidiPlayer/total?style=social)][latest] [![GitHub release (latest by date)](https://img.shields.io/github/v/release/Jed556/AutoMidiPlayer)][latest]
 
-![2022-09-14_04-24-19](https://user-images.githubusercontent.com/25006819/190002173-fa8e2b0d-8817-4980-81f1-fb491c584310.png)
+Screenshot: Main player showing playlist and playback controls (landscape UI with bottom player bar).
 
 ## How to use
 
@@ -20,7 +20,7 @@ If you enjoyed this project, consider [contributing](#contributing) or 🌟 star
 4. Press play and it will automatically switch to the target game window.
 5. Automatically stops playing if you switch to a different window.
 
-> If you get a [SmartScreen](https://user-images.githubusercontent.com/25006819/115977864-555d4300-a5ae-11eb-948b-c0139f606a2d.png) popup, click on "More info" and then "Run anyway"
+> If you get a SmartScreen popup, click on "More info" and then "Run anyway"
 > The reason this appears is because the application is not signed. Signing costs money which can get very expensive.
 
 ## Features
@@ -44,12 +44,12 @@ If you enjoyed this project, consider [contributing](#contributing) or 🌟 star
 # Piano Sheet [![](https://img.shields.io/badge/v2.1.0.1-New!-yellow)](https://github.com/Jed556/AutoMidiPlayer/releases/tag/v2.1.0.1)
 The first version of the Piano Sheet has been added, this allows you to easily share songs to other people, or for yourself to try. You can change the delimiter as well as the split size, and spacing. This will use the current keyboard layout that you have chosen.
 
-![AutoMidiPlayer WPF_2022-09-14_04-27-50](https://user-images.githubusercontent.com/25006819/190002764-b5a74b2c-2402-462f-b35e-70ab4c45b5ec.gif)
+Animation: Piano Sheet example demonstrating delimiter, split size, and spacing options.
 
 ### Media Controls
 You can now control the Lyre natively by using your media controls that some keyboards have as special function keys. This integrates with other music applications as well.
 
-![2021-05-04_13-25-52](https://user-images.githubusercontent.com/25006819/116963753-5132d300-acdc-11eb-85f8-e455928f8369.png)
+Illustration: Media control integration with keyboard function keys.
 
 ### Play using your own MIDI Input Device
 If you have your own MIDI instrument, this will let you play directly to the in-game instrument. This lets you play directly without using a MIDI file.
@@ -57,7 +57,7 @@ If you have your own MIDI instrument, this will let you play directly to the in-
 ### Playlist Controls & History
 A playlist allows you to play songs continuously without having to open a new file after a song has finished.
 
-![2022-09-14_04-28-38](https://user-images.githubusercontent.com/25006819/190002884-17fc502c-5235-42c9-9283-3703328a63ea.png)
+Screenshot: Playlist and history panel showing song queue.
 
 ### Hold notes & Merge nearby notes
   - You can set the player to hold sustained notes (does not really make a difference. Off by default.)
@@ -66,15 +66,15 @@ A playlist allows you to play songs continuously without having to open a new fi
 ### Light Mode
 You can set the player to light mode/dark mode (uses your system's theme by default.)
 
-![AutoMidiPlayer WPF_2022-09-14_04-29-00](https://user-images.githubusercontent.com/25006819/190002946-e43658c1-cf3a-469d-9ab5-a166f34f673c.png)
+Screenshot: Light and dark theme examples.
 
 ### Mini Mode
 You can resize the player as small as you want and it should close the panels accordingly.
 
-![AutoMidiPlayer WPF_2022-09-14_04-21-55](https://user-images.githubusercontent.com/25006819/190002986-aabb84df-924f-48fc-9354-573635dc2551.png)
+Screenshot: Mini mode showing compact UI.
 
-## Upcoming
-* Drag and drop MIDI files into the player.
+### Drag and Drop
+Drag and drop MIDI files directly into the player window to add them to your playlist.
 
 ## About
 
