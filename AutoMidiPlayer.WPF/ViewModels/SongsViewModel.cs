@@ -445,4 +445,11 @@ public class SongsViewModel : Screen
         // Force a complete list refresh to show updated values
         ApplySort();
     }
+
+    protected override void OnDeactivate()
+    {
+        base.OnDeactivate();
+        // Clear the semi-active (single-clicked) row when switching tabs
+        SelectedFile = null;
+    }
 }

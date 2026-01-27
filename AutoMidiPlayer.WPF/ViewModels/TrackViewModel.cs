@@ -303,7 +303,11 @@ public class TrackViewModel : Screen,
         if (Playback is null)
             await InitializePlayback();
 
-        if (Playback!.IsRunning)
+        // If still null (no file opened), do nothing
+        if (Playback is null)
+            return;
+
+        if (Playback.IsRunning)
         {
             Playback.Stop();
             // Save position on pause

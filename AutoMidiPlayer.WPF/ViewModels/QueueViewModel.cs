@@ -60,9 +60,12 @@ public class QueueViewModel : Screen
         }
     }
 
-    public BindableCollection<MidiFile> FilteredTracks => string.IsNullOrWhiteSpace(FilterText)
-        ? Tracks
-        : new(Tracks.Where(t => t.Title.Contains(FilterText, StringComparison.OrdinalIgnoreCase)));
+    private BindableCollection<MidiFile> _filteredTracks = new();
+    public BindableCollection<MidiFile> FilteredTracks
+    {
+        get => _filteredTracks;
+        private set => SetAndNotify(ref _filteredTracks, value);
+    }
 
     public BindableCollection<MidiFile> Tracks { get; } = new();
 
@@ -184,12 +187,12 @@ public class QueueViewModel : Screen
     public void ClearQueue()
     {
         Tracks.Clear();
-        FilteredTracks.Clear();
         History.Clear();
 
         OpenedFile = null;
         SelectedFile = null;
         SaveQueue();
+        ApplyFilter();
     }
 
     public void RemoveTrack()
@@ -359,6 +362,7 @@ public class QueueViewModel : Screen
             ShuffledTracks = new(Tracks.OrderBy(_ => Guid.NewGuid()));
 
         RefreshQueue();
+        ApplyFilter();
     }
 
     /// <summary>
@@ -431,6 +435,7 @@ public class QueueViewModel : Screen
     {
         SaveQueue();
         RefreshQueue();
+        ApplyFilter();
     }
 
     private void RefreshQueue()
@@ -443,14 +448,39 @@ public class QueueViewModel : Screen
     }
 
     /// <summary>
+    /// Apply filter to create a new FilteredTracks collection
+    /// </summary>
+    public void ApplyFilter()
+    {
+        IEnumerable<MidiFile> filtered = string.IsNullOrWhiteSpace(FilterText)
+            ? Tracks
+            : Tracks.Where(t => t.Title.Contains(FilterText, StringComparison.OrdinalIgnoreCase));
+
+        FilteredTracks = new BindableCollection<MidiFile>(filtered);
+    }
+
+    /// <summary>
+    /// Called by PropertyChanged.Fody when FilterText changes
+    /// </summary>
+    private void OnFilterTextChanged() => ApplyFilter();
+
+    /// <summary>
     /// Refresh the currently playing song in the list to reflect property changes
     /// </summary>
     public void RefreshCurrentSong()
     {
-        // Force UI to refresh by notifying FilteredTracks changed
+        // Force UI to refresh by recreating the filtered collection
+        // This ensures the ListView re-renders items when Song properties change
         System.Windows.Application.Current?.Dispatcher?.BeginInvoke(() =>
         {
-            NotifyOfPropertyChange(nameof(FilteredTracks));
+            ApplyFilter();
         });
+    }
+
+    protected override void OnDeactivate()
+    {
+        base.OnDeactivate();
+        // Clear the semi-active (single-clicked) row when switching tabs
+        SelectedFile = null;
     }
 }

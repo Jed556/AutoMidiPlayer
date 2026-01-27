@@ -13,6 +13,7 @@
 	xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
 	xmlns:core="clr-namespace:AutoMidiPlayer.WPF.Core"
 	d:DataContext="{d:DesignInstance Type=viewModels:MainWindowViewModel}"
+	x:Name="MainWindow"
 	Title="{Binding Title}"
 	Height="650"
 	Width="1000"
@@ -23,6 +24,11 @@
 	WindowBackdropType="Mica"
 	WindowCornerPreference="Round"
 	WindowStartupLocation="CenterScreen">
+
+	<ui:UiWindow.Resources>
+		<modernWpf:BindingProxy x:Key="DataContextProxy"
+								Data="{Binding}"/>
+	</ui:UiWindow.Resources>
 
 	<Grid AllowDrop="True"
 		  Drop="{s:Action OnFileDrop}"
@@ -54,10 +60,12 @@
 							   TooltipText="MIDI Player">
 					<ui:NotifyIcon.Menu>
 						<ContextMenu>
-							<ui:MenuItem Command="{s:Action PlayPause, Target=TrackView}"
+							<ui:MenuItem s:View.ActionTarget="{Binding Data.TrackView, Source={StaticResource DataContextProxy}}"
+										 Command="{s:Action PlayPause}"
 										 Header="Play"
 										 SymbolIcon="Play16"/>
-							<ui:MenuItem Command="{s:Action Next, Target=TrackView}"
+							<ui:MenuItem s:View.ActionTarget="{Binding Data.TrackView, Source={StaticResource DataContextProxy}}"
+										 Command="{s:Action Next}"
 										 Header="Next"
 										 SymbolIcon="Next16"/>
 						</ContextMenu>
