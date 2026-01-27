@@ -37,22 +37,24 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         _events = ioc.Get<IEventAggregator>();
         _events.Subscribe(this);
 
+        // TrackView must be initialized first as other ViewModels depend on it
+        ActiveItem = TrackView = new(ioc, this);
         QueueView = new(ioc, this);
         SongsView = new(ioc, this);
         SettingsView = new(ioc, this);
         PianoSheetView = new(this);
-
-        ActiveItem = TrackView = new(ioc, this);
     }
 
     public void Handle(MidiFile message)
     {
-        Title = $"{message.Title} - {AppName}";
+        // Title will be updated when playback starts via UpdateTitle()
+        UpdateTitle();
     }
 
     public void UpdateTitle()
     {
-        Title = QueueView.OpenedFile is not null
+        // Only show song title when actively playing, not when paused or stopped
+        Title = TrackView.IsPlaying && QueueView.OpenedFile is not null
             ? $"{QueueView.OpenedFile.Title} - {AppName}"
             : AppName;
     }

@@ -122,11 +122,16 @@ public class SettingsPageViewModel : Screen
         {
             var color = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hexColor);
             ThemeManager.Current.AccentColor = color;
+
+            // Also apply to Wpf.Ui accent for sidebar and other controls
+            Accent.Apply(color);
         }
         catch
         {
             // Fallback to Spotify green if color parsing fails
-            ThemeManager.Current.AccentColor = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#1DB954");
+            var fallbackColor = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#1DB954");
+            ThemeManager.Current.AccentColor = fallbackColor;
+            Accent.Apply(fallbackColor);
         }
     }
 
@@ -145,6 +150,9 @@ public class SettingsPageViewModel : Screen
                     _ => _theme.GetSystemTheme()
                 });
                 Settings.Modify(s => s.AppTheme = (int?)value.Value ?? -1);
+
+                // Reapply accent color after theme change
+                ApplyAccentColor(_selectedAccentColor.ColorHex);
             }
         }
     }
@@ -479,6 +487,9 @@ public class SettingsPageViewModel : Screen
         });
 
         Settings.Modify(s => s.AppTheme = (int?)ThemeManager.Current.ApplicationTheme ?? -1);
+
+        // Reapply accent color after theme change
+        ApplyAccentColor(_selectedAccentColor.ColorHex);
     }
 
     [UsedImplicitly]

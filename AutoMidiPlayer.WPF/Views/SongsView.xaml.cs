@@ -1,7 +1,5 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
 using AutoMidiPlayer.Data.Midi;
 using AutoMidiPlayer.WPF.ModernWPF;
 using AutoMidiPlayer.WPF.ViewModels;
@@ -44,53 +42,6 @@ public partial class SongsView : UserControl
                     viewModel.SelectedFiles.Add(file);
                 }
             }
-        }
-    }
-
-    /// <summary>
-    /// Show play button and menu button when row is hovered
-    /// </summary>
-    private void ListViewItem_MouseEnter(object sender, MouseEventArgs e)
-    {
-        if (sender is ListViewItem item)
-        {
-            var playButton = FindChildByName<Button>(item, "PlayButton");
-            var menuButton = FindChildByName<Button>(item, "MenuButton");
-            var positionText = FindChildByName<TextBlock>(item, "PositionText");
-
-            if (playButton != null) playButton.Visibility = Visibility.Visible;
-            if (menuButton != null) menuButton.Visibility = Visibility.Visible;
-            if (positionText != null) positionText.Visibility = Visibility.Collapsed;
-        }
-    }
-
-    /// <summary>
-    /// Hide play button and menu button when row is no longer hovered
-    /// </summary>
-    private void ListViewItem_MouseLeave(object sender, MouseEventArgs e)
-    {
-        if (sender is ListViewItem item)
-        {
-            var playButton = FindChildByName<Button>(item, "PlayButton");
-            var menuButton = FindChildByName<Button>(item, "MenuButton");
-            var positionText = FindChildByName<TextBlock>(item, "PositionText");
-
-            if (playButton != null) playButton.Visibility = Visibility.Collapsed;
-            if (menuButton != null) menuButton.Visibility = Visibility.Collapsed;
-            if (positionText != null) positionText.Visibility = Visibility.Visible;
-        }
-    }
-
-    /// <summary>
-    /// Play the specific song when play button is clicked
-    /// </summary>
-    private void PlayButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button button &&
-            button.Tag is MidiFile file &&
-            DataContext is SongsViewModel viewModel)
-        {
-            viewModel.PlaySong(file);
         }
     }
 
@@ -144,29 +95,5 @@ public partial class SongsView : UserControl
         {
             await viewModel.DeleteSelected();
         }
-    }
-
-    /// <summary>
-    /// Helper method to find a child element by name
-    /// </summary>
-    private static T? FindChildByName<T>(DependencyObject parent, string name) where T : FrameworkElement
-    {
-        int childCount = VisualTreeHelper.GetChildrenCount(parent);
-        for (int i = 0; i < childCount; i++)
-        {
-            var child = VisualTreeHelper.GetChild(parent, i);
-
-            if (child is T frameworkElement && frameworkElement.Name == name)
-            {
-                return frameworkElement;
-            }
-
-            var result = FindChildByName<T>(child, name);
-            if (result != null)
-            {
-                return result;
-            }
-        }
-        return null;
     }
 }

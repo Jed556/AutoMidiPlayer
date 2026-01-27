@@ -40,6 +40,18 @@ public class QueueViewModel : Screen
         // Load saved queue settings
         Shuffle = Settings.QueueShuffle;
         Loop = (LoopMode)Settings.QueueLoopMode;
+
+        // Forward IsPlaying changes from TrackView so bindings update
+        _main.TrackView.PropertyChanged += OnTrackViewPropertyChanged;
+    }
+
+    private void OnTrackViewPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(TrackViewModel.IsPlaying))
+        {
+            // Notify that TrackView changed so bindings to TrackView.IsPlaying re-evaluate
+            NotifyOfPropertyChange(() => TrackView);
+        }
     }
 
     public BindableCollection<MidiFile> FilteredTracks => string.IsNullOrWhiteSpace(FilterText)
@@ -57,6 +69,8 @@ public class QueueViewModel : Screen
     public MidiFile? OpenedFile { get; set; }
 
     public MidiFile? SelectedFile { get; set; }
+
+    public TrackViewModel TrackView => _main.TrackView;
 
     public SolidColorBrush ShuffleStateColor => Shuffle
         ? new(ThemeManager.Current.ActualAccentColor)
@@ -140,6 +154,22 @@ public class QueueViewModel : Screen
     {
         if (file is not null)
         {
+            _events.Publish(file);
+        }
+    }
+
+    public async void PlayPauseFromQueue(MidiFile? file)
+    {
+        if (file is null) return;
+
+        // If this is the currently opened file, toggle play/pause
+        if (OpenedFile == file)
+        {
+            await TrackView.PlayPause();
+        }
+        else
+        {
+            // Otherwise, play this song
             _events.Publish(file);
         }
     }

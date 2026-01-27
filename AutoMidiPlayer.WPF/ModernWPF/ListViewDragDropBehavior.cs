@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using AutoMidiPlayer.Data.Midi;
+using ModernWpf;
 using Stylet;
 
 namespace AutoMidiPlayer.WPF.ModernWPF;
@@ -137,7 +138,7 @@ public class ListViewDragDropHelper
     {
         _dropIndicator = new Line
         {
-            Stroke = new SolidColorBrush(Color.FromRgb(0, 120, 215)), // Accent color
+            Stroke = new SolidColorBrush(ThemeManager.Current.ActualAccentColor),
             StrokeThickness = 3,
             StrokeStartLineCap = PenLineCap.Round,
             StrokeEndLineCap = PenLineCap.Round,

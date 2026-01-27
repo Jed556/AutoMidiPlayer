@@ -42,9 +42,23 @@ public class SongsViewModel : Screen
         // Load saved sort settings
         CurrentSortMode = (SortMode)Settings.SongsSortMode;
         IsAscending = Settings.SongsSortAscending;
+
+        // Forward IsPlaying changes from TrackView so bindings update
+        _main.TrackView.PropertyChanged += OnTrackViewPropertyChanged;
+    }
+
+    private void OnTrackViewPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(TrackViewModel.IsPlaying))
+        {
+            // Notify that TrackView changed so bindings to TrackView.IsPlaying re-evaluate
+            NotifyOfPropertyChange(() => TrackView);
+        }
     }
 
     public QueueViewModel QueueView => _main.QueueView;
+
+    public TrackViewModel TrackView => _main.TrackView;
 
     public BindableCollection<MidiFile> Tracks { get; } = new();
 
@@ -318,6 +332,22 @@ public class SongsViewModel : Screen
             // Add to queue if not already there and play
             _main.QueueView.AddFile(file);
             _events.Publish(file);
+        }
+    }
+
+    public async void PlayPauseFromSongs(MidiFile? file)
+    {
+        if (file is null) return;
+
+        // If this is the currently opened file, toggle play/pause
+        if (QueueView.OpenedFile == file)
+        {
+            await TrackView.PlayPause();
+        }
+        else
+        {
+            // Otherwise, add to queue and play this song
+            PlaySong(file);
         }
     }
 

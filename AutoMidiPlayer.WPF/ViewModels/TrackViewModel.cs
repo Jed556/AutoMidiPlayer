@@ -131,6 +131,8 @@ public class TrackViewModel : Screen,
 
     public QueueViewModel Queue => _main.QueueView;
 
+    public bool IsPlaying => Playback?.IsRunning ?? false;
+
     public string PlayPauseIcon => Playback?.IsRunning ?? false ? PauseIcon : PlayIcon;
 
     public string PlayPauseTooltip => Playback?.IsRunning ?? false ? "Pause" : "Play";
@@ -453,10 +455,14 @@ public class TrackViewModel : Screen,
         NotifyOfPropertyChange(() => CanHitPrevious);
         NotifyOfPropertyChange(() => CanHitPlayPause);
 
+        NotifyOfPropertyChange(() => IsPlaying);
         NotifyOfPropertyChange(() => PlayPauseIcon);
         NotifyOfPropertyChange(() => PlayPauseTooltip);
         NotifyOfPropertyChange(() => MaximumTime);
         NotifyOfPropertyChange(() => CurrentTime);
+
+        // Update window title based on playback state
+        _main.UpdateTitle();
 
         if (Controls is not null && Display is not null)
         {
@@ -558,9 +564,13 @@ public class TrackViewModel : Screen,
         if (_savedPosition.HasValue)
         {
             var time = TimeSpan.FromSeconds(_savedPosition.Value);
-            MoveSlider(time);
             playback.MoveToTime(new MetricTimeSpan(time));
             _savedPosition = null;
+
+            // Move slider AFTER UpdateButtons to avoid WPF binding interference
+            UpdateButtons();
+            MoveSlider(time);
+            return Task.CompletedTask;
         }
 
         UpdateButtons();

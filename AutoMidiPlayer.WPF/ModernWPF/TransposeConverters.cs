@@ -145,3 +145,62 @@ public class IsPlayingToBoolConverter : IMultiValueConverter
         throw new NotImplementedException();
     }
 }
+
+/// <summary>
+/// Multi-value converter that returns true if the row's MidiFile matches the currently playing file
+/// AND playback is actually running.
+/// Values: [0] = MidiFile (row), [1] = MidiFile (opened), [2] = bool (IsPlaying)
+/// </summary>
+public class IsActivelyPlayingConverter : IMultiValueConverter
+{
+    public static IsActivelyPlayingConverter Instance { get; } = new();
+
+    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (values.Length >= 3 &&
+            values[0] is MidiFile rowFile &&
+            values[1] is MidiFile openedFile &&
+            values[2] is bool isPlaying)
+        {
+            return rowFile == openedFile && isPlaying;
+        }
+        return false;
+    }
+
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// Multi-value converter that returns the appropriate play/pause glyph character.
+/// Returns pause glyph if this row's file is playing, play glyph otherwise.
+/// Values: [0] = MidiFile (row), [1] = MidiFile (opened), [2] = bool (IsPlaying)
+/// </summary>
+public class PlayPauseGlyphConverter : IMultiValueConverter
+{
+    public static PlayPauseGlyphConverter Instance { get; } = new();
+
+    private const char PlayGlyph = '\uF5B0';
+    private const char PauseGlyph = '\uF8AE';
+
+    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (values.Length >= 3 &&
+            values[0] is MidiFile rowFile &&
+            values[1] is MidiFile openedFile &&
+            values[2] is bool isPlaying)
+        {
+            // If this file is currently playing, show pause icon
+            if (rowFile == openedFile && isPlaying)
+                return PauseGlyph;
+        }
+        return PlayGlyph;
+    }
+
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
