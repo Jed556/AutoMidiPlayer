@@ -52,7 +52,11 @@ public class SongsViewModel : Screen
         if (e.PropertyName == nameof(TrackViewModel.IsPlaying))
         {
             // Notify that TrackView changed so bindings to TrackView.IsPlaying re-evaluate
-            NotifyOfPropertyChange(() => TrackView);
+            // Use Dispatcher to avoid collection enumeration issues
+            System.Windows.Application.Current?.Dispatcher?.BeginInvoke(() =>
+            {
+                NotifyOfPropertyChange(() => TrackView);
+            });
         }
     }
 

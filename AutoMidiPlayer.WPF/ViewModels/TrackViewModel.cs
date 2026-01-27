@@ -451,6 +451,13 @@ public class TrackViewModel : Screen,
 
     public void UpdateButtons()
     {
+        // Ensure we're on the UI thread to avoid collection enumeration issues
+        if (System.Windows.Application.Current?.Dispatcher?.CheckAccess() == false)
+        {
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(UpdateButtons);
+            return;
+        }
+
         NotifyOfPropertyChange(() => CanHitNext);
         NotifyOfPropertyChange(() => CanHitPrevious);
         NotifyOfPropertyChange(() => CanHitPlayPause);
@@ -604,6 +611,13 @@ public class TrackViewModel : Screen,
 
     private void MoveSlider(TimeSpan value)
     {
+        // Ensure we're on the UI thread
+        if (System.Windows.Application.Current?.Dispatcher?.CheckAccess() == false)
+        {
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(() => MoveSlider(value));
+            return;
+        }
+
         _ignoreSliderChange = true;
         SongPosition = value.TotalSeconds;
     }
