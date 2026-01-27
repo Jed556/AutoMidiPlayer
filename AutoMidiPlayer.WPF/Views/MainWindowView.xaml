@@ -54,10 +54,10 @@
 							   TooltipText="MIDI Player">
 					<ui:NotifyIcon.Menu>
 						<ContextMenu>
-							<ui:MenuItem Command="{s:Action PlayPause, Target=PlayerView}"
+							<ui:MenuItem Command="{s:Action PlayPause, Target=TrackView}"
 										 Header="Play"
 										 SymbolIcon="Play16"/>
-							<ui:MenuItem Command="{s:Action Next, Target=PlayerView}"
+							<ui:MenuItem Command="{s:Action Next, Target=TrackView}"
 										 Header="Next"
 										 SymbolIcon="Next16"/>
 						</ContextMenu>
@@ -84,8 +84,8 @@
 				<ui:NavigationStore.Items>
 					<ui:NavigationItem Content="Tracks"
 									   Icon="MusicNote220"
-									   PageType="{x:Type pages:LyrePlayerView}"
-									   Tag="{Binding PlayerView}"/>
+									   PageType="{x:Type pages:TrackView}"
+									   Tag="{Binding TrackView}"/>
 					<ui:NavigationItem Content="Sheet"
 									   Icon="BookOpenMicrophone20"
 									   PageType="{x:Type pages:PianoSheetView}"
@@ -166,12 +166,12 @@
 					</Border>
 					<StackPanel Margin="12,0,0,0"
 								VerticalAlignment="Center">
-						<TextBlock Text="{Binding PlayerView.Queue.OpenedFile.Title, FallbackValue=No song playing}"
+						<TextBlock Text="{Binding TrackView.Queue.OpenedFile.Title, FallbackValue=No song playing}"
 								   FontWeight="SemiBold"
 								   FontSize="14"
 								   TextTrimming="CharacterEllipsis"
 								   MaxWidth="200"/>
-						<TextBlock Text="{Binding PlayerView.Queue.OpenedFile.Song.Author, FallbackValue=Unknown artist}"
+						<TextBlock Text="{Binding TrackView.Queue.OpenedFile.Song.Author, FallbackValue=Unknown artist}"
 								   Opacity="0.6"
 								   FontSize="12"
 								   TextTrimming="CharacterEllipsis"
@@ -186,19 +186,19 @@
 					<modern:SimpleStackPanel Orientation="Horizontal"
 											 HorizontalAlignment="Center"
 											 Spacing="4">
-						<Button s:View.ActionTarget="{Binding PlayerView.Queue}"
+						<Button s:View.ActionTarget="{Binding TrackView.Queue}"
 								Command="{s:Action ToggleShuffle}"
 								Style="{StaticResource PlayerControlButton}"
 								ToolTip="Shuffle">
 							<ui:FontIcon Glyph="&#xE14B;"
 										 FontFamily="{StaticResource MdlFontFamily}"
 										 FontSize="14"
-										 Foreground="{Binding PlayerView.Queue.ShuffleStateColor}"/>
+										 Foreground="{Binding TrackView.Queue.ShuffleStateColor}"/>
 						</Button>
 
-						<Button s:View.ActionTarget="{Binding PlayerView}"
+						<Button s:View.ActionTarget="{Binding TrackView}"
 								Command="{s:Action Previous}"
-								IsHitTestVisible="{Binding PlayerView.CanHitPrevious}"
+								IsHitTestVisible="{Binding TrackView.CanHitPrevious}"
 								Style="{StaticResource PlayerControlButton}"
 								ToolTip="Previous">
 							<ui:FontIcon Glyph="&#xE892;"
@@ -206,20 +206,20 @@
 										 FontSize="16"/>
 						</Button>
 
-						<Button s:View.ActionTarget="{Binding PlayerView}"
+						<Button s:View.ActionTarget="{Binding TrackView}"
 								Command="{s:Action PlayPause}"
-								IsHitTestVisible="{Binding PlayerView.CanHitPlayPause}"
+								IsHitTestVisible="{Binding TrackView.CanHitPlayPause}"
 								Style="{StaticResource PlayPauseButton}"
-								ToolTip="{Binding PlayerView.PlayPauseTooltip}">
-							<ui:FontIcon Glyph="{Binding PlayerView.PlayPauseIcon}"
+								ToolTip="{Binding TrackView.PlayPauseTooltip}">
+							<ui:FontIcon Glyph="{Binding TrackView.PlayPauseIcon}"
 										 FontFamily="{StaticResource MdlFontFamily}"
 										 FontSize="16"
 										 Foreground="{DynamicResource SystemControlBackgroundAltHighBrush}"/>
 						</Button>
 
-						<Button s:View.ActionTarget="{Binding PlayerView}"
+						<Button s:View.ActionTarget="{Binding TrackView}"
 								Command="{s:Action Next}"
-								IsHitTestVisible="{Binding PlayerView.CanHitNext}"
+								IsHitTestVisible="{Binding TrackView.CanHitNext}"
 								Style="{StaticResource PlayerControlButton}"
 								ToolTip="Next">
 							<ui:FontIcon Glyph="&#xE893;"
@@ -227,11 +227,11 @@
 										 FontSize="16"/>
 						</Button>
 
-						<Button s:View.ActionTarget="{Binding PlayerView.Queue}"
+						<Button s:View.ActionTarget="{Binding TrackView.Queue}"
 								Command="{s:Action ToggleLoop}"
 								Style="{StaticResource PlayerControlButton}"
-								ToolTip="{Binding PlayerView.Queue.LoopTooltip}">
-							<ui:FontIcon Glyph="{Binding PlayerView.Queue.LoopStateString}"
+								ToolTip="{Binding TrackView.Queue.LoopTooltip}">
+							<ui:FontIcon Glyph="{Binding TrackView.Queue.LoopStateString}"
 										 FontFamily="{StaticResource MdlFontFamily}"
 										 FontSize="14"/>
 						</Button>
@@ -250,21 +250,21 @@
 								   VerticalAlignment="Center"
 								   FontSize="11"
 								   Opacity="0.7"
-								   Text="{Binding PlayerView.CurrentTime, StringFormat=m\\:ss}"/>
+								   Text="{Binding TrackView.CurrentTime, StringFormat=m\\:ss}"/>
 						<Slider Grid.Column="1"
 								Margin="8,0"
 								IsMoveToPointEnabled="True"
-								IsEnabled="{Binding PlayerView.CanHitPlayPause}"
-								Value="{Binding PlayerView.SongPosition}"
-								Maximum="{Binding PlayerView.MaximumTime.TotalSeconds}"
+								IsEnabled="{Binding TrackView.CanHitPlayPause}"
+								Value="{Binding TrackView.SongPosition}"
+								Maximum="{Binding TrackView.MaximumTime.TotalSeconds}"
 								IsSelectionRangeEnabled="True"
 								SelectionStart="0"
-								SelectionEnd="{Binding PlayerView.SongPosition, Mode=OneWay}"/>
+								SelectionEnd="{Binding TrackView.SongPosition, Mode=OneWay}"/>
 						<TextBlock Grid.Column="2"
 								   VerticalAlignment="Center"
 								   FontSize="11"
 								   Opacity="0.7"
-								   Text="{Binding PlayerView.MaximumTime, StringFormat=m\\:ss}"/>
+								   Text="{Binding TrackView.MaximumTime, StringFormat=m\\:ss}"/>
 					</Grid>
 				</StackPanel>
 

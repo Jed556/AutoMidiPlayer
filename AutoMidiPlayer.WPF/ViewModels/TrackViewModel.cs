@@ -24,7 +24,7 @@ using MidiFile = AutoMidiPlayer.Data.Midi.MidiFile;
 
 namespace AutoMidiPlayer.WPF.ViewModels;
 
-public class LyrePlayerViewModel : Screen,
+public class TrackViewModel : Screen,
     IHandle<MidiFile>, IHandle<MidiTrack>,
     IHandle<SettingsPageViewModel>,
     IHandle<MergeNotesNotification>,
@@ -42,8 +42,9 @@ public class LyrePlayerViewModel : Screen,
     private TimeSpan _songPosition;
     private double? _savedPosition;
     private int _savePositionCounter;
+    private bool _isViewActive = true; // Start true since TrackView is the initial tab
 
-    public LyrePlayerViewModel(IContainer ioc, MainWindowViewModel main)
+    public TrackViewModel(IContainer ioc, MainWindowViewModel main)
     {
         _ioc = ioc;
         _main = main;
@@ -150,8 +151,52 @@ public class LyrePlayerViewModel : Screen,
     private SystemMediaTransportControls? Controls =>
         _player?.SystemMediaTransportControls;
 
+    protected override void OnActivate()
+    {
+        CrashLogger.Log($"OnActivate called, MidiTracks.Count={MidiTracks.Count}");
+        try
+        {
+            base.OnActivate();
+            _isViewActive = true;
+            CrashLogger.Log("OnActivate completed successfully");
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.LogException(ex);
+            throw;
+        }
+    }
+
+    protected override void OnDeactivate()
+    {
+        CrashLogger.Log($"OnDeactivate called, MidiTracks.Count={MidiTracks.Count}");
+        try
+        {
+            base.OnDeactivate();
+            _isViewActive = false;
+
+            // Stop all glow effects when leaving the view
+            foreach (var track in MidiTracks)
+            {
+                track.StopGlow();
+            }
+            CrashLogger.Log("OnDeactivate completed successfully");
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.LogException(ex);
+            throw;
+        }
+    }
+
     public async void Handle(MergeNotesNotification message)
     {
+        // Save current playback state before reinitializing
+        var wasPlaying = Playback?.IsRunning ?? false;
+
+        // Use _savedPosition so it's restored INSIDE InitializePlayback before UpdateButtons()
+        _savedPosition = _songPosition.TotalSeconds;
+
         if (!message.Merge)
         {
             Queue.OpenedFile?.InitializeMidi();
@@ -159,6 +204,12 @@ public class LyrePlayerViewModel : Screen,
         }
 
         await InitializePlayback();
+
+        // Resume playback if was playing
+        if (wasPlaying && Playback is not null)
+        {
+            Playback.Start();
+        }
     }
 
     public async void Handle(MidiFile file)
@@ -190,7 +241,20 @@ public class LyrePlayerViewModel : Screen,
             await db.SaveChangesAsync();
         }
 
+        // Save current playback state before reinitializing
+        var wasPlaying = Playback?.IsRunning ?? false;
+
+        // Use _savedPosition so it's restored INSIDE InitializePlayback before UpdateButtons()
+        // This prevents the WPF slider from resetting when Maximum binding updates
+        _savedPosition = _songPosition.TotalSeconds;
+
         await InitializePlayback();
+
+        // Resume playback if was playing
+        if (wasPlaying && Playback is not null)
+        {
+            Playback.Start();
+        }
     }
 
     public async void Handle(PlayTimerNotification message)
@@ -198,7 +262,22 @@ public class LyrePlayerViewModel : Screen,
         if (!(Playback?.IsRunning ?? false) && CanHitPlayPause) await PlayPause();
     }
 
-    public async void Handle(SettingsPageViewModel message) => await InitializePlayback();
+    public async void Handle(SettingsPageViewModel message)
+    {
+        // Save current playback state before reinitializing
+        var wasPlaying = Playback?.IsRunning ?? false;
+
+        // Use _savedPosition so it's restored INSIDE InitializePlayback before UpdateButtons()
+        _savedPosition = _songPosition.TotalSeconds;
+
+        await InitializePlayback();
+
+        // Resume playback if was playing
+        if (wasPlaying && Playback is not null)
+        {
+            Playback.Start();
+        }
+    }
 
     public void OpenFile()
     {
@@ -424,24 +503,34 @@ public class LyrePlayerViewModel : Screen,
 
         var midi = Queue.OpenedFile.Midi;
 
-        midi.Chunks.Clear();
-        midi.Chunks.AddRange(MidiTracks
-            .Where(t => t.IsChecked)
-            .Select(t => t.Track));
+        // Use the original tempo map stored when the file was loaded
+        // This preserves BPM/tempo regardless of which tracks are enabled
+        var tempoMap = Queue.OpenedFile.OriginalTempoMap;
 
-        if (Settings.MergeNotes)
+        // Get only the checked tracks for playback
+        var tracksToPlay = MidiTracks
+            .Where(t => t.IsChecked)
+            .Select(t => t.Track)
+            .ToList();
+
+        if (Settings.MergeNotes && tracksToPlay.Count > 0)
         {
+            // Create a temporary MIDI file for merging
+            midi.Chunks.Clear();
+            midi.Chunks.AddRange(tracksToPlay);
             midi.MergeObjects(ObjectType.Note, new()
             {
                 VelocityMergingPolicy = VelocityMergingPolicy.Average,
                 Tolerance = new MetricTimeSpan(0, 0, 0, (int)Settings.MergeMilliseconds)
             });
+            tracksToPlay = midi.GetTrackChunks().ToList();
         }
 
         // Transpose setting is now handled per-song in the import dialog
         // The song's transpose setting (defaulting to Ignore) will be used
 
-        var playback = midi.GetPlayback();
+        // Use GetPlayback with track chunks and original tempo map to maintain consistent BPM
+        var playback = tracksToPlay.GetPlayback(tempoMap);
 
         Playback = playback;
         playback.Speed = SettingsPage.Speed;
@@ -527,45 +616,56 @@ public class LyrePlayerViewModel : Screen,
 
     private void PlayNote(NoteEvent noteEvent)
     {
-        var layout = SettingsPage.SelectedLayout.Key;
-        var instrument = SettingsPage.SelectedInstrument.Key;
-        var note = ApplyNoteSettings(instrument, noteEvent.NoteNumber);
-
-        // Trigger glow effect on tracks containing this note (only for NoteOn)
-        if (noteEvent.EventType == MidiEventType.NoteOn && noteEvent.Velocity > 0)
+        try
         {
-            foreach (var track in MidiTracks.Where(t => t.IsChecked && t.ContainsNote(noteEvent.NoteNumber)))
+            var layout = SettingsPage.SelectedLayout.Key;
+            var instrument = SettingsPage.SelectedInstrument.Key;
+            var note = ApplyNoteSettings(instrument, noteEvent.NoteNumber);
+
+            // Trigger glow effect on tracks containing this note (only for NoteOn and when view is active)
+            if (noteEvent.EventType == MidiEventType.NoteOn && noteEvent.Velocity > 0)
             {
-                track.TriggerGlow();
+                var matchingTracks = MidiTracks.Where(t => t.IsChecked && t.ContainsNote(noteEvent.NoteNumber)).ToList();
+                if (_isViewActive && matchingTracks.Count > 0)
+                {
+                    foreach (var track in matchingTracks)
+                    {
+                        track.TriggerGlow();
+                    }
+                }
+            }
+
+            if (Settings.UseSpeakers)
+            {
+                noteEvent.NoteNumber = new((byte)note);
+                _speakers?.SendEvent(noteEvent);
+                return;
+            }
+
+            if (!WindowHelper.IsGameFocused())
+            {
+                Playback?.Stop();
+                return;
+            }
+
+            switch (noteEvent.EventType)
+            {
+                case MidiEventType.NoteOff:
+                    LyrePlayer.NoteUp(note, layout, instrument);
+                    break;
+                case MidiEventType.NoteOn when noteEvent.Velocity <= 0:
+                    return;
+                case MidiEventType.NoteOn when Settings.HoldNotes:
+                    LyrePlayer.NoteDown(note, layout, instrument);
+                    break;
+                case MidiEventType.NoteOn:
+                    LyrePlayer.PlayNote(note, layout, instrument);
+                    break;
             }
         }
-
-        if (Settings.UseSpeakers)
+        catch (Exception ex)
         {
-            noteEvent.NoteNumber = new((byte)note);
-            _speakers?.SendEvent(noteEvent);
-            return;
-        }
-
-        if (!WindowHelper.IsGameFocused())
-        {
-            Playback?.Stop();
-            return;
-        }
-
-        switch (noteEvent.EventType)
-        {
-            case MidiEventType.NoteOff:
-                LyrePlayer.NoteUp(note, layout, instrument);
-                break;
-            case MidiEventType.NoteOn when noteEvent.Velocity <= 0:
-                return;
-            case MidiEventType.NoteOn when Settings.HoldNotes:
-                LyrePlayer.NoteDown(note, layout, instrument);
-                break;
-            case MidiEventType.NoteOn:
-                LyrePlayer.PlayNote(note, layout, instrument);
-                break;
+            CrashLogger.LogException(ex);
         }
     }
 }

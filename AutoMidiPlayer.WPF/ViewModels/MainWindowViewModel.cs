@@ -42,7 +42,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         SettingsView = new(ioc, this);
         PianoSheetView = new(this);
 
-        ActiveItem = PlayerView = new(ioc, this);
+        ActiveItem = TrackView = new(ioc, this);
     }
 
     public void Handle(MidiFile message)
@@ -61,7 +61,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
     public SongsViewModel SongsView { get; }
 
-    public LyrePlayerViewModel PlayerView { get; }
+    public TrackViewModel TrackView { get; }
 
     public PianoSheetViewModel PianoSheetView { get; }
 
@@ -179,7 +179,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         var savedPosition = QueueView.RestoreCurrentSong(SongsView.Tracks);
         if (savedPosition.HasValue)
         {
-            PlayerView.SetSavedPosition(savedPosition.Value);
+            TrackView.SetSavedPosition(savedPosition.Value);
         }
     }
 }

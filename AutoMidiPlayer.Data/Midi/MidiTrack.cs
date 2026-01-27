@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Timers;
+using System.Windows;
+using System.Windows.Threading;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using Stylet;
@@ -15,7 +16,7 @@ public class MidiTrack : INotifyPropertyChanged
     private readonly IEventAggregator _events;
     private bool _isChecked;
     private bool _isActive;
-    private Timer? _glowTimer;
+    private DispatcherTimer? _glowTimer;
     private HashSet<int>? _noteNumbers; // Cached note numbers for fast lookup
     private const int GlowDurationMs = 150; // How long the glow stays on
 
@@ -109,7 +110,14 @@ public class MidiTrack : INotifyPropertyChanged
             if (_isActive != value)
             {
                 _isActive = value;
-                OnPropertyChanged();
+                try
+                {
+                    OnPropertyChanged();
+                }
+                catch (Exception ex)
+                {
+                    CrashLogger.LogException(ex);
+                }
             }
         }
     }
@@ -119,23 +127,67 @@ public class MidiTrack : INotifyPropertyChanged
     /// </summary>
     public void TriggerGlow()
     {
-        // Stop existing timer if any
-        _glowTimer?.Stop();
-        _glowTimer?.Dispose();
-
-        // Set active
-        IsActive = true;
-
-        // Create timer to turn off glow
-        _glowTimer = new Timer(GlowDurationMs);
-        _glowTimer.AutoReset = false;
-        _glowTimer.Elapsed += (_, _) =>
+        try
         {
+            // Must run on UI thread
+            if (Application.Current?.Dispatcher is null)
+                return;
+
+            if (!Application.Current.Dispatcher.CheckAccess())
+            {
+                Application.Current.Dispatcher.BeginInvoke(TriggerGlow);
+                return;
+            }
+
+            // Stop existing timer if any
+            _glowTimer?.Stop();
+
+            // Set active
+            IsActive = true;
+
+            // Create timer to turn off glow (DispatcherTimer runs on UI thread)
+            _glowTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(GlowDurationMs) };
+            _glowTimer.Tick += GlowTimer_Tick;
+            _glowTimer.Start();
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.LogException(ex);
+        }
+    }
+
+    private void GlowTimer_Tick(object? sender, EventArgs e)
+    {
+        try
+        {
+            _glowTimer?.Stop();
+            if (_glowTimer is not null)
+                _glowTimer.Tick -= GlowTimer_Tick;
             IsActive = false;
-            _glowTimer?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.LogException(ex);
+        }
+    }
+
+    /// <summary>
+    /// Stops the glow effect immediately (used when view is deactivated)
+    /// </summary>
+    public void StopGlow()
+    {
+        try
+        {
+            _glowTimer?.Stop();
+            if (_glowTimer is not null)
+                _glowTimer.Tick -= GlowTimer_Tick;
             _glowTimer = null;
-        };
-        _glowTimer.Start();
+            _isActive = false; // Set directly to avoid PropertyChanged when cleaning up
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.LogException(ex);
+        }
     }
 
     /// <summary>

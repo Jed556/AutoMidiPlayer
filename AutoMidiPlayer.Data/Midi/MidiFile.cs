@@ -32,6 +32,11 @@ public class MidiFile : Screen
 
     public Melanchall.DryWetMidi.Core.MidiFile Midi { get; private set; } = null!;
 
+    /// <summary>
+    /// The original tempo map from the MIDI file, preserved regardless of track changes.
+    /// </summary>
+    public TempoMap OriginalTempoMap { get; private set; } = null!;
+
     public string Path => Song.Path;
 
     public string Title => Song.Title ?? GetFileNameWithoutExtension(Path);
@@ -58,5 +63,10 @@ public class MidiFile : Screen
     public IEnumerable<Melanchall.DryWetMidi.Core.MidiFile> Split(uint bars, uint beats, uint ticks) =>
         Midi.SplitByGrid(new SteppedGrid(new BarBeatTicksTimeSpan(bars, beats, ticks)));
 
-    public void InitializeMidi() => Midi = Melanchall.DryWetMidi.Core.MidiFile.Read(Path, _settings);
+    public void InitializeMidi()
+    {
+        Midi = Melanchall.DryWetMidi.Core.MidiFile.Read(Path, _settings);
+        // Store the original tempo map so it's preserved even when tracks are modified
+        OriginalTempoMap = Midi.GetTempoMap();
+    }
 }

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Navigation;
+using System.Windows.Threading;
 using Windows.Media;
 using Windows.Media.Playback;
 using Windows.Storage;
@@ -26,6 +27,15 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
 {
     public Bootstrapper()
     {
+        // Clear log on startup
+        CrashLogger.ClearLog();
+        CrashLogger.Log("Application starting");
+
+        // Handle unhandled exceptions
+        Application.Current.DispatcherUnhandledException += OnDispatcherUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+
         // Make Hyperlinks handle themselves
         EventManager.RegisterClassHandler(
             typeof(Hyperlink), Hyperlink.RequestNavigateEvent,
@@ -38,6 +48,34 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
                 });
             })
         );
+    }
+
+    private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+    {
+        CrashLogger.Log("=== DISPATCHER UNHANDLED EXCEPTION ===");
+        CrashLogger.LogException(e.Exception);
+
+        // Show message box with log path
+        MessageBox.Show(
+            $"An error occurred. Log saved to:\n{CrashLogger.GetLogPath()}\n\nError: {e.Exception.Message}",
+            "AutoMidiPlayer Error",
+            MessageBoxButton.OK,
+            MessageBoxImage.Error);
+    }
+
+    private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        CrashLogger.Log("=== UNHANDLED EXCEPTION ===");
+        if (e.ExceptionObject is Exception ex)
+            CrashLogger.LogException(ex);
+        else
+            CrashLogger.Log($"Non-exception object: {e.ExceptionObject}");
+    }
+
+    private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+    {
+        CrashLogger.Log("=== UNOBSERVED TASK EXCEPTION ===");
+        CrashLogger.LogException(e.Exception);
     }
 
     protected override void ConfigureIoC(IStyletIoCBuilder builder)
