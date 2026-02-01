@@ -123,7 +123,7 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
 
             Task.Run(async () =>
             {
-                const string name = "item_windsong_lyre.png";
+                const string name = "logo.png";
                 var location = Path.Combine(path!, name);
 
                 var uri = new Uri($"pack://application:,,,/{name}");

@@ -140,6 +140,6 @@ public static class LyrePlayer
             }
         };
 
-        SendInput(1, new[] { input }, Marshal.SizeOf(typeof(INPUT)));
+        _ = SendInput(1, [input], Marshal.SizeOf(typeof(INPUT)));
     }
 }

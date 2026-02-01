@@ -7,7 +7,7 @@
         <StartupObject>AutoMidiPlayer.WPF.App</StartupObject>
         <ApplicationManifest>app.manifest</ApplicationManifest>
         <Version>5.9.5</Version>
-        <ApplicationIcon>item_windsong_lyre.ico</ApplicationIcon>
+        <ApplicationIcon>logo.ico</ApplicationIcon>
         <Nullable>enable</Nullable>
         <RepositoryUrl>https://github.com/Jed556/AutoMidiPlayer</RepositoryUrl>
         <Authors>Jed556</Authors>
@@ -45,8 +45,16 @@
     </ItemGroup>
 
     <ItemGroup>
-        <None Remove="item_windsong_lyre.png" />
-        <Resource Include="item_windsong_lyre.png" />
+        <None Remove="logo.png" />
+        <Resource Include="logo.png" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="..\audio\**\*.*">
+            <Link>Audio\%(RecursiveDir)%(Filename)%(Extension)</Link>
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </None>
     </ItemGroup>
 
 </Project>

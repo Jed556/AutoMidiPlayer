@@ -1,8 +1,8 @@
 <div align="center">
   <br>
-  <h1>
-    Auto MIDI Player【AMP】
-  </h1>
+  <p>
+    <a href="https://github.com/Jed556/AutoMidiPlayer"><img src="https://i.imgur.com/oBU3PBj.png" width="500" alt="Auto MIDI Player【AMP】" /></a> 
+  </p>
   <p>
     <a href="https://github.com/Jed556/AutoMidiPlayer/releases"><img alt="GitHub release (latest by date including pre-releases)" src="https://img.shields.io/github/v/release/Jed556/AutoMidiPlayer?include_prereleases&color=35566D&logo=github&logoColor=white&label=latest"></a>
     <a href="https://github.com/Jed556/AutoMidiPlayer/releases/latest"><img alt="GitHub downloads" src="https://img.shields.io/github/downloads/Jed556/AutoMidiPlayer/total?label=downloads&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAA2klEQVQ4jZ2SMWpCQRCGv5WHWKQIHsAj5Ah2IR7ByhvYpUiVxkqipPCE5gKKBB5Y+KXIIzzXWX3mh2FhZ/5vZ3YXAqkzdavumtiqs6g2MvfV2kvVaj+v7wWMChgE+4MmdxMQ7RVz14r/Dbirg7+Z1BHw2ERJT+oe2KeUvs4y6ntw8yUtLtAq6rqDeaPG/XWAlM0Z5KOzWZ2owwCybJk/c7M6VCf4+0XHhU5e1bfoZHWs1hVwInjflBLA6vrAnCrgADyrxwZGa83Va60vwCGpU2ADPNw4Ldc3MP8Bk60okvXOxJoAAAAASUVORK5CYII="></a>
@@ -12,7 +12,7 @@
 A MIDI to key player for in-game instruments made using C# and WPF with Windows Mica design. This project is originally forked from **[sabihoshi/GenshinLyreMidiPlayer][GenshinLyreMidiPlayer]** and was later detached into its own repository to enable multi-game support and introduce features that don’t fit the original Genshin Impact–only use design.
 
 <div align="center">
-  <i>If you liked this project, consider <a href="https://github.com/Jed556/AutoMidiPlayer?tab=contributing-ov-file">contributing</a> or giving a 🌟 star. Thank you~</i>
+  <i>If you liked this project, consider <a href="https://github.com/Jed556/AutoMidiPlayer?tab=contributing-ov-file#contributing">contributing</a> or giving a 🌟 star. Thank you~</i>
 </div>
 
 ### Supported Games and Instruments
@@ -35,7 +35,7 @@ A MIDI to key player for in-game instruments made using C# and WPF with Windows 
 ## Features
 
 ### Core Features
-* **Multi-game support** - Play on Genshin Impact (Lyre, Zither, Vintage Lyre) and Heartopia (15-key, 22-key, 37-key)
+* **Multi-game support** - Play on Genshin Impact (Lyre, Zither, Vintage Lyre) and Heartopia (Piano Variants)
 * **Spotify-style UI** - Modern player interface with fixed bottom controls
 * **Per-song Settings** - Key, speed, and transpose settings are saved per song
   - **Track Management** - Enable/disable individual MIDI tracks with detailed statistics
@@ -59,8 +59,8 @@ The Piano Sheet allows you to easily share songs to other people, or for yoursel
 ### Play using your own MIDI Input Device
 If you have your own MIDI instrument, this will let you play directly to the in-game instrument. This lets you play directly without using a MIDI file.
 
-### Playlist Controls
-A playlist allows you to play songs without having to open or delete a song or file.
+### Queue
+A queue allows you to play songs without having to open or delete a song or file.
 
 *Screenshot: Playlist and history panel showing song queue.*
 
@@ -79,7 +79,9 @@ You can set the player to light mode/dark mode and change its accent color.
 MIDI files (.mid) is a set of instructions that play various instruments on what are called tracks. You can enable specific tracks that you want it to play. It converts the notes on the track into keyboard inputs for the game. Currently it is tuned to C major.
 
 ### Can this get me banned?
-The short answer is that it's uncertain. Use it at your own risk. Do not play songs that will spam the keyboard, listen to the MIDI file first and make sure to play only one instrument so that the tool doesn't spam keyboard inputs. For Genshin Impact, [here is miHoYo's response](https://genshin.mihoyo.com/en/news/detail/5763) to using 3rd party tools.
+The short answer is that it's uncertain. Use it at your own risk. Do not play songs that will spam the keyboard, listen to the MIDI file first and make sure to play only one instrument so that the tool doesn't spam keyboard inputs.
+* For Genshin Impact, here is [miHoYo's response](https://genshin.mihoyo.com/en/news/detail/5763) to using 3rd party tools.
+* For Heartopia, here is their [Official Discord message](https://discord.com/channels/1128257488375005215/1460985755529773301/1465702188700405986) about using 3rd party tools.
 
 ## Pull Request Process
 
@@ -121,8 +123,12 @@ cd AutoMidiPlayer
 dotnet publish
 ```
 
+# Notes
+* Will add demo videos and images soon.
+* I don't have knowledge about music theory, if you find any issues with note mappings or transpositions, please open an issue or PR.
+
 # Special Thanks
-* This project is inspired by and revamped from **[sabihoshi/GenshinLyreMidiPlayer][GenshinLyreMidiPlayer]**. Huge thanks for the original work!
+* This project is inspired by and built on top of **[sabihoshi/GenshinLyreMidiPlayer][GenshinLyreMidiPlayer]** [v4.0.5](https://github.com/sabihoshi/GenshinLyreMidiPlayer/releases/tag/v4.0.5). Huge thanks for the original work!
 * **[ianespana/ShawzinBot](https://github.com/ianespana/ShawzinBot)** - Original inspiration for the concept *`~GenshinLyreMidiPlayer`*
 * **[yoroshikun/flutter_genshin_lyre_player](https://github.com/yoroshikun/flutter_genshin_lyre_player)** - Ideas for history and fluent design *`~GenshinLyreMidiPlayer`*
 * **[Lantua](https://github.com/lantua)** - Music theory guidance (octaves, transposition, keys, scales) *`~GenshinLyreMidiPlayer`*
