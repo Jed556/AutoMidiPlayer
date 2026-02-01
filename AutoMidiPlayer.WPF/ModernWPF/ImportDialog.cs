@@ -17,6 +17,11 @@ public class ImportDialog : ContentDialog
     private readonly DatePicker _dateAddedPicker;
     private readonly System.Windows.Controls.TextBox _bpmBox;
     private readonly System.Windows.Controls.CheckBox _useCustomBpmCheckBox;
+    private readonly System.Windows.Controls.CheckBox _mergeNotesCheckBox;
+    private readonly System.Windows.Controls.CheckBox _useCustomMergeCheckBox;
+    private readonly System.Windows.Controls.TextBox _mergeMillisecondsBox;
+    private readonly System.Windows.Controls.CheckBox _holdNotesCheckBox;
+    private readonly System.Windows.Controls.CheckBox _useCustomHoldCheckBox;
     private readonly double _nativeBpm;
 
     public string SongTitle => _titleBox.Text;
@@ -40,7 +45,30 @@ public class ImportDialog : ContentDialog
         }
     }
 
-    public ImportDialog(string defaultTitle, int defaultKey = 0, Transpose defaultTranspose = Transpose.Ignore, string? defaultAuthor = null, string? defaultAlbum = null, DateTime? defaultDateAdded = null, double nativeBpm = 120, double? customBpm = null)
+    /// <summary>
+    /// Gets the per-song merge notes setting.
+    /// </summary>
+    public bool SongMergeNotes => _mergeNotesCheckBox.IsChecked ?? false;
+
+    /// <summary>
+    /// Gets the per-song merge milliseconds setting.
+    /// </summary>
+    public uint SongMergeMilliseconds
+    {
+        get
+        {
+            if (uint.TryParse(_mergeMillisecondsBox.Text, out var ms) && ms > 0 && ms <= 1000)
+                return ms;
+            return 100; // Default
+        }
+    }
+
+    /// <summary>
+    /// Gets the per-song hold notes setting.
+    /// </summary>
+    public bool SongHoldNotes => _holdNotesCheckBox.IsChecked ?? false;
+
+    public ImportDialog(string defaultTitle, int defaultKey = 0, Transpose defaultTranspose = Transpose.Ignore, string? defaultAuthor = null, string? defaultAlbum = null, DateTime? defaultDateAdded = null, double nativeBpm = 120, double? customBpm = null, bool? mergeNotes = null, uint? mergeMilliseconds = null, bool? holdNotes = null)
     {
         Title = "Edit Song";
         PrimaryButtonText = "Save";
@@ -153,6 +181,53 @@ public class ImportDialog : ContentDialog
 
         bpmPanel.Children.Add(bpmInputPanel);
         stackPanel.Children.Add(bpmPanel);
+
+        // Merge Notes Section
+        var mergePanel = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
+
+        stackPanel.Children.Add(new TextBlock { Text = "Merge Notes", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
+
+        var mergeInputPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+        _mergeNotesCheckBox = new System.Windows.Controls.CheckBox
+        {
+            Content = "Enable Merge Notes",
+            VerticalAlignment = VerticalAlignment.Center,
+            IsChecked = mergeNotes ?? false,
+            Margin = new Thickness(0, 0, 12, 0)
+        };
+        mergeInputPanel.Children.Add(_mergeNotesCheckBox);
+
+        mergeInputPanel.Children.Add(new TextBlock { Text = "Tolerance (ms):", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) });
+        _mergeMillisecondsBox = new System.Windows.Controls.TextBox
+        {
+            Text = (mergeMilliseconds ?? 100).ToString(),
+            Width = 60,
+            IsEnabled = mergeNotes ?? false
+        };
+        mergeInputPanel.Children.Add(_mergeMillisecondsBox);
+
+        _mergeNotesCheckBox.Checked += (_, _) => _mergeMillisecondsBox.IsEnabled = true;
+        _mergeNotesCheckBox.Unchecked += (_, _) => _mergeMillisecondsBox.IsEnabled = false;
+
+        mergePanel.Children.Add(mergeInputPanel);
+        stackPanel.Children.Add(mergePanel);
+
+        // Hold Notes Section
+        stackPanel.Children.Add(new TextBlock { Text = "Hold Notes", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 12, 0, 4) });
+
+        var holdPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+        _holdNotesCheckBox = new System.Windows.Controls.CheckBox
+        {
+            Content = "Enable Hold Notes",
+            VerticalAlignment = VerticalAlignment.Center,
+            IsChecked = holdNotes ?? false
+        };
+        holdPanel.Children.Add(_holdNotesCheckBox);
+        stackPanel.Children.Add(holdPanel);
+
+        // Hidden checkboxes for compatibility - always considered "custom" now
+        _useCustomMergeCheckBox = new System.Windows.Controls.CheckBox { IsChecked = true, Visibility = Visibility.Collapsed };
+        _useCustomHoldCheckBox = new System.Windows.Controls.CheckBox { IsChecked = true, Visibility = Visibility.Collapsed };
 
         Content = stackPanel;
     }

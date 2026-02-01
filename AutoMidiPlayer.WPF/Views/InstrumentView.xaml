@@ -82,8 +82,14 @@
                            Style="{DynamicResource SubtitleTextBlockStyle}"
                            Margin="0,0,0,8"/>
 
+                <TextBlock Text="Open a song to configure these settings"
+                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                           Visibility="{Binding HasSongOpen, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}"
+                           Margin="0,0,0,8"/>
+
                 <modern:SimpleStackPanel Orientation="Horizontal"
-                                         Spacing="20">
+                                         Spacing="20"
+                                         IsEnabled="{Binding HasSongOpen}">
                     <modern:ToggleSwitch
                         Header="Merge nearby notes"
                         IsOn="{Binding MergeNotes}"/>
@@ -96,7 +102,8 @@
 
                 <modern:ToggleSwitch
                     Header="Hold notes"
-                    IsOn="{Binding Default.HoldNotes, Source={StaticResource Settings}}"/>
+                    IsOn="{Binding HoldNotes}"
+                    IsEnabled="{Binding HasSongOpen}"/>
             </modern:SimpleStackPanel>
         </Grid>
     </ScrollViewer>

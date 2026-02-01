@@ -601,7 +601,11 @@ public class TrackViewModel : Screen,
             .Select(t => t.Track)
             .ToList();
 
-        if (Settings.MergeNotes && tracksToPlay.Count > 0)
+        // Use per-song merge settings - defaults to OFF when not set
+        var useMergeNotes = Queue.OpenedFile.Song.MergeNotes ?? false;
+        var mergeMilliseconds = Queue.OpenedFile.Song.MergeMilliseconds ?? 100;
+
+        if (useMergeNotes && tracksToPlay.Count > 0)
         {
             // Create a temporary MIDI file for merging
             midi.Chunks.Clear();
@@ -609,7 +613,7 @@ public class TrackViewModel : Screen,
             midi.MergeObjects(ObjectType.Note, new()
             {
                 VelocityMergingPolicy = VelocityMergingPolicy.Average,
-                Tolerance = new MetricTimeSpan(0, 0, 0, (int)Settings.MergeMilliseconds)
+                Tolerance = new MetricTimeSpan(0, 0, 0, (int)mergeMilliseconds)
             });
             tracksToPlay = midi.GetTrackChunks().ToList();
         }
@@ -763,6 +767,9 @@ public class TrackViewModel : Screen,
                 return;
             }
 
+            // Use per-song hold notes setting - defaults to OFF when not set
+            var useHoldNotes = Queue.OpenedFile?.Song.HoldNotes ?? false;
+
             switch (noteEvent.EventType)
             {
                 case MidiEventType.NoteOff:
@@ -770,7 +777,7 @@ public class TrackViewModel : Screen,
                     break;
                 case MidiEventType.NoteOn when noteEvent.Velocity <= 0:
                     return;
-                case MidiEventType.NoteOn when Settings.HoldNotes:
+                case MidiEventType.NoteOn when useHoldNotes:
                     LyrePlayer.NoteDown(note, layout, instrument);
                     break;
                 case MidiEventType.NoteOn:

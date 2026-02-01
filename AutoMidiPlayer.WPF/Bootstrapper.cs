@@ -106,6 +106,54 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
                 // Column already exists or other error - ignore
             }
 
+            // Add FileHash column if it doesn't exist (migration for duplicate detection)
+            try
+            {
+                db.Database.ExecuteSqlRaw(@"
+                    ALTER TABLE Songs ADD COLUMN FileHash TEXT NULL;
+                ");
+            }
+            catch
+            {
+                // Column already exists or other error - ignore
+            }
+
+            // Add MergeNotes column if it doesn't exist (migration for per-song settings)
+            try
+            {
+                db.Database.ExecuteSqlRaw(@"
+                    ALTER TABLE Songs ADD COLUMN MergeNotes INTEGER NULL;
+                ");
+            }
+            catch
+            {
+                // Column already exists or other error - ignore
+            }
+
+            // Add MergeMilliseconds column if it doesn't exist (migration for per-song settings)
+            try
+            {
+                db.Database.ExecuteSqlRaw(@"
+                    ALTER TABLE Songs ADD COLUMN MergeMilliseconds INTEGER NULL;
+                ");
+            }
+            catch
+            {
+                // Column already exists or other error - ignore
+            }
+
+            // Add HoldNotes column if it doesn't exist (migration for per-song settings)
+            try
+            {
+                db.Database.ExecuteSqlRaw(@"
+                    ALTER TABLE Songs ADD COLUMN HoldNotes INTEGER NULL;
+                ");
+            }
+            catch
+            {
+                // Column already exists or other error - ignore
+            }
+
             return db;
         });
 

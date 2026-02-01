@@ -218,7 +218,10 @@ public class QueueViewModel : Screen
             file.Song.Album,
             file.Song.DateAdded,
             nativeBpm,
-            file.Song.Bpm);
+            file.Song.Bpm,
+            file.Song.MergeNotes,
+            file.Song.MergeMilliseconds,
+            file.Song.HoldNotes);
 
         var result = await dialog.ShowAsync();
         if (result != ModernWpf.Controls.ContentDialogResult.Primary) return;
@@ -231,6 +234,9 @@ public class QueueViewModel : Screen
         file.Song.Key = dialog.SongKey;
         file.Song.Transpose = dialog.SongTranspose;
         file.Song.Bpm = dialog.SongBpm;
+        file.Song.MergeNotes = dialog.SongMergeNotes;
+        file.Song.MergeMilliseconds = dialog.SongMergeMilliseconds;
+        file.Song.HoldNotes = dialog.SongHoldNotes;
 
         await using var db = _ioc.Get<LyreContext>();
         db.Songs.Update(file.Song);

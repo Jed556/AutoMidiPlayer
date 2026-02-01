@@ -209,12 +209,77 @@ public class SongsViewModel : Screen
 
     public async Task AddFiles(IEnumerable<Song> files)
     {
+        var missingSongs = new List<Song>();
+
         foreach (var file in files)
         {
+            // Check if file exists before trying to add
+            if (!File.Exists(file.Path))
+            {
+                missingSongs.Add(file);
+                continue;
+            }
             await AddFile(file);
         }
 
+        // Show single dialog for all missing files
+        if (missingSongs.Count > 0)
+        {
+            await ShowMissingFilesDialog(missingSongs);
+        }
+
         ApplySort();
+    }
+
+    private async Task ShowMissingFilesDialog(List<Song> missingSongs)
+    {
+        var fileList = string.Join("\n", missingSongs.Select(s => $"• {s.Title ?? s.Path}"));
+        var content = new System.Windows.Controls.StackPanel();
+
+        content.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = $"The following {missingSongs.Count} song(s) could not be found:",
+            TextWrapping = System.Windows.TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 8)
+        });
+
+        var scrollViewer = new System.Windows.Controls.ScrollViewer
+        {
+            MaxHeight = 200,
+            Content = new System.Windows.Controls.TextBlock
+            {
+                Text = fileList,
+                TextWrapping = System.Windows.TextWrapping.Wrap
+            }
+        };
+        content.Children.Add(scrollViewer);
+
+        content.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = "\nWould you like to remove them from the database?",
+            TextWrapping = System.Windows.TextWrapping.Wrap,
+            Margin = new Thickness(0, 8, 0, 0)
+        });
+
+        var dialog = new ContentDialog
+        {
+            Title = "Missing Files",
+            Content = content,
+            PrimaryButtonText = "Remove from Database",
+            CloseButtonText = "Keep in Database"
+        };
+
+        var result = await dialog.ShowAsync();
+
+        if (result == ContentDialogResult.Primary)
+        {
+            await using var db = _ioc.Get<LyreContext>();
+            foreach (var song in missingSongs)
+            {
+                db.Songs.Remove(song);
+            }
+            await db.SaveChangesAsync();
+        }
     }
 
     public async Task ScanFolder(string folderPath)
@@ -231,9 +296,23 @@ public class SongsViewModel : Screen
     {
         try
         {
-            // Check if file already exists in library
+            // Check if file already exists in library by path
             if (Tracks.Any(t => t.Song.Path == song.Path))
                 return;
+
+            // Check if file already exists by hash (duplicate content)
+            if (song.FileHash != null && Tracks.Any(t => t.Song.FileHash == song.FileHash))
+                return;
+
+            // If song doesn't have a hash yet (migrated from old DB), compute it
+            if (song.FileHash == null && File.Exists(song.Path))
+            {
+                song.FileHash = Song.ComputeFileHash(song.Path);
+
+                // Check again for duplicates after computing hash
+                if (song.FileHash != null && Tracks.Any(t => t.Song.FileHash == song.FileHash))
+                    return;
+            }
 
             Tracks.Add(new(song, settings));
         }
@@ -247,9 +326,32 @@ public class SongsViewModel : Screen
 
     private async Task AddFile(string fileName)
     {
-        // Check if file already exists
+        // Check if file already exists by path
         if (Tracks.Any(t => t.Song.Path == fileName))
             return;
+
+        // Compute hash for duplicate detection
+        var fileHash = Song.ComputeFileHash(fileName);
+
+        // Check if a file with the same hash already exists (duplicate content)
+        if (fileHash != null)
+        {
+            var existingByHash = Tracks.FirstOrDefault(t => t.Song.FileHash == fileHash);
+            if (existingByHash != null)
+            {
+                // Show warning dialog about duplicate
+                var dialog = new ContentDialog
+                {
+                    Title = "Duplicate File Detected",
+                    Content = $"This MIDI file appears to be a duplicate of:\n\n" +
+                              $"'{existingByHash.Song.Title ?? existingByHash.Song.Path}'\n\n" +
+                              $"The existing file will be used and this duplicate will be ignored.",
+                    CloseButtonText = "OK"
+                };
+                await dialog.ShowAsync();
+                return;
+            }
+        }
 
         // Get default title from filename
         var defaultTitle = Path.GetFileNameWithoutExtension(fileName);
@@ -396,7 +498,10 @@ public class SongsViewModel : Screen
             file.Song.Album,
             file.Song.DateAdded,
             nativeBpm,
-            file.Song.Bpm);
+            file.Song.Bpm,
+            file.Song.MergeNotes,
+            file.Song.MergeMilliseconds,
+            file.Song.HoldNotes);
 
         var result = await dialog.ShowAsync();
         if (result != ContentDialogResult.Primary) return;
@@ -409,6 +514,9 @@ public class SongsViewModel : Screen
         file.Song.Key = dialog.SongKey;
         file.Song.Transpose = dialog.SongTranspose;
         file.Song.Bpm = dialog.SongBpm;
+        file.Song.MergeNotes = dialog.SongMergeNotes;
+        file.Song.MergeMilliseconds = dialog.SongMergeMilliseconds;
+        file.Song.HoldNotes = dialog.SongHoldNotes;
 
         await using var db = _ioc.Get<LyreContext>();
         db.Songs.Update(file.Song);
