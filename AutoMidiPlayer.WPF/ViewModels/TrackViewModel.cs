@@ -260,6 +260,10 @@ public class TrackViewModel : Screen,
         // (InitializePlayback modifies the in-memory MIDI by removing unchecked tracks)
         file.InitializeMidi();
         InitializeTracks();
+
+        // Update playable notes for each track based on current settings
+        UpdateTrackPlayableNotes();
+
         await InitializePlayback();
 
         // Update note statistics for new file
@@ -312,6 +316,9 @@ public class TrackViewModel : Screen,
 
     public async void Handle(SettingsPageViewModel message)
     {
+        // Update playable notes for each track
+        UpdateTrackPlayableNotes();
+
         // Update note statistics when settings change
         NotifyOfPropertyChange(() => TotalNotes);
         NotifyOfPropertyChange(() => AccessibleNotes);
@@ -334,10 +341,42 @@ public class TrackViewModel : Screen,
 
     public void Handle(InstrumentViewModel message)
     {
+        // Skip if called during initialization before InstrumentView is assigned
+        if (_main.InstrumentView is null) return;
+
+        // Update playable notes for each track
+        UpdateTrackPlayableNotes();
+
         // Update note statistics when instrument settings change
         NotifyOfPropertyChange(() => TotalNotes);
         NotifyOfPropertyChange(() => AccessibleNotes);
         NotifyOfPropertyChange(() => NotesStatsDisplay);
+    }
+
+    /// <summary>
+    /// Updates playable notes count for all tracks based on current settings
+    /// </summary>
+    private void UpdateTrackPlayableNotes()
+    {
+        var instrument = InstrumentPage.SelectedInstrument.Key;
+        var keyOffset = SettingsPage.KeyOffset;
+        var transpose = SettingsPage.Transpose?.Key;
+        var availableNotes = Keyboard.GetNotes(instrument).ToHashSet();
+
+        Func<int, int>? transposeFunc = null;
+        if (Settings.TransposeNotes && transpose is not null)
+        {
+            transposeFunc = noteId =>
+            {
+                var id = noteId;
+                return LyrePlayer.TransposeNote(instrument, ref id, transpose.Value);
+            };
+        }
+
+        foreach (var track in MidiTracks)
+        {
+            track.UpdatePlayableNotes(availableNotes, keyOffset, transposeFunc);
+        }
     }
 
     public void OpenFile()
@@ -578,6 +617,14 @@ public class TrackViewModel : Screen,
         // Transpose setting is now handled per-song in the import dialog
         // The song's transpose setting (defaulting to Ignore) will be used
 
+        // Skip playback creation if no tracks to play
+        if (tracksToPlay.Count == 0)
+        {
+            Playback = null;
+            UpdateButtons();
+            return Task.CompletedTask;
+        }
+
         // Use GetPlayback with track chunks and original tempo map to maintain consistent BPM
         var playback = tracksToPlay.GetPlayback(tempoMap);
 
@@ -607,7 +654,15 @@ public class TrackViewModel : Screen,
         if (_savedPosition.HasValue)
         {
             var time = TimeSpan.FromSeconds(_savedPosition.Value);
-            playback.MoveToTime(new MetricTimeSpan(time));
+            // Guard against empty playback (no timed events)
+            try
+            {
+                playback.MoveToTime(new MetricTimeSpan(time));
+            }
+            catch (InvalidOperationException)
+            {
+                // Enumeration already finished - playback has no events, ignore
+            }
             _savedPosition = null;
 
             // Move slider AFTER UpdateButtons to avoid WPF binding interference

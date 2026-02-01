@@ -13,19 +13,11 @@
 	<Grid>
 		<Grid.RowDefinitions>
 			<RowDefinition Height="Auto"/>
-			<RowDefinition Height="Auto"/>
 			<RowDefinition Height="*"/>
 		</Grid.RowDefinitions>
 
-		<!-- Header -->
-		<TextBlock Grid.Row="0"
-				   VerticalAlignment="Center"
-				   FontSize="16"
-				   Margin="0,0,0,4"
-				   Text="{Binding Queue.OpenedFile.Title, Mode=OneWay, FallbackValue=Select a song from Songs or Queue}"/>
-
 		<!-- Notes Statistics -->
-		<TextBlock Grid.Row="1"
+		<TextBlock Grid.Row="0"
 				   VerticalAlignment="Center"
 				   FontSize="12"
 				   Opacity="0.7"
@@ -34,7 +26,7 @@
 				   Visibility="{Binding Queue.OpenedFile, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
 
 		<!-- Track Cards -->
-		<ScrollViewer Grid.Row="2">
+		<ScrollViewer Grid.Row="1">
 			<ItemsControl ItemsSource="{Binding MidiTracks}">
 				<ItemsControl.ItemTemplate>
 					<DataTemplate>
@@ -125,6 +117,15 @@
 															 Orientation="Horizontal"
 															 HorizontalAlignment="Right"
 															 Spacing="16">
+										<StackPanel ToolTip="Notes playable with current settings">
+											<TextBlock Text="Playable"
+													   FontSize="10"
+													   Opacity="0.6"
+													   HorizontalAlignment="Center"/>
+											<TextBlock Text="{Binding PlayableNotesDisplay}"
+													   FontWeight="SemiBold"
+													   HorizontalAlignment="Center"/>
+										</StackPanel>
 										<StackPanel ToolTip="Total number of notes">
 											<TextBlock Text="Notes"
 													   FontSize="10"

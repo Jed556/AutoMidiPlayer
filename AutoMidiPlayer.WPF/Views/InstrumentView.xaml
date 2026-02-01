@@ -28,10 +28,6 @@
                                      Margin="0,0,10,0">
 
                 <!-- Instrument Section -->
-                <TextBlock Text="Instrument"
-                           Style="{DynamicResource SubtitleTextBlockStyle}"
-                           Margin="0,0,0,8"/>
-
                 <GroupBox Header="Game Instrument">
                     <ComboBox
                         ItemsSource="{x:Static core:Keyboard.InstrumentNames}"
@@ -50,21 +46,11 @@
                         MinWidth="200"/>
                 </GroupBox>
 
-                <!-- Test Section -->
-                <TextBlock Text="Test"
-                           Style="{DynamicResource SubtitleTextBlockStyle}"
-                           Margin="0,16,0,8"/>
-
-                <modern:SimpleStackPanel Orientation="Horizontal"
-                                         Spacing="20">
-                    <modern:ToggleSwitch
-                        Header="Test Mode (Speakers)"
-                        IsEnabled="{Binding CanUseSpeakers}"
-                        IsOn="{Binding Default.UseSpeakers, Source={StaticResource Settings}}"/>
-                    <Button Command="{s:Action TestInstrument}"
-                            Content="Test Instrument"
-                            Padding="16,8"/>
-                </modern:SimpleStackPanel>
+                <modern:ToggleSwitch
+                    Header="Test Mode (Speakers)"
+                    IsEnabled="{Binding CanUseSpeakers}"
+                    IsOn="{Binding Default.UseSpeakers, Source={StaticResource Settings}}"
+                    Margin="0,8,0,0"/>
 
                 <!-- Timer Section -->
                 <TextBlock Text="Timer"
@@ -91,52 +77,26 @@
             <modern:SimpleStackPanel Grid.Column="1"
                                      Margin="10,0,0,0">
 
-                <!-- MIDI Input Section -->
-                <TextBlock Text="MIDI Input"
+                <!-- Notes Section -->
+                <TextBlock Text="Notes"
                            Style="{DynamicResource SubtitleTextBlockStyle}"
                            Margin="0,0,0,8"/>
 
-                <GroupBox Header="Physical MIDI Instrument">
-                    <modern:SimpleStackPanel Orientation="Horizontal">
-                        <ComboBox
-                            ItemsSource="{Binding MidiInputs}"
-                            SelectedItem="{Binding SelectedMidiInput}"
-                            DisplayMemberPath="DeviceName"
-                            MinWidth="200"/>
-                        <Button Command="{s:Action RefreshDevices}"
-                                ToolTip="Refresh MIDI devices"
-                                Background="Transparent">
-                            <ui:FontIcon Glyph="&#xE72C;"
-                                         FontFamily="{StaticResource MdlFontFamily}"/>
-                        </Button>
-                    </modern:SimpleStackPanel>
-                </GroupBox>
-
-                <TextBlock Text="Connect a physical MIDI keyboard or controller to use it as input."
-                           TextWrapping="Wrap"
-                           Opacity="0.6"
-                           FontSize="12"
-                           Margin="0,8,0,0"/>
-
-                <!-- Advanced Section -->
-                <TextBlock Text="Advanced"
-                           Style="{DynamicResource SubtitleTextBlockStyle}"
-                           Margin="0,16,0,8"/>
-
-                <modern:ToggleSwitch
-                    Header="Use Direct Input (recommended)"
-                    IsOn="{Binding UseDirectInput}"
-                    ToolTip="Uses Win32 SendInput for better game compatibility. Disable only if experiencing issues."/>
+                <modern:SimpleStackPanel Orientation="Horizontal"
+                                         Spacing="20">
+                    <modern:ToggleSwitch
+                        Header="Merge nearby notes"
+                        IsOn="{Binding MergeNotes}"/>
+                    <modern:NumberBox
+                        Header="Tolerance (ms)"
+                        IsEnabled="{Binding MergeNotes}"
+                        Value="{Binding MergeMilliseconds}"
+                        MinWidth="100"/>
+                </modern:SimpleStackPanel>
 
                 <modern:ToggleSwitch
                     Header="Hold notes"
                     IsOn="{Binding Default.HoldNotes, Source={StaticResource Settings}}"/>
-
-                <TextBlock Text="Direct Input uses low-level Windows API for better compatibility with games. Disable this if notes are not being detected correctly."
-                           TextWrapping="Wrap"
-                           Opacity="0.6"
-                           FontSize="12"
-                           Margin="0,8,0,0"/>
             </modern:SimpleStackPanel>
         </Grid>
     </ScrollViewer>

@@ -16,6 +16,7 @@ public class MidiTrack : INotifyPropertyChanged
     private readonly IEventAggregator _events;
     private bool _isChecked;
     private bool _isActive;
+    private int _playableNotes;
     private DispatcherTimer? _glowTimer;
     private HashSet<int>? _noteNumbers; // Cached note numbers for fast lookup
     private const int GlowDurationMs = 150; // How long the glow stays on
@@ -79,8 +80,23 @@ public class MidiTrack : INotifyPropertyChanged
 
     public double FrequentNotesRatio { get; private set; }
 
+    public int PlayableNotes
+    {
+        get => _playableNotes;
+        private set
+        {
+            if (_playableNotes != value)
+            {
+                _playableNotes = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PlayableNotesDisplay));
+            }
+        }
+    }
+
     // Formatted display strings
     public string NotesCountDisplay => $"{NotesCount:N0}";
+    public string PlayableNotesDisplay => $"{PlayableNotes:N0}";
     public string BlackKeyRatioDisplay => $"{BlackKeyRatio:F1}%";
     public string AverageDurationDisplay => $"{AverageDurationMs:F0}ms";
     public string FrequentNotesRatioDisplay => $"{FrequentNotesRatio:F1}%";
@@ -188,6 +204,27 @@ public class MidiTrack : INotifyPropertyChanged
         {
             CrashLogger.LogException(ex);
         }
+    }
+
+    /// <summary>
+    /// Updates the playable notes count based on available notes and transpose settings
+    /// </summary>
+    /// <param name="availableNotes">Set of note IDs that can be played</param>
+    /// <param name="keyOffset">Key offset to apply</param>
+    /// <param name="transposeFunc">Optional function to transpose notes</param>
+    public void UpdatePlayableNotes(HashSet<int> availableNotes, int keyOffset, Func<int, int>? transposeFunc = null)
+    {
+        var notes = Track.GetNotes();
+        var playable = notes.Count(note =>
+        {
+            var noteId = note.NoteNumber - keyOffset;
+            if (transposeFunc is not null)
+            {
+                noteId = transposeFunc(noteId);
+            }
+            return availableNotes.Contains(noteId);
+        });
+        PlayableNotes = playable;
     }
 
     /// <summary>

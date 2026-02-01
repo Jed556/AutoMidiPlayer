@@ -35,17 +35,16 @@
                            Style="{DynamicResource SubtitleTextBlockStyle}"
                            Margin="0,0,0,8"/>
 
-                <modern:SimpleStackPanel Orientation="Horizontal"
-                                         Spacing="20">
-                    <modern:ToggleSwitch
-                        Header="Merge nearby notes"
-                        IsOn="{Binding MergeNotes}"/>
-                    <modern:NumberBox
-                        Header="Tolerance (ms)"
-                        IsEnabled="{Binding MergeNotes}"
-                        Value="{Binding MergeMilliseconds}"
-                        MinWidth="100"/>
-                </modern:SimpleStackPanel>
+                <modern:ToggleSwitch
+                    Header="Use Direct Input (recommended)"
+                    IsOn="{Binding UseDirectInput}"
+                    ToolTip="Uses Win32 SendInput for better game compatibility. Disable only if experiencing issues."/>
+
+                <TextBlock Text="Direct Input uses low-level Windows API for better compatibility with games. Disable this if notes are not being detected correctly."
+                           TextWrapping="Wrap"
+                           Opacity="0.6"
+                           FontSize="12"
+                           Margin="0,8,0,0"/>
 
                 <!-- Locations Section -->
                 <TextBlock Text="Locations"

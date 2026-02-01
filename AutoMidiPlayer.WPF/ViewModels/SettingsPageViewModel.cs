@@ -169,7 +169,7 @@ public class SettingsPageViewModel : Screen
 
     public bool IsCheckingUpdate { get; set; }
 
-    public bool MergeNotes { get; set; } = Settings.MergeNotes;
+    public bool UseDirectInput { get; set; } = Settings.UseDirectInput;
 
     public string MidiFolder { get; set; } = Settings.MidiFolder;
 
@@ -292,8 +292,6 @@ public class SettingsPageViewModel : Screen
     public string TimerText => CanChangeTime ? "Start" : "Stop";
 
     [UsedImplicitly] public string UpdateString { get; set; } = string.Empty;
-
-    public uint MergeMilliseconds { get; set; } = Settings.MergeMilliseconds;
 
     public static Version ProgramVersion => Assembly.GetExecutingAssembly().GetName().Version!;
 
@@ -603,17 +601,11 @@ public class SettingsPageViewModel : Screen
     }
 
     [UsedImplicitly]
-    private void OnMergeMillisecondsChanged()
+    private void OnUseDirectInputChanged()
     {
-        Settings.Modify(s => s.MergeMilliseconds = MergeMilliseconds);
-        _events.Publish(this);
-    }
-
-    [UsedImplicitly]
-    private void OnMergeNotesChanged()
-    {
-        Settings.Modify(s => s.MergeNotes = MergeNotes);
-        _events.Publish(new MergeNotesNotification(MergeNotes));
+        Settings.UseDirectInput = UseDirectInput;
+        Settings.Save();
+        LyrePlayer.UseDirectInput = UseDirectInput;
     }
 
     [UsedImplicitly]
@@ -635,6 +627,9 @@ public class SettingsPageViewModel : Screen
         // Notify UI to refresh
         _main.SongsView.RefreshCurrentSong();
         _main.QueueView.RefreshCurrentSong();
+
+        // Notify TrackViewModel to update statistics
+        _events.Publish(this);
     }
 }
 
