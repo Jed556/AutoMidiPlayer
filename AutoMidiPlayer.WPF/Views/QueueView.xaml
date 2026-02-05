@@ -6,11 +6,16 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     mc:Ignorable="d"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-    xmlns:modern="http://schemas.modernwpf.com/2019"
     xmlns:s="https://github.com/canton7/Stylet"
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
     xmlns:modernWpf="clr-namespace:AutoMidiPlayer.WPF.ModernWPF"
+    xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
+    xmlns:converters="clr-namespace:AutoMidiPlayer.WPF.Converters"
     d:DataContext="{d:DesignInstance Type=viewModels:QueueViewModel}">
+
+    <UserControl.Resources>
+        <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter"/>
+    </UserControl.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -27,9 +32,9 @@
             </Grid.ColumnDefinitions>
 
             <!-- Search Box -->
-            <modern:SimpleStackPanel Grid.Column="0"
-                                     Orientation="Horizontal"
-                                     Spacing="4">
+            <controls:SimpleStackPanel Grid.Column="0"
+                                       Orientation="Horizontal"
+                                       Spacing="4">
                 <ui:TextBox PlaceholderText="Filter queue..."
                             Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"
                             Width="250"
@@ -37,21 +42,20 @@
                             VerticalAlignment="Center"/>
                 <TextBlock Margin="10,0"
                            VerticalAlignment="Center"
-                           Opacity="0.7"
-                           Style="{DynamicResource BodyTextBlockStyle}">
+                           Opacity="0.7">
                     <Run Text="{Binding Tracks.Count, Mode=OneWay}"/> in queue
                 </TextBlock>
-            </modern:SimpleStackPanel>
+            </controls:SimpleStackPanel>
 
-            <modern:SimpleStackPanel Grid.Column="1"
-                                     Orientation="Horizontal"
-                                     Spacing="4">
+            <controls:SimpleStackPanel Grid.Column="1"
+                                       Orientation="Horizontal"
+                                       Spacing="4">
                 <Button Command="{s:Action RemoveTrack}"
                         Content="Remove"
                         ToolTip="Remove selected from queue"/>
                 <Button Command="{s:Action ClearQueue}"
                         Content="Clear Queue"/>
-            </modern:SimpleStackPanel>
+            </controls:SimpleStackPanel>
         </Grid>
 
         <!-- Track List -->
@@ -74,17 +78,18 @@
                                   Fill="{DynamicResource TextFillColorPrimaryBrush}"
                                   Stretch="Uniform"
                                   Width="12"
-                                    Height="12"/>
+                                  Height="12"/>
                         </MenuItem.Icon>
                     </MenuItem>
                     <MenuItem Header="Edit"
-                              Click="EditSong_Click">
+                              Click="EditSong_Click"
+                              Visibility="{Binding PlacementTarget.IsMultiSelect, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource InverseBoolToVisibilityConverter}}">
                         <MenuItem.Icon>
                             <Path Data="{StaticResource EditIconGeometry}"
                                   Fill="{DynamicResource TextFillColorPrimaryBrush}"
                                   Stretch="Uniform"
                                   Width="12"
-                                    Height="12"/>
+                                  Height="12"/>
                         </MenuItem.Icon>
                     </MenuItem>
                     <Separator/>
@@ -95,7 +100,7 @@
                                   Fill="{DynamicResource TextFillColorPrimaryBrush}"
                                   Stretch="Uniform"
                                   Width="12"
-                                    Height="12"/>
+                                  Height="12"/>
                         </MenuItem.Icon>
                     </MenuItem>
                 </ContextMenu>

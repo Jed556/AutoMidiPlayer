@@ -6,7 +6,6 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     mc:Ignorable="d"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-    xmlns:modern="http://schemas.modernwpf.com/2019"
     xmlns:midi="clr-namespace:AutoMidiPlayer.Data.Midi;assembly=AutoMidiPlayer.Data"
     xmlns:modernWpf="clr-namespace:AutoMidiPlayer.WPF.ModernWPF"
     x:Name="TrackListRoot">
@@ -91,6 +90,8 @@
                   ItemsSource="{Binding ItemsSource, ElementName=TrackListRoot}"
                   VirtualizingPanel.VirtualizationMode="Recycling"
                   SelectedItem="{Binding SelectedItem, ElementName=TrackListRoot, Mode=TwoWay}"
+                  SelectionMode="Extended"
+                  SelectionChanged="TrackListView_SelectionChanged"
                   BorderThickness="0"
                   Background="Transparent"
                   AllowDrop="{Binding AllowReorder, ElementName=TrackListRoot}"
@@ -153,7 +154,7 @@
                                                         </MultiBinding>
                                                     </DataTrigger.Binding>
                                                     <Setter Property="Foreground"
-                                                            Value="{DynamicResource SystemControlHighlightAccentBrush}"/>
+                                                            Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
                                                     <Setter Property="Opacity"
                                                             Value="1"/>
                                                 </DataTrigger>
@@ -268,8 +269,7 @@
                                     <TextBlock Text="{Binding Title}"
                                                TextTrimming="CharacterEllipsis">
                                         <TextBlock.Style>
-                                            <Style TargetType="TextBlock"
-                                                   BasedOn="{StaticResource BodyTextBlockStyle}">
+                                            <Style TargetType="TextBlock">
                                                 <Style.Triggers>
                                                     <DataTrigger Value="True">
                                                         <DataTrigger.Binding>
@@ -280,7 +280,7 @@
                                                             </MultiBinding>
                                                         </DataTrigger.Binding>
                                                         <Setter Property="Foreground"
-                                                                Value="{DynamicResource SystemControlHighlightAccentBrush}"/>
+                                                                Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -411,31 +411,60 @@
                 </DataTemplate>
             </ListView.ItemTemplate>
             <ListView.ItemContainerStyle>
-                <Style TargetType="ListViewItem"
-                       BasedOn="{StaticResource DefaultListViewItemStyle}">
+                <Style TargetType="ListViewItem">
                     <Setter Property="HorizontalContentAlignment"
                             Value="Stretch"/>
                     <Setter Property="Padding"
-                            Value="0"/>
+                            Value="8,4"/>
                     <Setter Property="MinHeight"
                             Value="56"/>
                     <Setter Property="Margin"
-                            Value="4,1"/>
+                            Value="4,2"/>
                     <Setter Property="Background"
                             Value="Transparent"/>
-                    <Style.Triggers>
-                        <Trigger Property="IsMouseOver"
-                                 Value="True">
-                            <Setter Property="Background"
-                                    Value="Transparent"/>
-                        </Trigger>
-                        <!-- Show buttons when item is selected -->
-                        <Trigger Property="IsSelected"
-                                 Value="True">
-                            <Setter Property="Background"
-                                    Value="Transparent"/>
-                        </Trigger>
-                    </Style.Triggers>
+                    <Setter Property="Foreground"
+                            Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ListViewItem">
+                                <Border x:Name="Bd"
+                                        Background="{TemplateBinding Background}"
+                                        BorderThickness="0"
+                                        CornerRadius="4"
+                                        Padding="{TemplateBinding Padding}"
+                                        SnapsToDevicePixels="true">
+                                    <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                      SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver"
+                                             Value="True">
+                                        <Setter TargetName="Bd"
+                                                Property="Background"
+                                                Value="#20FFFFFF"/>
+                                    </Trigger>
+                                    <Trigger Property="IsSelected"
+                                             Value="True">
+                                        <Setter TargetName="Bd"
+                                                Property="Background"
+                                                Value="#30FFFFFF"/>
+                                    </Trigger>
+                                    <MultiTrigger>
+                                        <MultiTrigger.Conditions>
+                                            <Condition Property="IsSelected"
+                                                       Value="True"/>
+                                            <Condition Property="IsMouseOver"
+                                                       Value="True"/>
+                                        </MultiTrigger.Conditions>
+                                        <Setter TargetName="Bd"
+                                                Property="Background"
+                                                Value="#40FFFFFF"/>
+                                    </MultiTrigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
                 </Style>
             </ListView.ItemContainerStyle>
         </ListView>

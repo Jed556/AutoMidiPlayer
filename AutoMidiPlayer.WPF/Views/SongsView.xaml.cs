@@ -63,7 +63,7 @@ public partial class SongsView : UserControl
     {
         if (DataContext is SongsViewModel viewModel)
         {
-            viewModel.AddSelectedToQueue();
+            viewModel.AddSelectedToQueue(TrackList.SelectedFiles);
         }
     }
 
@@ -74,7 +74,7 @@ public partial class SongsView : UserControl
     {
         if (DataContext is SongsViewModel viewModel)
         {
-            await viewModel.EditSelected();
+            await viewModel.EditSelected(TrackList.SelectedFiles);
         }
     }
 
@@ -85,7 +85,7 @@ public partial class SongsView : UserControl
     {
         if (DataContext is SongsViewModel viewModel)
         {
-            await viewModel.DeleteSelected();
+            await viewModel.DeleteSelected(TrackList.SelectedFiles);
         }
     }
 }

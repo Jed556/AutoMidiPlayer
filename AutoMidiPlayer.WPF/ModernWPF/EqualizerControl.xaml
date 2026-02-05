@@ -17,28 +17,28 @@
                            Grid.Column="0"
                            Width="3"
                            Height="4"
-                           Fill="{DynamicResource SystemControlHighlightAccentBrush}"
+                           Fill="{DynamicResource SystemAccentColorPrimaryBrush}"
                            VerticalAlignment="Bottom"
                            Margin="0,0,1,0"/>
                 <Rectangle x:Name="Bar2"
                            Grid.Column="1"
                            Width="3"
                            Height="8"
-                           Fill="{DynamicResource SystemControlHighlightAccentBrush}"
+                           Fill="{DynamicResource SystemAccentColorPrimaryBrush}"
                            VerticalAlignment="Bottom"
                            Margin="0,0,1,0"/>
                 <Rectangle x:Name="Bar3"
                            Grid.Column="2"
                            Width="3"
                            Height="6"
-                           Fill="{DynamicResource SystemControlHighlightAccentBrush}"
+                           Fill="{DynamicResource SystemAccentColorPrimaryBrush}"
                            VerticalAlignment="Bottom"
                            Margin="0,0,1,0"/>
                 <Rectangle x:Name="Bar4"
                            Grid.Column="3"
                            Width="3"
                            Height="10"
-                           Fill="{DynamicResource SystemControlHighlightAccentBrush}"
+                           Fill="{DynamicResource SystemAccentColorPrimaryBrush}"
                            VerticalAlignment="Bottom"/>
         </Grid>
 </UserControl>

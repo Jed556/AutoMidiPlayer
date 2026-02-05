@@ -6,11 +6,11 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     mc:Ignorable="d"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-    xmlns:tb="http://www.hardcodet.net/taskbar"
-    xmlns:modern="http://schemas.modernwpf.com/2019"
+    xmlns:tray="clr-namespace:Wpf.Ui.Tray.Controls;assembly=Wpf.Ui.Tray"
     xmlns:s="https://github.com/canton7/Stylet"
     xmlns:pages="clr-namespace:AutoMidiPlayer.WPF.Views"
     xmlns:modernWpf="clr-namespace:AutoMidiPlayer.WPF.ModernWPF"
+    xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
     xmlns:core="clr-namespace:AutoMidiPlayer.WPF.Core"
     d:DataContext="{d:DesignInstance Type=viewModels:MainWindowViewModel}"
@@ -41,34 +41,51 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Tray Icon (placed inside Grid as it doesn't render visually) -->
-        <tb:TaskbarIcon
-            ToolTipText="MIDI Player"
-            DoubleClickCommand="{s:Action ShowWindow}">
-            <tb:TaskbarIcon.ContextMenu>
+        <!-- Tray Icon using WPF-UI.Tray -->
+        <tray:NotifyIcon
+            x:Name="TrayIcon"
+            TooltipText="Auto MIDI Player"
+            FocusOnLeftClick="True"
+            MenuOnRightClick="True"
+            LeftClick="TrayShowWindow_Click"
+            LeftDoubleClick="TrayShowWindow_Click">
+            <tray:NotifyIcon.Icon>
+                <BitmapImage UriSource="pack://application:,,,/logo.png"/>
+            </tray:NotifyIcon.Icon>
+            <tray:NotifyIcon.Menu>
                 <ContextMenu>
-                    <MenuItem s:View.ActionTarget="{Binding TrackView}"
-                              Command="{s:Action PlayPause}"
-                              Header="Play"/>
-                    <MenuItem s:View.ActionTarget="{Binding TrackView}"
-                              Command="{s:Action Next}"
-                              Header="Next"/>
+                    <ui:MenuItem Header="Play/Pause"
+                                 Icon="{ui:SymbolIcon Play24}"
+                                 Click="TrayPlayPause_Click"/>
+                    <ui:MenuItem Header="Next"
+                                 Icon="{ui:SymbolIcon Next24}"
+                                 Click="TrayNext_Click"/>
+                    <Separator/>
+                    <ui:MenuItem Header="Show Window"
+                                 Icon="{ui:SymbolIcon WindowNew20}"
+                                 Click="TrayShowWindow_Click"/>
+                    <ui:MenuItem Header="Exit"
+                                 Icon="{ui:SymbolIcon Power24}"
+                                 Click="TrayExit_Click"/>
                 </ContextMenu>
-            </tb:TaskbarIcon.ContextMenu>
-        </tb:TaskbarIcon>
+            </tray:NotifyIcon.Menu>
+        </tray:NotifyIcon>
 
         <!-- Title Bar -->
         <ui:TitleBar Grid.Row="0"
-                     Title="{Binding Title}">
+                     Title="{Binding Title}"
+                     ShowMaximize="True"
+                     ShowMinimize="True"
+                     ShowClose="True">
             <ui:TitleBar.Header>
-                <modern:SimpleStackPanel Margin="250,0,0,0"
-                                         Orientation="Horizontal">
+                <controls:SimpleStackPanel Margin="250,0,0,0"
+                                           Orientation="Horizontal">
                     <ui:HyperlinkButton
                         Command="{s:Action NavigateToSettings}"
                         Visibility="{Binding ShowUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
                         Margin="485,0,0,0"
                         Content="New update!"/>
-                </modern:SimpleStackPanel>
+                </controls:SimpleStackPanel>
             </ui:TitleBar.Header>
         </ui:TitleBar>
 
@@ -88,23 +105,23 @@
                 IsPaneToggleVisible="False">
                 <ui:NavigationView.MenuItems>
                     <ui:NavigationViewItem Content="Tracks"
-                                           Icon="{ui:SymbolIcon MusicNote220}"
+                                           Icon="{ui:SymbolIcon AppsListDetail24}"
                                            Tag="{Binding TrackView}"
                                            Click="{s:Action NavigateToItem}"/>
                     <ui:NavigationViewItem Content="Sheet"
-                                           Icon="{ui:SymbolIcon BookOpenMicrophone20}"
+                                           Icon="{ui:SymbolIcon ImmersiveReader16}"
                                            Tag="{Binding PianoSheetView}"
                                            Click="{s:Action NavigateToItem}"/>
                     <ui:NavigationViewItem Content="Instrument"
-                                           Icon="{ui:SymbolIcon MusicNote2Play20}"
+                                           Icon="{ui:SymbolIcon Guitar28}"
                                            Tag="{Binding InstrumentView}"
                                            Click="{s:Action NavigateToItem}"/>
                     <ui:NavigationViewItem Content="Queue"
-                                           Icon="{ui:SymbolIcon TextBulletListSquareSearch20}"
+                                           Icon="{ui:SymbolIcon TextBulletListSquare24}"
                                            Tag="{Binding QueueView}"
                                            Click="{s:Action NavigateToItem}"/>
                     <ui:NavigationViewItem Content="Songs"
-                                           Icon="{ui:SymbolIcon MusicNote120}"
+                                           Icon="{ui:SymbolIcon Cd16}"
                                            Tag="{Binding SongsView}"
                                            Click="{s:Action NavigateToItem}"/>
                 </ui:NavigationView.MenuItems>
@@ -130,10 +147,11 @@
                     </Grid.RowDefinitions>
                     <ui:BreadcrumbBar
                         Grid.Row="0"
-                        Margin="18,8,18,4"
+                        Margin="18,24,18,8"
                         HorizontalAlignment="Left"
                         VerticalAlignment="Top"
-                        FontSize="24"
+                        FontSize="28"
+                        FontWeight="SemiBold"
                         ItemsSource="{Binding BreadcrumbItems}"/>
                     <Frame Grid.Row="0"
                            x:Name="RootFrame"
@@ -148,7 +166,7 @@
         <!-- Fixed Bottom Player Controls -->
         <Border Grid.Row="2"
                 Background="{ui:ThemeResource ControlFillColorDefaultBrush}"
-                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                 BorderThickness="0,1,0,0"
                 Padding="24,16">
             <Grid>
@@ -167,7 +185,7 @@
                     <Border Width="48"
                             Height="48"
                             CornerRadius="4"
-                            Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}">
+                            Background="{DynamicResource ControlFillColorDefaultBrush}">
                         <ui:FontIcon Glyph="&#xEC4F;"
                                      FontFamily="{StaticResource MdlFontFamily}"
                                      FontSize="20"/>
@@ -191,9 +209,9 @@
                 <StackPanel Grid.Column="1"
                             HorizontalAlignment="Center">
                     <!-- Control Buttons -->
-                    <modern:SimpleStackPanel Orientation="Horizontal"
-                                             HorizontalAlignment="Center"
-                                             Spacing="12">
+                    <controls:SimpleStackPanel Orientation="Horizontal"
+                                               HorizontalAlignment="Center"
+                                               Spacing="12">
                         <Button s:View.ActionTarget="{Binding TrackView.Queue}"
                                 Command="{s:Action ToggleShuffle}"
                                 Style="{StaticResource PlayerControlButton}"
@@ -222,7 +240,7 @@
                                 Style="{StaticResource PlayPauseButton}"
                                 ToolTip="{Binding Playback.PlayPauseTooltip}">
                             <Path Data="{Binding Playback.PlayPauseGeometry}"
-                                  Fill="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                                  Fill="{DynamicResource ApplicationBackgroundBrush}"
                                   Style="{StaticResource PlayerControlIcon}"
                                   Margin="1,0,0,0"
                                   Width="14"
@@ -251,7 +269,7 @@
                                   Width="14"
                                   Height="14"/>
                         </Button>
-                    </modern:SimpleStackPanel>
+                    </controls:SimpleStackPanel>
 
                     <!-- Progress Bar -->
                     <Grid Margin="0,8,0,0"
@@ -286,11 +304,11 @@
                 </StackPanel>
 
                 <!-- Right: Per-song Settings -->
-                <modern:SimpleStackPanel Grid.Column="2"
-                                         Orientation="Horizontal"
-                                         HorizontalAlignment="Right"
-                                         VerticalAlignment="Center"
-                                         Spacing="12">
+                <controls:SimpleStackPanel Grid.Column="2"
+                                           Orientation="Horizontal"
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Center"
+                                           Spacing="12">
 
                     <!-- Key -->
                     <StackPanel ToolTip="Key offset for transposition">
@@ -333,7 +351,7 @@
                                   SelectedItem="{Binding SettingsView.Transpose}"
                                   DisplayMemberPath="Value"/>
                     </StackPanel>
-                </modern:SimpleStackPanel>
+                </controls:SimpleStackPanel>
             </Grid>
         </Border>
     </Grid>

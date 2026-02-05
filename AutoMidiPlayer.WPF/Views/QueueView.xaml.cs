@@ -57,35 +57,37 @@ public partial class QueueView : UserControl
     }
 
     /// <summary>
-    /// Remove selected song from queue
+    /// Remove selected songs from queue
     /// </summary>
     private void RemoveFromQueue_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is QueueViewModel viewModel)
         {
-            viewModel.RemoveTrack();
+            viewModel.RemoveTrack(TrackList.SelectedFiles);
         }
     }
 
     /// <summary>
-    /// Edit selected song
+    /// Edit selected song (single selection only)
     /// </summary>
     private async void EditSong_Click(object sender, RoutedEventArgs e)
     {
-        if (DataContext is QueueViewModel viewModel && viewModel.SelectedFile is not null)
+        if (DataContext is QueueViewModel viewModel)
         {
-            await viewModel.EditSong(viewModel.SelectedFile);
+            var file = TrackList.SelectedFiles.Count == 1 ? TrackList.SelectedFiles[0] : viewModel.SelectedFile;
+            if (file is not null)
+                await viewModel.EditSong(file);
         }
     }
 
     /// <summary>
-    /// Delete selected song from library
+    /// Delete selected songs from library
     /// </summary>
     private async void DeleteSong_Click(object sender, RoutedEventArgs e)
     {
-        if (DataContext is QueueViewModel viewModel && viewModel.SelectedFile is not null)
+        if (DataContext is QueueViewModel viewModel)
         {
-            await viewModel.DeleteSong(viewModel.SelectedFile);
+            await viewModel.DeleteSongs(TrackList.SelectedFiles);
         }
     }
 }

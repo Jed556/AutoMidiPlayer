@@ -5,10 +5,11 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     mc:Ignorable="d"
-    xmlns:modern="http://schemas.modernwpf.com/2019"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
     xmlns:s="https://github.com/canton7/Stylet"
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
     xmlns:core="clr-namespace:AutoMidiPlayer.WPF.Core"
+    xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
     xmlns:properties="clr-namespace:AutoMidiPlayer.Data.Properties;assembly=AutoMidiPlayer.Data"
     d:DataContext="{d:DesignInstance Type=viewModels:PianoSheetViewModel}">
 
@@ -23,8 +24,8 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <modern:SimpleStackPanel Grid.Row="0">
-            <modern:SimpleStackPanel Orientation="Horizontal">
+        <controls:SimpleStackPanel Grid.Row="0">
+            <controls:SimpleStackPanel Orientation="Horizontal">
                 <GroupBox Header="Delimiter">
                     <TextBox Text="{Binding Delimiter, UpdateSourceTrigger=PropertyChanged}"/>
                 </GroupBox>
@@ -36,47 +37,47 @@
                         SelectedIndex="{Binding Default.SelectedLayout, Source={StaticResource Settings}}"
                         DisplayMemberPath="Value"/>
                 </GroupBox>
-            </modern:SimpleStackPanel>
+            </controls:SimpleStackPanel>
 
-            <modern:SimpleStackPanel Orientation="Horizontal">
+            <controls:SimpleStackPanel Orientation="Horizontal">
                 <GroupBox Header="Split Size">
-                    <modern:SimpleStackPanel Orientation="Horizontal">
-                        <modern:NumberBox Header="Bars"
-                                          Value="{Binding Bars}"/>
-                        <modern:NumberBox Header="Beats"
-                                          Value="{Binding Beats}"/>
-                        <modern:NumberBox Header="Shorten every"
-                                          ToolTip="This will divide the delimiter by this number"
-                                          Minimum="1"
-                                          Value="{Binding Shorten}"/>
-                    </modern:SimpleStackPanel>
+                    <controls:SimpleStackPanel Orientation="Horizontal">
+                        <ui:NumberBox PlaceholderText="Bars"
+                                      Value="{Binding Bars}"/>
+                        <ui:NumberBox PlaceholderText="Beats"
+                                      Value="{Binding Beats}"/>
+                        <ui:NumberBox PlaceholderText="Shorten every"
+                                      ToolTip="This will divide the delimiter by this number"
+                                      Minimum="1"
+                                      Value="{Binding Shorten}"/>
+                    </controls:SimpleStackPanel>
                 </GroupBox>
-            </modern:SimpleStackPanel>
-        </modern:SimpleStackPanel>
+            </controls:SimpleStackPanel>
+        </controls:SimpleStackPanel>
 
         <TextBox Grid.Row="1"
                  Text="{Binding Result, Mode=OneWay}"
                  IsReadOnly="True"
                  Margin="0,10"/>
 
-        <modern:SimpleStackPanel Grid.Row="2"
-                                 Orientation="Horizontal"
-                                 Spacing="8">
+        <controls:SimpleStackPanel Grid.Row="2"
+                                   Orientation="Horizontal"
+                                   Spacing="8">
             <Button Command="{s:Action CopyToClipboard}"
                     ToolTip="Copy to clipboard">
-                <modern:SimpleStackPanel Orientation="Horizontal"
-                        Spacing="6">
+                <controls:SimpleStackPanel Orientation="Horizontal"
+                                           Spacing="6">
                     <Path Data="{StaticResource CopyIconGeometry}"
                           Fill="{DynamicResource TextFillColorPrimaryBrush}"
                           Stretch="Uniform"
                           Width="14"
-                            Height="14"/>
+                          Height="14"/>
                     <TextBlock Text="Copy"
-                            VerticalAlignment="Center"/>
-                </modern:SimpleStackPanel>
+                               VerticalAlignment="Center"/>
+                </controls:SimpleStackPanel>
             </Button>
             <Button Content="Refresh"
                     Command="{s:Action Update}"/>
-        </modern:SimpleStackPanel>
+        </controls:SimpleStackPanel>
     </Grid>
 </UserControl>

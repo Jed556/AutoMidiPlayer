@@ -5,7 +5,7 @@ using System.Windows.Data;
 using System.Windows.Media;
 using AutoMidiPlayer.Data.Entities;
 using AutoMidiPlayer.Data.Midi;
-using ModernWpf;
+using AutoMidiPlayer.WPF.Core;
 
 namespace AutoMidiPlayer.WPF.ModernWPF;
 
@@ -86,7 +86,7 @@ public class IsPlayingToColorConverter : IMultiValueConverter
         {
             if (rowFile == openedFile)
             {
-                return new SolidColorBrush(ThemeManager.Current.ActualAccentColor);
+                return new SolidColorBrush(AccentColorHelper.GetAccentColor());
             }
         }
         return Brushes.Transparent;
@@ -112,7 +112,7 @@ public class IsPlayingToForegroundConverter : IMultiValueConverter
         {
             if (rowFile == openedFile)
             {
-                return new SolidColorBrush(ThemeManager.Current.ActualAccentColor);
+                return new SolidColorBrush(AccentColorHelper.GetAccentColor());
             }
         }
         return DependencyProperty.UnsetValue; // Use default foreground

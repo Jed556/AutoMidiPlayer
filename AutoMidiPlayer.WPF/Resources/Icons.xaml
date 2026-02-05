@@ -123,4 +123,14 @@
         </DrawingImage.Drawing>
     </DrawingImage>
 
+    <DrawingImage x:Key="QueueIcon">
+        <DrawingImage.Drawing>
+            <GeometryDrawing Geometry="{StaticResource QueueIconGeometry}">
+                <GeometryDrawing.Brush>
+                    <SolidColorBrush Color="{DynamicResource SystemBaseMediumHighColor}"/>
+                </GeometryDrawing.Brush>
+            </GeometryDrawing>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+
 </ResourceDictionary>

@@ -1,9 +1,11 @@
 using System.Collections;
+using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using AutoMidiPlayer.Data.Midi;
+using Stylet;
 
 namespace AutoMidiPlayer.WPF.ModernWPF;
 
@@ -80,6 +82,24 @@ public partial class TrackListControl : UserControl
     }
 
     /// <summary>
+    /// Collection of selected MidiFiles - owned by the control, automatically synced with ListView selection
+    /// </summary>
+    public BindableCollection<MidiFile> SelectedFiles { get; } = new();
+
+    /// <summary>
+    /// Whether multiple items are currently selected
+    /// </summary>
+    public static readonly DependencyProperty IsMultiSelectProperty =
+        DependencyProperty.Register(nameof(IsMultiSelect), typeof(bool), typeof(TrackListControl),
+            new PropertyMetadata(false));
+
+    public bool IsMultiSelect
+    {
+        get => (bool)GetValue(IsMultiSelectProperty);
+        set => SetValue(IsMultiSelectProperty, value);
+    }
+
+    /// <summary>
     /// Context menu to show for items
     /// </summary>
     public static readonly DependencyProperty ItemContextMenuProperty =
@@ -94,9 +114,12 @@ public partial class TrackListControl : UserControl
 
     private static void OnItemContextMenuChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        if (d is TrackListControl control)
+        if (d is TrackListControl control && e.NewValue is ContextMenu menu)
         {
-            control.TrackListView.ContextMenu = e.NewValue as ContextMenu;
+            // Set the context menu on the ListView but ensure PlacementTarget points to the TrackListControl
+            control.TrackListView.ContextMenu = menu;
+            // Set PlacementTarget to the TrackListControl so bindings like PlacementTarget.IsMultiSelect work
+            menu.PlacementTarget = control;
         }
     }
 
@@ -186,6 +209,12 @@ public partial class TrackListControl : UserControl
     {
         if (sender is Button button && button.Tag is MidiFile file)
         {
+            // Select the item in ListView if not already in selection
+            if (!TrackListView.SelectedItems.Contains(file))
+            {
+                TrackListView.SelectedItem = file;
+            }
+
             SelectedItem = file;
             RaiseEvent(new TrackListEventArgs(MenuClickEvent, this, file));
 
@@ -195,6 +224,20 @@ public partial class TrackListControl : UserControl
                 TrackListView.ContextMenu.IsOpen = true;
             }
             e.Handled = true;
+        }
+    }
+
+    private void TrackListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // Update IsMultiSelect based on selection count
+        IsMultiSelect = TrackListView.SelectedItems.Count > 1;
+
+        // Sync selected items to the SelectedFiles collection
+        SelectedFiles.Clear();
+        foreach (var item in TrackListView.SelectedItems)
+        {
+            if (item is MidiFile file)
+                SelectedFiles.Add(file);
         }
     }
 }

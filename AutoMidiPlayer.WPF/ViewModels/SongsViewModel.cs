@@ -11,7 +11,7 @@ using AutoMidiPlayer.WPF.ModernWPF;
 using AutoMidiPlayer.WPF.ModernWPF.Errors;
 using Melanchall.DryWetMidi.Core;
 using Microsoft.Win32;
-using ModernWpf.Controls;
+using Wpf.Ui.Controls;
 using Stylet;
 using StyletIoC;
 using MidiFile = AutoMidiPlayer.Data.Midi.MidiFile;
@@ -79,8 +79,6 @@ public class SongsViewModel : Screen
 
     public MidiFile? SelectedFile { get; set; }
 
-    public BindableCollection<MidiFile> SelectedFiles { get; } = new();
-
     public string SearchText { get; set; } = string.Empty;
 
     public SortMode CurrentSortMode { get; set; } = SortMode.CustomOrder;
@@ -105,14 +103,6 @@ public class SongsViewModel : Screen
     public string SortDirectionIcon => IsAscending ? "\xE74A" : "\xE74B";
 
     public bool IsCustomSort => CurrentSortMode == SortMode.CustomOrder;
-
-    /// <summary>
-    /// Gets the currently selected files (multi-select or single select fallback)
-    /// </summary>
-    private List<MidiFile> GetSelectedFiles() =>
-        SelectedFiles.Count > 0
-            ? SelectedFiles.ToList()
-            : (SelectedFile != null ? new List<MidiFile> { SelectedFile } : new List<MidiFile>());
 
     public void OnCurrentSortModeChanged()
     {
@@ -533,15 +523,16 @@ public class SongsViewModel : Screen
         }
     }
 
-    public void AddSelectedToQueue()
+    public void AddSelectedToQueue(IEnumerable<MidiFile> selectedFiles)
     {
-        foreach (var file in GetSelectedFiles())
+        var files = selectedFiles.Any() ? selectedFiles : (SelectedFile != null ? new[] { SelectedFile } : Array.Empty<MidiFile>());
+        foreach (var file in files)
             _main.QueueView.AddFile(file);
     }
 
-    public async Task DeleteSelected()
+    public async Task DeleteSelected(IEnumerable<MidiFile> selectedFiles)
     {
-        var filesToDelete = GetSelectedFiles();
+        var filesToDelete = selectedFiles.Any() ? selectedFiles.ToList() : (SelectedFile != null ? new List<MidiFile> { SelectedFile } : new List<MidiFile>());
         if (filesToDelete.Count == 0) return;
 
         await using var db = _ioc.Get<LyreContext>();
@@ -552,14 +543,14 @@ public class SongsViewModel : Screen
             _main.QueueView.Tracks.Remove(file);
         }
         await db.SaveChangesAsync();
-        SelectedFiles.Clear();
         ApplySort();
     }
 
-    public async Task EditSelected()
+    public async Task EditSelected(IEnumerable<MidiFile> selectedFiles)
     {
         // Edit only works on single selection
-        var file = SelectedFiles.Count == 1 ? SelectedFiles[0] : SelectedFile;
+        var filesList = selectedFiles.ToList();
+        var file = filesList.Count == 1 ? filesList[0] : SelectedFile;
         if (file is null) return;
 
         // Get native BPM from MIDI file
@@ -599,11 +590,6 @@ public class SongsViewModel : Screen
 
         // Refresh the display
         ApplySort();
-    }
-
-    public void AddToQueue()
-    {
-        AddSelectedToQueue();
     }
 
     public void AddAllToQueue()

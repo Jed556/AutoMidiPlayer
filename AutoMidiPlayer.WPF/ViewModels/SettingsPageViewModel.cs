@@ -21,14 +21,13 @@ using AutoMidiPlayer.WPF.ModernWPF.Animation;
 using AutoMidiPlayer.WPF.ModernWPF.Animation.Transitions;
 using JetBrains.Annotations;
 using Microsoft.Win32;
-using ModernWpf;
-using ModernWpf.Controls;
 using PropertyChanged;
 using Stylet;
 using StyletIoC;
 using Wpf.Ui.Appearance;
 using static AutoMidiPlayer.Data.Entities.Transpose;
 using WpfUiApplicationTheme = Wpf.Ui.Appearance.ApplicationTheme;
+using Wpf.Ui.Controls;
 
 namespace AutoMidiPlayer.WPF.ViewModels;
 
@@ -56,9 +55,9 @@ public class SettingsPageViewModel : Screen
     // Theme options for dropdown
     public static List<ThemeOption> ThemeOptions { get; } = new()
     {
-        new("Light", ModernWpf.ApplicationTheme.Light),
-        new("Dark", ModernWpf.ApplicationTheme.Dark),
-        new("Use system setting", null)
+        new("Light", WpfUiApplicationTheme.Light),
+        new("Dark", WpfUiApplicationTheme.Dark),
+        new("Use system setting", WpfUiApplicationTheme.Unknown)
     };
 
     private static readonly Settings Settings = Settings.Default;
@@ -86,7 +85,7 @@ public class SettingsPageViewModel : Screen
             1 => ThemeOptions[1], // Dark
             _ => ThemeOptions[2]  // System
         };
-        ThemeManager.Current.ApplicationTheme = _selectedTheme.Value;
+        ApplicationThemeManager.Apply(_selectedTheme.Value, WindowBackdropType.Mica, false);
 
         // Initialize accent color from settings
         _selectedAccentColor = AccentColors.FirstOrDefault(c => c.ColorHex == Settings.AccentColor)
@@ -133,9 +132,6 @@ public class SettingsPageViewModel : Screen
 
     private void ApplyColorToAllSystems(System.Windows.Media.Color color)
     {
-        // Apply to ModernWpf theme system
-        ThemeManager.Current.AccentColor = color;
-
         // Create brushes from color
         var accentBrush = new System.Windows.Media.SolidColorBrush(color);
         accentBrush.Freeze();
@@ -179,15 +175,37 @@ public class SettingsPageViewModel : Screen
         SetOrUpdateResource("SystemAccentColorDark2Brush", dark2Brush);
         SetOrUpdateResource("SystemAccentColorDark3Brush", dark3Brush);
 
-        // Apply to WPF-UI theme system
-        ApplicationAccentColorManager.Apply(color, ApplicationThemeManager.GetAppTheme(), false);
+        // Set WPF-UI specific accent color resources (Primary, Secondary, Tertiary)
+        SetOrUpdateResource("SystemAccentColorPrimary", color);
+        SetOrUpdateResource("SystemAccentColorSecondary", accentLight1);
+        SetOrUpdateResource("SystemAccentColorTertiary", accentLight2);
+        SetOrUpdateResource("SystemAccentColorPrimaryBrush", accentBrush);
+        SetOrUpdateResource("SystemAccentColorSecondaryBrush", light1Brush);
+        SetOrUpdateResource("SystemAccentColorTertiaryBrush", light2Brush);
 
-        // Force WPF-UI to refresh by re-applying theme with the new accent
+        // Apply to WPF-UI theme system with proper order
         var currentTheme = ApplicationThemeManager.GetAppTheme();
-        ApplicationThemeManager.Apply(currentTheme, Wpf.Ui.Controls.WindowBackdropType.Mica, true);
 
-        // Re-apply accent after theme refresh to ensure it sticks
-        ApplicationAccentColorManager.Apply(color, currentTheme, false);
+        // Apply accent color with updateResources=true so WPF-UI controls update immediately
+        ApplicationAccentColorManager.Apply(color, currentTheme, true);
+
+        // Re-apply our custom resources since WPF-UI may have modified them
+        SetOrUpdateResource("SystemAccentColorPrimary", color);
+        SetOrUpdateResource("SystemAccentColorPrimaryBrush", accentBrush);
+        SetOrUpdateResource("SystemAccentColorSecondaryBrush", light1Brush);
+        SetOrUpdateResource("SystemAccentColorTertiaryBrush", light2Brush);
+
+        // Then force a delayed refresh to ensure accent sticks after any async theme updates
+        System.Windows.Application.Current.Dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.Background,
+            new System.Action(() =>
+            {
+                // Re-apply custom WPF-UI resources after theme system has finished
+                SetOrUpdateResource("SystemAccentColorPrimary", color);
+                SetOrUpdateResource("SystemAccentColorPrimaryBrush", accentBrush);
+                SetOrUpdateResource("SystemAccentColorSecondaryBrush", light1Brush);
+                SetOrUpdateResource("SystemAccentColorTertiaryBrush", light2Brush);
+            }));
 
         // Notify other components that accent color changed
         _events.Publish(new AccentColorChangedNotification());
@@ -236,14 +254,13 @@ public class SettingsPageViewModel : Screen
         {
             if (SetAndNotify(ref _selectedTheme, value) && value is not null)
             {
-                ThemeManager.Current.ApplicationTheme = value.Value;
-                ApplicationThemeManager.Apply(value.Value switch
+                ApplicationThemeManager.Apply(value.Value, WindowBackdropType.Mica, false);
+                Settings.Modify(s => s.AppTheme = value.Value switch
                 {
-                    ModernWpf.ApplicationTheme.Light => WpfUiApplicationTheme.Light,
-                    ModernWpf.ApplicationTheme.Dark => WpfUiApplicationTheme.Dark,
-                    _ => WpfUiApplicationTheme.Unknown
+                    WpfUiApplicationTheme.Light => 0,
+                    WpfUiApplicationTheme.Dark => 1,
+                    _ => -1
                 });
-                Settings.Modify(s => s.AppTheme = (int?)value.Value ?? -1);
 
                 // Reapply accent color after theme change
                 ApplyAccentColor(_selectedAccentColor.ColorHex);
@@ -582,14 +599,21 @@ public class SettingsPageViewModel : Screen
     [SuppressPropertyChangedWarnings]
     public void OnThemeChanged()
     {
-        ApplicationThemeManager.Apply(ThemeManager.Current.ApplicationTheme switch
-        {
-            ModernWpf.ApplicationTheme.Light => WpfUiApplicationTheme.Light,
-            ModernWpf.ApplicationTheme.Dark => WpfUiApplicationTheme.Dark,
-            _ => WpfUiApplicationTheme.Unknown
-        });
+        var currentTheme = ApplicationThemeManager.GetAppTheme();
 
-        Settings.Modify(s => s.AppTheme = (int?)ThemeManager.Current.ApplicationTheme ?? -1);
+        var matchingTheme = ThemeOptions.FirstOrDefault(option => option.Value == currentTheme) ?? ThemeOptions[2];
+        if (_selectedTheme != matchingTheme)
+        {
+            _selectedTheme = matchingTheme;
+            NotifyOfPropertyChange(() => SelectedTheme);
+        }
+
+        Settings.Modify(s => s.AppTheme = currentTheme switch
+        {
+            WpfUiApplicationTheme.Light => 0,
+            WpfUiApplicationTheme.Dark => 1,
+            _ => -1
+        });
 
         // Reapply accent color after theme change
         ApplyAccentColor(_selectedAccentColor.ColorHex);
@@ -747,9 +771,9 @@ public class AccentColorOption
 public class ThemeOption
 {
     public string Name { get; }
-    public ModernWpf.ApplicationTheme? Value { get; }
+    public WpfUiApplicationTheme Value { get; }
 
-    public ThemeOption(string name, ModernWpf.ApplicationTheme? value)
+    public ThemeOption(string name, WpfUiApplicationTheme value)
     {
         Name = name;
         Value = value;

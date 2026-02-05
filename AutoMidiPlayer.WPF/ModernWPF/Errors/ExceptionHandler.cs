@@ -5,7 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
-using ModernWpf.Controls;
+using Wpf.Ui.Controls;
 
 namespace AutoMidiPlayer.WPF.ModernWPF.Errors;
 

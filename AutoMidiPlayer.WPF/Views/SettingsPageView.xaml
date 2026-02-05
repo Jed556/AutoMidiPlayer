@@ -6,16 +6,14 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     mc:Ignorable="d"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-    xmlns:modern="http://schemas.modernwpf.com/2019"
     xmlns:s="https://github.com/canton7/Stylet"
-    xmlns:theme="clr-namespace:AutoMidiPlayer.WPF.ModernWPF.Theme"
     xmlns:core="clr-namespace:AutoMidiPlayer.WPF.Core"
+    xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
     xmlns:transitions="clr-namespace:AutoMidiPlayer.WPF.ModernWPF.Animation.Transitions"
     xmlns:properties="clr-namespace:AutoMidiPlayer.Data.Properties;assembly=AutoMidiPlayer.Data"
     d:DataContext="{d:DesignInstance Type=viewModels:SettingsPageViewModel}">
     <UserControl.Resources>
-        <theme:AppThemeConverter x:Key="AppThemeConverter"/>
         <properties:Settings x:Key="Settings"/>
     </UserControl.Resources>
 
@@ -27,17 +25,18 @@
             </Grid.ColumnDefinitions>
 
             <!-- Left Column -->
-            <modern:SimpleStackPanel Grid.Column="0"
-                                     Margin="0,0,10,0">
+            <controls:SimpleStackPanel Grid.Column="0"
+                                       Margin="0,0,10,0">
 
                 <!-- Player Section -->
                 <TextBlock Text="Player"
-                           Style="{DynamicResource SubtitleTextBlockStyle}"
+                           FontSize="20"
+                        FontWeight="SemiBold"
                            Margin="0,0,0,8"/>
 
-                <modern:ToggleSwitch
-                    Header="Use Direct Input (recommended)"
-                    IsOn="{Binding UseDirectInput}"
+                <ui:ToggleSwitch
+                    Content="Use Direct Input (recommended)"
+                    IsChecked="{Binding UseDirectInput}"
                     ToolTip="Uses Win32 SendInput for better game compatibility. Disable only if experiencing issues."/>
 
                 <TextBlock Text="Direct Input uses low-level Windows API for better compatibility with games. Disable this if notes are not being detected correctly."
@@ -48,11 +47,12 @@
 
                 <!-- Locations Section -->
                 <TextBlock Text="Locations"
-                           Style="{DynamicResource SubtitleTextBlockStyle}"
+                           FontSize="20"
+                        FontWeight="SemiBold"
                            Margin="0,16,0,8"/>
 
                 <GroupBox Header="Game Location">
-                    <modern:SimpleStackPanel Orientation="Horizontal">
+                    <controls:SimpleStackPanel Orientation="Horizontal">
                         <Button Command="{s:Action SetLocation}"
                                 Background="Transparent">
                             <ui:FontIcon Glyph="&#xE8E5;"
@@ -61,11 +61,11 @@
                         <TextBlock Text="{x:Static viewModels:SettingsPageViewModel.GenshinLocation}"
                                    VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis"/>
-                    </modern:SimpleStackPanel>
+                    </controls:SimpleStackPanel>
                 </GroupBox>
 
                 <GroupBox Header="MIDI Folder">
-                    <modern:SimpleStackPanel Orientation="Horizontal">
+                    <controls:SimpleStackPanel Orientation="Horizontal">
                         <Button Command="{s:Action BrowseMidiFolder}"
                                 Background="Transparent"
                                 ToolTip="Browse for MIDI folder">
@@ -90,11 +90,11 @@
                             <ui:FontIcon Glyph="&#xE711;"
                                          FontFamily="{StaticResource MdlFontFamily}"/>
                         </Button>
-                    </modern:SimpleStackPanel>
+                    </controls:SimpleStackPanel>
                 </GroupBox>
 
                 <GroupBox Header="Data Location">
-                    <modern:SimpleStackPanel Orientation="Horizontal">
+                    <controls:SimpleStackPanel Orientation="Horizontal">
                         <Button Command="{s:Action OpenDataFolder}"
                                 Background="Transparent"
                                 ToolTip="Open data folder in Explorer">
@@ -106,15 +106,16 @@
                                    TextTrimming="CharacterEllipsis"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    ToolTip="{x:Static viewModels:SettingsPageViewModel.DataLocation}"/>
-                    </modern:SimpleStackPanel>
+                    </controls:SimpleStackPanel>
                 </GroupBox>
 
                 <!-- License Section -->
                 <TextBlock Text="License"
-                           Style="{DynamicResource SubtitleTextBlockStyle}"
+                           FontSize="20"
+                        FontWeight="SemiBold"
                            Margin="0,16,0,8"/>
 
-                <modern:SimpleStackPanel Spacing="4">
+                <controls:SimpleStackPanel Spacing="4">
                     <TextBlock TextWrapping="Wrap"
                                FontSize="12">
                         Originally created by © 2022 sabihoshi. Modified by © 2026 Jed556 for multi-game support.
@@ -132,20 +133,20 @@
                         All rights reserved by © miHoYo Co., Ltd. and © XD Inc.
                         Not affiliated with miHoYo or XD.
                     </TextBlock>
-                </modern:SimpleStackPanel>
-            </modern:SimpleStackPanel>
+                </controls:SimpleStackPanel>
+            </controls:SimpleStackPanel>
 
             <!-- Right Column -->
-            <modern:SimpleStackPanel Grid.Column="1"
-                                     Margin="10,0,0,0">
+            <controls:SimpleStackPanel Grid.Column="1"
+                                       Margin="10,0,0,0">
 
                 <!-- Version Section -->
                 <TextBlock Text="Version"
                            Style="{DynamicResource SubtitleTextBlockStyle}"
                            Margin="0,0,0,8"/>
 
-                <modern:SimpleStackPanel Orientation="Horizontal"
-                                         Spacing="8">
+                <controls:SimpleStackPanel Orientation="Horizontal"
+                                           Spacing="8">
                     <TextBlock VerticalAlignment="Center">
                         v<Run Text="{Binding ProgramVersion, Mode=OneTime}"/>
                     </TextBlock>
@@ -164,7 +165,7 @@
                         Height="16"
                         IsEnabled="{Binding IsCheckingUpdate}"
                         Visibility="{Binding IsCheckingUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
-                </modern:SimpleStackPanel>
+                </controls:SimpleStackPanel>
 
                 <TextBlock Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
                            Margin="0,4,0,0">
@@ -174,10 +175,10 @@
                     </Hyperlink>
                 </TextBlock>
 
-                <modern:ToggleSwitch Header="Auto-check updates"
-                                     IsOn="{Binding AutoCheckUpdates}"/>
-                <modern:ToggleSwitch Header="Include beta updates"
-                                     IsOn="{Binding IncludeBetaUpdates}"/>
+                <ui:ToggleSwitch Content="Auto-check updates"
+                                 IsChecked="{Binding AutoCheckUpdates}"/>
+                <ui:ToggleSwitch Content="Include beta updates"
+                                 IsChecked="{Binding IncludeBetaUpdates}"/>
 
                 <!-- Style Section -->
                 <TextBlock Text="Style"
@@ -220,7 +221,7 @@
                         ItemsSource="{x:Static transitions:TransitionCollection.Transitions}"
                         MinWidth="150"/>
                 </GroupBox>
-            </modern:SimpleStackPanel>
+            </controls:SimpleStackPanel>
         </Grid>
     </ScrollViewer>
 </UserControl>

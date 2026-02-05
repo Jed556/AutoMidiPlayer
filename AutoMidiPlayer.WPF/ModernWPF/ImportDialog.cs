@@ -1,25 +1,24 @@
 using System;
 using System.Linq;
 using System.Windows;
-using System.Windows.Controls;
 using AutoMidiPlayer.Data.Entities;
-using ModernWpf.Controls;
+using Wpf.Ui.Controls;
 
 namespace AutoMidiPlayer.WPF.ModernWPF;
 
 public class ImportDialog : ContentDialog
 {
-    private readonly System.Windows.Controls.TextBox _titleBox;
-    private readonly System.Windows.Controls.TextBox _authorBox;
-    private readonly System.Windows.Controls.TextBox _albumBox;
+    private readonly Wpf.Ui.Controls.TextBox _titleBox;
+    private readonly Wpf.Ui.Controls.TextBox _authorBox;
+    private readonly Wpf.Ui.Controls.TextBox _albumBox;
     private readonly System.Windows.Controls.ComboBox _keyComboBox;
     private readonly System.Windows.Controls.ComboBox _transposeComboBox;
-    private readonly DatePicker _dateAddedPicker;
-    private readonly System.Windows.Controls.TextBox _bpmBox;
+    private readonly System.Windows.Controls.DatePicker _dateAddedPicker;
+    private readonly Wpf.Ui.Controls.TextBox _bpmBox;
     private readonly System.Windows.Controls.CheckBox _useCustomBpmCheckBox;
     private readonly System.Windows.Controls.CheckBox _mergeNotesCheckBox;
     private readonly System.Windows.Controls.CheckBox _useCustomMergeCheckBox;
-    private readonly System.Windows.Controls.TextBox _mergeMillisecondsBox;
+    private readonly Wpf.Ui.Controls.TextBox _mergeMillisecondsBox;
     private readonly System.Windows.Controls.CheckBox _holdNotesCheckBox;
     private readonly System.Windows.Controls.CheckBox _useCustomHoldCheckBox;
     private readonly double _nativeBpm;
@@ -75,26 +74,26 @@ public class ImportDialog : ContentDialog
         CloseButtonText = "Cancel";
         DefaultButton = ContentDialogButton.Primary;
 
-        var stackPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 0) };
+        var stackPanel = new System.Windows.Controls.StackPanel { Margin = new Thickness(0, 0, 0, 0) };
 
         // Title
         stackPanel.Children.Add(new TextBlock { Text = "Title", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
-        _titleBox = new System.Windows.Controls.TextBox { Text = defaultTitle, Margin = new Thickness(0, 0, 0, 12) };
+        _titleBox = new Wpf.Ui.Controls.TextBox { Text = defaultTitle, Margin = new Thickness(0, 0, 0, 12) };
         stackPanel.Children.Add(_titleBox);
 
         // Author
         stackPanel.Children.Add(new TextBlock { Text = "Author (optional)", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
-        _authorBox = new System.Windows.Controls.TextBox { Text = defaultAuthor ?? string.Empty, Margin = new Thickness(0, 0, 0, 12) };
+        _authorBox = new Wpf.Ui.Controls.TextBox { Text = defaultAuthor ?? string.Empty, Margin = new Thickness(0, 0, 0, 12) };
         stackPanel.Children.Add(_authorBox);
 
         // Album
         stackPanel.Children.Add(new TextBlock { Text = "Album (optional)", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
-        _albumBox = new System.Windows.Controls.TextBox { Text = defaultAlbum ?? string.Empty, Margin = new Thickness(0, 0, 0, 12) };
+        _albumBox = new Wpf.Ui.Controls.TextBox { Text = defaultAlbum ?? string.Empty, Margin = new Thickness(0, 0, 0, 12) };
         stackPanel.Children.Add(_albumBox);
 
         // Date Added
         stackPanel.Children.Add(new TextBlock { Text = "Date Added", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
-        _dateAddedPicker = new DatePicker { SelectedDate = defaultDateAdded ?? DateTime.Now, Margin = new Thickness(0, 0, 0, 12) };
+        _dateAddedPicker = new System.Windows.Controls.DatePicker { SelectedDate = defaultDateAdded ?? DateTime.Now, Margin = new Thickness(0, 0, 0, 12) };
         stackPanel.Children.Add(_dateAddedPicker);
 
         // Key Offset
@@ -105,7 +104,7 @@ public class ImportDialog : ContentDialog
         int index = 0;
         foreach (var kvp in MusicConstants.KeyOffsets.OrderBy(k => k.Key))
         {
-            _keyComboBox.Items.Add(new ComboBoxItem { Content = MusicConstants.FormatKeyDisplay(kvp.Key), Tag = kvp.Key });
+            _keyComboBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = MusicConstants.FormatKeyDisplay(kvp.Key), Tag = kvp.Key });
             if (kvp.Key == defaultKey)
                 selectedKeyIndex = index;
             index++;
@@ -114,7 +113,7 @@ public class ImportDialog : ContentDialog
         _keyComboBox.SelectedIndex = selectedKeyIndex;
         _keyComboBox.SelectionChanged += (_, _) =>
         {
-            if (_keyComboBox.SelectedItem is ComboBoxItem item && item.Tag is int key)
+            if (_keyComboBox.SelectedItem is System.Windows.Controls.ComboBoxItem item && item.Tag is int key)
                 SongKey = key;
         };
         SongKey = defaultKey;
@@ -126,7 +125,7 @@ public class ImportDialog : ContentDialog
 
         foreach (var kvp in MusicConstants.TransposeNames)
         {
-            var item = new ComboBoxItem
+            var item = new System.Windows.Controls.ComboBoxItem
             {
                 Content = kvp.Value,
                 ToolTip = MusicConstants.TransposeTooltips[kvp.Key]
@@ -141,7 +140,7 @@ public class ImportDialog : ContentDialog
 
         // BPM Section
         _nativeBpm = nativeBpm;
-        var bpmPanel = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
+        var bpmPanel = new System.Windows.Controls.StackPanel { Margin = new Thickness(0, 12, 0, 0) };
 
         // Native BPM display
         var nativeBpmText = new TextBlock
@@ -153,7 +152,7 @@ public class ImportDialog : ContentDialog
         bpmPanel.Children.Add(nativeBpmText);
 
         // Custom BPM checkbox and input
-        var bpmInputPanel = new StackPanel { Orientation = Orientation.Horizontal };
+        var bpmInputPanel = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
 
         _useCustomBpmCheckBox = new System.Windows.Controls.CheckBox
         {
@@ -164,7 +163,7 @@ public class ImportDialog : ContentDialog
         };
         bpmInputPanel.Children.Add(_useCustomBpmCheckBox);
 
-        _bpmBox = new System.Windows.Controls.TextBox
+        _bpmBox = new Wpf.Ui.Controls.TextBox
         {
             Text = customBpm.HasValue ? customBpm.Value.ToString("F1") : nativeBpm.ToString("F1"),
             Width = 80,
@@ -183,11 +182,11 @@ public class ImportDialog : ContentDialog
         stackPanel.Children.Add(bpmPanel);
 
         // Merge Notes Section
-        var mergePanel = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
+        var mergePanel = new System.Windows.Controls.StackPanel { Margin = new Thickness(0, 12, 0, 0) };
 
         stackPanel.Children.Add(new TextBlock { Text = "Merge Notes", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
 
-        var mergeInputPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+        var mergeInputPanel = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
         _mergeNotesCheckBox = new System.Windows.Controls.CheckBox
         {
             Content = "Enable Merge Notes",
@@ -198,7 +197,7 @@ public class ImportDialog : ContentDialog
         mergeInputPanel.Children.Add(_mergeNotesCheckBox);
 
         mergeInputPanel.Children.Add(new TextBlock { Text = "Tolerance (ms):", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) });
-        _mergeMillisecondsBox = new System.Windows.Controls.TextBox
+        _mergeMillisecondsBox = new Wpf.Ui.Controls.TextBox
         {
             Text = (mergeMilliseconds ?? 100).ToString(),
             Width = 60,
@@ -215,7 +214,7 @@ public class ImportDialog : ContentDialog
         // Hold Notes Section
         stackPanel.Children.Add(new TextBlock { Text = "Hold Notes", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 12, 0, 4) });
 
-        var holdPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+        var holdPanel = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
         _holdNotesCheckBox = new System.Windows.Controls.CheckBox
         {
             Content = "Enable Hold Notes",

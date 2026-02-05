@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Humanizer;
-using ModernWpf.Controls;
+using Wpf.Ui.Controls;
 
 namespace AutoMidiPlayer.WPF.ModernWPF.Errors;
 
@@ -13,8 +13,8 @@ public class ErrorContentDialog : ContentDialog
         Title = e.GetType().Name;
         Content = e.Message;
 
-        PrimaryButtonText = options?.ElementAtOrDefault(0)?.ToString()?.Humanize();
-        SecondaryButtonText = options?.ElementAtOrDefault(1)?.ToString()?.Humanize();
+        PrimaryButtonText = options?.ElementAtOrDefault(0)?.ToString()?.Humanize() ?? string.Empty;
+        SecondaryButtonText = options?.ElementAtOrDefault(1)?.ToString()?.Humanize() ?? string.Empty;
 
         CloseButtonText = closeText ?? "Abort";
     }

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Globalization;
 using System.Windows.Data;
-using ModernWpf;
+using Wpf.Ui.Appearance;
 
 namespace AutoMidiPlayer.WPF.ModernWPF.Theme;
 

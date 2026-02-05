@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:s="https://github.com/canton7/Stylet"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-    xmlns:modern="http://schemas.modernwpf.com/2019"
+    xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
     xmlns:wpf="clr-namespace:AutoMidiPlayer.WPF">
     <Application.Resources>
         <ResourceDictionary>
@@ -16,10 +16,6 @@
                     </s:ApplicationLoader.Bootstrapper>
                 </s:ApplicationLoader>
 
-                <modern:ThemeResources/>
-                <modern:XamlControlsResources/>
-                <modern:IntellisenseResources Source="/ModernWpf;component/DesignTime/DesignTimeResources.xaml"/>
-
                 <ui:ThemesDictionary Theme="Dark"/>
                 <ui:ControlsDictionary/>
 
@@ -28,7 +24,49 @@
 
             </ResourceDictionary.MergedDictionaries>
 
-            <Style TargetType="modern:SimpleStackPanel">
+            <!-- GroupBox style with no borders -->
+            <Style TargetType="GroupBox">
+                <Setter Property="Background"
+                        Value="Transparent"/>
+                <Setter Property="BorderBrush"
+                        Value="Transparent"/>
+                <Setter Property="BorderThickness"
+                        Value="0"/>
+                <Setter Property="Padding"
+                        Value="12"/>
+                <Setter Property="Margin"
+                        Value="0,8"/>
+                <Setter Property="Foreground"
+                        Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="GroupBox">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <!-- Header -->
+                                <Border Grid.Row="0"
+                                        Padding="8,4"
+                                        Margin="0,0,0,-1">
+                                    <ContentPresenter ContentSource="Header"
+                                                      TextElement.Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                      TextElement.FontSize="12"/>
+                                </Border>
+                                <!-- Content without border -->
+                                <Border Grid.Row="1"
+                                        Background="{TemplateBinding Background}"
+                                        Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter/>
+                                </Border>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style TargetType="controls:SimpleStackPanel">
                 <Setter Property="Spacing"
                         Value="10"/>
                 <Style.Resources>
@@ -55,13 +93,6 @@
                         </Style.Triggers>
                     </Style>
                 </Style.Resources>
-            </Style>
-
-            <Style TargetType="modern:NumberBox">
-                <Setter Property="Minimum"
-                        Value="0"/>
-                <Setter Property="SpinButtonPlacementMode"
-                        Value="Compact"/>
             </Style>
 
             <!-- Shared FontIcon style for MDL2 Assets icons -->
@@ -295,9 +326,9 @@
                 <Setter Property="Padding"
                         Value="0"/>
                 <Setter Property="Background"
-                        Value="{DynamicResource SystemControlForegroundBaseHighBrush}"/>
+                        Value="{DynamicResource TextFillColorPrimaryBrush}"/>
                 <Setter Property="Foreground"
-                        Value="{DynamicResource SystemControlBackgroundAltHighBrush}"/>
+                        Value="{DynamicResource ApplicationBackgroundBrush}"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
@@ -476,7 +507,7 @@
                                                Opacity="0">
                                             <Thumb.RenderTransform>
                                                 <ScaleTransform ScaleX="0"
-                                                        ScaleY="0"/>
+                                                                ScaleY="0"/>
                                             </Thumb.RenderTransform>
                                             <Thumb.Template>
                                                 <ControlTemplate TargetType="Thumb">
@@ -512,15 +543,15 @@
                                                 <DoubleAnimation Storyboard.TargetName="SliderThumb"
                                                                  Storyboard.TargetProperty="Opacity"
                                                                  To="1"
-                                                        Duration="0:0:0.15"/>
+                                                                 Duration="0:0:0.15"/>
                                                 <DoubleAnimation Storyboard.TargetName="SliderThumb"
                                                                  Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
                                                                  To="1"
-                                                        Duration="0:0:0.15"/>
+                                                                 Duration="0:0:0.15"/>
                                                 <DoubleAnimation Storyboard.TargetName="SliderThumb"
                                                                  Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
                                                                  To="1"
-                                                        Duration="0:0:0.15"/>
+                                                                 Duration="0:0:0.15"/>
                                             </Storyboard>
                                         </BeginStoryboard>
                                     </Trigger.EnterActions>
@@ -530,15 +561,15 @@
                                                 <DoubleAnimation Storyboard.TargetName="SliderThumb"
                                                                  Storyboard.TargetProperty="Opacity"
                                                                  To="0"
-                                                        Duration="0:0:0.15"/>
+                                                                 Duration="0:0:0.15"/>
                                                 <DoubleAnimation Storyboard.TargetName="SliderThumb"
                                                                  Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
                                                                  To="0"
-                                                        Duration="0:0:0.15"/>
+                                                                 Duration="0:0:0.15"/>
                                                 <DoubleAnimation Storyboard.TargetName="SliderThumb"
                                                                  Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
                                                                  To="0"
-                                                        Duration="0:0:0.15"/>
+                                                                 Duration="0:0:0.15"/>
                                             </Storyboard>
                                         </BeginStoryboard>
                                     </Trigger.ExitActions>

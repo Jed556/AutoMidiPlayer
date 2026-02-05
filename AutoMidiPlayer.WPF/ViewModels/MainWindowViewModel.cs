@@ -6,7 +6,6 @@ using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Services;
 using AutoMidiPlayer.WPF.Views;
 using JetBrains.Annotations;
-using ModernWpf;
 using Stylet;
 using StyletIoC;
 using Wpf.Ui.Appearance;
@@ -155,14 +154,26 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
     public void ToggleTheme()
     {
         var currentTheme = ApplicationThemeManager.GetAppTheme();
-        ThemeManager.Current.ApplicationTheme = currentTheme switch
+        var newTheme = currentTheme switch
         {
-            WpfUiAppTheme.Dark => ModernWpf.ApplicationTheme.Light,
-            WpfUiAppTheme.Light => ModernWpf.ApplicationTheme.Dark,
-            _ => ModernWpf.ApplicationTheme.Dark
+            WpfUiAppTheme.Dark => WpfUiAppTheme.Light,
+            WpfUiAppTheme.Light => WpfUiAppTheme.Dark,
+            _ => WpfUiAppTheme.Dark
         };
 
+        ApplicationThemeManager.Apply(newTheme, WindowBackdropType.Mica, false);
         SettingsView.OnThemeChanged();
+    }
+
+    public void TrayShowWindow()
+    {
+        var window = View as Window;
+        if (window != null)
+        {
+            window.Show();
+            window.WindowState = WindowState.Normal;
+            window.Activate();
+        }
     }
 
     public void SearchSong(AutoSuggestBox sender, TextChangedEventArgs e)

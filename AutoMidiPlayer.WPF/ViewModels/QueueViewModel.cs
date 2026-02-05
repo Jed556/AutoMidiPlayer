@@ -11,12 +11,13 @@ using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.ModernWPF;
 using AutoMidiPlayer.WPF.ModernWPF.Errors;
 using Melanchall.DryWetMidi.Core;
-using ModernWpf;
 using PropertyChanged;
 using Stylet;
 using StyletIoC;
 using MidiFile = AutoMidiPlayer.Data.Midi.MidiFile;
 using AutoMidiPlayer.Data.Notification;
+using AutoMidiPlayer.WPF.Core;
+using Wpf.Ui.Controls;
 
 namespace AutoMidiPlayer.WPF.ViewModels;
 
@@ -92,7 +93,7 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
     public Services.PlaybackService Playback => _main.Playback;
 
     public SolidColorBrush ShuffleStateColor => Shuffle
-        ? new(ThemeManager.Current.ActualAccentColor)
+        ? new SolidColorBrush(AccentColorHelper.GetAccentColor())
         : Brushes.Gray;
 
     public Stack<MidiFile> History { get; } = new();
@@ -126,7 +127,7 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
         Loop switch
         {
             LoopMode.Off => Brushes.Gray,
-            _ => new SolidColorBrush(ThemeManager.Current.ActualAccentColor)
+            _ => new SolidColorBrush(AccentColorHelper.GetAccentColor())
         };
 
     public string LoopTooltip =>
@@ -238,14 +239,43 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
         ApplyFilter();
     }
 
-    public void RemoveTrack()
+    public void RemoveTrack(IEnumerable<MidiFile> selectedFiles)
     {
-        if (SelectedFile is not null)
+        // Get files to remove - either multi-select or single select
+        var filesToRemove = selectedFiles.Any()
+            ? selectedFiles.ToList()
+            : (SelectedFile is not null ? new List<MidiFile> { SelectedFile } : new List<MidiFile>());
+
+        foreach (var file in filesToRemove)
         {
-            OpenedFile = OpenedFile == SelectedFile ? null : OpenedFile;
-            Tracks.Remove(SelectedFile);
+            if (OpenedFile == file)
+                OpenedFile = null;
+            Tracks.Remove(file);
+        }
+
+        if (filesToRemove.Count > 0)
+        {
             OnQueueModified();
         }
+    }
+
+    public async Task DeleteSongs(IEnumerable<MidiFile> selectedFiles)
+    {
+        var filesToDelete = selectedFiles.Any()
+            ? selectedFiles.ToList()
+            : (SelectedFile is not null ? new List<MidiFile> { SelectedFile } : new List<MidiFile>());
+
+        if (filesToDelete.Count == 0) return;
+
+        await using var db = _ioc.Get<LyreContext>();
+        foreach (var file in filesToDelete)
+        {
+            db.Songs.Remove(file.Song);
+            Tracks.Remove(file);
+            _main.SongsView.Tracks.Remove(file);
+        }
+        await db.SaveChangesAsync();
+        OnQueueModified();
     }
 
     public async Task EditSong(MidiFile file)
@@ -267,7 +297,7 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
             file.Song.HoldNotes);
 
         var result = await dialog.ShowAsync();
-        if (result != ModernWpf.Controls.ContentDialogResult.Primary) return;
+        if (result != ContentDialogResult.Primary) return;
 
         // Update song properties
         file.Song.Title = string.IsNullOrWhiteSpace(dialog.SongTitle) ? Path.GetFileNameWithoutExtension(file.Path) : dialog.SongTitle;
@@ -284,17 +314,6 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
         await using var db = _ioc.Get<LyreContext>();
         db.Songs.Update(file.Song);
         await db.SaveChangesAsync();
-    }
-
-    public async Task DeleteSong(MidiFile file)
-    {
-        await using var db = _ioc.Get<LyreContext>();
-        db.Songs.Remove(file.Song);
-        Tracks.Remove(file);
-        _main.SongsView.Tracks.Remove(file);
-        await db.SaveChangesAsync();
-        _main.SongsView.ApplySort();
-        OnQueueModified();
     }
 
     public void MoveUp()

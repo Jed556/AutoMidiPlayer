@@ -6,14 +6,16 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     mc:Ignorable="d"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-    xmlns:modern="http://schemas.modernwpf.com/2019"
     xmlns:s="https://github.com/canton7/Stylet"
     xmlns:core="clr-namespace:AutoMidiPlayer.WPF.Core"
+    xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
+    xmlns:converters="clr-namespace:AutoMidiPlayer.WPF.Converters"
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
     xmlns:properties="clr-namespace:AutoMidiPlayer.Data.Properties;assembly=AutoMidiPlayer.Data"
     d:DataContext="{d:DesignInstance Type=viewModels:InstrumentViewModel}">
     <UserControl.Resources>
         <properties:Settings x:Key="Settings"/>
+        <converters:DateTimeToTimeSpanConverter x:Key="DateTimeToTimeSpanConverter"/>
     </UserControl.Resources>
 
     <ScrollViewer>
@@ -24,8 +26,8 @@
             </Grid.ColumnDefinitions>
 
             <!-- Left Column -->
-            <modern:SimpleStackPanel Grid.Column="0"
-                                     Margin="0,0,10,0">
+            <controls:SimpleStackPanel Grid.Column="0"
+                                       Margin="0,0,10,0">
 
                 <!-- Instrument Section -->
                 <TextBlock Text="Game Instrument"
@@ -63,23 +65,23 @@
                            Style="{DynamicResource SubtitleTextBlockStyle}"
                            Margin="0,0,0,8"/>
 
-                <modern:SimpleStackPanel Orientation="Horizontal">
-                    <modern:SimpleStackPanel.Resources>
+                <controls:SimpleStackPanel Orientation="Horizontal">
+                    <controls:SimpleStackPanel.Resources>
                         <Style TargetType="Button"
                                BasedOn="{StaticResource {x:Type Button}}"/>
-                    </modern:SimpleStackPanel.Resources>
-                    <modern:SimpleTimePicker SelectedDateTime="{Binding DateTime}"
-                                             IsEnabled="{Binding CanChangeTime}"/>
+                    </controls:SimpleStackPanel.Resources>
+                    <ui:TimePicker SelectedTime="{Binding DateTime, Mode=TwoWay, Converter={StaticResource DateTimeToTimeSpanConverter}}"
+                                   IsEnabled="{Binding CanChangeTime}"/>
                     <Button Command="{s:Action SetTimeToNow}"
                             IsEnabled="{Binding CanChangeTime}">Now</Button>
                     <Button Command="{s:Action StartStopTimer}"
                             Content="{Binding TimerText}"/>
-                </modern:SimpleStackPanel>
-            </modern:SimpleStackPanel>
+                </controls:SimpleStackPanel>
+            </controls:SimpleStackPanel>
 
             <!-- Right Column -->
-            <modern:SimpleStackPanel Grid.Column="1"
-                                     Margin="10,0,0,0">
+            <controls:SimpleStackPanel Grid.Column="1"
+                                       Margin="10,0,0,0">
 
                 <!-- Notes Section -->
                 <TextBlock Text="Notes"
@@ -91,9 +93,9 @@
                            Visibility="{Binding HasSongOpen, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}"
                            Margin="0,0,0,8"/>
 
-                <modern:SimpleStackPanel Orientation="Horizontal"
-                                         Spacing="20"
-                                         IsEnabled="{Binding HasSongOpen}">
+                <controls:SimpleStackPanel Orientation="Horizontal"
+                                           Spacing="20"
+                                           IsEnabled="{Binding HasSongOpen}">
                     <ui:ToggleSwitch
                         Content="Merge nearby notes"
                         IsChecked="{Binding MergeNotes}"/>
@@ -102,7 +104,7 @@
                         IsEnabled="{Binding MergeNotes}"
                         Value="{Binding MergeMilliseconds}"
                         MinWidth="100"/>
-                </modern:SimpleStackPanel>
+                </controls:SimpleStackPanel>
 
                 <ui:ToggleSwitch
                     Content="Hold notes"
@@ -115,7 +117,7 @@
                            Margin="0,0,0,8"/>
 
                 <GroupBox Header="Physical MIDI Instrument">
-                    <modern:SimpleStackPanel Orientation="Horizontal">
+                    <controls:SimpleStackPanel Orientation="Horizontal">
                         <ComboBox
                             ItemsSource="{Binding MidiInputs}"
                             SelectedItem="{Binding SelectedMidiInput}"
@@ -127,7 +129,7 @@
                             <ui:FontIcon Glyph="&#xE72C;"
                                          FontFamily="{StaticResource MdlFontFamily}"/>
                         </Button>
-                    </modern:SimpleStackPanel>
+                    </controls:SimpleStackPanel>
                 </GroupBox>
 
                 <TextBlock Text="Connect a physical MIDI keyboard or controller to use it as input."
@@ -135,7 +137,7 @@
                            Opacity="0.6"
                            FontSize="12"
                            Margin="0,8,0,0"/>
-            </modern:SimpleStackPanel>
+            </controls:SimpleStackPanel>
 
 
         </Grid>

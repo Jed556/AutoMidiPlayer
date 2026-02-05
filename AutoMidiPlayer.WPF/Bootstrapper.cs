@@ -17,6 +17,7 @@ using AutoMidiPlayer.WPF.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using Stylet;
 using StyletIoC;
+using Wpf.Ui.Controls;
 
 namespace AutoMidiPlayer.WPF;
 
@@ -52,12 +53,17 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         CrashLogger.Log("=== DISPATCHER UNHANDLED EXCEPTION ===");
         CrashLogger.LogException(e.Exception);
 
-        // Show message box with log path
-        MessageBox.Show(
-            $"An error occurred. Log saved to:\n{CrashLogger.GetLogPath()}\n\nError: {e.Exception.Message}",
-            "AutoMidiPlayer Error",
-            MessageBoxButton.OK,
-            MessageBoxImage.Error);
+        // Show modern WPF-UI message box with log path
+        var messageBox = new Wpf.Ui.Controls.MessageBox
+        {
+            Title = "AutoMidiPlayer Error",
+            Content = $"An error occurred. Log saved to:\n{CrashLogger.GetLogPath()}\n\nError: {e.Exception.Message}",
+            CloseButtonText = "OK",
+            CloseButtonAppearance = ControlAppearance.Primary
+        };
+
+        // Run the async dialog synchronously to block and show the error
+        _ = messageBox.ShowDialogAsync();
     }
 
     private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
@@ -170,7 +176,7 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
 
                 var uri = new Uri($"pack://application:,,,/{name}");
                 var resource = Application.GetResourceStream(uri)!.Stream;
-                Image.FromStream(resource).Save(location);
+                System.Drawing.Image.FromStream(resource).Save(location);
 
                 var file = await StorageFile.GetFileFromPathAsync(location);
                 controls.DisplayUpdater.Thumbnail = RandomAccessStreamReference.CreateFromFile(file);
