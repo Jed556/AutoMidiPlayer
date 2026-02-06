@@ -64,7 +64,10 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         _events.Subscribe(this);
 
         // Initialize services FIRST - ViewModels depend on these
-        // PlaybackService handles all playback logic
+        // SongSettingsService manages per-song settings (key, speed, transpose)
+        SongSettings = new SongSettingsService(ioc);
+
+        // PlaybackService handles all playback logic (play/pause, seeking, note scheduling)
         Playback = new PlaybackService(ioc, this);
 
         // Initialize ViewModels - order matters for dependencies
@@ -81,6 +84,8 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
     }
 
     public IContainer Ioc { get; }
+
+    public SongSettingsService SongSettings { get; }
 
     public PlaybackService Playback { get; }
 

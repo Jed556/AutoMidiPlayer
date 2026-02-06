@@ -158,6 +158,30 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
                 // Column already exists or other error - ignore
             }
 
+            // Add Speed column if it doesn't exist (migration for per-song speed)
+            try
+            {
+                db.Database.ExecuteSqlRaw(@"
+                    ALTER TABLE Songs ADD COLUMN Speed REAL NULL;
+                ");
+            }
+            catch
+            {
+                // Column already exists or other error - ignore
+            }
+
+            // Add Bpm column if it doesn't exist (migration for per-song BPM)
+            try
+            {
+                db.Database.ExecuteSqlRaw(@"
+                    ALTER TABLE Songs ADD COLUMN Bpm REAL NULL;
+                ");
+            }
+            catch
+            {
+                // Column already exists or other error - ignore
+            }
+
             return db;
         });
 

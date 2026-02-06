@@ -29,8 +29,8 @@ public partial class MainWindowView : FluentWindow
             _hotkeyService.PlayPausePressed += async (_, _) => await vm.Playback.PlayPause();
             _hotkeyService.NextPressed += (_, _) => vm.Playback.Next();
             _hotkeyService.PreviousPressed += (_, _) => vm.Playback.Previous();
-            _hotkeyService.SpeedUpPressed += (_, _) => vm.SettingsView.IncreaseSpeed();
-            _hotkeyService.SpeedDownPressed += (_, _) => vm.SettingsView.DecreaseSpeed();
+            _hotkeyService.SpeedUpPressed += (_, _) => vm.SongSettings.IncreaseSpeed();
+            _hotkeyService.SpeedDownPressed += (_, _) => vm.SongSettings.DecreaseSpeed();
         }
     }
 

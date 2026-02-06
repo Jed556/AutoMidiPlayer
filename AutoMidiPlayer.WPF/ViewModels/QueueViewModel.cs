@@ -294,7 +294,8 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
             file.Song.Bpm,
             file.Song.MergeNotes,
             file.Song.MergeMilliseconds,
-            file.Song.HoldNotes);
+            file.Song.HoldNotes,
+            file.Song.Speed);
 
         var result = await dialog.ShowAsync();
         if (result != ContentDialogResult.Primary) return;
@@ -310,6 +311,7 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
         file.Song.MergeNotes = dialog.SongMergeNotes;
         file.Song.MergeMilliseconds = dialog.SongMergeMilliseconds;
         file.Song.HoldNotes = dialog.SongHoldNotes;
+        file.Song.Speed = dialog.SongSpeed;
 
         await using var db = _ioc.Get<LyreContext>();
         db.Songs.Update(file.Song);
@@ -351,13 +353,6 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
     {
         if (OpenedFile is null) return;
 
-        var transpose = SettingsPageViewModel.TransposeNames
-            .FirstOrDefault(e => e.Key == OpenedFile.Song.Transpose);
-
-        if (OpenedFile.Song.Transpose is not null)
-            _main.SettingsView.Transpose = transpose;
-        _main.SettingsView.KeyOffset = OpenedFile.Song.Key;
-        _main.SettingsView.Speed = OpenedFile.Song.Speed ?? 1.0;
     }
 
     public void Previous()

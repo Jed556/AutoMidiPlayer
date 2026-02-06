@@ -418,7 +418,7 @@ public class SongsViewModel : Screen
         var defaultTitle = Path.GetFileNameWithoutExtension(fileName);
 
         // Add with defaults (no dialog)
-        var song = new Song(fileName, _main.SettingsView.KeyOffset)
+        var song = new Song(fileName, _main.SongSettings.KeyOffset)
         {
             Title = defaultTitle,
             Transpose = Transpose.Ignore
@@ -563,7 +563,8 @@ public class SongsViewModel : Screen
             file.Song.Bpm,
             file.Song.MergeNotes,
             file.Song.MergeMilliseconds,
-            file.Song.HoldNotes);
+            file.Song.HoldNotes,
+            file.Song.Speed);
 
         var result = await dialog.ShowAsync();
         if (result != ContentDialogResult.Primary) return;
@@ -579,6 +580,7 @@ public class SongsViewModel : Screen
         file.Song.MergeNotes = dialog.SongMergeNotes;
         file.Song.MergeMilliseconds = dialog.SongMergeMilliseconds;
         file.Song.HoldNotes = dialog.SongHoldNotes;
+        file.Song.Speed = dialog.SongSpeed;
 
         await using var db = _ioc.Get<LyreContext>();
         db.Songs.Update(file.Song);

@@ -18,7 +18,6 @@ using Melanchall.DryWetMidi.Multimedia;
 using Melanchall.DryWetMidi.Tools;
 using Stylet;
 using StyletIoC;
-using static AutoMidiPlayer.WPF.ViewModels.SettingsPageViewModel;
 using MidiFile = AutoMidiPlayer.Data.Midi.MidiFile;
 using WinMediaPlayer = Windows.Media.Playback.MediaPlayer;
 
@@ -62,6 +61,23 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
         _events.Subscribe(this);
 
         _timeWatcher.CurrentTimeChanged += OnSongTick;
+
+        // Subscribe to song settings changes
+        SongSettings.SpeedChanged += speed => { if (Playback is not null) Playback.Speed = speed; };
+        SongSettings.SettingsRebuildRequired += async () =>
+        {
+            TrackView.UpdateTrackPlayableNotes();
+            TrackView.NotifyNoteStatsChanged();
+
+            var wasPlaying = Playback?.IsRunning ?? false;
+            _savedPosition = _songPosition.TotalSeconds;
+            await InitializePlayback();
+            if (wasPlaying && Playback is not null) Playback.Start();
+
+            // Notify song list UI to refresh
+            _main.SongsView.RefreshCurrentSong();
+            _main.QueueView.RefreshCurrentSong();
+        };
 
         // SystemMediaTransportControls is only supported on Windows 10 and later
         if (Environment.OSVersion.Platform == PlatformID.Win32NT &&
@@ -155,6 +171,7 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
     private TrackViewModel TrackView => _main.TrackView;
     private SettingsPageViewModel SettingsPage => _main.SettingsView;
     private InstrumentViewModel InstrumentPage => _main.InstrumentView;
+    private SongSettingsService SongSettings => _main.SongSettings;
 
     private static string PauseIcon => "\xEDB4";
     private static string PlayIcon => "\xF5B0";
@@ -232,7 +249,7 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
 
         Playback = null;
         Queue.OpenedFile = null;
-        SettingsPage.Transpose = null;
+        SongSettings.ClearSettings();
     }
 
     /// <summary>
@@ -330,7 +347,7 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
         var playback = tracksToPlay.GetPlayback(tempoMap);
 
         Playback = playback;
-        playback.Speed = SettingsPage.Speed;
+        playback.Speed = SongSettings.Speed;
         playback.InterruptNotesOnStop = true;
         playback.Finished += (_, _) =>
         {
@@ -492,9 +509,9 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
 
     private int ApplyNoteSettings(Keyboard.Instrument instrument, int noteId)
     {
-        noteId -= Queue.OpenedFile?.Song.Key ?? SettingsPage.KeyOffset;
-        return Settings.TransposeNotes && SettingsPage.Transpose is not null
-            ? KeyboardPlayer.TransposeNote(instrument, ref noteId, SettingsPage.Transpose.Value.Key)
+        noteId -= Queue.OpenedFile?.Song.Key ?? SongSettings.KeyOffset;
+        return Settings.TransposeNotes && SongSettings.Transpose is not null
+            ? KeyboardPlayer.TransposeNote(instrument, ref noteId, SongSettings.Transpose.Value.Key)
             : noteId;
     }
 
@@ -558,6 +575,9 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
         CloseFile();
         Queue.OpenedFile = file;
         Queue.History.Push(file);
+
+        // Apply per-song settings (speed, key, transpose)
+        SongSettings.ApplyPerSongSettings(file);
 
         // Re-read the MIDI file from disk to restore all tracks
         file.InitializeMidi();

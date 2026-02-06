@@ -30,6 +30,8 @@ public class ImportDialog : ContentDialog
     private readonly Wpf.Ui.Controls.TextBox _mergeMillisecondsBox;
     private readonly System.Windows.Controls.CheckBox _holdNotesCheckBox;
     private readonly System.Windows.Controls.CheckBox _useCustomHoldCheckBox;
+    private readonly System.Windows.Controls.ComboBox _speedComboBox;
+    private readonly System.Windows.Controls.CheckBox _useCustomSpeedCheckBox;
     private readonly double _nativeBpm;
 
     public string SongTitle => _titleBox.Text;
@@ -38,6 +40,20 @@ public class ImportDialog : ContentDialog
     public DateTime? SongDateAdded => _dateAddedPicker.SelectedDate;
     public int SongKey { get; private set; }
     public Transpose SongTranspose => MusicConstants.TransposeNames.Keys.ElementAt(_transposeComboBox.SelectedIndex);
+
+    /// <summary>
+    /// Gets the per-song speed if custom speed is enabled, otherwise null (use default 1.0).
+    /// </summary>
+    public double? SongSpeed
+    {
+        get
+        {
+            if (_useCustomSpeedCheckBox.IsChecked != true) return null;
+            if (_speedComboBox.SelectedItem is MusicConstants.SpeedOption opt)
+                return opt.Value;
+            return null;
+        }
+    }
 
     /// <summary>
     /// Gets the custom BPM value if enabled, otherwise null (use native MIDI BPM).
@@ -76,7 +92,7 @@ public class ImportDialog : ContentDialog
     /// </summary>
     public bool SongHoldNotes => _holdNotesCheckBox.IsChecked ?? false;
 
-    public ImportDialog(string defaultTitle, int defaultKey = 0, Transpose defaultTranspose = Transpose.Ignore, string? defaultAuthor = null, string? defaultAlbum = null, DateTime? defaultDateAdded = null, double nativeBpm = 120, double? customBpm = null, bool? mergeNotes = null, uint? mergeMilliseconds = null, bool? holdNotes = null)
+    public ImportDialog(string defaultTitle, int defaultKey = 0, Transpose defaultTranspose = Transpose.Ignore, string? defaultAuthor = null, string? defaultAlbum = null, DateTime? defaultDateAdded = null, double nativeBpm = 120, double? customBpm = null, bool? mergeNotes = null, uint? mergeMilliseconds = null, bool? holdNotes = null, double? speed = null)
     {
         // Set up the DialogHost for this ContentDialog
         DialogHelper.SetupDialogHost(this);
@@ -270,6 +286,42 @@ public class ImportDialog : ContentDialog
         // Hidden checkboxes for compatibility - always considered "custom" now
         _useCustomMergeCheckBox = new System.Windows.Controls.CheckBox { IsChecked = true, Visibility = Visibility.Collapsed };
         _useCustomHoldCheckBox = new System.Windows.Controls.CheckBox { IsChecked = true, Visibility = Visibility.Collapsed };
+
+        // Speed Section
+        stackPanel.Children.Add(new TextBlock { Text = "Speed", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 12, 0, 4) });
+
+        var speedPanel = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+        _useCustomSpeedCheckBox = new System.Windows.Controls.CheckBox
+        {
+            Content = "Custom Speed:",
+            VerticalAlignment = VerticalAlignment.Center,
+            IsChecked = speed.HasValue,
+            Margin = new Thickness(0, 0, 8, 0)
+        };
+        speedPanel.Children.Add(_useCustomSpeedCheckBox);
+
+        _speedComboBox = new System.Windows.Controls.ComboBox { Width = 100, IsEnabled = speed.HasValue };
+        var speedOptions = MusicConstants.GenerateSpeedOptions();
+        foreach (var opt in speedOptions)
+            _speedComboBox.Items.Add(opt);
+        _speedComboBox.DisplayMemberPath = "Display";
+
+        // Select the matching speed option or default to 1.0x
+        var targetSpeed = speed ?? 1.0;
+        var matchIdx = speedOptions.FindIndex(s => Math.Abs(s.Value - targetSpeed) < 0.01);
+        _speedComboBox.SelectedIndex = matchIdx >= 0 ? matchIdx : speedOptions.FindIndex(s => s.Value == 1.0);
+
+        speedPanel.Children.Add(_speedComboBox);
+
+        _useCustomSpeedCheckBox.Checked += (_, _) => _speedComboBox.IsEnabled = true;
+        _useCustomSpeedCheckBox.Unchecked += (_, _) =>
+        {
+            _speedComboBox.IsEnabled = false;
+            var defaultIdx = speedOptions.FindIndex(s => s.Value == 1.0);
+            if (defaultIdx >= 0) _speedComboBox.SelectedIndex = defaultIdx;
+        };
+
+        stackPanel.Children.Add(speedPanel);
 
         Content = stackPanel;
     }

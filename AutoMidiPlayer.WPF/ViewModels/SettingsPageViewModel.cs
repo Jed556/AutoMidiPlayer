@@ -67,8 +67,6 @@ public class SettingsPageViewModel : Screen
     private readonly IEventAggregator _events;
     private readonly MainWindowViewModel _main;
     private readonly GlobalHotkeyService _hotkeyService;
-    private int _keyOffset;
-    private double _speed = 1.0;
     private AccentColorOption _selectedAccentColor = null!;
     private ThemeOption _selectedTheme = null!;
 
@@ -80,9 +78,6 @@ public class SettingsPageViewModel : Screen
 
         // Initialize global hotkey service
         _hotkeyService = ioc.Get<GlobalHotkeyService>();
-
-        // Defer key offset initialization - QueueView may not exist yet
-        _keyOffset = 0;
 
         // Initialize theme from settings
         _selectedTheme = Settings.AppTheme switch
@@ -343,65 +338,11 @@ public class SettingsPageViewModel : Screen
 
     public DateTime DateTime { get; set; } = DateTime.Now;
 
-    [UsedImplicitly]
-    public Dictionary<int, string> KeyOffsets => MusicConstants.KeyOffsets;
-
     public GitVersion LatestVersion { get; set; } = new();
-
-    public int KeyOffset
-    {
-        get => _keyOffset;
-        set
-        {
-            if (SetAndNotify(ref _keyOffset, Math.Clamp(value, MinOffset, MaxOffset)))
-            {
-                // Update the selected key option to match
-                _selectedKeyOption = KeyOptions.FirstOrDefault(k => k.Value == _keyOffset);
-                NotifyOfPropertyChange(nameof(SelectedKeyOption));
-            }
-        }
-    }
-
-    public int MaxOffset => KeyOffsets.Keys.Max();
-
-    public int MinOffset => KeyOffsets.Keys.Min();
 
     public KeyValuePair<Core.Keyboard.Instrument, string> SelectedInstrument { get; set; }
 
     public KeyValuePair<Core.Keyboard.Layout, string> SelectedLayout { get; set; }
-
-    public KeyValuePair<Transpose, string>? Transpose { get; set; }
-
-    public static List<MidiSpeed> MidiSpeeds { get; } = new()
-    {
-        new("0.25x", 0.25),
-        new("0.5x", 0.5),
-        new("0.75x", 0.75),
-        new("Normal", 1),
-        new("1.25x", 1.25),
-        new("1.5x", 1.5),
-        new("1.75x", 1.75),
-        new("2x", 2)
-    };
-
-    public MidiSpeed SelectedSpeed { get; set; } = MidiSpeeds[Settings.SelectedSpeed];
-
-    public double Speed
-    {
-        get => _speed;
-        set
-        {
-            if (SetAndNotify(ref _speed, Math.Round(Math.Clamp(value, 0.1, 4.0), 1)))
-            {
-                // Update the selected speed option to match
-                _selectedSpeedOption = SpeedOptions.FirstOrDefault(s => Math.Abs(s.Value - _speed) < 0.01)
-                    ?? SpeedOptions.First(s => s.Value == 1.0);
-                NotifyOfPropertyChange(nameof(SelectedSpeedOption));
-            }
-        }
-    }
-
-    public string SpeedDisplay => $"Speed: {Speed:0.0}x";
 
     public static string GenshinLocation
     {
@@ -413,40 +354,6 @@ public class SettingsPageViewModel : Screen
     /// Path where application data (database, logs, etc.) is stored
     /// </summary>
     public static string DataLocation => AppPaths.AppDataDirectory;
-
-    public string Key => $"{KeyOffsets[KeyOffset]}";
-
-    // KeyOptions for ComboBox binding - generated from MusicConstants
-    public List<MusicConstants.KeyOption> KeyOptions { get; } = MusicConstants.GenerateKeyOptions();
-
-    private MusicConstants.KeyOption? _selectedKeyOption;
-    public MusicConstants.KeyOption? SelectedKeyOption
-    {
-        get => _selectedKeyOption ??= KeyOptions.FirstOrDefault(k => k.Value == KeyOffset);
-        set
-        {
-            if (value != null && SetAndNotify(ref _selectedKeyOption, value))
-            {
-                KeyOffset = value.Value;
-            }
-        }
-    }
-
-    // SpeedOptions for ComboBox binding - generated from MusicConstants
-    public List<MusicConstants.SpeedOption> SpeedOptions { get; } = MusicConstants.GenerateSpeedOptions();
-
-    private MusicConstants.SpeedOption? _selectedSpeedOption;
-    public MusicConstants.SpeedOption? SelectedSpeedOption
-    {
-        get => _selectedSpeedOption ??= SpeedOptions.FirstOrDefault(s => Math.Abs(s.Value - Speed) < 0.01) ?? SpeedOptions.First(s => s.Value == 1.0);
-        set
-        {
-            if (value != null && SetAndNotify(ref _selectedSpeedOption, value))
-            {
-                Speed = value.Value;
-            }
-        }
-    }
 
     public string TimerText => CanChangeTime ? "Start" : "Stop";
 
@@ -526,14 +433,6 @@ public class SettingsPageViewModel : Screen
             NotifyOfPropertyChange(() => NeedsUpdate);
         }
     }
-
-    // Key offset controls
-    public void IncreaseKey() => KeyOffset++;
-    public void DecreaseKey() => KeyOffset--;
-
-    // Speed controls
-    public void IncreaseSpeed() => Speed = Math.Round(Speed + 0.1, 1);
-    public void DecreaseSpeed() => Speed = Math.Round(Speed - 0.1, 1);
 
     public async Task LocationMissing()
     {
@@ -723,73 +622,11 @@ public class SettingsPageViewModel : Screen
     private void OnIncludeBetaUpdatesChanged() => _ = CheckForUpdate();
 
     [UsedImplicitly]
-    private async void OnKeyOffsetChanged()
-    {
-        if (Queue.OpenedFile is null)
-            return;
-
-        await using var db = _ioc.Get<LyreContext>();
-
-        Queue.OpenedFile.Song.Key = KeyOffset;
-        db.Update(Queue.OpenedFile.Song);
-
-        await db.SaveChangesAsync();
-
-        // Notify UI to refresh
-        _main.SongsView.RefreshCurrentSong();
-        _main.QueueView.RefreshCurrentSong();
-    }
-
-    [UsedImplicitly]
-    private async void OnSpeedChanged()
-    {
-        _events.Publish(this);
-
-        if (Queue.OpenedFile is null)
-            return;
-
-        await using var db = _ioc.Get<LyreContext>();
-
-        Queue.OpenedFile.Song.Speed = Speed;
-        db.Update(Queue.OpenedFile.Song);
-
-        await db.SaveChangesAsync();
-
-        // Notify UI to refresh
-        _main.SongsView.RefreshCurrentSong();
-        _main.QueueView.RefreshCurrentSong();
-    }
-
-    [UsedImplicitly]
     private void OnUseDirectInputChanged()
     {
         Settings.UseDirectInput = UseDirectInput;
         Settings.Save();
         KeyboardPlayer.UseDirectInput = UseDirectInput;
-    }
-
-    [UsedImplicitly]
-    private void OnSelectedSpeedChanged() => _events.Publish(this);
-
-    [UsedImplicitly]
-    private async void OnTransposeChanged()
-    {
-        if (Queue.OpenedFile is null)
-            return;
-
-        await using var db = _ioc.Get<LyreContext>();
-
-        Queue.OpenedFile.Song.Transpose = Transpose?.Key;
-        db.Update(Queue.OpenedFile.Song);
-
-        await db.SaveChangesAsync();
-
-        // Notify UI to refresh
-        _main.SongsView.RefreshCurrentSong();
-        _main.QueueView.RefreshCurrentSong();
-
-        // Notify TrackViewModel to update statistics
-        _events.Publish(this);
     }
 }
 

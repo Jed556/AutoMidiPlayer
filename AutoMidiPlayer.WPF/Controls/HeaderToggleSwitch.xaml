@@ -1,0 +1,17 @@
+<UserControl x:Class="AutoMidiPlayer.WPF.Controls.HeaderToggleSwitch"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:s="https://github.com/canton7/Stylet"
+             x:Name="Root">
+    <StackPanel>
+        <TextBlock Text="{Binding Header, ElementName=Root}"
+                   FontSize="{Binding HeaderFontSize, ElementName=Root}"
+                   FontWeight="SemiBold"
+                   Margin="0,0,0,4"
+                   Visibility="{Binding HasHeader, ElementName=Root, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+        <ui:ToggleSwitch Content="{Binding Content, ElementName=Root}"
+                         IsChecked="{Binding IsChecked, ElementName=Root, Mode=TwoWay}"
+                         ToolTip="{Binding ToolTip, ElementName=Root}"/>
+    </StackPanel>
+</UserControl>

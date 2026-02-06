@@ -12,6 +12,7 @@
     xmlns:modernWpf="clr-namespace:AutoMidiPlayer.WPF.ModernWPF"
     xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
+    xmlns:services="clr-namespace:AutoMidiPlayer.WPF.Services"
     xmlns:core="clr-namespace:AutoMidiPlayer.WPF.Core"
     d:DataContext="{d:DesignInstance Type=viewModels:MainWindowViewModel}"
     x:Name="MainWindow"
@@ -119,9 +120,12 @@
                                                Tag="{Binding InstrumentView}"
                                                Click="{s:Action NavigateToItem}"/>
                         <ui:NavigationViewItem Content="Queue"
-                                               Icon="{ui:SymbolIcon TextBulletListSquare24}"
                                                Tag="{Binding QueueView}"
-                                               Click="{s:Action NavigateToItem}"/>
+                                               Click="{s:Action NavigateToItem}">
+                            <ui:NavigationViewItem.Icon>
+                                <ui:ImageIcon Source="{StaticResource QueueIcon}" Width="24" Height="24"/>
+                            </ui:NavigationViewItem.Icon>
+                        </ui:NavigationViewItem>
                         <ui:NavigationViewItem Content="Songs"
                                                Icon="{ui:SymbolIcon Cd16}"
                                                Tag="{Binding SongsView}"
@@ -321,8 +325,8 @@
                             <ComboBox MinWidth="90"
                                       MaxHeight="24"
                                       Padding="8,2"
-                                      ItemsSource="{Binding SettingsView.KeyOptions}"
-                                      SelectedItem="{Binding SettingsView.SelectedKeyOption}"
+                                      ItemsSource="{Binding SongSettings.KeyOptions}"
+                                      SelectedItem="{Binding SongSettings.SelectedKeyOption}"
                                       DisplayMemberPath="Display"/>
                         </StackPanel>
 
@@ -335,8 +339,8 @@
                             <ComboBox MinWidth="70"
                                       MaxHeight="24"
                                       Padding="8,2"
-                                      ItemsSource="{Binding SettingsView.SpeedOptions}"
-                                      SelectedItem="{Binding SettingsView.SelectedSpeedOption}"
+                                      ItemsSource="{Binding SongSettings.SpeedOptions}"
+                                      SelectedItem="{Binding SongSettings.SelectedSpeedOption}"
                                       DisplayMemberPath="Display"/>
                         </StackPanel>
 
@@ -349,8 +353,8 @@
                             <ComboBox MinWidth="80"
                                       MaxHeight="24"
                                       Padding="8,2"
-                                      ItemsSource="{x:Static viewModels:SettingsPageViewModel.TransposeNames}"
-                                      SelectedItem="{Binding SettingsView.Transpose}"
+                                      ItemsSource="{x:Static services:SongSettingsService.TransposeNames}"
+                                      SelectedItem="{Binding SongSettings.Transpose}"
                                       DisplayMemberPath="Value"/>
                         </StackPanel>
                     </controls:SimpleStackPanel>

@@ -10,7 +10,6 @@ using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using Stylet;
 using StyletIoC;
-using static AutoMidiPlayer.WPF.ViewModels.SettingsPageViewModel;
 using MidiFile = AutoMidiPlayer.Data.Midi.MidiFile;
 
 namespace AutoMidiPlayer.WPF.ViewModels;
@@ -70,8 +69,8 @@ public class TrackViewModel : Screen
         get
         {
             var instrument = InstrumentPage.SelectedInstrument.Key;
-            var keyOffset = SettingsPage.KeyOffset;
-            var transpose = SettingsPage.Transpose?.Key;
+            var keyOffset = SongSettings.KeyOffset;
+            var transpose = SongSettings.Transpose?.Key;
             var availableNotes = Keyboard.GetNotes(instrument);
 
             return MidiTracks
@@ -103,7 +102,7 @@ public class TrackViewModel : Screen
 
     #region Properties - Private Helpers
 
-    private SettingsPageViewModel SettingsPage => _main.SettingsView;
+    private SongSettingsService SongSettings => _main.SongSettings;
 
     private InstrumentViewModel InstrumentPage => _main.InstrumentView;
 
@@ -186,8 +185,8 @@ public class TrackViewModel : Screen
     public void UpdateTrackPlayableNotes()
     {
         var instrument = InstrumentPage.SelectedInstrument.Key;
-        var keyOffset = SettingsPage.KeyOffset;
-        var transpose = SettingsPage.Transpose?.Key;
+        var keyOffset = SongSettings.KeyOffset;
+        var transpose = SongSettings.Transpose?.Key;
         var availableNotes = Keyboard.GetNotes(instrument).ToHashSet();
 
         Func<int, int>? transposeFunc = null;

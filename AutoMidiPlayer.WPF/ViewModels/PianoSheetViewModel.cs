@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Core;
+using AutoMidiPlayer.WPF.Services;
 using Melanchall.DryWetMidi.Interaction;
 using PropertyChanged;
 using Stylet;
@@ -32,7 +33,7 @@ public class PianoSheetViewModel : Screen
 
     public QueueViewModel QueueView => _main.QueueView;
 
-    public SettingsPageViewModel SettingsPage => _main.SettingsView;
+    public SongSettingsService SongSettings => _main.SongSettings;
 
     public InstrumentViewModel InstrumentPage => _main.InstrumentView;
 
@@ -84,8 +85,8 @@ public class PianoSheetViewModel : Screen
 
             foreach (var note in notes)
             {
-                var id = note.NoteNumber - SettingsPage.KeyOffset;
-                var transpose = SettingsPage.Transpose?.Key;
+                var id = note.NoteNumber - SongSettings.KeyOffset;
+                var transpose = SongSettings.Transpose?.Key;
                 if (Settings.TransposeNotes && transpose is not null)
                     KeyboardPlayer.TransposeNote(instrument, ref id, transpose.Value);
 
