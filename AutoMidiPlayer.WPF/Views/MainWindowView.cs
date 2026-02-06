@@ -31,6 +31,12 @@ public partial class MainWindowView : FluentWindow
             _hotkeyService.PreviousPressed += (_, _) => vm.Playback.Previous();
             _hotkeyService.SpeedUpPressed += (_, _) => vm.SongSettings.IncreaseSpeed();
             _hotkeyService.SpeedDownPressed += (_, _) => vm.SongSettings.DecreaseSpeed();
+            _hotkeyService.PanicPressed += (_, _) =>
+            {
+                _hotkeyService?.Dispose();
+                TrayIcon?.Dispose();
+                Application.Current.Shutdown();
+            };
         }
     }
 

@@ -5,6 +5,29 @@
              xmlns:s="https://github.com/canton7/Stylet"
              xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
              x:Name="HotkeyControl">
+    <UserControl.Resources>
+        <!-- Ghost button style: transparent bg, faded icon, white on hover -->
+        <Style x:Key="GhostIconButton"
+                TargetType="Button">
+            <Setter Property="Background"
+                    Value="Transparent"/>
+            <Setter Property="BorderThickness"
+                    Value="0"/>
+            <Setter Property="Padding"
+                    Value="6"/>
+            <Setter Property="Opacity"
+                    Value="0.4"/>
+            <Setter Property="Cursor"
+                    Value="Hand"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver"
+                        Value="True">
+                    <Setter Property="Opacity"
+                            Value="1"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="120"/>
@@ -20,23 +43,41 @@
                    FontWeight="Medium"/>
 
         <!-- Hotkey Display / Edit Box -->
-        <Border Grid.Column="1"
-                Background="{DynamicResource ControlFillColorDefaultBrush}"
-                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                BorderThickness="1"
-                CornerRadius="4"
-                Padding="8,4"
-                Margin="8,0"
-                MinWidth="150">
-
-            <!-- Normal display mode -->
-            <TextBlock x:Name="HotkeyDisplay"
-                       Text="{Binding HotkeyBinding.DisplayHotkey, ElementName=HotkeyControl}"
-                       VerticalAlignment="Center"
-                       HorizontalAlignment="Center"
-                       Visibility="{Binding IsNotEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
-
-        </Border>
+        <StackPanel Grid.Column="1"
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center"
+                    Margin="8,0"
+                    Visibility="{Binding IsNotEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+            <ItemsControl ItemsSource="{Binding HotkeyBinding.DisplayParts, ElementName=HotkeyControl}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal">
+                            <!-- Separator "+" between chips -->
+                            <TextBlock Text=" + "
+                                       VerticalAlignment="Center"
+                                       Opacity="0.5"
+                                       Margin="0"
+                                       Visibility="{Binding IsFirst, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}"/>
+                            <!-- Key chip -->
+                            <Border Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="8,2">
+                                <TextBlock Text="{Binding Text}"
+                                           VerticalAlignment="Center"
+                                           FontSize="12"/>
+                            </Border>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
 
         <!-- Edit mode overlay -->
         <Border Grid.Column="1"
@@ -62,43 +103,31 @@
         <!-- Edit Button -->
         <Button Grid.Column="2"
                 Click="EditButton_Click"
-                Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                BorderThickness="0"
-                Padding="6"
+                Style="{StaticResource GhostIconButton}"
                 ToolTip="Edit hotkey"
                 Visibility="{Binding IsNotEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-            <ui:FontIcon Glyph="&#xE70F;"
-                         FontFamily="{StaticResource MdlFontFamily}"
-                         FontSize="12"/>
+            <ui:SymbolIcon Symbol="Edit16"/>
         </Button>
 
-        <!-- Cancel/Confirm during edit -->
+        <!-- Cancel during edit -->
         <StackPanel Grid.Column="2"
                     Orientation="Horizontal"
                     Visibility="{Binding IsEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
             <Button Click="CancelEdit_Click"
-                    Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                    BorderThickness="0"
-                    Padding="6"
+                    Style="{StaticResource GhostIconButton}"
                     ToolTip="Cancel (Esc)">
-                <ui:FontIcon Glyph="&#xE711;"
-                             FontFamily="{StaticResource MdlFontFamily}"
-                             FontSize="12"/>
+                <ui:SymbolIcon Symbol="Dismiss16"/>
             </Button>
         </StackPanel>
 
         <!-- Clear Button -->
         <Button Grid.Column="3"
                 Click="ClearButton_Click"
-                Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                BorderThickness="0"
-                Padding="6"
+                Style="{StaticResource GhostIconButton}"
                 Margin="4,0,0,0"
                 ToolTip="Clear hotkey"
                 Visibility="{Binding IsNotEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-            <ui:FontIcon Glyph="&#xE894;"
-                         FontFamily="{StaticResource MdlFontFamily}"
-                         FontSize="12"/>
+            <ui:SymbolIcon Symbol="Delete16"/>
         </Button>
     </Grid>
 </UserControl>

@@ -81,14 +81,18 @@
                          ShowMinimize="True"
                          ShowClose="True">
                 <ui:TitleBar.Header>
-                    <controls:SimpleStackPanel Margin="250,0,0,0"
-                                               Orientation="Horizontal">
+                    <Grid>
+                        <TextBlock Text="{Binding Title}"
+                                   VerticalAlignment="Center"
+                                   FontSize="12"
+                                   Margin="16,0,0,0"/>
                         <ui:HyperlinkButton
                             Command="{s:Action NavigateToSettings}"
                             Visibility="{Binding ShowUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
-                            Margin="485,0,0,0"
+                            HorizontalAlignment="Right"
+                            Margin="0,0,8,0"
                             Content="New update!"/>
-                    </controls:SimpleStackPanel>
+                    </Grid>
                 </ui:TitleBar.Header>
             </ui:TitleBar>
 
@@ -124,8 +128,8 @@
                                                Click="{s:Action NavigateToItem}">
                             <ui:NavigationViewItem.Icon>
                                 <ui:ImageIcon Source="{StaticResource QueueIcon}"
-                                        Width="24"
-                                        Height="24"/>
+                                              Width="24"
+                                              Height="24"/>
                             </ui:NavigationViewItem.Icon>
                         </ui:NavigationViewItem>
                         <ui:NavigationViewItem Content="Songs"
@@ -158,9 +162,14 @@
                             Margin="18,24,18,8"
                             HorizontalAlignment="Left"
                             VerticalAlignment="Top"
-                            FontSize="32"
-                            FontWeight="SemiBold"
-                            ItemsSource="{Binding BreadcrumbItems}"/>
+                            ItemsSource="{Binding BreadcrumbItems}">
+                            <ui:BreadcrumbBar.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}"
+                                               Style="{DynamicResource TitleTextBlockStyle}"/>
+                                </DataTemplate>
+                            </ui:BreadcrumbBar.ItemTemplate>
+                        </ui:BreadcrumbBar>
                         <Frame Grid.Row="0"
                                x:Name="RootFrame"
                                Visibility="Hidden"/>

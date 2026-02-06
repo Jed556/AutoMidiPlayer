@@ -53,10 +53,13 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
     public event EventHandler? PreviousPressed;
     public event EventHandler? SpeedUpPressed;
     public event EventHandler? SpeedDownPressed;
+    public event EventHandler? PanicPressed;
 
     #endregion
 
     #region Properties
+
+    private bool _isSuspended;
 
     public bool IsEnabled
     {
@@ -65,7 +68,7 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
         {
             if (SetAndNotify(ref _isEnabled, value))
             {
-                if (value)
+                if (value && !_isSuspended)
                     RegisterAllHotkeys();
                 else
                     UnregisterAllHotkeys();
@@ -73,11 +76,31 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
         }
     }
 
+    /// <summary>
+    /// Temporarily unregister all hotkeys (e.g. during hotkey editing).
+    /// </summary>
+    public void SuspendHotkeys()
+    {
+        _isSuspended = true;
+        UnregisterAllHotkeys();
+    }
+
+    /// <summary>
+    /// Re-register hotkeys after suspension.
+    /// </summary>
+    public void ResumeHotkeys()
+    {
+        _isSuspended = false;
+        if (_isEnabled)
+            RegisterAllHotkeys();
+    }
+
     public HotkeyBinding PlayPauseHotkey { get; private set; }
     public HotkeyBinding NextHotkey { get; private set; }
     public HotkeyBinding PreviousHotkey { get; private set; }
     public HotkeyBinding SpeedUpHotkey { get; private set; }
     public HotkeyBinding SpeedDownHotkey { get; private set; }
+    public HotkeyBinding PanicHotkey { get; private set; }
 
     #endregion
 
@@ -91,6 +114,7 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
         PreviousHotkey = LoadOrCreateHotkey("Previous", Key.Left, ModifierKeys.Control | ModifierKeys.Alt);
         SpeedUpHotkey = LoadOrCreateHotkey("SpeedUp", Key.Up, ModifierKeys.Control | ModifierKeys.Alt);
         SpeedDownHotkey = LoadOrCreateHotkey("SpeedDown", Key.Down, ModifierKeys.Control | ModifierKeys.Alt);
+        PanicHotkey = LoadOrCreateHotkey("Panic", Key.Escape, ModifierKeys.Control | ModifierKeys.Alt);
     }
 
     #endregion
@@ -120,6 +144,7 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
             "Previous" => Settings.HotkeyPrevious,
             "SpeedUp" => Settings.HotkeySpeedUp,
             "SpeedDown" => Settings.HotkeySpeedDown,
+            "Panic" => Settings.HotkeyPanic,
             _ => string.Empty
         };
 
@@ -138,6 +163,7 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
             "Previous" => PreviousHotkey,
             "SpeedUp" => SpeedUpHotkey,
             "SpeedDown" => SpeedDownHotkey,
+            "Panic" => PanicHotkey,
             _ => throw new ArgumentException($"Unknown hotkey: {name}")
         };
 
@@ -158,6 +184,7 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
             case "Previous": Settings.HotkeyPrevious = serialized; break;
             case "SpeedUp": Settings.HotkeySpeedUp = serialized; break;
             case "SpeedDown": Settings.HotkeySpeedDown = serialized; break;
+            case "Panic": Settings.HotkeyPanic = serialized; break;
         }
         Settings.Save();
 
@@ -175,6 +202,7 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
             "Previous" => PreviousHotkey,
             "SpeedUp" => SpeedUpHotkey,
             "SpeedDown" => SpeedDownHotkey,
+            "Panic" => PanicHotkey,
             _ => throw new ArgumentException($"Unknown hotkey: {name}")
         };
 
@@ -194,8 +222,44 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
             case "Previous": Settings.HotkeyPrevious = string.Empty; break;
             case "SpeedUp": Settings.HotkeySpeedUp = string.Empty; break;
             case "SpeedDown": Settings.HotkeySpeedDown = string.Empty; break;
+            case "Panic": Settings.HotkeyPanic = string.Empty; break;
         }
         Settings.Save();
+    }
+
+    /// <summary>
+    /// Resets all hotkeys to their default values.
+    /// </summary>
+    public void ResetToDefaults()
+    {
+        UnregisterAllHotkeys();
+
+        // Reset to defaults
+        PlayPauseHotkey.Key = Key.Space;
+        PlayPauseHotkey.Modifiers = ModifierKeys.Control | ModifierKeys.Alt;
+        NextHotkey.Key = Key.Right;
+        NextHotkey.Modifiers = ModifierKeys.Control | ModifierKeys.Alt;
+        PreviousHotkey.Key = Key.Left;
+        PreviousHotkey.Modifiers = ModifierKeys.Control | ModifierKeys.Alt;
+        SpeedUpHotkey.Key = Key.Up;
+        SpeedUpHotkey.Modifiers = ModifierKeys.Control | ModifierKeys.Alt;
+        SpeedDownHotkey.Key = Key.Down;
+        SpeedDownHotkey.Modifiers = ModifierKeys.Control | ModifierKeys.Alt;
+        PanicHotkey.Key = Key.Escape;
+        PanicHotkey.Modifiers = ModifierKeys.Control | ModifierKeys.Alt;
+
+        // Save defaults
+        Settings.HotkeyPlayPause = PlayPauseHotkey.Serialize();
+        Settings.HotkeyNext = NextHotkey.Serialize();
+        Settings.HotkeyPrevious = PreviousHotkey.Serialize();
+        Settings.HotkeySpeedUp = SpeedUpHotkey.Serialize();
+        Settings.HotkeySpeedDown = SpeedDownHotkey.Serialize();
+        Settings.HotkeyPanic = PanicHotkey.Serialize();
+        Settings.Save();
+
+        // Re-register if enabled
+        if (_isEnabled && !_isSuspended)
+            RegisterAllHotkeys();
     }
 
     private void RegisterAllHotkeys()
@@ -205,6 +269,7 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
         RegisterHotkey(PreviousHotkey);
         RegisterHotkey(SpeedUpHotkey);
         RegisterHotkey(SpeedDownHotkey);
+        RegisterHotkey(PanicHotkey);
     }
 
     private void UnregisterAllHotkeys()
@@ -214,6 +279,7 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
         UnregisterHotkey(PreviousHotkey);
         UnregisterHotkey(SpeedUpHotkey);
         UnregisterHotkey(SpeedDownHotkey);
+        UnregisterHotkey(PanicHotkey);
     }
 
     private void RegisterHotkey(HotkeyBinding hotkey)
@@ -281,6 +347,9 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
                     case "SpeedDown":
                         SpeedDownPressed?.Invoke(this, EventArgs.Empty);
                         break;
+                    case "Panic":
+                        PanicPressed?.Invoke(this, EventArgs.Empty);
+                        break;
                 }
                 handled = true;
             }
@@ -329,6 +398,7 @@ public class HotkeyBinding : PropertyChangedBase
                 _key = value;
                 NotifyOfPropertyChange();
                 NotifyOfPropertyChange(nameof(DisplayHotkey));
+                NotifyOfPropertyChange(nameof(DisplayParts));
             }
         }
     }
@@ -343,6 +413,7 @@ public class HotkeyBinding : PropertyChangedBase
                 _modifiers = value;
                 NotifyOfPropertyChange();
                 NotifyOfPropertyChange(nameof(DisplayHotkey));
+                NotifyOfPropertyChange(nameof(DisplayParts));
             }
         }
     }
@@ -357,6 +428,7 @@ public class HotkeyBinding : PropertyChangedBase
         "Previous" => "Previous Track",
         "SpeedUp" => "Speed Up",
         "SpeedDown" => "Speed Down",
+        "Panic" => "Panic (Exit)",
         _ => Name
     };
 
@@ -377,10 +449,58 @@ public class HotkeyBinding : PropertyChangedBase
         }
     }
 
+    /// <summary>
+    /// Returns key parts as a list of display objects for chip-style rendering.
+    /// </summary>
+    public List<HotkeyPart> DisplayParts
+    {
+        get
+        {
+            if (Key == Key.None)
+                return new List<HotkeyPart> { new("Not Set", true) };
+
+            var parts = new List<HotkeyPart>();
+            if (Modifiers.HasFlag(ModifierKeys.Control)) parts.Add(new("Ctrl", parts.Count == 0));
+            if (Modifiers.HasFlag(ModifierKeys.Alt)) parts.Add(new("Alt", parts.Count == 0));
+            if (Modifiers.HasFlag(ModifierKeys.Shift)) parts.Add(new("Shift", parts.Count == 0));
+            if (Modifiers.HasFlag(ModifierKeys.Windows)) parts.Add(new("Win", parts.Count == 0));
+            parts.Add(new(GetKeyDisplayName(Key), parts.Count == 0));
+            return parts;
+        }
+    }
+
     private static string GetKeyDisplayName(Key key)
     {
         return key switch
         {
+            // Number keys
+            Key.D0 => "0",
+            Key.D1 => "1",
+            Key.D2 => "2",
+            Key.D3 => "3",
+            Key.D4 => "4",
+            Key.D5 => "5",
+            Key.D6 => "6",
+            Key.D7 => "7",
+            Key.D8 => "8",
+            Key.D9 => "9",
+            // Numpad keys
+            Key.NumPad0 => "Numpad 0",
+            Key.NumPad1 => "Numpad 1",
+            Key.NumPad2 => "Numpad 2",
+            Key.NumPad3 => "Numpad 3",
+            Key.NumPad4 => "Numpad 4",
+            Key.NumPad5 => "Numpad 5",
+            Key.NumPad6 => "Numpad 6",
+            Key.NumPad7 => "Numpad 7",
+            Key.NumPad8 => "Numpad 8",
+            Key.NumPad9 => "Numpad 9",
+            Key.Multiply => "Numpad *",
+            Key.Add => "Numpad +",
+            Key.Subtract => "Numpad -",
+            Key.Decimal => "Numpad .",
+            Key.Divide => "Numpad /",
+            // OEM keys
             Key.OemPlus => "+",
             Key.OemMinus => "-",
             Key.OemComma => ",",
@@ -392,20 +512,28 @@ public class HotkeyBinding : PropertyChangedBase
             Key.OemSemicolon => ";",
             Key.OemQuotes => "'",
             Key.OemTilde => "`",
-            Key.Left => "←",
-            Key.Right => "→",
-            Key.Up => "↑",
-            Key.Down => "↓",
+            // Arrow keys
+            Key.Left => "Left",
+            Key.Right => "Right",
+            Key.Up => "Up",
+            Key.Down => "Down",
+            // Navigation
             Key.Space => "Space",
             Key.Return => "Enter",
-            Key.Escape => "Esc",
+            Key.Escape => "Escape",
             Key.Back => "Backspace",
-            Key.Delete => "Del",
-            Key.Insert => "Ins",
+            Key.Delete => "Delete",
+            Key.Insert => "Insert",
             Key.Home => "Home",
             Key.End => "End",
-            Key.PageUp => "PgUp",
-            Key.PageDown => "PgDn",
+            Key.PageUp => "Page Up",
+            Key.PageDown => "Page Down",
+            Key.Tab => "Tab",
+            Key.CapsLock => "Caps Lock",
+            Key.NumLock => "Num Lock",
+            Key.Scroll => "Scroll Lock",
+            Key.PrintScreen => "Print Screen",
+            Key.Pause => "Pause",
             _ => key.ToString()
         };
     }
@@ -426,5 +554,21 @@ public class HotkeyBinding : PropertyChangedBase
         hotkey.Modifiers = (ModifierKeys)modifiers;
         hotkey.Key = (Key)key;
         return true;
+    }
+}
+
+/// <summary>
+/// Represents a single part of a hotkey display (e.g. "Ctrl", "Alt", "Space").
+/// Used for chip-style rendering in the UI.
+/// </summary>
+public class HotkeyPart
+{
+    public string Text { get; }
+    public bool IsFirst { get; }
+
+    public HotkeyPart(string text, bool isFirst)
+    {
+        Text = text;
+        IsFirst = isFirst;
     }
 }

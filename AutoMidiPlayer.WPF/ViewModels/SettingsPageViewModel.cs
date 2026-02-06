@@ -301,6 +301,7 @@ public class SettingsPageViewModel : Screen
     public HotkeyBinding PreviousHotkey => _hotkeyService.PreviousHotkey;
     public HotkeyBinding SpeedUpHotkey => _hotkeyService.SpeedUpHotkey;
     public HotkeyBinding SpeedDownHotkey => _hotkeyService.SpeedDownHotkey;
+    public HotkeyBinding PanicHotkey => _hotkeyService.PanicHotkey;
 
     public void UpdateHotkey(string name, Key key, ModifierKeys modifiers)
     {
@@ -314,6 +315,27 @@ public class SettingsPageViewModel : Screen
         NotifyHotkeyChanged(name);
     }
 
+    public void SuspendHotkeys()
+    {
+        _hotkeyService.SuspendHotkeys();
+    }
+
+    public void ResumeHotkeys()
+    {
+        _hotkeyService.ResumeHotkeys();
+    }
+
+    public void ResetHotkeys()
+    {
+        _hotkeyService.ResetToDefaults();
+        NotifyOfPropertyChange(nameof(PlayPauseHotkey));
+        NotifyOfPropertyChange(nameof(NextHotkey));
+        NotifyOfPropertyChange(nameof(PreviousHotkey));
+        NotifyOfPropertyChange(nameof(SpeedUpHotkey));
+        NotifyOfPropertyChange(nameof(SpeedDownHotkey));
+        NotifyOfPropertyChange(nameof(PanicHotkey));
+    }
+
     private void NotifyHotkeyChanged(string name)
     {
         switch (name)
@@ -323,6 +345,7 @@ public class SettingsPageViewModel : Screen
             case "Previous": NotifyOfPropertyChange(nameof(PreviousHotkey)); break;
             case "SpeedUp": NotifyOfPropertyChange(nameof(SpeedUpHotkey)); break;
             case "SpeedDown": NotifyOfPropertyChange(nameof(SpeedDownHotkey)); break;
+            case "Panic": NotifyOfPropertyChange(nameof(PanicHotkey)); break;
         }
     }
 

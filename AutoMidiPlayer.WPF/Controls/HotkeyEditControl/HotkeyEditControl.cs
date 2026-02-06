@@ -46,6 +46,8 @@ public partial class HotkeyEditControl : UserControl
 
     public event EventHandler<HotkeyChangedEventArgs>? HotkeyChanged;
     public event EventHandler<string>? HotkeyCleared;
+    public event EventHandler? EditStarted;
+    public event EventHandler? EditEnded;
 
     private Key _pendingKey = Key.None;
     private ModifierKeys _pendingModifiers = ModifierKeys.None;
@@ -77,12 +79,14 @@ public partial class HotkeyEditControl : UserControl
     {
         _pendingKey = Key.None;
         _pendingModifiers = ModifierKeys.None;
+        EditStarted?.Invoke(this, EventArgs.Empty);
         IsEditing = true;
     }
 
     private void CancelEdit_Click(object sender, RoutedEventArgs e)
     {
         IsEditing = false;
+        EditEnded?.Invoke(this, EventArgs.Empty);
     }
 
     private void ClearButton_Click(object sender, RoutedEventArgs e)
@@ -103,6 +107,7 @@ public partial class HotkeyEditControl : UserControl
         if (key == Key.Escape)
         {
             IsEditing = false;
+            EditEnded?.Invoke(this, EventArgs.Empty);
             return;
         }
 
@@ -135,6 +140,7 @@ public partial class HotkeyEditControl : UserControl
         }
 
         IsEditing = false;
+        EditEnded?.Invoke(this, EventArgs.Empty);
     }
 
     private void EditBorder_KeyDown(object sender, KeyEventArgs e)

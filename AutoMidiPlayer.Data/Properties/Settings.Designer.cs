@@ -528,5 +528,20 @@ namespace AutoMidiPlayer.Data.Properties
                 this["HotkeySpeedDown"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("3|13")]
+        public string HotkeyPanic
+        {
+            get
+            {
+                return ((string)(this["HotkeyPanic"]));
+            }
+            set
+            {
+                this["HotkeyPanic"] = value;
+            }
+        }
     }
 }

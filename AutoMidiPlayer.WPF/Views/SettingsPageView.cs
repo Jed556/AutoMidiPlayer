@@ -1,3 +1,4 @@
+using System;
 using System.Windows.Controls;
 using AutoMidiPlayer.WPF.Controls;
 using AutoMidiPlayer.WPF.ViewModels;
@@ -24,6 +25,22 @@ public partial class SettingsPageView : UserControl
         if (DataContext is SettingsPageViewModel viewModel)
         {
             viewModel.ClearHotkey(name);
+        }
+    }
+
+    private void OnHotkeyEditStarted(object sender, EventArgs e)
+    {
+        if (DataContext is SettingsPageViewModel viewModel)
+        {
+            viewModel.SuspendHotkeys();
+        }
+    }
+
+    private void OnHotkeyEditEnded(object sender, EventArgs e)
+    {
+        if (DataContext is SettingsPageViewModel viewModel)
+        {
+            viewModel.ResumeHotkeys();
         }
     }
 }

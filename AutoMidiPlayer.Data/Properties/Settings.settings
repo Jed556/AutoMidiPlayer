@@ -110,5 +110,8 @@
     <Setting Name="HotkeySpeedDown" Type="System.String" Scope="User">
       <Value Profile="(Default)">3|26</Value>
     </Setting>
+    <Setting Name="HotkeyPanic" Type="System.String" Scope="User">
+      <Value Profile="(Default)">3|13</Value>
+    </Setting>
   </Settings>
 </SettingsFile>
