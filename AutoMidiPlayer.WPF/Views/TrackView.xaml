@@ -36,12 +36,12 @@
                                     Margin="0"
                                     BorderThickness="2"
                                     CornerRadius="6"
-                                    BorderBrush="#1DB954"
+                                    BorderBrush="{DynamicResource SystemAccentColorPrimaryBrush}"
                                     Opacity="0"
                                     IsHitTestVisible="False">
                                 <Border.Effect>
                                     <DropShadowEffect
-                                        Color="#1DB954"
+                                        Color="{DynamicResource SystemAccentColor}"
                                         BlurRadius="25"
                                         ShadowDepth="0"
                                         Opacity="1"/>

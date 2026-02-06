@@ -82,11 +82,23 @@
                          ShowClose="True">
                 <ui:TitleBar.Header>
                     <Grid>
-                        <TextBlock Text="{Binding Title}"
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Image Grid.Column="0"
+                               Width="16"
+                               Height="16"
+                               Margin="8,0,6,0"
+                               VerticalAlignment="Center"
+                               Source="pack://application:,,,/logo.png"/>
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding Title}"
                                    VerticalAlignment="Center"
-                                   FontSize="12"
-                                   Margin="16,0,0,0"/>
+                                   FontSize="12"/>
                         <ui:HyperlinkButton
+                            Grid.Column="2"
                             Command="{s:Action NavigateToSettings}"
                             Visibility="{Binding ShowUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
                             HorizontalAlignment="Right"
@@ -124,13 +136,9 @@
                                                Tag="{Binding InstrumentView}"
                                                Click="{s:Action NavigateToItem}"/>
                         <ui:NavigationViewItem Content="Queue"
+                                               Icon="{ui:SymbolIcon TextBulletListSquare24}"
                                                Tag="{Binding QueueView}"
                                                Click="{s:Action NavigateToItem}">
-                            <ui:NavigationViewItem.Icon>
-                                <ui:ImageIcon Source="{StaticResource QueueIcon}"
-                                              Width="24"
-                                              Height="24"/>
-                            </ui:NavigationViewItem.Icon>
                         </ui:NavigationViewItem>
                         <ui:NavigationViewItem Content="Songs"
                                                Icon="{ui:SymbolIcon Cd16}"
@@ -243,10 +251,12 @@
                             <Button s:View.ActionTarget="{Binding Playback}"
                                     Command="{s:Action Previous}"
                                     IsHitTestVisible="{Binding Playback.CanHitPrevious}"
-                                    Style="{StaticResource PlayerControlButton}"
+                                    Style="{DynamicResource GhostIconButton}"
+                                    Padding="8"
                                     ToolTip="Previous">
                                 <Path Data="{StaticResource PreviousIconGeometry}"
-                                      Style="{StaticResource PlayerControlIconNav}"
+                                      Fill="{DynamicResource TextFillColorPrimaryBrush}"
+                                      Stretch="Uniform"
                                       Width="14"
                                       Height="14"/>
                             </Button>
@@ -267,10 +277,12 @@
                             <Button s:View.ActionTarget="{Binding Playback}"
                                     Command="{s:Action Next}"
                                     IsHitTestVisible="{Binding Playback.CanHitNext}"
-                                    Style="{StaticResource PlayerControlButton}"
+                                    Style="{DynamicResource GhostIconButton}"
+                                    Padding="8"
                                     ToolTip="Next">
                                 <Path Data="{StaticResource NextIconGeometry}"
-                                      Style="{StaticResource PlayerControlIconNav}"
+                                      Fill="{DynamicResource TextFillColorPrimaryBrush}"
+                                      Stretch="Uniform"
                                       Width="14"
                                       Height="14"/>
                             </Button>
@@ -336,6 +348,7 @@
                             <ComboBox MinWidth="90"
                                       MaxHeight="24"
                                       Padding="8,2"
+                                      Margin="0,4,0,0"
                                       ItemsSource="{Binding SongSettings.KeyOptions}"
                                       SelectedItem="{Binding SongSettings.SelectedKeyOption}"
                                       DisplayMemberPath="Display"/>
@@ -350,6 +363,7 @@
                             <ComboBox MinWidth="70"
                                       MaxHeight="24"
                                       Padding="8,2"
+                                      Margin="0,4,0,0"
                                       ItemsSource="{Binding SongSettings.SpeedOptions}"
                                       SelectedItem="{Binding SongSettings.SelectedSpeedOption}"
                                       DisplayMemberPath="Display"/>
@@ -364,6 +378,7 @@
                             <ComboBox MinWidth="80"
                                       MaxHeight="24"
                                       Padding="8,2"
+                                      Margin="0,4,0,0"
                                       ItemsSource="{x:Static services:SongSettingsService.TransposeNames}"
                                       SelectedItem="{Binding SongSettings.Transpose}"
                                       DisplayMemberPath="Value"/>

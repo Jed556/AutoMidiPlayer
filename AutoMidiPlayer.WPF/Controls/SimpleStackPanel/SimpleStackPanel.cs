@@ -21,14 +21,23 @@ public class SimpleStackPanel : StackPanel
     protected override Size MeasureOverride(Size constraint)
     {
         var size = base.MeasureOverride(constraint);
-        var count = InternalChildren.Count;
-
-        if (count > 1 && Spacing > 0)
+        if (Spacing > 0)
         {
-            if (Orientation == Orientation.Horizontal)
-                size.Width += Spacing * (count - 1);
-            else
-                size.Height += Spacing * (count - 1);
+            var visibleCount = 0;
+
+            foreach (UIElement child in InternalChildren)
+            {
+                if (child == null || child.Visibility == Visibility.Collapsed) continue;
+                visibleCount++;
+            }
+
+            if (visibleCount > 1)
+            {
+                if (Orientation == Orientation.Horizontal)
+                    size.Width += Spacing * (visibleCount - 1);
+                else
+                    size.Height += Spacing * (visibleCount - 1);
+            }
         }
 
         return size;
@@ -44,6 +53,11 @@ public class SimpleStackPanel : StackPanel
             foreach (UIElement child in children)
             {
                 if (child == null) continue;
+                if (child.Visibility == Visibility.Collapsed)
+                {
+                    child.Arrange(new Rect(0, 0, 0, 0));
+                    continue;
+                }
                 var desired = child.DesiredSize;
                 child.Arrange(new Rect(offset, 0, desired.Width, Math.Max(arrangeSize.Height, desired.Height)));
                 offset += desired.Width + Spacing;
@@ -54,6 +68,11 @@ public class SimpleStackPanel : StackPanel
             foreach (UIElement child in children)
             {
                 if (child == null) continue;
+                if (child.Visibility == Visibility.Collapsed)
+                {
+                    child.Arrange(new Rect(0, 0, 0, 0));
+                    continue;
+                }
                 var desired = child.DesiredSize;
                 child.Arrange(new Rect(0, offset, Math.Max(arrangeSize.Width, desired.Width), desired.Height));
                 offset += desired.Height + Spacing;

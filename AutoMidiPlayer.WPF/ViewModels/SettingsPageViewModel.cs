@@ -207,6 +207,16 @@ public class SettingsPageViewModel : Screen
                 SetOrUpdateResource("SystemAccentColorPrimaryBrush", accentBrush);
                 SetOrUpdateResource("SystemAccentColorSecondaryBrush", light1Brush);
                 SetOrUpdateResource("SystemAccentColorTertiaryBrush", light2Brush);
+
+                // Force full theme re-apply so NavigationView, drawers, and all views refresh
+                ApplicationThemeManager.Apply(currentTheme, WindowBackdropType.Mica, false);
+
+                // Re-apply accent after theme refresh to ensure our custom colors persist
+                ApplicationAccentColorManager.Apply(color, currentTheme, true);
+                SetOrUpdateResource("SystemAccentColorPrimary", color);
+                SetOrUpdateResource("SystemAccentColorPrimaryBrush", accentBrush);
+                SetOrUpdateResource("SystemAccentColorSecondaryBrush", light1Brush);
+                SetOrUpdateResource("SystemAccentColorTertiaryBrush", light2Brush);
             }));
 
         // Notify other components that accent color changed
@@ -534,6 +544,14 @@ public class SettingsPageViewModel : Screen
         MidiFolder = string.Empty;
         Settings.MidiFolder = string.Empty;
         Settings.Save();
+    }
+
+    public void OpenMidiFolder()
+    {
+        if (string.IsNullOrWhiteSpace(MidiFolder) || !Directory.Exists(MidiFolder))
+            return;
+
+        System.Diagnostics.Process.Start("explorer.exe", MidiFolder);
     }
 
     public void OpenDataFolder()

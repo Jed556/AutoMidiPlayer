@@ -40,14 +40,14 @@
                             Icon="Search12"
                             VerticalAlignment="Center"/>
                 <Button Command="{s:Action OpenFile}"
-                        Background="Transparent"
+                        Style="{DynamicResource GhostIconButton}"
                         Padding="8"
                         ToolTip="Import MIDI files">
                     <Path Data="{StaticResource AddIconGeometry}"
                           Fill="{DynamicResource TextFillColorPrimaryBrush}"
                           Stretch="Uniform"
                           Width="16"
-                            Height="16"/>
+                          Height="16"/>
                 </Button>
                 <Button Command="{s:Action ShowMissingFilesDialog}"
                         Background="Transparent"
@@ -82,7 +82,7 @@
 
                 <!-- Sort Direction Toggle -->
                 <Button Command="{s:Action ToggleSortDirection}"
-                        Background="Transparent"
+                        Style="{DynamicResource GhostIconButton}"
                         Padding="8,6"
                         ToolTip="Toggle sort direction">
                     <ui:FontIcon Glyph="{Binding SortDirectionIcon}"
@@ -94,15 +94,15 @@
 
         <!-- Track List -->
         <controls:TrackListControl x:Name="TrackList"
-                                    Grid.Row="1"
-                                    ItemsSource="{Binding SortedTracks}"
-                                    SelectedItem="{Binding SelectedFile, Mode=TwoWay}"
-                                    OpenedFile="{Binding QueueView.OpenedFile}"
-                                    IsPlaying="{Binding Playback.IsPlaying}"
-                                    AllowReorder="True"
-                                    ItemDoubleClick="TrackList_ItemDoubleClick"
-                                    PlayPauseClick="TrackList_PlayPauseClick"
-                                    MenuClick="TrackList_MenuClick">
+                                   Grid.Row="1"
+                                   ItemsSource="{Binding SortedTracks}"
+                                   SelectedItem="{Binding SelectedFile, Mode=TwoWay}"
+                                   OpenedFile="{Binding QueueView.OpenedFile}"
+                                   IsPlaying="{Binding Playback.IsPlaying}"
+                                   AllowReorder="True"
+                                   ItemDoubleClick="TrackList_ItemDoubleClick"
+                                   PlayPauseClick="TrackList_PlayPauseClick"
+                                   MenuClick="TrackList_MenuClick">
             <controls:TrackListControl.ItemContextMenu>
                 <ContextMenu>
                     <MenuItem Header="Add to Queue"

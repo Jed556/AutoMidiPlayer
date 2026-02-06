@@ -93,7 +93,7 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
 
     public SolidColorBrush ShuffleStateColor => Shuffle
         ? new SolidColorBrush(AccentColorHelper.GetAccentColor())
-        : Brushes.Gray;
+        : (SolidColorBrush)Application.Current.FindResource("TextFillColorTertiaryBrush");
 
     public Stack<MidiFile> History { get; } = new();
 
@@ -125,7 +125,7 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
     public SolidColorBrush LoopStateColor =>
         Loop switch
         {
-            LoopMode.Off => Brushes.Gray,
+            LoopMode.Off => (SolidColorBrush)Application.Current.FindResource("TextFillColorTertiaryBrush"),
             _ => new SolidColorBrush(AccentColorHelper.GetAccentColor())
         };
 

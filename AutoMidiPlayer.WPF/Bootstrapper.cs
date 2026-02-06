@@ -13,6 +13,7 @@ using Windows.Storage;
 using Windows.Storage.Streams;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Properties;
+using AutoMidiPlayer.WPF.Errors;
 using AutoMidiPlayer.WPF.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using Stylet;
@@ -53,17 +54,19 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         CrashLogger.Log("=== DISPATCHER UNHANDLED EXCEPTION ===");
         CrashLogger.LogException(e.Exception);
 
-        // Show modern WPF-UI message box with log path
-        var messageBox = new Wpf.Ui.Controls.MessageBox
+        try
         {
-            Title = "AutoMidiPlayer Error",
-            Content = $"An error occurred. Log saved to:\n{CrashLogger.GetLogPath()}\n\nError: {e.Exception.Message}",
-            CloseButtonText = "OK",
-            CloseButtonAppearance = ControlAppearance.Primary
-        };
-
-        // Run the async dialog synchronously to block and show the error
-        _ = messageBox.ShowDialogAsync();
+            CrashMessageBox.Show(e.Exception, CrashLogger.GetLogPath());
+        }
+        catch
+        {
+            // Fallback if the themed dialog itself fails
+            System.Windows.MessageBox.Show(
+                $"An error occurred. Log saved to:\n{CrashLogger.GetLogPath()}\n\nError: {e.Exception.Message}",
+                "AutoMidiPlayer Error",
+                System.Windows.MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
     }
 
     private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)

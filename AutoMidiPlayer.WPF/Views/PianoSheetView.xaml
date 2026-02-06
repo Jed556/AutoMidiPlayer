@@ -21,13 +21,15 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <controls:SimpleStackPanel Grid.Row="0">
-            <controls:SimpleStackPanel Orientation="Horizontal">
+            <controls:SimpleStackPanel Orientation="Horizontal"
+                                       VerticalAlignment="Top"
+                                       Spacing="12">
                 <GroupBox Header="Delimiter">
-                    <TextBox Text="{Binding Delimiter, UpdateSourceTrigger=PropertyChanged}"/>
+                    <TextBox Text="{Binding Delimiter, UpdateSourceTrigger=PropertyChanged}"
+                             MinWidth="80"/>
                 </GroupBox>
 
                 <GroupBox Header="Layout">
@@ -35,49 +37,66 @@
                         ItemsSource="{x:Static core:Keyboard.LayoutNames}"
                         SelectedItem="{Binding SelectedLayout}"
                         SelectedIndex="{Binding Default.SelectedLayout, Source={StaticResource Settings}}"
-                        DisplayMemberPath="Value"/>
+                        DisplayMemberPath="Value"
+                        MinWidth="150"/>
                 </GroupBox>
-            </controls:SimpleStackPanel>
 
-            <controls:SimpleStackPanel Orientation="Horizontal">
-                <GroupBox Header="Split Size">
-                    <controls:SimpleStackPanel Orientation="Horizontal">
-                        <ui:NumberBox PlaceholderText="Bars"
-                                      Value="{Binding Bars}"/>
-                        <ui:NumberBox PlaceholderText="Beats"
-                                      Value="{Binding Beats}"/>
-                        <ui:NumberBox PlaceholderText="Shorten every"
-                                      ToolTip="This will divide the delimiter by this number"
-                                      Minimum="1"
-                                      Value="{Binding Shorten}"/>
+                <!-- Split Size column with header on top and inputs below -->
+                <StackPanel>
+                    <TextBlock Text="Split Size"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Top"
+                               Margin="0,0,0,6"/>
+                    <controls:SimpleStackPanel Orientation="Horizontal"
+                                               Spacing="8">
+                        <GroupBox Header="Bars">
+                            <ui:NumberBox Value="{Binding Bars}"
+                                          MinWidth="80"/>
+                        </GroupBox>
+                        <GroupBox Header="Beats">
+                            <ui:NumberBox Value="{Binding Beats}"
+                                          MinWidth="80"/>
+                        </GroupBox>
+                        <GroupBox Header="Shorten every">
+                            <ui:NumberBox Value="{Binding Shorten}"
+                                          ToolTip="This will divide the delimiter by this number"
+                                          Minimum="1"
+                                          MinWidth="80"/>
+                        </GroupBox>
                     </controls:SimpleStackPanel>
-                </GroupBox>
+                </StackPanel>
             </controls:SimpleStackPanel>
         </controls:SimpleStackPanel>
 
-        <TextBox Grid.Row="1"
-                 Text="{Binding Result, Mode=OneWay}"
-                 IsReadOnly="True"
-                 Margin="0,10"/>
-
-        <controls:SimpleStackPanel Grid.Row="2"
-                                   Orientation="Horizontal"
-                                   Spacing="8">
-            <Button Command="{s:Action CopyToClipboard}"
-                    ToolTip="Copy to clipboard">
-                <controls:SimpleStackPanel Orientation="Horizontal"
-                                           Spacing="6">
-                    <Path Data="{StaticResource CopyIconGeometry}"
-                          Fill="{DynamicResource TextFillColorPrimaryBrush}"
-                          Stretch="Uniform"
-                          Width="14"
-                          Height="14"/>
-                    <TextBlock Text="Copy"
-                               VerticalAlignment="Center"/>
-                </controls:SimpleStackPanel>
-            </Button>
-            <Button Content="Refresh"
-                    Command="{s:Action Update}"/>
-        </controls:SimpleStackPanel>
+        <Grid Grid.Row="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <controls:SimpleStackPanel Grid.Row="0"
+                                       Orientation="Horizontal"
+                                       Spacing="8"
+                                       Margin="0,8,0,4">
+                <Button Command="{s:Action CopyToClipboard}"
+                        ToolTip="Copy to clipboard">
+                    <controls:SimpleStackPanel Orientation="Horizontal"
+                                               Spacing="6">
+                        <Path Data="{StaticResource CopyIconGeometry}"
+                              Fill="{DynamicResource TextFillColorPrimaryBrush}"
+                              Stretch="Uniform"
+                              Width="14"
+                              Height="14"/>
+                        <TextBlock Text="Copy"
+                                   VerticalAlignment="Center"/>
+                    </controls:SimpleStackPanel>
+                </Button>
+                <Button Content="Refresh"
+                        Command="{s:Action Update}"/>
+            </controls:SimpleStackPanel>
+            <TextBox Grid.Row="1"
+                     Text="{Binding Result, Mode=OneWay}"
+                     IsReadOnly="True"
+                     Margin="0,0,0,10"/>
+        </Grid>
     </Grid>
 </UserControl>

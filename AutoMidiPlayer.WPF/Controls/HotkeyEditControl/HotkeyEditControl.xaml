@@ -5,35 +5,85 @@
              xmlns:s="https://github.com/canton7/Stylet"
              xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
              x:Name="HotkeyControl">
+
     <UserControl.Resources>
-        <!-- Ghost button style: transparent bg, faded icon, white on hover -->
-        <Style x:Key="GhostIconButton"
-                TargetType="Button">
-            <Setter Property="Background"
-                    Value="Transparent"/>
-            <Setter Property="BorderThickness"
-                    Value="0"/>
-            <Setter Property="Padding"
-                    Value="6"/>
-            <Setter Property="Opacity"
-                    Value="0.4"/>
-            <Setter Property="Cursor"
-                    Value="Hand"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver"
-                        Value="True">
-                    <Setter Property="Opacity"
-                            Value="1"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
+        <DataTemplate x:Key="HotkeyChipTemplate">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text=" + "
+                           VerticalAlignment="Center"
+                           Opacity="0.5"
+                           Margin="0"
+                           Visibility="{Binding IsFirst, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}"/>
+                <Grid>
+                    <!-- Glow overlay behind the chip, same size -->
+                    <Border x:Name="GlowBorder"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            BorderBrush="{DynamicResource SystemAccentColorPrimaryBrush}"
+                            Opacity="0"
+                            IsHitTestVisible="False">
+                        <Border.Effect>
+                            <DropShadowEffect
+                                Color="{DynamicResource SystemAccentColor}"
+                                BlurRadius="20"
+                                ShadowDepth="0"
+                                Opacity="1"/>
+                        </Border.Effect>
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsGlowActive, ElementName=HotkeyControl}"
+                                                 Value="True">
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation
+                                                        Storyboard.TargetProperty="Opacity"
+                                                        To="1"
+                                                        Duration="0:0:0.05"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                        <DataTrigger.ExitActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation
+                                                        Storyboard.TargetProperty="Opacity"
+                                                        To="0"
+                                                        Duration="0:0:0.4"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.ExitActions>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
+                    <!-- Chip content -->
+                    <Border Background="{DynamicResource ControlFillColorDefaultBrush}"
+                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="8,2">
+                        <TextBlock Text="{Binding Text}"
+                                   VerticalAlignment="Center"
+                                   FontSize="12"/>
+                    </Border>
+                </Grid>
+            </StackPanel>
+        </DataTemplate>
     </UserControl.Resources>
+
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="120"/>
-            <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="Auto"/>
-            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="Auto"
+                              MinWidth="120"
+                              SharedSizeGroup="HotkeyLabel"/>
+            <ColumnDefinition Width="Auto"
+                              MinWidth="120"
+                              SharedSizeGroup="HotkeyChips"/>
+            <ColumnDefinition Width="Auto"
+                              SharedSizeGroup="HotkeyActions"/>
         </Grid.ColumnDefinitions>
 
         <!-- Action Name -->
@@ -42,92 +92,75 @@
                    VerticalAlignment="Center"
                    FontWeight="Medium"/>
 
-        <!-- Hotkey Display / Edit Box -->
+        <!-- Hotkey Display -->
         <StackPanel Grid.Column="1"
                     Orientation="Horizontal"
                     VerticalAlignment="Center"
-                    Margin="8,0"
+                    Margin="4,0"
+                    MinHeight="24"
                     Visibility="{Binding IsNotEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-            <ItemsControl ItemsSource="{Binding HotkeyBinding.DisplayParts, ElementName=HotkeyControl}">
+            <ItemsControl ItemsSource="{Binding HotkeyBinding.DisplayParts, ElementName=HotkeyControl}"
+                          ItemTemplate="{StaticResource HotkeyChipTemplate}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <StackPanel Orientation="Horizontal"/>
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <StackPanel Orientation="Horizontal">
-                            <!-- Separator "+" between chips -->
-                            <TextBlock Text=" + "
-                                       VerticalAlignment="Center"
-                                       Opacity="0.5"
-                                       Margin="0"
-                                       Visibility="{Binding IsFirst, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}"/>
-                            <!-- Key chip -->
-                            <Border Background="{DynamicResource ControlFillColorDefaultBrush}"
-                                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="4"
-                                    Padding="8,2">
-                                <TextBlock Text="{Binding Text}"
-                                           VerticalAlignment="Center"
-                                           FontSize="12"/>
-                            </Border>
-                        </StackPanel>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
             </ItemsControl>
         </StackPanel>
 
         <!-- Edit mode overlay -->
         <Border Grid.Column="1"
                 x:Name="EditBorder"
-                Background="{DynamicResource ControlFillColorInputActiveBrush}"
-                BorderBrush="{DynamicResource AccentFillColorDefaultBrush}"
-                BorderThickness="2"
-                CornerRadius="4"
-                Padding="8,4"
-                Margin="8,0"
-                MinWidth="150"
+                Background="Transparent"
+                BorderThickness="0"
+                Padding="0"
+                Margin="4,0"
+                MinHeight="24"
+                VerticalAlignment="Center"
                 Visibility="{Binding IsEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
                 Focusable="True"
                 KeyDown="EditBorder_KeyDown"
                 PreviewKeyDown="EditBorder_PreviewKeyDown">
-            <TextBlock Text="Press keys..."
-                       VerticalAlignment="Center"
-                       HorizontalAlignment="Center"
-                       Opacity="0.6"
-                       FontStyle="Italic"/>
+            <ItemsControl ItemsSource="{Binding EditingParts, ElementName=HotkeyControl}"
+                          ItemTemplate="{StaticResource HotkeyChipTemplate}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
         </Border>
 
-        <!-- Edit Button -->
-        <Button Grid.Column="2"
-                Click="EditButton_Click"
-                Style="{StaticResource GhostIconButton}"
-                ToolTip="Edit hotkey"
-                Visibility="{Binding IsNotEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-            <ui:SymbolIcon Symbol="Edit16"/>
-        </Button>
-
-        <!-- Cancel during edit -->
+        <!-- Action buttons row -->
         <StackPanel Grid.Column="2"
                     Orientation="Horizontal"
-                    Visibility="{Binding IsEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                    Margin="8,0,0,0"
+                    VerticalAlignment="Center">
+            <!-- Edit / Cancel -->
+            <Button Click="EditButton_Click"
+                    Style="{DynamicResource GhostIconButton}"
+                    Padding="4"
+                    ToolTip="Edit hotkey"
+                    Visibility="{Binding IsNotEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                <ui:SymbolIcon Symbol="Edit16"/>
+            </Button>
             <Button Click="CancelEdit_Click"
-                    Style="{StaticResource GhostIconButton}"
-                    ToolTip="Cancel (Esc)">
+                    Style="{DynamicResource GhostIconButton}"
+                    Padding="4"
+                    ToolTip="Cancel (Esc)"
+                    Visibility="{Binding IsEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
                 <ui:SymbolIcon Symbol="Dismiss16"/>
             </Button>
-        </StackPanel>
 
-        <!-- Clear Button -->
-        <Button Grid.Column="3"
-                Click="ClearButton_Click"
-                Style="{StaticResource GhostIconButton}"
-                Margin="4,0,0,0"
-                ToolTip="Clear hotkey"
-                Visibility="{Binding IsNotEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-            <ui:SymbolIcon Symbol="Delete16"/>
-        </Button>
+            <!-- Clear -->
+            <Button Click="ClearButton_Click"
+                    Style="{DynamicResource GhostIconButton}"
+                    Padding="4"
+                    ToolTip="Clear hotkey"
+                    Visibility="{Binding IsNotEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                <ui:SymbolIcon Symbol="Delete16"/>
+            </Button>
+        </StackPanel>
     </Grid>
 </UserControl>

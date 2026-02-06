@@ -254,13 +254,15 @@
                                         Width="40"
                                         Height="40"
                                         CornerRadius="4"
-                                        Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}"
+                                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                        BorderThickness="1"
                                         Margin="0,0,12,0"
                                         VerticalAlignment="Center">
                                     <ui:FontIcon Glyph="&#xE8D6;"
                                                  FontFamily="{StaticResource MdlFontFamily}"
                                                  FontSize="18"
-                                                 Opacity="0.5"
+                                                 Opacity="0.4"
                                                  HorizontalAlignment="Center"
                                                  VerticalAlignment="Center"/>
                                 </Border>

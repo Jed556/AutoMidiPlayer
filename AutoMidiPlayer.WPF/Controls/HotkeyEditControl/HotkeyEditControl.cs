@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -26,6 +27,18 @@ public partial class HotkeyEditControl : UserControl
         typeof(HotkeyEditControl),
         new PropertyMetadata(true));
 
+    public static readonly DependencyProperty EditingPartsProperty = DependencyProperty.Register(
+        nameof(EditingParts),
+        typeof(List<HotkeyPart>),
+        typeof(HotkeyEditControl),
+        new PropertyMetadata(new List<HotkeyPart>()));
+
+    public static readonly DependencyProperty IsGlowActiveProperty = DependencyProperty.Register(
+        nameof(IsGlowActive),
+        typeof(bool),
+        typeof(HotkeyEditControl),
+        new PropertyMetadata(false));
+
     public HotkeyBinding? HotkeyBinding
     {
         get => (HotkeyBinding?)GetValue(HotkeyBindingProperty);
@@ -44,6 +57,18 @@ public partial class HotkeyEditControl : UserControl
         set => SetValue(IsNotEditingProperty, value);
     }
 
+    public List<HotkeyPart> EditingParts
+    {
+        get => (List<HotkeyPart>)GetValue(EditingPartsProperty);
+        set => SetValue(EditingPartsProperty, value);
+    }
+
+    public bool IsGlowActive
+    {
+        get => (bool)GetValue(IsGlowActiveProperty);
+        set => SetValue(IsGlowActiveProperty, value);
+    }
+
     public event EventHandler<HotkeyChangedEventArgs>? HotkeyChanged;
     public event EventHandler<string>? HotkeyCleared;
     public event EventHandler? EditStarted;
@@ -51,10 +76,19 @@ public partial class HotkeyEditControl : UserControl
 
     private Key _pendingKey = Key.None;
     private ModifierKeys _pendingModifiers = ModifierKeys.None;
+    private readonly System.Windows.Threading.DispatcherTimer _glowTimer = new()
+    {
+        Interval = TimeSpan.FromMilliseconds(500)
+    };
 
     public HotkeyEditControl()
     {
         InitializeComponent();
+        _glowTimer.Tick += (_, _) =>
+        {
+            _glowTimer.Stop();
+            IsGlowActive = false;
+        };
     }
 
     private static void OnIsEditingChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -79,6 +113,8 @@ public partial class HotkeyEditControl : UserControl
     {
         _pendingKey = Key.None;
         _pendingModifiers = ModifierKeys.None;
+        EditingParts = HotkeyBinding?.DisplayParts ?? new List<HotkeyPart> { new("Not Set", true) };
+        IsGlowActive = false;
         EditStarted?.Invoke(this, EventArgs.Empty);
         IsEditing = true;
     }
@@ -117,6 +153,7 @@ public partial class HotkeyEditControl : UserControl
             key == Key.LeftShift || key == Key.RightShift ||
             key == Key.LWin || key == Key.RWin)
         {
+            EditingParts = BuildEditingParts(Keyboard.Modifiers, Key.None);
             return;
         }
 
@@ -133,12 +170,15 @@ public partial class HotkeyEditControl : UserControl
         _pendingKey = key;
         _pendingModifiers = modifiers;
 
+        EditingParts = BuildEditingParts(modifiers, key);
+
         // Apply the hotkey
         if (HotkeyBinding != null)
         {
             HotkeyChanged?.Invoke(this, new HotkeyChangedEventArgs(HotkeyBinding.Name, key, modifiers));
         }
 
+        TriggerGlow();
         IsEditing = false;
         EditEnded?.Invoke(this, EventArgs.Empty);
     }
@@ -152,6 +192,36 @@ public partial class HotkeyEditControl : UserControl
     private static bool IsFunctionKey(Key key)
     {
         return key >= Key.F1 && key <= Key.F24;
+    }
+
+    private static List<HotkeyPart> BuildEditingParts(ModifierKeys modifiers, Key key)
+    {
+        var parts = new List<HotkeyPart>();
+
+        if (modifiers.HasFlag(ModifierKeys.Control)) parts.Add(new HotkeyPart("Ctrl", parts.Count == 0));
+        if (modifiers.HasFlag(ModifierKeys.Alt)) parts.Add(new HotkeyPart("Alt", parts.Count == 0));
+        if (modifiers.HasFlag(ModifierKeys.Shift)) parts.Add(new HotkeyPart("Shift", parts.Count == 0));
+        if (modifiers.HasFlag(ModifierKeys.Windows)) parts.Add(new HotkeyPart("Win", parts.Count == 0));
+
+        if (key != Key.None)
+        {
+            var text = HotkeyBinding.GetKeyDisplayName(key);
+            parts.Add(new HotkeyPart(text, parts.Count == 0));
+        }
+
+        if (parts.Count == 0)
+        {
+            parts.Add(new HotkeyPart("Not Set", true));
+        }
+
+        return parts;
+    }
+
+    private void TriggerGlow()
+    {
+        IsGlowActive = true;
+        _glowTimer.Stop();
+        _glowTimer.Start();
     }
 }
 

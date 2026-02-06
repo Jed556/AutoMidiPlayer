@@ -18,294 +18,299 @@
     </UserControl.Resources>
 
     <ScrollViewer>
-        <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
+        <controls:SimpleStackPanel>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
 
-            <!-- Left Column -->
-            <controls:SimpleStackPanel Grid.Column="0"
-                                       Margin="0,0,10,0">
+                <!-- Left Column -->
+                <controls:SimpleStackPanel Grid.Column="0"
+                                           Margin="0,0,10,0">
 
-                <!-- Player Section -->
-                <TextBlock Text="Player"
-                           FontSize="20"
-                           FontWeight="SemiBold"
-                           Margin="0,0,0,8"/>
+                    <!-- Player Section -->
+                    <TextBlock Text="Player"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,8"/>
 
-                <ui:ToggleSwitch
-                    Content="Use Direct Input (recommended)"
-                    IsChecked="{Binding UseDirectInput}"
-                    ToolTip="Uses Win32 SendInput for better game compatibility. Disable only if experiencing issues."/>
+                    <ui:ToggleSwitch
+                        Content="Use Direct Input (recommended)"
+                        IsChecked="{Binding UseDirectInput}"
+                        ToolTip="Uses Win32 SendInput for better game compatibility. Disable only if experiencing issues."/>
 
-                <TextBlock Text="Direct Input uses low-level Windows API for better compatibility with games. Disable this if notes are not being detected correctly."
-                           TextWrapping="Wrap"
-                           Opacity="0.6"
-                           FontSize="12"
-                           Margin="0,8,0,0"/>
+                    <TextBlock Text="Direct Input uses low-level Windows API for better compatibility with games. Disable this if notes are not being detected correctly."
+                               TextWrapping="Wrap"
+                               Opacity="0.6"
+                               FontSize="12"
+                               Margin="0,8,0,0"/>
 
-                <!-- Keybinds Section -->
-                <TextBlock Text="Keybinds"
-                           FontSize="20"
-                           FontWeight="SemiBold"
-                           Margin="0,16,0,8"/>
+                    <!-- Keybinds Section -->
+                    <TextBlock Text="Keybinds"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Margin="0,16,0,8"/>
 
-                <controls:SimpleStackPanel Orientation="Horizontal"
-                                           Spacing="8">
-                    <ui:ToggleSwitch Content="Enable global hotkeys"
-                                     IsChecked="{Binding HotkeysEnabled}"
-                                     ToolTip="When enabled, hotkeys work even when the app is not focused"/>
-                    <Button Command="{s:Action ResetHotkeys}"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Padding="6"
-                            Opacity="0.4"
-                            ToolTip="Reset all hotkeys to defaults"
-                            Visibility="{Binding HotkeysEnabled, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                        <Button.Style>
-                            <Style TargetType="Button">
-                                <Setter Property="Opacity"
-                                        Value="0.4"/>
-                                <Style.Triggers>
-                                    <Trigger Property="IsMouseOver"
-                                             Value="True">
-                                        <Setter Property="Opacity"
-                                                Value="1"/>
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                        <ui:SymbolIcon Symbol="ArrowReset24"/>
-                    </Button>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <ui:ToggleSwitch Grid.Column="0"
+                                         Content="Enable global hotkeys"
+                                         IsChecked="{Binding HotkeysEnabled}"
+                                         ToolTip="When enabled, hotkeys work even when the app is not focused"/>
+                        <Button Grid.Column="2"
+                                Command="{s:Action ResetHotkeys}"
+                                Style="{DynamicResource GhostIconButton}"
+                                ToolTip="Reset all hotkeys to defaults"
+                                Visibility="{Binding HotkeysEnabled, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                            <ui:SymbolIcon Symbol="ArrowClockwise24"
+                                           FontSize="18"/>
+                        </Button>
+                    </Grid>
+
+                    <TextBlock Text="Global hotkeys work even when the app is not in focus. Requires at least one modifier key (Ctrl, Alt, Shift)."
+                               TextWrapping="Wrap"
+                               Opacity="0.6"
+                               FontSize="12"
+                               Margin="0,4,0,8"/>
+
+                    <controls:SimpleStackPanel Spacing="8"
+                                               Grid.IsSharedSizeScope="True"
+                                               Visibility="{Binding HotkeysEnabled, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                        <controls:HotkeyEditControl
+                            HotkeyBinding="{Binding PlayPauseHotkey}"
+                            HotkeyChanged="OnHotkeyChanged"
+                            HotkeyCleared="OnHotkeyCleared"
+                            EditStarted="OnHotkeyEditStarted"
+                            EditEnded="OnHotkeyEditEnded"/>
+                        <controls:HotkeyEditControl
+                            HotkeyBinding="{Binding NextHotkey}"
+                            HotkeyChanged="OnHotkeyChanged"
+                            HotkeyCleared="OnHotkeyCleared"
+                            EditStarted="OnHotkeyEditStarted"
+                            EditEnded="OnHotkeyEditEnded"/>
+                        <controls:HotkeyEditControl
+                            HotkeyBinding="{Binding PreviousHotkey}"
+                            HotkeyChanged="OnHotkeyChanged"
+                            HotkeyCleared="OnHotkeyCleared"
+                            EditStarted="OnHotkeyEditStarted"
+                            EditEnded="OnHotkeyEditEnded"/>
+                        <controls:HotkeyEditControl
+                            HotkeyBinding="{Binding SpeedUpHotkey}"
+                            HotkeyChanged="OnHotkeyChanged"
+                            HotkeyCleared="OnHotkeyCleared"
+                            EditStarted="OnHotkeyEditStarted"
+                            EditEnded="OnHotkeyEditEnded"/>
+                        <controls:HotkeyEditControl
+                            HotkeyBinding="{Binding SpeedDownHotkey}"
+                            HotkeyChanged="OnHotkeyChanged"
+                            HotkeyCleared="OnHotkeyCleared"
+                            EditStarted="OnHotkeyEditStarted"
+                            EditEnded="OnHotkeyEditEnded"/>
+                        <controls:HotkeyEditControl
+                            HotkeyBinding="{Binding PanicHotkey}"
+                            HotkeyChanged="OnHotkeyChanged"
+                            HotkeyCleared="OnHotkeyCleared"
+                            EditStarted="OnHotkeyEditStarted"
+                            EditEnded="OnHotkeyEditEnded"/>
+                    </controls:SimpleStackPanel>
+
+                    <!-- Locations Section -->
+                    <TextBlock Text="Locations"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Margin="0,16,0,8"/>
+
+                    <GroupBox Header="Game Location">
+                        <controls:SimpleStackPanel Orientation="Horizontal">
+                            <Button Command="{s:Action SetLocation}"
+                                    Style="{DynamicResource GhostIconButton}">
+                                <ui:SymbolIcon Symbol="AppsAddIn16"
+                                               FontSize="18"/>
+                            </Button>
+                            <TextBlock Text="{x:Static viewModels:SettingsPageViewModel.GenshinLocation}"
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </controls:SimpleStackPanel>
+                    </GroupBox>
+
+                    <GroupBox Header="MIDI Folder">
+                        <controls:SimpleStackPanel Orientation="Horizontal">
+                            <Button Command="{s:Action BrowseMidiFolder}"
+                                    Style="{DynamicResource GhostIconButton}"
+                                    ToolTip="Browse for MIDI folder"
+                                    Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}">
+                                <ui:SymbolIcon Symbol="FolderAdd16"
+                                               FontSize="18"/>
+                            </Button>
+                            <Button Command="{s:Action OpenMidiFolder}"
+                                    Style="{DynamicResource GhostIconButton}"
+                                    ToolTip="Open MIDI folder in Explorer"
+                                    Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                <ui:SymbolIcon Symbol="FolderOpen16"
+                                               FontSize="18"/>
+                            </Button>
+                            <TextBlock Text="{Binding MidiFolder, TargetNullValue='No folder selected'}"
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis"
+                                       MaxWidth="200"/>
+                            <Button Command="{s:Action ScanMidiFolder}"
+                                    Style="{DynamicResource GhostIconButton}"
+                                    ToolTip="Refresh/Scan folder for new MIDI files"
+                                    Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                <ui:SymbolIcon Symbol="ArrowClockwise24"
+                                               FontSize="18"/>
+                            </Button>
+                            <Button Command="{s:Action ClearMidiFolder}"
+                                    Style="{DynamicResource GhostIconButton}"
+                                    ToolTip="Clear MIDI folder"
+                                    Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                <ui:SymbolIcon Symbol="Delete16"
+                                               FontSize="18"/>
+                            </Button>
+                        </controls:SimpleStackPanel>
+                    </GroupBox>
+
+                    <GroupBox Header="Data Location">
+                        <controls:SimpleStackPanel Orientation="Horizontal">
+                            <Button Command="{s:Action OpenDataFolder}"
+                                    Style="{DynamicResource GhostIconButton}"
+                                    ToolTip="Open data folder in Explorer">
+                                <ui:FontIcon Glyph="&#xE838;"
+                                             FontFamily="{StaticResource MdlFontFamily}"
+                                             FontSize="18"/>
+                            </Button>
+                            <TextBlock Text="{x:Static viewModels:SettingsPageViewModel.DataLocation}"
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       ToolTip="{x:Static viewModels:SettingsPageViewModel.DataLocation}"/>
+                        </controls:SimpleStackPanel>
+                    </GroupBox>
+
                 </controls:SimpleStackPanel>
 
-                <TextBlock Text="Global hotkeys work even when the app is not in focus. Requires at least one modifier key (Ctrl, Alt, Shift)."
-                           TextWrapping="Wrap"
-                           Opacity="0.6"
-                           FontSize="12"
-                           Margin="0,4,0,8"/>
+                <!-- Right Column -->
+                <controls:SimpleStackPanel Grid.Column="1"
+                                           Margin="10,0,0,0">
 
-                <controls:SimpleStackPanel Spacing="8"
-                                           Visibility="{Binding HotkeysEnabled, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                    <controls:HotkeyEditControl
-                        HotkeyBinding="{Binding PlayPauseHotkey}"
-                        HotkeyChanged="OnHotkeyChanged"
-                        HotkeyCleared="OnHotkeyCleared"
-                        EditStarted="OnHotkeyEditStarted"
-                        EditEnded="OnHotkeyEditEnded"/>
-                    <controls:HotkeyEditControl
-                        HotkeyBinding="{Binding NextHotkey}"
-                        HotkeyChanged="OnHotkeyChanged"
-                        HotkeyCleared="OnHotkeyCleared"
-                        EditStarted="OnHotkeyEditStarted"
-                        EditEnded="OnHotkeyEditEnded"/>
-                    <controls:HotkeyEditControl
-                        HotkeyBinding="{Binding PreviousHotkey}"
-                        HotkeyChanged="OnHotkeyChanged"
-                        HotkeyCleared="OnHotkeyCleared"
-                        EditStarted="OnHotkeyEditStarted"
-                        EditEnded="OnHotkeyEditEnded"/>
-                    <controls:HotkeyEditControl
-                        HotkeyBinding="{Binding SpeedUpHotkey}"
-                        HotkeyChanged="OnHotkeyChanged"
-                        HotkeyCleared="OnHotkeyCleared"
-                        EditStarted="OnHotkeyEditStarted"
-                        EditEnded="OnHotkeyEditEnded"/>
-                    <controls:HotkeyEditControl
-                        HotkeyBinding="{Binding SpeedDownHotkey}"
-                        HotkeyChanged="OnHotkeyChanged"
-                        HotkeyCleared="OnHotkeyCleared"
-                        EditStarted="OnHotkeyEditStarted"
-                        EditEnded="OnHotkeyEditEnded"/>
-                    <controls:HotkeyEditControl
-                        HotkeyBinding="{Binding PanicHotkey}"
-                        HotkeyChanged="OnHotkeyChanged"
-                        HotkeyCleared="OnHotkeyCleared"
-                        EditStarted="OnHotkeyEditStarted"
-                        EditEnded="OnHotkeyEditEnded"/>
-                </controls:SimpleStackPanel>
+                    <!-- Version Section -->
+                    <TextBlock Text="Version"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,8"/>
 
-                <!-- Locations Section -->
-                <TextBlock Text="Locations"
-                           FontSize="20"
-                           FontWeight="SemiBold"
-                           Margin="0,16,0,8"/>
-
-                <GroupBox Header="Game Location">
-                    <controls:SimpleStackPanel Orientation="Horizontal">
-                        <Button Command="{s:Action SetLocation}"
-                                Background="Transparent">
-                            <ui:FontIcon Glyph="&#xE8E5;"
-                                         FontFamily="{StaticResource MdlFontFamily}"/>
-                        </Button>
-                        <TextBlock Text="{x:Static viewModels:SettingsPageViewModel.GenshinLocation}"
-                                   VerticalAlignment="Center"
-                                   TextTrimming="CharacterEllipsis"/>
-                    </controls:SimpleStackPanel>
-                </GroupBox>
-
-                <GroupBox Header="MIDI Folder">
-                    <controls:SimpleStackPanel Orientation="Horizontal">
-                        <Button Command="{s:Action BrowseMidiFolder}"
-                                Background="Transparent"
-                                ToolTip="Browse for MIDI folder">
-                            <ui:FontIcon Glyph="&#xE838;"
-                                         FontFamily="{StaticResource MdlFontFamily}"/>
-                        </Button>
-                        <TextBlock Text="{Binding MidiFolder, TargetNullValue='No folder selected'}"
-                                   VerticalAlignment="Center"
-                                   TextTrimming="CharacterEllipsis"
-                                   MaxWidth="200"/>
-                        <Button Command="{s:Action ScanMidiFolder}"
-                                Background="Transparent"
-                                ToolTip="Refresh/Scan folder for new MIDI files"
-                                Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                            <ui:FontIcon Glyph="&#xE72C;"
-                                         FontFamily="{StaticResource MdlFontFamily}"/>
-                        </Button>
-                        <Button Command="{s:Action ClearMidiFolder}"
-                                Background="Transparent"
-                                ToolTip="Clear MIDI folder"
-                                Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                            <ui:FontIcon Glyph="&#xE711;"
-                                         FontFamily="{StaticResource MdlFontFamily}"/>
-                        </Button>
-                    </controls:SimpleStackPanel>
-                </GroupBox>
-
-                <GroupBox Header="Data Location">
-                    <controls:SimpleStackPanel Orientation="Horizontal">
-                        <Button Command="{s:Action OpenDataFolder}"
-                                Background="Transparent"
-                                ToolTip="Open data folder in Explorer">
-                            <ui:FontIcon Glyph="&#xE838;"
-                                         FontFamily="{StaticResource MdlFontFamily}"/>
-                        </Button>
-                        <TextBlock Text="{x:Static viewModels:SettingsPageViewModel.DataLocation}"
-                                   VerticalAlignment="Center"
-                                   TextTrimming="CharacterEllipsis"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   ToolTip="{x:Static viewModels:SettingsPageViewModel.DataLocation}"/>
-                    </controls:SimpleStackPanel>
-                </GroupBox>
-
-                <!-- License Section -->
-                <TextBlock Text="License"
-                           FontSize="20"
-                           FontWeight="SemiBold"
-                           Margin="0,16,0,8"/>
-
-                <controls:SimpleStackPanel Spacing="4">
-                    <TextBlock TextWrapping="Wrap"
-                               FontSize="12">
-                        Originally created by © 2022 sabihoshi. Modified by © 2026 Jed556 for multi-game support.
-                        Licensed under the
-                        <Hyperlink NavigateUri="{Binding Default.LicenseUri, Source={StaticResource Settings}}">MIT License</Hyperlink>.
-                    </TextBlock>
-                    <TextBlock TextWrapping="Wrap"
-                               FontSize="12">
-                        This project uses third-party libraries that may be distributed under
-                        <Hyperlink NavigateUri="{Binding Default.ThirdPartyLicenseUri, Source={StaticResource Settings}}">different licenses</Hyperlink>.
-                    </TextBlock>
-                    <TextBlock TextWrapping="Wrap"
-                               FontSize="11"
-                               Opacity="0.7">
-                        All rights reserved by © miHoYo Co., Ltd. and © XD Inc.
-                        Not affiliated with miHoYo or XD.
-                    </TextBlock>
-                </controls:SimpleStackPanel>
-            </controls:SimpleStackPanel>
-
-            <!-- Right Column -->
-            <controls:SimpleStackPanel Grid.Column="1"
-                                       Margin="10,0,0,0">
-
-                <!-- Version Section -->
-                <TextBlock Text="Version"
-                           FontSize="20"
-                           FontWeight="SemiBold"
-                           Margin="0,0,0,8"/>
-
-                <controls:SimpleStackPanel Orientation="Horizontal"
-                                           Spacing="8">
-                    <TextBlock VerticalAlignment="Center">
+                    <controls:SimpleStackPanel Orientation="Horizontal"
+                                               Spacing="8">
+                        <TextBlock VerticalAlignment="Center">
                         v<Run Text="{Binding ProgramVersion, Mode=OneTime}"/>
-                    </TextBlock>
-                    <Button Command="{s:Action CheckForUpdate}"
-                            Background="Transparent"
-                            Padding="4"
-                            ToolTip="Check for updates"
-                            Visibility="{Binding IsCheckingUpdate, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}">
-                        <ui:FontIcon Glyph="&#xE72C;"
-                                     FontFamily="{StaticResource MdlFontFamily}"
-                                     FontSize="14"/>
-                    </Button>
-                    <ui:ProgressRing
-                        IsIndeterminate="True"
-                        Width="16"
-                        Height="16"
-                        IsEnabled="{Binding IsCheckingUpdate}"
-                        Visibility="{Binding IsCheckingUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
-                </controls:SimpleStackPanel>
+                        </TextBlock>
+                        <Button Command="{s:Action CheckForUpdate}"
+                                Style="{DynamicResource GhostIconButton}"
+                                Padding="4"
+                                ToolTip="Check for updates"
+                                Visibility="{Binding IsCheckingUpdate, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}">
+                            <ui:SymbolIcon Symbol="ArrowClockwise24"
+                                           FontSize="15"/>
+                        </Button>
+                        <ui:ProgressRing
+                            IsIndeterminate="True"
+                            Width="16"
+                            Height="16"
+                            IsEnabled="{Binding IsCheckingUpdate}"
+                            Visibility="{Binding IsCheckingUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                    </controls:SimpleStackPanel>
 
-                <TextBlock Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
-                           Margin="0,4,0,0">
+                    <TextBlock Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                               Margin="0,4,0,0">
                     Update available:
                     <Hyperlink NavigateUri="{Binding LatestVersion.Url}">
                         <Run Text="{Binding LatestVersion.TagName}"/>
                     </Hyperlink>
+                    </TextBlock>
+
+                    <ui:ToggleSwitch Content="Auto-check updates"
+                                     IsChecked="{Binding AutoCheckUpdates}"/>
+                    <ui:ToggleSwitch Content="Include beta updates"
+                                     IsChecked="{Binding IncludeBetaUpdates}"/>
+
+                    <!-- Style Section -->
+                    <TextBlock Text="Style"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Margin="0,16,0,8"/>
+
+                    <GroupBox Header="Theme Mode">
+                        <ComboBox
+                            SelectedItem="{Binding SelectedTheme}"
+                            ItemsSource="{x:Static viewModels:SettingsPageViewModel.ThemeOptions}"
+                            DisplayMemberPath="Name"
+                            MinWidth="150"/>
+                    </GroupBox>
+
+                    <GroupBox Header="Accent Color">
+                        <ComboBox
+                            SelectedItem="{Binding SelectedAccentColor}"
+                            ItemsSource="{x:Static viewModels:SettingsPageViewModel.AccentColors}"
+                            MinWidth="150">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Border Width="16"
+                                                Height="16"
+                                                CornerRadius="8"
+                                                Background="{Binding ColorBrush}"
+                                                Margin="0,0,8,0"/>
+                                        <TextBlock Text="{Binding Name}"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </GroupBox>
+
+                    <GroupBox Header="Transition Style">
+                        <ComboBox
+                            SelectedItem="{Binding Transition}"
+                            SelectedIndex="{Binding Default.SelectedTransition, Source={StaticResource Settings}}"
+                            ItemsSource="{x:Static transitions:TransitionCollection.Transitions}"
+                            MinWidth="150"/>
+                    </GroupBox>
+
+                </controls:SimpleStackPanel>
+            </Grid>
+
+            <!-- License Section (full width) -->
+            <TextBlock Text="License"
+                       FontSize="20"
+                       FontWeight="SemiBold"
+                       Margin="0,16,0,8"/>
+
+            <controls:SimpleStackPanel Spacing="4">
+                <TextBlock TextWrapping="Wrap"
+                           FontSize="12">
+                Originally created by © 2022 sabihoshi. Modified by © 2026 Jed556 for multi-game support.
+                Licensed under the
+                <Hyperlink NavigateUri="{Binding Default.LicenseUri, Source={StaticResource Settings}}"
+                           Foreground="{DynamicResource SystemAccentColorPrimaryBrush}">MIT License</Hyperlink>.
                 </TextBlock>
-
-                <ui:ToggleSwitch Content="Auto-check updates"
-                                 IsChecked="{Binding AutoCheckUpdates}"/>
-                <ui:ToggleSwitch Content="Include beta updates"
-                                 IsChecked="{Binding IncludeBetaUpdates}"/>
-
-                <!-- Style Section -->
-                <TextBlock Text="Style"
-                           FontSize="20"
-                           FontWeight="SemiBold"
-                           Margin="0,16,0,8"/>
-
-                <GroupBox Header="Theme Mode">
-                    <ComboBox
-                        SelectedItem="{Binding SelectedTheme}"
-                        ItemsSource="{x:Static viewModels:SettingsPageViewModel.ThemeOptions}"
-                        DisplayMemberPath="Name"
-                        MinWidth="150"/>
-                </GroupBox>
-
-                <GroupBox Header="Accent Color">
-                    <ComboBox
-                        SelectedItem="{Binding SelectedAccentColor}"
-                        ItemsSource="{x:Static viewModels:SettingsPageViewModel.AccentColors}"
-                        MinWidth="150">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate>
-                                <StackPanel Orientation="Horizontal">
-                                    <Border Width="16"
-                                            Height="16"
-                                            CornerRadius="8"
-                                            Background="{Binding ColorBrush}"
-                                            Margin="0,0,8,0"/>
-                                    <TextBlock Text="{Binding Name}"
-                                               VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
-                </GroupBox>
-
-                <GroupBox Header="Transition Style">
-                    <ComboBox
-                        SelectedItem="{Binding Transition}"
-                        SelectedIndex="{Binding Default.SelectedTransition, Source={StaticResource Settings}}"
-                        ItemsSource="{x:Static transitions:TransitionCollection.Transitions}"
-                        MinWidth="150"/>
-                </GroupBox>
-
+                <TextBlock TextWrapping="Wrap"
+                           FontSize="12">
+                This project uses third-party libraries that may be distributed under
+                <Hyperlink NavigateUri="{Binding Default.ThirdPartyLicenseUri, Source={StaticResource Settings}}"
+                           Foreground="{DynamicResource SystemAccentColorPrimaryBrush}">different licenses</Hyperlink>.
+                </TextBlock>
+                <TextBlock TextWrapping="Wrap"
+                           FontSize="11"
+                           Opacity="0.7">
+                All rights reserved by © miHoYo Co., Ltd. and © XD Inc.
+                Not affiliated with miHoYo or XD.
+                </TextBlock>
             </controls:SimpleStackPanel>
-        </Grid>
+        </controls:SimpleStackPanel>
     </ScrollViewer>
 </UserControl>

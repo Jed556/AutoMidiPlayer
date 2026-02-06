@@ -469,7 +469,7 @@ public class HotkeyBinding : PropertyChangedBase
         }
     }
 
-    private static string GetKeyDisplayName(Key key)
+    public static string GetKeyDisplayName(Key key)
     {
         return key switch
         {

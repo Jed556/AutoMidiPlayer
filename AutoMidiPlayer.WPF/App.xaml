@@ -33,9 +33,9 @@
                 <Setter Property="BorderThickness"
                         Value="0"/>
                 <Setter Property="Padding"
-                        Value="12"/>
+                        Value="8"/>
                 <Setter Property="Margin"
-                        Value="0,8"/>
+                        Value="0,4"/>
                 <Setter Property="Foreground"
                         Value="{DynamicResource TextFillColorPrimaryBrush}"/>
                 <Setter Property="Template">
@@ -74,6 +74,8 @@
                            BasedOn="{StaticResource {x:Type ComboBox}}">
                         <Setter Property="MinWidth"
                                 Value="200"/>
+                        <Setter Property="Cursor"
+                                Value="Hand"/>
                     </Style>
                     <Style TargetType="TextBox"
                            BasedOn="{StaticResource {x:Type TextBox}}">
@@ -84,6 +86,8 @@
                            BasedOn="{StaticResource {x:Type Button}}">
                         <Setter Property="Background"
                                 Value="Transparent"/>
+                        <Setter Property="Cursor"
+                                Value="Hand"/>
                         <Style.Triggers>
                             <Trigger Property="IsHitTestVisible"
                                      Value="False">
@@ -93,6 +97,19 @@
                         </Style.Triggers>
                     </Style>
                 </Style.Resources>
+            </Style>
+
+            <!-- Remove focus border visuals on window activation -->
+            <Style TargetType="{x:Type Control}">
+                <Setter Property="FocusVisualStyle"
+                        Value="{x:Null}"/>
+            </Style>
+
+            <!-- Reserve space for scrollbars so content does not overlap -->
+            <Style TargetType="ScrollViewer"
+                   BasedOn="{StaticResource {x:Type ScrollViewer}}">
+                <Setter Property="Padding"
+                        Value="0,0,12,0"/>
             </Style>
 
             <!-- Shared FontIcon style for MDL2 Assets icons -->
@@ -106,6 +123,51 @@
 
             <!-- FontFamily resource for direct use -->
             <FontFamily x:Key="MdlFontFamily">Segoe MDL2 Assets</FontFamily>
+
+            <!-- Ghost icon button style: transparent bg, faded, opaque on hover, NO default WPF-UI chrome -->
+            <Style x:Key="GhostIconButton"
+                   TargetType="Button">
+                <Setter Property="Background"
+                        Value="Transparent"/>
+                <Setter Property="BorderThickness"
+                        Value="0"/>
+                <Setter Property="Padding"
+                        Value="6"/>
+                <Setter Property="Cursor"
+                        Value="Hand"/>
+                <Setter Property="Foreground"
+                        Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+                <Setter Property="Opacity"
+                        Value="0.4"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="Transparent"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver"
+                             Value="True">
+                        <Setter Property="Opacity"
+                                Value="1"/>
+                    </Trigger>
+                    <Trigger Property="IsHitTestVisible"
+                             Value="False">
+                        <Setter Property="Opacity"
+                                Value="0.2"/>
+                    </Trigger>
+                    <Trigger Property="IsEnabled"
+                             Value="False">
+                        <Setter Property="Opacity"
+                                Value="0.2"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
 
             <!-- Player control button style with clean hover (no background, icon turns white) -->
             <Style x:Key="PlayerControlButton"
@@ -241,7 +303,7 @@
                     <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}"
                                  Value="True">
                         <Setter Property="Fill"
-                                Value="White"/>
+                                Value="{DynamicResource TextFillColorPrimaryBrush}"/>
                         <DataTrigger.EnterActions>
                             <BeginStoryboard>
                                 <Storyboard>
@@ -325,6 +387,8 @@
                         Value="32"/>
                 <Setter Property="Padding"
                         Value="0"/>
+                <Setter Property="Cursor"
+                        Value="Hand"/>
                 <Setter Property="Background"
                         Value="{DynamicResource TextFillColorPrimaryBrush}"/>
                 <Setter Property="Foreground"
@@ -435,7 +499,7 @@
                         <ControlTemplate TargetType="RepeatButton">
                             <Border x:Name="FilledBorder"
                                     Height="4"
-                                    Background="White"
+                                    Background="{DynamicResource TextFillColorPrimaryBrush}"
                                     CornerRadius="2"/>
                         </ControlTemplate>
                     </Setter.Value>
@@ -455,7 +519,7 @@
                     <Setter.Value>
                         <ControlTemplate TargetType="RepeatButton">
                             <Border Height="4"
-                                    Background="#4DFFFFFF"
+                                    Background="{DynamicResource ControlFillColorTertiaryBrush}"
                                     CornerRadius="0,2,2,0"/>
                         </ControlTemplate>
                     </Setter.Value>
@@ -475,6 +539,8 @@
                         Value="8,0"/>
                 <Setter Property="MinHeight"
                         Value="20"/>
+                <Setter Property="Cursor"
+                        Value="Hand"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Slider">
@@ -514,7 +580,7 @@
                                                     <Grid Background="Transparent">
                                                         <Ellipse Width="12"
                                                                  Height="12"
-                                                                 Fill="White"/>
+                                                                 Fill="{DynamicResource TextFillColorPrimaryBrush}"/>
                                                     </Grid>
                                                 </ControlTemplate>
                                             </Thumb.Template>

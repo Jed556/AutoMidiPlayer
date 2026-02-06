@@ -31,7 +31,8 @@
 
                 <!-- Instrument Section -->
                 <TextBlock Text="Game Instrument"
-                           Style="{DynamicResource SubtitleTextBlockStyle}"
+                           FontSize="20"
+                           FontWeight="SemiBold"
                            Margin="0,0,0,8"/>
                 <ComboBox
                     ItemsSource="{x:Static core:Keyboard.InstrumentNames}"
@@ -41,7 +42,8 @@
                     MinWidth="200"/>
 
                 <TextBlock Text="Keyboard Layout"
-                           Style="{DynamicResource SubtitleTextBlockStyle}"
+                           FontSize="20"
+                           FontWeight="SemiBold"
                            Margin="0,16,0,8"/>
                 <ComboBox
                     ItemsSource="{x:Static core:Keyboard.LayoutNames}"
@@ -56,14 +58,11 @@
                     IsChecked="{Binding Default.UseSpeakers, Source={StaticResource Settings}}"
                     Margin="0,8,0,0"/>
 
-                <!-- Timer Section -->
-                <TextBlock Text="Timer"
-                           Style="{DynamicResource SubtitleTextBlockStyle}"
-                           Margin="0,16,0,8"/>
-
+                <!-- Scheduled Playback Section -->
                 <TextBlock Text="Scheduled Playback"
-                           Style="{DynamicResource SubtitleTextBlockStyle}"
-                           Margin="0,0,0,8"/>
+                           FontSize="20"
+                           FontWeight="SemiBold"
+                           Margin="0,16,0,8"/>
 
                 <controls:SimpleStackPanel Orientation="Horizontal">
                     <controls:SimpleStackPanel.Resources>
@@ -85,7 +84,8 @@
 
                 <!-- Notes Section -->
                 <TextBlock Text="Notes"
-                           Style="{DynamicResource SubtitleTextBlockStyle}"
+                           FontSize="20"
+                           FontWeight="SemiBold"
                            Margin="0,0,0,8"/>
 
                 <TextBlock Text="Open a song to configure these settings"
@@ -109,34 +109,37 @@
                 <ui:ToggleSwitch
                     Content="Hold notes"
                     IsChecked="{Binding HoldNotes}"
-                    IsEnabled="{Binding HasSongOpen}"/>
+                    IsEnabled="{Binding HasSongOpen}"
+                    Margin="0,0,0,0"/>
 
                 <!-- MIDI Input Section -->
                 <TextBlock Text="MIDI Input"
-                           Style="{DynamicResource SubtitleTextBlockStyle}"
-                           Margin="0,0,0,8"/>
+                           FontSize="20"
+                           FontWeight="SemiBold"
+                           Margin="0,16,0,8"/>
 
                 <GroupBox Header="Physical MIDI Instrument">
-                    <controls:SimpleStackPanel Orientation="Horizontal">
-                        <ComboBox
-                            ItemsSource="{Binding MidiInputs}"
-                            SelectedItem="{Binding SelectedMidiInput}"
-                            DisplayMemberPath="DeviceName"
-                            MinWidth="200"/>
-                        <Button Command="{s:Action RefreshDevices}"
-                                ToolTip="Refresh MIDI devices"
-                                Background="Transparent">
-                            <ui:FontIcon Glyph="&#xE72C;"
-                                         FontFamily="{StaticResource MdlFontFamily}"/>
-                        </Button>
+                    <controls:SimpleStackPanel>
+                        <controls:SimpleStackPanel Orientation="Horizontal">
+                            <ComboBox
+                                ItemsSource="{Binding MidiInputs}"
+                                SelectedItem="{Binding SelectedMidiInput}"
+                                DisplayMemberPath="DeviceName"
+                                MinWidth="200"/>
+                            <Button Command="{s:Action RefreshDevices}"
+                                    Style="{DynamicResource GhostIconButton}"
+                                    ToolTip="Refresh MIDI devices">
+                                <ui:SymbolIcon Symbol="ArrowClockwise24"
+                                               FontSize="18"/>
+                            </Button>
+                        </controls:SimpleStackPanel>
+                        <TextBlock Text="Connect a physical MIDI keyboard or controller to use it as input."
+                                   TextWrapping="Wrap"
+                                   Opacity="0.6"
+                                   FontSize="12"
+                                   Margin="0,4,0,0"/>
                     </controls:SimpleStackPanel>
                 </GroupBox>
-
-                <TextBlock Text="Connect a physical MIDI keyboard or controller to use it as input."
-                           TextWrapping="Wrap"
-                           Opacity="0.6"
-                           FontSize="12"
-                           Margin="0,8,0,0"/>
             </controls:SimpleStackPanel>
 
 
