@@ -8,7 +8,6 @@
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
     xmlns:s="https://github.com/canton7/Stylet"
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
-    xmlns:modernWpf="clr-namespace:AutoMidiPlayer.WPF.ModernWPF"
     xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
     xmlns:converters="clr-namespace:AutoMidiPlayer.WPF.Converters"
     d:DataContext="{d:DesignInstance Type=viewModels:QueueViewModel}">
@@ -59,17 +58,17 @@
         </Grid>
 
         <!-- Track List -->
-        <modernWpf:TrackListControl x:Name="TrackList"
-                                    Grid.Row="1"
-                                    ItemsSource="{Binding FilteredTracks}"
-                                    SelectedItem="{Binding SelectedFile, Mode=TwoWay}"
-                                    OpenedFile="{Binding OpenedFile}"
-                                    IsPlaying="{Binding Playback.IsPlaying}"
-                                    AllowReorder="True"
-                                    ItemDoubleClick="TrackList_ItemDoubleClick"
-                                    PlayPauseClick="TrackList_PlayPauseClick"
-                                    MenuClick="TrackList_MenuClick">
-            <modernWpf:TrackListControl.ItemContextMenu>
+        <controls:TrackListControl x:Name="TrackList"
+                                   Grid.Row="1"
+                                   ItemsSource="{Binding FilteredTracks}"
+                                   SelectedItem="{Binding SelectedFile, Mode=TwoWay}"
+                                   OpenedFile="{Binding OpenedFile}"
+                                   IsPlaying="{Binding Playback.IsPlaying}"
+                                   AllowReorder="True"
+                                   ItemDoubleClick="TrackList_ItemDoubleClick"
+                                   PlayPauseClick="TrackList_PlayPauseClick"
+                                   MenuClick="TrackList_MenuClick">
+            <controls:TrackListControl.ItemContextMenu>
                 <ContextMenu>
                     <MenuItem Header="Remove from Queue"
                               Click="RemoveFromQueue_Click">
@@ -104,7 +103,7 @@
                         </MenuItem.Icon>
                     </MenuItem>
                 </ContextMenu>
-            </modernWpf:TrackListControl.ItemContextMenu>
-        </modernWpf:TrackListControl>
+            </controls:TrackListControl.ItemContextMenu>
+        </controls:TrackListControl>
     </Grid>
 </UserControl>

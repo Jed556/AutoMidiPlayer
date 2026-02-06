@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Entities;
-using AutoMidiPlayer.WPF.ModernWPF;
 using Stylet;
 using StyletIoC;
 using static AutoMidiPlayer.Data.Entities.Transpose;

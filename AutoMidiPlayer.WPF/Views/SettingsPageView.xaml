@@ -10,7 +10,7 @@
     xmlns:core="clr-namespace:AutoMidiPlayer.WPF.Core"
     xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
-    xmlns:transitions="clr-namespace:AutoMidiPlayer.WPF.ModernWPF.Animation.Transitions"
+    xmlns:transitions="clr-namespace:AutoMidiPlayer.WPF.Animation.Transitions"
     xmlns:properties="clr-namespace:AutoMidiPlayer.Data.Properties;assembly=AutoMidiPlayer.Data"
     d:DataContext="{d:DesignInstance Type=viewModels:SettingsPageViewModel}">
     <UserControl.Resources>

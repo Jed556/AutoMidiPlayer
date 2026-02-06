@@ -9,7 +9,7 @@
     xmlns:tray="clr-namespace:Wpf.Ui.Tray.Controls;assembly=Wpf.Ui.Tray"
     xmlns:s="https://github.com/canton7/Stylet"
     xmlns:pages="clr-namespace:AutoMidiPlayer.WPF.Views"
-    xmlns:modernWpf="clr-namespace:AutoMidiPlayer.WPF.ModernWPF"
+    xmlns:helpers="clr-namespace:AutoMidiPlayer.WPF.Helpers"
     xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
     xmlns:services="clr-namespace:AutoMidiPlayer.WPF.Services"
@@ -28,8 +28,8 @@
     WindowStartupLocation="CenterScreen">
 
     <ui:FluentWindow.Resources>
-        <modernWpf:BindingProxy x:Key="DataContextProxy"
-                                Data="{Binding}"/>
+        <helpers:BindingProxy x:Key="DataContextProxy"
+                              Data="{Binding}"/>
     </ui:FluentWindow.Resources>
 
     <Grid>
@@ -123,7 +123,9 @@
                                                Tag="{Binding QueueView}"
                                                Click="{s:Action NavigateToItem}">
                             <ui:NavigationViewItem.Icon>
-                                <ui:ImageIcon Source="{StaticResource QueueIcon}" Width="24" Height="24"/>
+                                <ui:ImageIcon Source="{StaticResource QueueIcon}"
+                                        Width="24"
+                                        Height="24"/>
                             </ui:NavigationViewItem.Icon>
                         </ui:NavigationViewItem>
                         <ui:NavigationViewItem Content="Songs"
@@ -162,9 +164,9 @@
                         <Frame Grid.Row="0"
                                x:Name="RootFrame"
                                Visibility="Hidden"/>
-                        <modernWpf:AnimatedContentControl Grid.Row="1"
-                                                          Margin="16,4,16,10"
-                                                          s:View.Model="{Binding ActiveItem}"/>
+                        <controls:AnimatedContentControl Grid.Row="1"
+                                                         Margin="16,4,16,10"
+                                                         s:View.Model="{Binding ActiveItem}"/>
                     </Grid>
                 </Border>
             </Grid>

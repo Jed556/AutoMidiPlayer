@@ -10,7 +10,7 @@ using AutoMidiPlayer.Data.Midi;
 using AutoMidiPlayer.Data.Notification;
 using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Core;
-using AutoMidiPlayer.WPF.ModernWPF.Errors;
+using AutoMidiPlayer.WPF.Errors;
 using AutoMidiPlayer.WPF.ViewModels;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;

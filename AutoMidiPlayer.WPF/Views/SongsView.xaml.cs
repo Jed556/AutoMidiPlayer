@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
-using AutoMidiPlayer.WPF.ModernWPF;
+using AutoMidiPlayer.WPF.Controls;
+using AutoMidiPlayer.WPF.Helpers;
 using AutoMidiPlayer.WPF.ViewModels;
 
 namespace AutoMidiPlayer.WPF.Views;
