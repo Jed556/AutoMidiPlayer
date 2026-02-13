@@ -12,14 +12,15 @@
 A MIDI to key player for in-game instruments made using C# and WPF with Windows Mica design. This project is originally forked from **[sabihoshi/GenshinLyreMidiPlayer][GenshinLyreMidiPlayer]** and was later detached into its own repository to enable multi-game support and introduce features that don’t fit the original Genshin Impact–only use design.
 
 <div align="center">
-  <i>If you liked this project, consider <a href="https://github.com/Jed556/AutoMidiPlayer?tab=contributing-ov-file#contributing">contributing</a> or giving a 🌟 star. Thank you~</i>
+  <i>If you liked this project, consider <a href="CONTRIBUTING.md">contributing</a> or giving a 🌟 star. Thank you~</i>
 </div>
+</br>
+
+https://github.com/user-attachments/assets/8e7d8dec-33c4-4d2b-a268-4abd1dbac405
 
 ### Supported Games and Instruments
 - **Genshin Impact** - Windsong Lyre, Floral Zither, Vintage Lyre
 - **Heartopia** - Piano
-
-*Image: Main player showing playlist and playback controls.*
 
 ## How to use
 
@@ -42,36 +43,35 @@ A MIDI to key player for in-game instruments made using C# and WPF with Windows 
   - **Transposition** - Change the key with automatic note transposition
   - **Speed Control** - Adjust playback speed from 0.1x to 4.0x
   - **BPM Control** - Set a custom BPM for the song
-* Written in C# WPF with Windows Mica design
 
-### Playback
-* Play multiple tracks of a MIDI file simultaneously
+### Instrument Playback
 * Test MIDI files through speakers before playing in-game
 * Change keyboard layouts (QWERTY, QWERTZ, AZERTY, DVORAK, etc.)
-* Auto-play at a scheduled time
-* Find songs using the search box
+* Hold and merge nearby notes. _Some songs sound better when merged ([#4](https://github.com/sabihoshi/GenshinLyreMidiPlayer/issues/4))_
+* Play using your own MIDI Input Device
+
+https://github.com/user-attachments/assets/e10a31d2-419c-4f41-bc1d-3f12cee36c0d
+
+### MIDI Track Management
+* Play multiple tracks of a MIDI file simultaneously
+* Turn on/off tracks in realtime
+
+https://github.com/user-attachments/assets/2519cab3-521f-4862-9af7-8404a1656582
 
 ### Piano Sheet
 The Piano Sheet allows you to easily share songs to other people, or for yourself to try. You can change the delimiter as well as the split size, and spacing. This will use the current keyboard layout that you have chosen.
 
-*GIF: Piano Sheet example demonstrating delimiter, split size, and spacing options.*
-
-### Play using your own MIDI Input Device
-If you have your own MIDI instrument, this will let you play directly to the in-game instrument. This lets you play directly without using a MIDI file.
+> No preview yet
 
 ### Queue
 A queue allows you to play songs without having to open or delete a song or file.
 
-*Screenshot: Playlist and history panel showing song queue.*
-
-### Hold notes & Merge nearby notes
-  - You can set the player to hold sustained notes (does not really make a difference. Off by default.)
-* Some songs sound better when nearby notes are merged see [#4](https://github.com/Jed556/AutoMidiPlayer/issues/4) for an example
+https://github.com/user-attachments/assets/e23776fa-2191-455e-bc6b-5518a969943b
 
 ### Theming
 You can set the player to light mode/dark mode and change its accent color.
 
-*Image: Theming examples.*
+https://github.com/user-attachments/assets/f249be17-566c-4a4f-856b-9b03f55592ef
 
 ## About
 
@@ -124,7 +124,6 @@ dotnet publish
 ```
 
 # Notes
-* Will add demo videos and images soon.
 * I don't have knowledge about music theory, if you find any issues with note mappings or transpositions, please open an issue or PR.
 
 # Special Thanks
@@ -134,7 +133,7 @@ dotnet publish
 * **[Lantua](https://github.com/lantua)** - Music theory guidance (octaves, transposition, keys, scales) *`~GenshinLyreMidiPlayer`*
 
 # License
-* This project is under the [MIT](https://github.com/Jed556/AutoMidiPlayer?tab=MIT-1-ov-file) license.
+* This project is under the [MIT](LICENSE.md) license.
 * Originally created by [sabihoshi][GenshinLyreMidiPlayer]. Modified by [Jed556](https://github.com/Jed556) for multi-game support and modernization.
 * All rights reserved by © miHoYo Co., Ltd. and © XD Inc. This project is not affiliated nor endorsed by miHoYo or XD. Genshin Impact™, Heartopia™, and other properties belong to their respective owners.
 * This project uses third-party libraries or other resources that may be
