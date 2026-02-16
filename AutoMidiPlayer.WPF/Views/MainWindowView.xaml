@@ -14,6 +14,7 @@
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
     xmlns:services="clr-namespace:AutoMidiPlayer.WPF.Services"
     xmlns:core="clr-namespace:AutoMidiPlayer.WPF.Core"
+    xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
     d:DataContext="{d:DesignInstance Type=viewModels:MainWindowViewModel}"
     x:Name="MainWindow"
     Title="{Binding Title}"
@@ -39,7 +40,7 @@
               DragOver="{s:Action OnDragOver}"
               Background="Transparent">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="42"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
@@ -77,33 +78,61 @@
             <!-- Title Bar -->
             <ui:TitleBar Grid.Row="0"
                          Title="{Binding Title}"
+                         Height="42"
+                         Padding="0"
+                         Margin="0"
+                         VerticalContentAlignment="Stretch"
                          ShowMaximize="True"
                          ShowMinimize="True"
                          ShowClose="True">
                 <ui:TitleBar.Header>
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <Image Grid.Column="0"
-                               Width="16"
-                               Height="16"
-                               Margin="8,0,6,0"
-                               VerticalAlignment="Center"
-                               Source="pack://application:,,,/logo.png"/>
-                        <TextBlock Grid.Column="1"
-                                   Text="{Binding Title}"
+
+                        <StackPanel
+                            Grid.Column="0"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            Margin="14,0,0,0">
+                            <Image Width="16"
+                                   Height="16"
+                                   Margin="0,0,10,0"
                                    VerticalAlignment="Center"
-                                   FontSize="12"/>
-                        <ui:HyperlinkButton
-                            Grid.Column="2"
-                            Command="{s:Action NavigateToSettings}"
-                            Visibility="{Binding ShowUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
-                            HorizontalAlignment="Right"
-                            Margin="0,0,8,0"
-                            Content="New update!"/>
+                                   Source="pack://application:,,,/logo.png"/>
+                            <TextBlock Text="{Binding Title}"
+                                       VerticalAlignment="Center"
+                                       FontSize="12"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,104,0"
+                                    shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                            <Button Command="{s:Action NavigateToSettings}"
+                                    Style="{DynamicResource GhostIconButton}"
+                                    ToolTip="Update available"
+                                    Visibility="{Binding ShowUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                    Padding="8,4"
+                                    Margin="0,0,6,0"
+                                    shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                                <ui:SymbolIcon Symbol="ArrowDownload16"
+                                               FontSize="18"/>
+                            </Button>
+
+                            <Button Command="{s:Action ToggleTheme}"
+                                    Style="{DynamicResource GhostIconButton}"
+                                    ToolTip="Toggle theme"
+                                    Padding="8,4"
+                                    shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                                <ui:SymbolIcon Symbol="DarkTheme24"
+                                               FontSize="18"/>
+                            </Button>
+                        </StackPanel>
                     </Grid>
                 </ui:TitleBar.Header>
             </ui:TitleBar>
@@ -146,9 +175,6 @@
                                                Click="{s:Action NavigateToItem}"/>
                     </ui:NavigationView.MenuItems>
                     <ui:NavigationView.FooterMenuItems>
-                        <ui:NavigationViewItem Content="Theme"
-                                               Icon="{ui:SymbolIcon DarkTheme24}"
-                                               Click="{s:Action ToggleTheme}"/>
                         <ui:NavigationViewItem Content="Settings"
                                                Icon="{ui:SymbolIcon Settings16}"
                                                Tag="{Binding SettingsView}"

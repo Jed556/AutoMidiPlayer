@@ -30,14 +30,15 @@ public static class CrashMessageBox
         headerRow.Children.Add(new SymbolIcon
         {
             Symbol = SymbolRegular.ErrorCircle12,
-            FontSize = 18,
-            Margin = new Thickness(0, 0, 6, 0)
+            FontSize = 24,
+            Margin = new Thickness(0, 0, 8, 0),
+            Filled = true
         });
         headerRow.Children.Add(new System.Windows.Controls.TextBlock
         {
             Text = "AutoMidiPlayer Error",
-            FontWeight = FontWeights.SemiBold,
-            FontSize = 16,
+            FontWeight = FontWeights.Bold,
+            FontSize = 24,
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -50,11 +51,18 @@ public static class CrashMessageBox
         logText.Inlines.Add(new Run("An error occurred. Log saved to:\n"));
         var logLink = new Hyperlink(new Run(logPath))
         {
-            Foreground = (Brush)Application.Current.FindResource("SystemAccentColorPrimaryBrush")
+            NavigateUri = new Uri(logFolder)
         };
+
+        if (Application.Current.TryFindResource("AppHyperlinkStyle") is Style hyperlinkStyle)
+            logLink.Style = hyperlinkStyle;
+
         logLink.RequestNavigate += (_, args) =>
         {
-            Process.Start(new ProcessStartInfo(logFolder) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{logPath}\"")
+            {
+                UseShellExecute = true
+            });
             args.Handled = true;
         };
         logText.Inlines.Add(logLink);
@@ -70,13 +78,13 @@ public static class CrashMessageBox
             Background = Brushes.Transparent,
             BorderThickness = new Thickness(1),
             Padding = new Thickness(8, 6, 36, 6),
-            FontSize = 12
+            FontSize = 14
         };
 
         var copyIcon = new SymbolIcon
         {
             Symbol = SymbolRegular.Copy16,
-            FontSize = 14
+            FontSize = 18
         };
         var copyButton = new System.Windows.Controls.Button
         {
@@ -91,6 +99,10 @@ public static class CrashMessageBox
             VerticalAlignment = VerticalAlignment.Top,
             Margin = new Thickness(0, 4, 4, 0)
         };
+
+        if (Application.Current.TryFindResource("GhostIconButton") is Style ghostStyle)
+            copyButton.Style = ghostStyle;
+
         copyButton.Click += (_, _) => Clipboard.SetText(errorMessage);
 
         var errorGrid = new Grid();
@@ -111,9 +123,10 @@ public static class CrashMessageBox
         var messageBox = new Wpf.Ui.Controls.MessageBox
         {
             Title = string.Empty,
+            ShowTitle = false,
             Content = content,
             CloseButtonText = "OK",
-            CloseButtonAppearance = ControlAppearance.Primary
+            CloseButtonAppearance = ControlAppearance.Secondary
         };
 
         _ = messageBox.ShowDialogAsync();

@@ -125,14 +125,27 @@
                                FontWeight="SemiBold"
                                Margin="0,16,0,8"/>
 
-                    <GroupBox Header="Game Location">
+                    <GroupBox Header="Genshin Impact Location">
                         <controls:SimpleStackPanel Orientation="Horizontal">
-                            <Button Command="{s:Action SetLocation}"
+                            <Button Command="{s:Action SetGenshinLocation}"
                                     Style="{DynamicResource GhostIconButton}">
                                 <ui:SymbolIcon Symbol="AppsAddIn16"
                                                FontSize="18"/>
                             </Button>
-                            <TextBlock Text="{x:Static viewModels:SettingsPageViewModel.GenshinLocation}"
+                            <TextBlock Text="{Binding GenshinLocation}"
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </controls:SimpleStackPanel>
+                    </GroupBox>
+
+                    <GroupBox Header="Heartopia Location">
+                        <controls:SimpleStackPanel Orientation="Horizontal">
+                            <Button Command="{s:Action SetHeartopiaLocation}"
+                                    Style="{DynamicResource GhostIconButton}">
+                                <ui:SymbolIcon Symbol="AppsAddIn16"
+                                               FontSize="18"/>
+                            </Button>
+                            <TextBlock Text="{Binding HeartopiaLocation}"
                                        VerticalAlignment="Center"
                                        TextTrimming="CharacterEllipsis"/>
                         </controls:SimpleStackPanel>
@@ -180,9 +193,8 @@
                             <Button Command="{s:Action OpenDataFolder}"
                                     Style="{DynamicResource GhostIconButton}"
                                     ToolTip="Open data folder in Explorer">
-                                <ui:FontIcon Glyph="&#xE838;"
-                                             FontFamily="{StaticResource MdlFontFamily}"
-                                             FontSize="18"/>
+                                <ui:SymbolIcon Symbol="FolderOpen16"
+                                               FontSize="18"/>
                             </Button>
                             <TextBlock Text="{x:Static viewModels:SettingsPageViewModel.DataLocation}"
                                        VerticalAlignment="Center"
@@ -199,23 +211,56 @@
                                            Margin="10,0,0,0">
 
                     <!-- Version Section -->
-                    <TextBlock Text="Version"
-                               FontSize="20"
-                               FontWeight="SemiBold"
-                               Margin="0,0,0,8"/>
+                    <controls:SimpleStackPanel Orientation="Horizontal"
+                                               Spacing="8"
+                                               Margin="0,0,0,8">
+                        <TextBlock Text="Version"
+                                   FontSize="20"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"/>
+                        <Border Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                Background="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                CornerRadius="10"
+                                Margin="0,4,0,0"
+                                Padding="8,2"
+                                VerticalAlignment="Center">
+                            <TextBlock Text="New Update"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource ApplicationBackgroundBrush}"/>
+                        </Border>
+                    </controls:SimpleStackPanel>
 
                     <controls:SimpleStackPanel Orientation="Horizontal"
                                                Spacing="8">
                         <TextBlock VerticalAlignment="Center">
                         v<Run Text="{Binding ProgramVersion, Mode=OneTime}"/>
                         </TextBlock>
+                        <ui:SymbolIcon Symbol="TriangleRight20"
+                                       FontSize="8"
+                                       Filled="True"
+                                       VerticalAlignment="Center"
+                                       Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                        <TextBlock VerticalAlignment="Center"
+                                   Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                            <Run Text="{Binding LatestVersion.TagName}"/>
+                        </TextBlock>
+                        <ui:HyperlinkButton NavigateUri="{Binding LatestVersion.Url}"
+                                            Style="{DynamicResource GhostIconButton}"
+                                            Padding="2"
+                                            ToolTip="Open update page"
+                                            Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                            <ui:SymbolIcon Symbol="ArrowCircleUp12"
+                                           FontSize="16"
+                                           Filled="True"/>
+                        </ui:HyperlinkButton>
                         <Button Command="{s:Action CheckForUpdate}"
                                 Style="{DynamicResource GhostIconButton}"
-                                Padding="4"
+                                Padding="2"
                                 ToolTip="Check for updates"
                                 Visibility="{Binding IsCheckingUpdate, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}">
                             <ui:SymbolIcon Symbol="ArrowClockwise24"
-                                           FontSize="15"/>
+                                           FontSize="16"/>
                         </Button>
                         <ui:ProgressRing
                             IsIndeterminate="True"
@@ -224,14 +269,6 @@
                             IsEnabled="{Binding IsCheckingUpdate}"
                             Visibility="{Binding IsCheckingUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
                     </controls:SimpleStackPanel>
-
-                    <TextBlock Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
-                               Margin="0,4,0,0">
-                    Update available:
-                    <Hyperlink NavigateUri="{Binding LatestVersion.Url}">
-                        <Run Text="{Binding LatestVersion.TagName}"/>
-                    </Hyperlink>
-                    </TextBlock>
 
                     <ui:ToggleSwitch Content="Auto-check updates"
                                      IsChecked="{Binding AutoCheckUpdates}"/>
@@ -296,13 +333,13 @@
                 Originally created by © 2022 sabihoshi. Modified by © 2026 Jed556 for multi-game support.
                 Licensed under the
                 <Hyperlink NavigateUri="{Binding Default.LicenseUri, Source={StaticResource Settings}}"
-                           Foreground="{DynamicResource SystemAccentColorPrimaryBrush}">MIT License</Hyperlink>.
+                           Style="{DynamicResource AppHyperlinkStyle}">MIT License</Hyperlink>.
                 </TextBlock>
                 <TextBlock TextWrapping="Wrap"
                            FontSize="12">
                 This project uses third-party libraries that may be distributed under
                 <Hyperlink NavigateUri="{Binding Default.ThirdPartyLicenseUri, Source={StaticResource Settings}}"
-                           Foreground="{DynamicResource SystemAccentColorPrimaryBrush}">different licenses</Hyperlink>.
+                           Style="{DynamicResource AppHyperlinkStyle}">different licenses</Hyperlink>.
                 </TextBlock>
                 <TextBlock TextWrapping="Wrap"
                            FontSize="11"

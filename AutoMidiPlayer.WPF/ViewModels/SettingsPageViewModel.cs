@@ -373,10 +373,30 @@ public class SettingsPageViewModel : Screen
 
     public KeyValuePair<string, string> SelectedLayout { get; set; }
 
-    public static string GenshinLocation
+    public string GenshinLocation
     {
         get => Settings.GenshinLocation;
-        set => Settings.GenshinLocation = value;
+        set
+        {
+            if (Settings.GenshinLocation == value)
+                return;
+
+            Settings.GenshinLocation = value;
+            NotifyOfPropertyChange(nameof(GenshinLocation));
+        }
+    }
+
+    public string HeartopiaLocation
+    {
+        get => Settings.HeartopiaLocation;
+        set
+        {
+            if (Settings.HeartopiaLocation == value)
+                return;
+
+            Settings.HeartopiaLocation = value;
+            NotifyOfPropertyChange(nameof(HeartopiaLocation));
+        }
     }
 
     /// <summary>
@@ -394,7 +414,7 @@ public class SettingsPageViewModel : Screen
 
     public async Task<bool> TryGetLocationAsync()
     {
-        var locations = new[]
+        var genshinLocations = new[]
         {
             // User set location
             Settings.GenshinLocation,
@@ -409,7 +429,13 @@ public class SettingsPageViewModel : Screen
 
             // Relative location (Genshin)
             AppContext.BaseDirectory + "GenshinImpact.exe",
-            AppContext.BaseDirectory + "YuanShen.exe",
+            AppContext.BaseDirectory + "YuanShen.exe"
+        };
+
+        var heartopiaLocations = new[]
+        {
+            // User set location
+            Settings.HeartopiaLocation,
 
             // Common Steam Heartopia locations
             @"C:\Program Files (x86)\Steam\steamapps\common\Heartopia\xdt.exe",
@@ -428,13 +454,28 @@ public class SettingsPageViewModel : Screen
             AppContext.BaseDirectory + "xdt.exe"
         };
 
-        foreach (var location in locations)
+        var foundGenshin = false;
+        var foundHeartopia = false;
+
+        foreach (var location in genshinLocations)
         {
-            if (await TrySetLocationAsync(location))
-                return true;
+            if (await TrySetGenshinLocationAsync(location))
+            {
+                foundGenshin = true;
+                break;
+            }
         }
 
-        return false;
+        foreach (var location in heartopiaLocations)
+        {
+            if (await TrySetHeartopiaLocationAsync(location))
+            {
+                foundHeartopia = true;
+                break;
+            }
+        }
+
+        return foundGenshin || foundHeartopia;
     }
 
     public async Task CheckForUpdate()
@@ -467,22 +508,22 @@ public class SettingsPageViewModel : Screen
     {
         var dialog = DialogHelper.CreateDialog();
         dialog.Title = "Error";
-        dialog.Content = "Could not find Game's Location, please find GenshinImpact.exe, YuanShen.exe, or xdt.exe (Heartopia)";
-        dialog.PrimaryButtonText = "Find Manually...";
-        dialog.SecondaryButtonText = "Ignore (Notes might not play)";
-        dialog.CloseButtonText = "Exit";
+        dialog.Content = "Could not find game executable locations. You can set Genshin and Heartopia paths separately in Settings.";
+        dialog.PrimaryButtonText = "Find Genshin...";
+        dialog.SecondaryButtonText = "Find Heartopia...";
+        dialog.CloseButtonText = "Ignore";
 
         var result = await dialog.ShowAsync();
 
         switch (result)
         {
-            case ContentDialogResult.None:
-                RequestClose();
-                break;
             case ContentDialogResult.Primary:
-                await SetLocation();
+                await SetGenshinLocation();
                 break;
             case ContentDialogResult.Secondary:
+                await SetHeartopiaLocation();
+                break;
+            case ContentDialogResult.None:
                 break;
             default:
                 throw new ArgumentOutOfRangeException(
@@ -492,6 +533,10 @@ public class SettingsPageViewModel : Screen
 
     [PublicAPI]
     public async Task SetLocation()
+        => await SetGenshinLocation();
+
+    [PublicAPI]
+    public async Task SetGenshinLocation()
     {
         var openFileDialog = new OpenFileDialog
         {
@@ -502,9 +547,26 @@ public class SettingsPageViewModel : Screen
         };
 
         var success = openFileDialog.ShowDialog() == true;
-        var set = await TrySetLocationAsync(openFileDialog.FileName);
+        if (!success)
+            return;
 
-        if (!(success && set)) await LocationMissing();
+        await TrySetGenshinLocationAsync(openFileDialog.FileName);
+    }
+
+    [PublicAPI]
+    public async Task SetHeartopiaLocation()
+    {
+        var openFileDialog = new OpenFileDialog
+        {
+            Filter = "Executable|*.exe|All files (*.*)|*.*",
+            InitialDirectory = @"C:\Program Files (x86)\Steam\steamapps\common\Heartopia\"
+        };
+
+        var success = openFileDialog.ShowDialog() == true;
+        if (!success)
+            return;
+
+        await TrySetHeartopiaLocationAsync(openFileDialog.FileName);
     }
 
     public async Task BrowseMidiFolder()
@@ -609,7 +671,7 @@ public class SettingsPageViewModel : Screen
             _ = CheckForUpdate();
     }
 
-    private async Task<bool> TrySetLocationAsync(string? location)
+    private async Task<bool> TrySetGenshinLocationAsync(string? location)
     {
         if (!File.Exists(location)) return false;
         if (Path.GetFileName(location).Equals("launcher.exe", StringComparison.OrdinalIgnoreCase))
@@ -623,8 +685,28 @@ public class SettingsPageViewModel : Screen
             return false;
         }
 
-        Settings.GenshinLocation = location;
-        NotifyOfPropertyChange(() => Settings.GenshinLocation);
+        GenshinLocation = location;
+        Settings.Save();
+
+        return true;
+    }
+
+    private async Task<bool> TrySetHeartopiaLocationAsync(string? location)
+    {
+        if (!File.Exists(location)) return false;
+        if (!Path.GetFileName(location).Equals("xdt.exe", StringComparison.OrdinalIgnoreCase))
+        {
+            var dialog = DialogHelper.CreateDialog();
+            dialog.Title = "Incorrect Location";
+            dialog.Content = "Please select xdt.exe for Heartopia.";
+            dialog.CloseButtonText = "Ok";
+
+            await dialog.ShowAsync();
+            return false;
+        }
+
+        HeartopiaLocation = location;
+        Settings.Save();
 
         return true;
     }

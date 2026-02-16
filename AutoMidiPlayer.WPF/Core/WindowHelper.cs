@@ -16,22 +16,32 @@ public static class WindowHelper
         ?.GetValue("InstPath") as string;
 
     [SuppressMessage("ReSharper", "AssignNullToNotNullAttribute")]
-    private static string GenshinProcessName
-        => Path.GetFileNameWithoutExtension(Settings.Default.GenshinLocation);
+    private static string ActiveGameProcessName
+    {
+        get
+        {
+            var instrument = Keyboard.GetInstrumentAtIndex(Settings.Default.SelectedInstrument).Key;
+            var location = instrument.Contains("Heartopia", StringComparison.OrdinalIgnoreCase)
+                ? Settings.Default.HeartopiaLocation
+                : Settings.Default.GenshinLocation;
+
+            return Path.GetFileNameWithoutExtension(location);
+        }
+    }
 
     public static bool IsGameFocused()
     {
-        var genshinWindow = FindWindowByProcessName(GenshinProcessName);
-        return genshinWindow != null &&
-            IsWindowFocused((IntPtr)genshinWindow);
+        var gameWindow = FindWindowByProcessName(ActiveGameProcessName);
+        return gameWindow != null &&
+            IsWindowFocused((IntPtr)gameWindow);
     }
 
     public static void EnsureGameOnTop()
     {
-        var genshinWindow = FindWindowByProcessName(GenshinProcessName);
-        if (genshinWindow is null) return;
+        var gameWindow = FindWindowByProcessName(ActiveGameProcessName);
+        if (gameWindow is null) return;
 
-        SwitchToThisWindow((IntPtr)genshinWindow, true);
+        SwitchToThisWindow((IntPtr)gameWindow, true);
     }
 
     private static bool IsWindowFocused(IntPtr windowPtr)

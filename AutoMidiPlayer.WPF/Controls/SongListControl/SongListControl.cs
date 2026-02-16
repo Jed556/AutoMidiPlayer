@@ -10,9 +10,9 @@ using Stylet;
 namespace AutoMidiPlayer.WPF.Controls;
 
 /// <summary>
-/// Reusable track list control for displaying MIDI files
+/// Reusable song list control for displaying MIDI files
 /// </summary>
-public partial class TrackListControl : UserControl
+public partial class SongListControl : UserControl
 {
     #region Dependency Properties
 
@@ -20,7 +20,7 @@ public partial class TrackListControl : UserControl
     /// Items to display in the list
     /// </summary>
     public static readonly DependencyProperty ItemsSourceProperty =
-        DependencyProperty.Register(nameof(ItemsSource), typeof(IEnumerable), typeof(TrackListControl),
+        DependencyProperty.Register(nameof(ItemsSource), typeof(IEnumerable), typeof(SongListControl),
             new PropertyMetadata(null));
 
     public IEnumerable? ItemsSource
@@ -33,7 +33,7 @@ public partial class TrackListControl : UserControl
     /// Currently selected item
     /// </summary>
     public static readonly DependencyProperty SelectedItemProperty =
-        DependencyProperty.Register(nameof(SelectedItem), typeof(object), typeof(TrackListControl),
+        DependencyProperty.Register(nameof(SelectedItem), typeof(object), typeof(SongListControl),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
 
     public object? SelectedItem
@@ -46,7 +46,7 @@ public partial class TrackListControl : UserControl
     /// Currently opened/playing file (for highlighting)
     /// </summary>
     public static readonly DependencyProperty OpenedFileProperty =
-        DependencyProperty.Register(nameof(OpenedFile), typeof(MidiFile), typeof(TrackListControl),
+        DependencyProperty.Register(nameof(OpenedFile), typeof(MidiFile), typeof(SongListControl),
             new PropertyMetadata(null));
 
     public MidiFile? OpenedFile
@@ -59,7 +59,7 @@ public partial class TrackListControl : UserControl
     /// Whether playback is currently active
     /// </summary>
     public static readonly DependencyProperty IsPlayingProperty =
-        DependencyProperty.Register(nameof(IsPlaying), typeof(bool), typeof(TrackListControl),
+        DependencyProperty.Register(nameof(IsPlaying), typeof(bool), typeof(SongListControl),
             new PropertyMetadata(false));
 
     public bool IsPlaying
@@ -72,7 +72,7 @@ public partial class TrackListControl : UserControl
     /// Whether drag-drop reordering is allowed
     /// </summary>
     public static readonly DependencyProperty AllowReorderProperty =
-        DependencyProperty.Register(nameof(AllowReorder), typeof(bool), typeof(TrackListControl),
+        DependencyProperty.Register(nameof(AllowReorder), typeof(bool), typeof(SongListControl),
             new PropertyMetadata(false));
 
     public bool AllowReorder
@@ -90,7 +90,7 @@ public partial class TrackListControl : UserControl
     /// Whether multiple items are currently selected
     /// </summary>
     public static readonly DependencyProperty IsMultiSelectProperty =
-        DependencyProperty.Register(nameof(IsMultiSelect), typeof(bool), typeof(TrackListControl),
+        DependencyProperty.Register(nameof(IsMultiSelect), typeof(bool), typeof(SongListControl),
             new PropertyMetadata(false));
 
     public bool IsMultiSelect
@@ -103,7 +103,7 @@ public partial class TrackListControl : UserControl
     /// Context menu to show for items
     /// </summary>
     public static readonly DependencyProperty ItemContextMenuProperty =
-        DependencyProperty.Register(nameof(ItemContextMenu), typeof(ContextMenu), typeof(TrackListControl),
+        DependencyProperty.Register(nameof(ItemContextMenu), typeof(ContextMenu), typeof(SongListControl),
             new PropertyMetadata(null, OnItemContextMenuChanged));
 
     public ContextMenu? ItemContextMenu
@@ -114,11 +114,11 @@ public partial class TrackListControl : UserControl
 
     private static void OnItemContextMenuChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        if (d is TrackListControl control && e.NewValue is ContextMenu menu)
+        if (d is SongListControl control && e.NewValue is ContextMenu menu)
         {
-            // Set the context menu on the ListView but ensure PlacementTarget points to the TrackListControl
+            // Set the context menu on the ListView but ensure PlacementTarget points to the SongListControl
             control.TrackListView.ContextMenu = menu;
-            // Set PlacementTarget to the TrackListControl so bindings like PlacementTarget.IsMultiSelect work
+            // Set PlacementTarget to the SongListControl so bindings like PlacementTarget.IsMultiSelect work
             menu.PlacementTarget = control;
         }
     }
@@ -132,7 +132,7 @@ public partial class TrackListControl : UserControl
     /// </summary>
     public static readonly RoutedEvent ItemDoubleClickEvent =
         EventManager.RegisterRoutedEvent(nameof(ItemDoubleClick), RoutingStrategy.Bubble,
-            typeof(RoutedEventHandler), typeof(TrackListControl));
+            typeof(RoutedEventHandler), typeof(SongListControl));
 
     public event RoutedEventHandler ItemDoubleClick
     {
@@ -145,7 +145,7 @@ public partial class TrackListControl : UserControl
     /// </summary>
     public static readonly RoutedEvent PlayPauseClickEvent =
         EventManager.RegisterRoutedEvent(nameof(PlayPauseClick), RoutingStrategy.Bubble,
-            typeof(RoutedEventHandler), typeof(TrackListControl));
+            typeof(RoutedEventHandler), typeof(SongListControl));
 
     public event RoutedEventHandler PlayPauseClick
     {
@@ -158,7 +158,7 @@ public partial class TrackListControl : UserControl
     /// </summary>
     public static readonly RoutedEvent MenuClickEvent =
         EventManager.RegisterRoutedEvent(nameof(MenuClick), RoutingStrategy.Bubble,
-            typeof(RoutedEventHandler), typeof(TrackListControl));
+            typeof(RoutedEventHandler), typeof(SongListControl));
 
     public event RoutedEventHandler MenuClick
     {
@@ -168,7 +168,7 @@ public partial class TrackListControl : UserControl
 
     #endregion
 
-    public TrackListControl()
+    public SongListControl()
     {
         InitializeComponent();
     }
@@ -201,7 +201,7 @@ public partial class TrackListControl : UserControl
         if (element is ListViewItem item && item.Content is MidiFile file)
         {
             SelectedItem = file;
-            RaiseEvent(new TrackListEventArgs(ItemDoubleClickEvent, this, file));
+            RaiseEvent(new SongListEventArgs(ItemDoubleClickEvent, this, file));
             e.Handled = true;
         }
     }
@@ -211,7 +211,7 @@ public partial class TrackListControl : UserControl
         if (sender is Button button && button.Tag is MidiFile file)
         {
             SelectedItem = file;
-            RaiseEvent(new TrackListEventArgs(PlayPauseClickEvent, this, file));
+            RaiseEvent(new SongListEventArgs(PlayPauseClickEvent, this, file));
             e.Handled = true;
         }
     }
@@ -227,7 +227,7 @@ public partial class TrackListControl : UserControl
             }
 
             SelectedItem = file;
-            RaiseEvent(new TrackListEventArgs(MenuClickEvent, this, file));
+            RaiseEvent(new SongListEventArgs(MenuClickEvent, this, file));
 
             // Open context menu if one is set
             if (TrackListView.ContextMenu != null)
@@ -256,11 +256,11 @@ public partial class TrackListControl : UserControl
 /// <summary>
 /// Event args that includes the clicked MidiFile
 /// </summary>
-public class TrackListEventArgs : RoutedEventArgs
+public class SongListEventArgs : RoutedEventArgs
 {
     public MidiFile File { get; }
 
-    public TrackListEventArgs(RoutedEvent routedEvent, object source, MidiFile file)
+    public SongListEventArgs(RoutedEvent routedEvent, object source, MidiFile file)
         : base(routedEvent, source)
     {
         File = file;

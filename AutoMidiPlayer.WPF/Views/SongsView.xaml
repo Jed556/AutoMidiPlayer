@@ -50,14 +50,14 @@
                           Height="16"/>
                 </Button>
                 <Button Command="{s:Action ShowMissingFilesDialog}"
-                        Background="Transparent"
+                        Style="{DynamicResource GhostIconButton}"
                         Padding="8"
                         ToolTip="Missing files detected"
                         Visibility="{Binding HasMissingSongs, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                    <ui:FontIcon Glyph="&#xE7BA;"
-                                 FontFamily="{StaticResource MdlFontFamily}"
-                                 FontSize="16"
-                                 Foreground="#FFB900"/>
+                    <ui:SymbolIcon Symbol="Warning24"
+                                   FontSize="24"
+                                   Foreground="#FFB900"
+                                   Filled="True"/>
                 </Button>
                 <TextBlock Margin="10,0"
                            VerticalAlignment="Center"
@@ -93,17 +93,17 @@
         </Grid>
 
         <!-- Track List -->
-        <controls:TrackListControl x:Name="TrackList"
-                                   Grid.Row="1"
-                                   ItemsSource="{Binding SortedTracks}"
-                                   SelectedItem="{Binding SelectedFile, Mode=TwoWay}"
-                                   OpenedFile="{Binding QueueView.OpenedFile}"
-                                   IsPlaying="{Binding Playback.IsPlaying}"
-                                   AllowReorder="True"
-                                   ItemDoubleClick="TrackList_ItemDoubleClick"
-                                   PlayPauseClick="TrackList_PlayPauseClick"
-                                   MenuClick="TrackList_MenuClick">
-            <controls:TrackListControl.ItemContextMenu>
+        <controls:SongListControl x:Name="SongList"
+                                  Grid.Row="1"
+                                  ItemsSource="{Binding SortedTracks}"
+                                  SelectedItem="{Binding SelectedFile, Mode=TwoWay}"
+                                  OpenedFile="{Binding QueueView.OpenedFile}"
+                                  IsPlaying="{Binding Playback.IsPlaying}"
+                                  AllowReorder="True"
+                                  ItemDoubleClick="TrackList_ItemDoubleClick"
+                                  PlayPauseClick="TrackList_PlayPauseClick"
+                                  MenuClick="TrackList_MenuClick">
+            <controls:SongListControl.ItemContextMenu>
                 <ContextMenu>
                     <MenuItem Header="Add to Queue"
                               Click="AddToQueue_Click">
@@ -138,7 +138,7 @@
                         </MenuItem.Icon>
                     </MenuItem>
                 </ContextMenu>
-            </controls:TrackListControl.ItemContextMenu>
-        </controls:TrackListControl>
+            </controls:SongListControl.ItemContextMenu>
+        </controls:SongListControl>
     </Grid>
 </UserControl>

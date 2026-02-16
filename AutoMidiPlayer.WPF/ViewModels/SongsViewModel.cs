@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Entities;
 using AutoMidiPlayer.Data.Properties;
@@ -238,23 +239,41 @@ public class SongsViewModel : Screen
         if (MissingSongs.Count == 0) return;
 
         var content = new System.Windows.Controls.StackPanel { MinWidth = 400 };
+        content.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
 
-        content.Children.Add(new System.Windows.Controls.TextBlock
+        var headerText = new System.Windows.Controls.TextBlock
         {
             Text = $"The following {MissingSongs.Count} song(s) could not be found:",
             TextWrapping = System.Windows.TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 12)
-        });
+        };
+        headerText.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
+        content.Children.Add(headerText);
 
-        var listView = new System.Windows.Controls.ListView
+        var scrollViewer = new System.Windows.Controls.ScrollViewer
         {
             MaxHeight = 300,
-            ItemsSource = MissingSongs.ToList(),
-            HorizontalContentAlignment = HorizontalAlignment.Stretch
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(0),
+            VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled
+        };
+        scrollViewer.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, "ControlFillColorDefaultBrush");
+        scrollViewer.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
+
+        var itemsControl = new System.Windows.Controls.ItemsControl
+        {
+            ItemsSource = MissingSongs.ToList()
         };
 
         // Create item template with delete button
         var template = new DataTemplate();
+
+        var rowBorderFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.Border));
+        rowBorderFactory.SetValue(System.Windows.Controls.Border.PaddingProperty, new Thickness(10, 8, 10, 8));
+        rowBorderFactory.SetValue(System.Windows.Controls.Border.BorderThicknessProperty, new Thickness(0, 0, 0, 1));
+        rowBorderFactory.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
+
         var gridFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.Grid));
 
         var col1 = new FrameworkElementFactory(typeof(System.Windows.Controls.ColumnDefinition));
@@ -272,14 +291,18 @@ public class SongsViewModel : Screen
         textFactory.SetValue(System.Windows.Controls.TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
         textFactory.SetValue(System.Windows.Controls.TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
         textFactory.SetValue(System.Windows.Controls.Grid.ColumnProperty, 0);
+        textFactory.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
         gridFactory.AppendChild(textFactory);
 
         // Delete button
-        var buttonFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.Button));
+        var buttonFactory = new FrameworkElementFactory(typeof(Button));
         buttonFactory.SetValue(System.Windows.Controls.Button.ContentProperty, "✕");
-        buttonFactory.SetValue(System.Windows.Controls.Button.PaddingProperty, new Thickness(8, 2, 8, 2));
+        buttonFactory.SetResourceReference(FrameworkElement.StyleProperty, "GhostIconButton");
+        buttonFactory.SetValue(System.Windows.Controls.Button.PaddingProperty, new Thickness(6, 2, 6, 2));
         buttonFactory.SetValue(System.Windows.Controls.Button.MarginProperty, new Thickness(8, 0, 0, 0));
         buttonFactory.SetValue(System.Windows.Controls.Button.ToolTipProperty, "Remove from database");
+        buttonFactory.SetValue(System.Windows.Controls.Button.BackgroundProperty, Brushes.Transparent);
+        buttonFactory.SetValue(System.Windows.Controls.Button.BorderThicknessProperty, new Thickness(0));
         buttonFactory.SetValue(System.Windows.Controls.Grid.ColumnProperty, 1);
         buttonFactory.AddHandler(System.Windows.Controls.Button.ClickEvent,
             new RoutedEventHandler(async (s, e) =>
@@ -288,20 +311,24 @@ public class SongsViewModel : Screen
                 {
                     await RemoveMissingSong(song);
                     // Refresh the list
-                    listView.ItemsSource = MissingSongs.ToList();
+                    itemsControl.ItemsSource = MissingSongs.ToList();
                 }
             }));
         gridFactory.AppendChild(buttonFactory);
 
-        template.VisualTree = gridFactory;
-        listView.ItemTemplate = template;
+        rowBorderFactory.AppendChild(gridFactory);
+        template.VisualTree = rowBorderFactory;
+        itemsControl.ItemTemplate = template;
 
-        content.Children.Add(listView);
+        scrollViewer.Content = itemsControl;
+
+        content.Children.Add(scrollViewer);
 
         var dialog = DialogHelper.CreateDialog();
         dialog.Title = "Missing Files";
         dialog.Content = content;
         dialog.PrimaryButtonText = "Remove All";
+        dialog.PrimaryButtonAppearance = ControlAppearance.Danger;
         dialog.CloseButtonText = "Close";
 
         var result = await dialog.ShowAsync();

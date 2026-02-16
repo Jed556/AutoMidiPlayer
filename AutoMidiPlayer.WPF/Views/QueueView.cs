@@ -21,7 +21,7 @@ public partial class QueueView : UserControl
         if (DataContext is QueueViewModel viewModel && _dragDropHelper == null)
         {
             _dragDropHelper = new ListViewDragDropHelper(
-                TrackList.ListView,
+                SongList.ListView,
                 viewModel.Tracks,
                 viewModel.OnQueueModified);
         }
@@ -32,29 +32,29 @@ public partial class QueueView : UserControl
     /// </summary>
     private void TrackList_ItemDoubleClick(object sender, RoutedEventArgs e)
     {
-        if (e is TrackListEventArgs args && DataContext is QueueViewModel viewModel)
+        if (e is SongListEventArgs args && DataContext is QueueViewModel viewModel)
         {
             viewModel.PlayPauseFromQueue(args.File);
         }
     }
 
     /// <summary>
-    /// Handle play/pause button click from TrackListControl
+    /// Handle play/pause button click from SongListControl
     /// </summary>
     private void TrackList_PlayPauseClick(object sender, RoutedEventArgs e)
     {
-        if (e is TrackListEventArgs args && DataContext is QueueViewModel viewModel)
+        if (e is SongListEventArgs args && DataContext is QueueViewModel viewModel)
         {
             viewModel.PlayPauseFromQueue(args.File);
         }
     }
 
     /// <summary>
-    /// Handle menu button click from TrackListControl
+    /// Handle menu button click from SongListControl
     /// </summary>
     private void TrackList_MenuClick(object sender, RoutedEventArgs e)
     {
-        // Menu is automatically opened by TrackListControl
+        // Menu is automatically opened by SongListControl
     }
 
     /// <summary>
@@ -64,7 +64,7 @@ public partial class QueueView : UserControl
     {
         if (DataContext is QueueViewModel viewModel)
         {
-            viewModel.RemoveTrack(TrackList.SelectedFiles);
+            viewModel.RemoveTrack(SongList.SelectedFiles);
         }
     }
 
@@ -75,7 +75,7 @@ public partial class QueueView : UserControl
     {
         if (DataContext is QueueViewModel viewModel)
         {
-            var file = TrackList.SelectedFiles.Count == 1 ? TrackList.SelectedFiles[0] : viewModel.SelectedFile;
+            var file = SongList.SelectedFiles.Count == 1 ? SongList.SelectedFiles[0] : viewModel.SelectedFile;
             if (file is not null)
                 await viewModel.EditSong(file);
         }
@@ -88,7 +88,7 @@ public partial class QueueView : UserControl
     {
         if (DataContext is QueueViewModel viewModel)
         {
-            await viewModel.DeleteSongs(TrackList.SelectedFiles);
+            await viewModel.DeleteSongs(SongList.SelectedFiles);
         }
     }
 }

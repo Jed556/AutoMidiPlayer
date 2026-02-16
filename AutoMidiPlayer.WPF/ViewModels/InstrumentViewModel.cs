@@ -185,7 +185,7 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>
     {
         RefreshAvailableLayouts();
 
-        if (!AvailableLayouts.Any(layout => layout.Key == SelectedLayout.Key) && AvailableLayouts.Count > 0)
+        if (AvailableLayouts.Count > 0)
             SelectedLayout = AvailableLayouts[0];
 
         var index = Keyboard.GetInstrumentIndex(SelectedInstrument.Key);

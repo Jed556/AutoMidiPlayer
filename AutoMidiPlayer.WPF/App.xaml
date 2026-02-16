@@ -121,6 +121,21 @@
                         Value="14"/>
             </Style>
 
+            <Style x:Key="AppHyperlinkStyle"
+                   TargetType="Hyperlink">
+                <Setter Property="Foreground"
+                        Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
+                <Setter Property="Cursor"
+                        Value="Hand"/>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver"
+                             Value="True">
+                        <Setter Property="Foreground"
+                                Value="{DynamicResource SystemAccentColorSecondaryBrush}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
             <!-- FontFamily resource for direct use -->
             <FontFamily x:Key="MdlFontFamily">Segoe MDL2 Assets</FontFamily>
 

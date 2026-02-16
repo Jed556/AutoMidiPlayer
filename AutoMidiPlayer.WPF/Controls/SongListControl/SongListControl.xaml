@@ -1,5 +1,5 @@
 <UserControl
-    x:Class="AutoMidiPlayer.WPF.Controls.TrackListControl"
+    x:Class="AutoMidiPlayer.WPF.Controls.SongListControl"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -9,7 +9,216 @@
     xmlns:midi="clr-namespace:AutoMidiPlayer.Data.Midi;assembly=AutoMidiPlayer.Data"
     xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
     xmlns:converters="clr-namespace:AutoMidiPlayer.WPF.Converters"
-    x:Name="TrackListRoot">
+    x:Name="SongListRoot">
+
+    <UserControl.Resources>
+        <Style x:Key="SongListScrollBarThumbStyle"
+               TargetType="Thumb">
+            <Setter Property="MinHeight"
+                    Value="36"/>
+            <Setter Property="Opacity"
+                    Value="0.4"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border x:Name="ThumbBorder"
+                                Margin="1"
+                                CornerRadius="4"
+                                Background="{DynamicResource TextFillColorSecondaryBrush}"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter Property="Opacity"
+                                        Value="1"/>
+                            </Trigger>
+                            <Trigger Property="IsDragging"
+                                     Value="True">
+                                <Setter TargetName="ThumbBorder"
+                                        Property="Background"
+                                        Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
+                                <Setter Property="Opacity"
+                                        Value="1"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SongListScrollLineButtonBase"
+               TargetType="RepeatButton">
+            <Setter Property="Background"
+                    Value="Transparent"/>
+            <Setter Property="BorderBrush"
+                    Value="Transparent"/>
+            <Setter Property="BorderThickness"
+                    Value="0"/>
+            <Setter Property="Width"
+                    Value="10"/>
+            <Setter Property="Height"
+                    Value="12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Border x:Name="ArrowHost"
+                                Background="Transparent"
+                                Opacity="0.4"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter TargetName="ArrowHost"
+                                        Property="Opacity"
+                                        Value="1"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed"
+                                     Value="True">
+                                <Setter TargetName="ArrowHost"
+                                        Property="Opacity"
+                                        Value="1"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SongListScrollLineUpButton"
+               TargetType="RepeatButton"
+               BasedOn="{StaticResource SongListScrollLineButtonBase}">
+            <Setter Property="Content">
+                <Setter.Value>
+                    <Path Data="M 1 6 L 5 2 L 9 6"
+                          Stroke="{DynamicResource TextFillColorSecondaryBrush}"
+                          StrokeThickness="1.2"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round"
+                          StrokeLineJoin="Round"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SongListScrollLineDownButton"
+               TargetType="RepeatButton"
+               BasedOn="{StaticResource SongListScrollLineButtonBase}">
+            <Setter Property="Content">
+                <Setter.Value>
+                    <Path Data="M 1 2 L 5 6 L 9 2"
+                          Stroke="{DynamicResource TextFillColorSecondaryBrush}"
+                          StrokeThickness="1.2"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round"
+                          StrokeLineJoin="Round"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ScrollBar">
+            <Setter Property="Background"
+                    Value="Transparent"/>
+            <Setter Property="Width"
+                    Value="10"/>
+            <Setter Property="Margin"
+                    Value="0,0,-8,0"/>
+            <Setter Property="Opacity"
+                    Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid Background="Transparent"
+                              Width="{TemplateBinding Width}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <RepeatButton x:Name="LineUpButton"
+                                          Grid.Row="0"
+                                          Style="{StaticResource SongListScrollLineUpButton}"
+                                          Command="ScrollBar.LineUpCommand"
+                                          Opacity="0"/>
+                            <Border Grid.Row="1"
+                                    Background="Transparent"
+                                    CornerRadius="5"
+                                    Margin="0,2">
+                                <Track x:Name="PART_Track"
+                                       IsDirectionReversed="True">
+                                    <Track.DecreaseRepeatButton>
+                                        <RepeatButton Command="ScrollBar.PageUpCommand"
+                                                      Background="Transparent"
+                                                      BorderThickness="0"/>
+                                    </Track.DecreaseRepeatButton>
+                                    <Track.Thumb>
+                                        <Thumb Style="{StaticResource SongListScrollBarThumbStyle}"/>
+                                    </Track.Thumb>
+                                    <Track.IncreaseRepeatButton>
+                                        <RepeatButton Command="ScrollBar.PageDownCommand"
+                                                      Background="Transparent"
+                                                      BorderThickness="0"/>
+                                    </Track.IncreaseRepeatButton>
+                                </Track>
+                            </Border>
+                            <RepeatButton x:Name="LineDownButton"
+                                          Grid.Row="2"
+                                          Style="{StaticResource SongListScrollLineDownButton}"
+                                          Command="ScrollBar.LineDownCommand"
+                                          Opacity="0"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter Property="Opacity"
+                                        Value="1"/>
+                                <Setter TargetName="LineUpButton"
+                                        Property="Opacity"
+                                        Value="1"/>
+                                <Setter TargetName="LineDownButton"
+                                        Property="Opacity"
+                                        Value="1"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseCaptureWithin"
+                                     Value="True">
+                                <Setter Property="Opacity"
+                                        Value="1"/>
+                                <Setter TargetName="LineUpButton"
+                                        Property="Opacity"
+                                        Value="1"/>
+                                <Setter TargetName="LineDownButton"
+                                        Property="Opacity"
+                                        Value="1"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled"
+                                     Value="False">
+                                <Setter Property="Opacity"
+                                        Value="0"/>
+                                <Setter TargetName="LineUpButton"
+                                        Property="Opacity"
+                                        Value="0"/>
+                                <Setter TargetName="LineDownButton"
+                                        Property="Opacity"
+                                        Value="0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="Orientation"
+                         Value="Horizontal">
+                    <Setter Property="Visibility"
+                            Value="Collapsed"/>
+                </Trigger>
+                <Trigger Property="IsEnabled"
+                         Value="False">
+                    <Setter Property="Opacity"
+                            Value="0"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
 
     <Grid Grid.IsSharedSizeScope="True">
         <Grid.RowDefinitions>
@@ -21,7 +230,7 @@
         <Border Grid.Row="0"
                 BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
                 BorderThickness="0,0,0,1"
-                Padding="0,8,17,8"
+                Padding="0,8,16,8"
                 Margin="0,0,0,0">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -87,17 +296,19 @@
         <!-- Track List -->
         <ListView x:Name="TrackListView"
                   Grid.Row="1"
-                  Margin="0,0,0,5"
-                  ItemsSource="{Binding ItemsSource, ElementName=TrackListRoot}"
+                  Margin="0,0,0,0"
+                  Padding="0,0,6,0"
+                  ItemsSource="{Binding ItemsSource, ElementName=SongListRoot}"
                   VirtualizingPanel.VirtualizationMode="Recycling"
-                  SelectedItem="{Binding SelectedItem, ElementName=TrackListRoot, Mode=TwoWay}"
+                  SelectedItem="{Binding SelectedItem, ElementName=SongListRoot, Mode=TwoWay}"
                   SelectionMode="Extended"
                   SelectionChanged="TrackListView_SelectionChanged"
                   ContextMenuOpening="TrackListView_ContextMenuOpening"
                   BorderThickness="0"
                   Background="Transparent"
-                  AllowDrop="{Binding AllowReorder, ElementName=TrackListRoot}"
+                  AllowDrop="{Binding AllowReorder, ElementName=SongListRoot}"
                   PreviewMouseDoubleClick="TrackListView_PreviewMouseDoubleClick"
+                  ScrollViewer.VerticalScrollBarVisibility="Visible"
                   ScrollViewer.HorizontalScrollBarVisibility="Disabled">
             <ListView.ItemTemplate>
                 <DataTemplate DataType="midi:MidiFile">
@@ -140,7 +351,7 @@
                                         <MultiBinding Converter="{x:Static converters:ItemIndexConverter.Instance}">
                                             <Binding/>
                                             <Binding Path="ItemsSource"
-                                                     RelativeSource="{RelativeSource AncestorType=controls:TrackListControl}"/>
+                                                     RelativeSource="{RelativeSource AncestorType=controls:SongListControl}"/>
                                         </MultiBinding>
                                     </TextBlock.Text>
                                     <TextBlock.Style>
@@ -152,7 +363,7 @@
                                                         <MultiBinding Converter="{x:Static converters:IsPlayingToBoolConverter.Instance}">
                                                             <Binding/>
                                                             <Binding Path="OpenedFile"
-                                                                     RelativeSource="{RelativeSource AncestorType=controls:TrackListControl}"/>
+                                                                     RelativeSource="{RelativeSource AncestorType=controls:SongListControl}"/>
                                                         </MultiBinding>
                                                     </DataTrigger.Binding>
                                                     <Setter Property="Foreground"
@@ -166,9 +377,9 @@
                                                         <MultiBinding Converter="{x:Static converters:IsActivelyPlayingConverter.Instance}">
                                                             <Binding/>
                                                             <Binding Path="OpenedFile"
-                                                                     RelativeSource="{RelativeSource AncestorType=controls:TrackListControl}"/>
+                                                                     RelativeSource="{RelativeSource AncestorType=controls:SongListControl}"/>
                                                             <Binding Path="IsPlaying"
-                                                                     RelativeSource="{RelativeSource AncestorType=controls:TrackListControl}"/>
+                                                                     RelativeSource="{RelativeSource AncestorType=controls:SongListControl}"/>
                                                         </MultiBinding>
                                                     </DataTrigger.Binding>
                                                     <Setter Property="Visibility"
@@ -196,9 +407,9 @@
                                                         <MultiBinding Converter="{x:Static converters:IsActivelyPlayingConverter.Instance}">
                                                             <Binding/>
                                                             <Binding Path="OpenedFile"
-                                                                     RelativeSource="{RelativeSource AncestorType=controls:TrackListControl}"/>
+                                                                     RelativeSource="{RelativeSource AncestorType=controls:SongListControl}"/>
                                                             <Binding Path="IsPlaying"
-                                                                     RelativeSource="{RelativeSource AncestorType=controls:TrackListControl}"/>
+                                                                     RelativeSource="{RelativeSource AncestorType=controls:SongListControl}"/>
                                                         </MultiBinding>
                                                     </DataTrigger.Binding>
                                                     <Setter Property="Visibility"
@@ -268,9 +479,9 @@
                                             <MultiBinding Converter="{x:Static converters:PlayPauseGeometryConverter.Instance}">
                                                 <Binding/>
                                                 <Binding Path="OpenedFile"
-                                                         RelativeSource="{RelativeSource AncestorType=controls:TrackListControl}"/>
+                                                         RelativeSource="{RelativeSource AncestorType=controls:SongListControl}"/>
                                                 <Binding Path="IsPlaying"
-                                                         RelativeSource="{RelativeSource AncestorType=controls:TrackListControl}"/>
+                                                         RelativeSource="{RelativeSource AncestorType=controls:SongListControl}"/>
                                             </MultiBinding>
                                         </Path.Data>
                                     </Path>
@@ -315,7 +526,7 @@
                                                             <MultiBinding Converter="{x:Static converters:IsPlayingToBoolConverter.Instance}">
                                                                 <Binding/>
                                                                 <Binding Path="OpenedFile"
-                                                                         RelativeSource="{RelativeSource AncestorType=controls:TrackListControl}"/>
+                                                                         RelativeSource="{RelativeSource AncestorType=controls:SongListControl}"/>
                                                             </MultiBinding>
                                                         </DataTrigger.Binding>
                                                         <Setter Property="Foreground"
@@ -377,13 +588,48 @@
                                     Visibility="Collapsed"
                                     Background="Transparent"
                                     BorderThickness="0"
-                                    Padding="8,0"
+                                    Padding="0"
                                     VerticalAlignment="Center"
                                     HorizontalAlignment="Center"
                                     Focusable="False"
                                     ToolTip="More options"
                                     PreviewMouseLeftButtonDown="MenuButton_PreviewMouseDown"
                                     Tag="{Binding}">
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Setter Property="Background"
+                                                Value="Transparent"/>
+                                        <Setter Property="BorderBrush"
+                                                Value="Transparent"/>
+                                        <Setter Property="BorderThickness"
+                                                Value="0"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border Background="{TemplateBinding Background}"
+                                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                                            BorderThickness="{TemplateBinding BorderThickness}"
+                                                            Padding="{TemplateBinding Padding}">
+                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                          VerticalAlignment="Center"/>
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver"
+                                                     Value="True">
+                                                <Setter Property="Background"
+                                                        Value="Transparent"/>
+                                            </Trigger>
+                                            <Trigger Property="IsPressed"
+                                                     Value="True">
+                                                <Setter Property="Background"
+                                                        Value="Transparent"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
                                 <Path Data="{StaticResource MenuIconGeometry}"
                                       Fill="{DynamicResource TextFillColorPrimaryBrush}"
                                       Stretch="Uniform"
@@ -400,7 +646,7 @@
                                 <MultiBinding Converter="{x:Static converters:IsPlayingToBoolConverter.Instance}">
                                     <Binding/>
                                     <Binding Path="OpenedFile"
-                                             RelativeSource="{RelativeSource AncestorType=controls:TrackListControl}"/>
+                                             RelativeSource="{RelativeSource AncestorType=controls:SongListControl}"/>
                                 </MultiBinding>
                             </DataTrigger.Binding>
                             <Setter TargetName="RowBorder"
@@ -454,11 +700,11 @@
                     <Setter Property="HorizontalContentAlignment"
                             Value="Stretch"/>
                     <Setter Property="Padding"
-                            Value="8,4"/>
+                            Value="0"/>
                     <Setter Property="MinHeight"
                             Value="56"/>
                     <Setter Property="Margin"
-                            Value="4,2"/>
+                            Value="0,2"/>
                     <Setter Property="Background"
                             Value="Transparent"/>
                     <Setter Property="Foreground"

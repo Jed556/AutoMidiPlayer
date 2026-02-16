@@ -21,29 +21,29 @@ public partial class SongsView : UserControl
         if (DataContext is SongsViewModel viewModel && _dragDropHelper == null)
         {
             _dragDropHelper = new ListViewDragDropHelper(
-                TrackList.ListView,
+                SongList.ListView,
                 viewModel.Tracks,
                 viewModel.ApplySort);
         }
     }
 
     /// <summary>
-    /// Handle play/pause button click from TrackListControl
+    /// Handle play/pause button click from SongListControl
     /// </summary>
     private void TrackList_PlayPauseClick(object sender, RoutedEventArgs e)
     {
-        if (e is TrackListEventArgs args && DataContext is SongsViewModel viewModel)
+        if (e is SongListEventArgs args && DataContext is SongsViewModel viewModel)
         {
             viewModel.PlayPauseFromSongs(args.File);
         }
     }
 
     /// <summary>
-    /// Handle menu button click from TrackListControl
+    /// Handle menu button click from SongListControl
     /// </summary>
     private void TrackList_MenuClick(object sender, RoutedEventArgs e)
     {
-        // Menu is automatically opened by TrackListControl
+        // Menu is automatically opened by SongListControl
     }
 
     /// <summary>
@@ -51,7 +51,7 @@ public partial class SongsView : UserControl
     /// </summary>
     private void TrackList_ItemDoubleClick(object sender, RoutedEventArgs e)
     {
-        if (e is TrackListEventArgs args && DataContext is SongsViewModel viewModel)
+        if (e is SongListEventArgs args && DataContext is SongsViewModel viewModel)
         {
             viewModel.PlayPauseFromSongs(args.File);
         }
@@ -64,7 +64,7 @@ public partial class SongsView : UserControl
     {
         if (DataContext is SongsViewModel viewModel)
         {
-            viewModel.AddSelectedToQueue(TrackList.SelectedFiles);
+            viewModel.AddSelectedToQueue(SongList.SelectedFiles);
         }
     }
 
@@ -75,7 +75,7 @@ public partial class SongsView : UserControl
     {
         if (DataContext is SongsViewModel viewModel)
         {
-            await viewModel.EditSelected(TrackList.SelectedFiles);
+            await viewModel.EditSelected(SongList.SelectedFiles);
         }
     }
 
@@ -86,7 +86,7 @@ public partial class SongsView : UserControl
     {
         if (DataContext is SongsViewModel viewModel)
         {
-            await viewModel.DeleteSelected(TrackList.SelectedFiles);
+            await viewModel.DeleteSelected(SongList.SelectedFiles);
         }
     }
 }
