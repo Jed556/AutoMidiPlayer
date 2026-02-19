@@ -111,9 +111,9 @@ The implementation integrates seamlessly with the existing architecture:
 
 ## Transposition Support
 If MIDI notes fall outside the 61-note range:
-- Notes are automatically transposed up/down by octaves
-- Existing transpose settings apply normally
-- User can adjust key/octave in settings
+- When transposition is enabled, notes are transposed up/down by octaves into the 61-note range
+- When transposition is disabled, out-of-range notes are skipped and will not be played
+- Existing transpose settings apply normally when enabled, and the user can adjust key/octave in settings to control this behavior
 
 ## Limitations
 1. **Single Layout**: Currently uses default MIRP layout only

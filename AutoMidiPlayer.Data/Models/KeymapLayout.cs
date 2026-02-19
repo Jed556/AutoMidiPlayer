@@ -56,14 +56,14 @@ public class KeymapLayout
         var notes = new char[61];
         for (int i = 0; i < lines.Length; i++)
         {
-            var trimmed = lines[i].Trim();
-            if (string.IsNullOrEmpty(trimmed))
+            var line = lines[i];
+            if (line.Length == 0)
                 throw new InvalidDataException($"Line {i + 1} is empty. Each line must contain exactly one character.");
             
-            if (trimmed.Length > 1)
+            if (line.Length > 1)
                 throw new InvalidDataException($"Line {i + 1} contains multiple characters. Each line must contain exactly one character.");
             
-            notes[i] = trimmed[0];
+            notes[i] = line[0];
         }
 
         return new KeymapLayout
