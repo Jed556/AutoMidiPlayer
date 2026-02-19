@@ -4,8 +4,9 @@
     <a href="https://github.com/Jed556/AutoMidiPlayer"><img src="https://i.imgur.com/oBU3PBj.png" width="500" alt="Auto MIDI Player【AMP】" /></a> 
   </p>
   <p>
-    <a href="https://github.com/Jed556/AutoMidiPlayer/releases"><img alt="GitHub release (latest by date including pre-releases)" src="https://img.shields.io/github/v/release/Jed556/AutoMidiPlayer?include_prereleases&color=35566D&logo=github&logoColor=white&label=latest"></a>
-    <a href="https://github.com/Jed556/AutoMidiPlayer/releases/latest"><img alt="GitHub downloads" src="https://img.shields.io/github/downloads/Jed556/AutoMidiPlayer/total?label=downloads&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAA2klEQVQ4jZ2SMWpCQRCGv5WHWKQIHsAj5Ah2IR7ByhvYpUiVxkqipPCE5gKKBB5Y+KXIIzzXWX3mh2FhZ/5vZ3YXAqkzdavumtiqs6g2MvfV2kvVaj+v7wWMChgE+4MmdxMQ7RVz14r/Dbirg7+Z1BHw2ERJT+oe2KeUvs4y6ntw8yUtLtAq6rqDeaPG/XWAlM0Z5KOzWZ2owwCybJk/c7M6VCf4+0XHhU5e1bfoZHWs1hVwInjflBLA6vrAnCrgADyrxwZGa83Va60vwCGpU2ADPNw4Ldc3MP8Bk60okvXOxJoAAAAASUVORK5CYII="></a>
+    <a href="https://github.com/Jed556/AutoMidiPlayer/releases"><img alt="Beta" src="https://img.shields.io/github/v/release/Jed556/AutoMidiPlayer?include_prereleases&color=35566D&label=Beta&logo=data:image/svg+xml;base64,PCFET0NUWVBFIHN2ZyBQVUJMSUMgIi0vL1czQy8vRFREIFNWRyAxLjEvL0VOIiAiaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTEuZHRkIj4KDTwhLS0gVXBsb2FkZWQgdG86IFNWRyBSZXBvLCB3d3cuc3ZncmVwby5jb20sIFRyYW5zZm9ybWVkIGJ5OiBTVkcgUmVwbyBNaXhlciBUb29scyAtLT4KPHN2ZyB3aWR0aD0iODAwcHgiIGhlaWdodD0iODAwcHgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiBzdHJva2U9IiNmZmZmZmYiPgoNPGcgaWQ9IlNWR1JlcG9fYmdDYXJyaWVyIiBzdHJva2Utd2lkdGg9IjAiLz4KDTxnIGlkPSJTVkdSZXBvX3RyYWNlckNhcnJpZXIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgoNPGcgaWQ9IlNWR1JlcG9faWNvbkNhcnJpZXIiPiA8cGF0aCBkPSJNNyA4TDMgMTEuNjkyM0w3IDE2TTE3IDhMMjEgMTEuNjkyM0wxNyAxNk0xNCA0TDEwIDIwIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+IDwvZz4KDTwvc3ZnPg=="></a>
+    <a href="https://github.com/Jed556/AutoMidiPlayer/releases/latest"><img alt="Stable" src="https://img.shields.io/github/v/release/Jed556/AutoMidiPlayer?color=35566D&label=Stable&logo=data:image/svg+xml;base64,PCFET0NUWVBFIHN2ZyBQVUJMSUMgIi0vL1czQy8vRFREIFNWRyAxLjEvL0VOIiAiaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTEuZHRkIj4KDTwhLS0gVXBsb2FkZWQgdG86IFNWRyBSZXBvLCB3d3cuc3ZncmVwby5jb20sIFRyYW5zZm9ybWVkIGJ5OiBTVkcgUmVwbyBNaXhlciBUb29scyAtLT4KPHN2ZyB3aWR0aD0iODAwcHgiIGhlaWdodD0iODAwcHgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiBzdHJva2U9IiNmZmZmZmYiPgoNPGcgaWQ9IlNWR1JlcG9fYmdDYXJyaWVyIiBzdHJva2Utd2lkdGg9IjAiLz4KDTxnIGlkPSJTVkdSZXBvX3RyYWNlckNhcnJpZXIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgoNPGcgaWQ9IlNWR1JlcG9faWNvbkNhcnJpZXIiPiA8cGF0aCBkPSJNMjAuNSA3LjI3NzgzTDEyIDEyLjAwMDFNMTIgMTIuMDAwMUwzLjQ5OTk3IDcuMjc3ODNNMTIgMTIuMDAwMUwxMiAyMS41MDAxTTE0IDIwLjg4OUwxMi43NzcgMjEuNTY4NEMxMi40OTM0IDIxLjcyNiAxMi4zNTE2IDIxLjgwNDcgMTIuMjAxNSAyMS44MzU2QzEyLjA2ODUgMjEuODYzIDExLjkzMTUgMjEuODYzIDExLjc5ODYgMjEuODM1NkMxMS42NDg0IDIxLjgwNDcgMTEuNTA2NiAyMS43MjYgMTEuMjIzIDIxLjU2ODRMMy44MjI5NyAxNy40NTczQzMuNTIzNDYgMTcuMjkwOSAzLjM3MzY4IDE3LjIwNzcgMy4yNjQ2MyAxNy4wODkzQzMuMTY4MTYgMTYuOTg0NyAzLjA5NTE1IDE2Ljg2MDYgMy4wNTA0OCAxNi43MjU0QzMgMTYuNTcyNiAzIDE2LjQwMTMgMyAxNi4wNTg2VjcuOTQxNTNDMyA3LjU5ODg5IDMgNy40Mjc1NyAzLjA1MDQ4IDcuMjc0NzdDMy4wOTUxNSA3LjEzOTU5IDMuMTY4MTYgNy4wMTU1MSAzLjI2NDYzIDYuOTEwODJDMy4zNzM2OCA2Ljc5MjQ4IDMuNTIzNDUgNi43MDkyOCAzLjgyMjk3IDYuNTQyODhMMTEuMjIzIDIuNDMxNzdDMTEuNTA2NiAyLjI3NDIxIDExLjY0ODQgMi4xOTU0MyAxMS43OTg2IDIuMTY0NTRDMTEuOTMxNSAyLjEzNzIxIDEyLjA2ODUgMi4xMzcyMSAxMi4yMDE1IDIuMTY0NTRDMTIuMzUxNiAyLjE5NTQzIDEyLjQ5MzQgMi4yNzQyMSAxMi43NzcgMi40MzE3N0wyMC4xNzcgNi41NDI4OEMyMC40NzY2IDYuNzA5MjggMjAuNjI2MyA2Ljc5MjQ4IDIwLjczNTQgNi45MTA4MkMyMC44MzE4IDcuMDE1NTEgMjAuOTA0OSA3LjEzOTU5IDIwLjk0OTUgNy4yNzQ3N0MyMSA3LjQyNzU3IDIxIDcuNTk4ODkgMjEgNy45NDE1M0wyMSAxMi41MDAxTTcuNSA0LjUwMDA4TDE2LjUgOS41MDAwOE0xNiAxOC4wMDAxTDE4IDIwLjAwMDFMMjIgMTYuMDAwMSIgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPiA8L2c+Cg08L3N2Zz4="></a>
+    <a href="https://github.com/Jed556/AutoMidiPlayer/releases/latest"><img alt="Downloads" src="https://img.shields.io/github/downloads/Jed556/AutoMidiPlayer/total?label=Downloads&logo=data:image/svg+xml;base64,PCFET0NUWVBFIHN2ZyBQVUJMSUMgIi0vL1czQy8vRFREIFNWRyAxLjEvL0VOIiAiaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTEuZHRkIj4KDTwhLS0gVXBsb2FkZWQgdG86IFNWRyBSZXBvLCB3d3cuc3ZncmVwby5jb20sIFRyYW5zZm9ybWVkIGJ5OiBTVkcgUmVwbyBNaXhlciBUb29scyAtLT4KPHN2ZyB3aWR0aD0iODAwcHgiIGhlaWdodD0iODAwcHgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KDTxnIGlkPSJTVkdSZXBvX2JnQ2FycmllciIgc3Ryb2tlLXdpZHRoPSIwIi8+Cg08ZyBpZD0iU1ZHUmVwb190cmFjZXJDYXJyaWVyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KDTxnIGlkPSJTVkdSZXBvX2ljb25DYXJyaWVyIj4gPHBhdGggZD0iTTExIDMuMDEyNTRDMTAuOTk4MyAyLjQ2MDI2IDExLjQ0NDYgMi4wMTExNCAxMS45OTY5IDIuMDA5NDFDMTIuNTQ5MiAyLjAwNzY4IDEyLjk5ODMgMi40NTM5OSAxMyAzLjAwNjI3TDExIDMuMDEyNTRaIiBmaWxsPSIjZmZmZmZmIi8+IDxwYXRoIGQ9Ik0xNC4zMTU4IDEwLjI5NTFMMTMuMDI2OSAxMS41OTJMMTMgMy4wMDYyN0wxMSAzLjAxMjU0TDExLjAyNjkgMTEuNTk4M0w5LjczMDAzIDEwLjMwOTVDOS4zMzgyOCA5LjkyMDE4IDguNzA1MSA5LjkyMjE0IDguMzE1OCAxMC4zMTM5QzcuOTI2NSAxMC43MDU2IDcuOTI4NDkgMTEuMzM4OCA4LjMyMDI0IDExLjcyODFMOC4zMjI3NSAxMS43MzA2TDguMzIzNzQgMTEuNzMxNkwxMi4wMzkgMTUuNDIzNkwxNS43MjA2IDExLjcxODdMMTUuNzI2MiAxMS43MTMxTDE1LjcyNyAxMS43MTIzTDE1LjcyNzggMTEuNzExNUwxNS43MzM3IDExLjcwNTZMMTUuNzM0NCAxMS43MDQ5TDE0LjMxNTggMTAuMjk1MVoiIGZpbGw9IiNmZmZmZmYiLz4gPHBhdGggZD0iTTE1LjczNDQgMTEuNzA0OUMxNi4xMjM3IDExLjMxMzEgMTYuMTIxNyAxMC42Nzk5IDE1LjczIDEwLjI5MDZDMTUuMzM4MiA5LjkwMTM0IDE0LjcwNSA5LjkwMzM1IDE0LjMxNTggMTAuMjk1MUwxNS43MzQ0IDExLjcwNDlaIiBmaWxsPSIjZmZmZmZmIi8+IDxwYXRoIGQ9Ik00IDEyQzQgMTAuODk1NCA0Ljg5NTQzIDEwIDYgMTBDNi41NTIyOCAxMCA3IDkuNTUyMjggNyA5QzcgOC40NDc3MSA2LjU1MjI4IDggNiA4QzMuNzkwODYgOCAyIDkuNzkwODYgMiAxMlYxOEMyIDIwLjIwOTEgMy43OTA4NiAyMiA2IDIySDE3QzE5Ljc2MTQgMjIgMjIgMTkuNzYxNCAyMiAxN1YxMkMyMiA5Ljc5MDg2IDIwLjIwOTEgOCAxOCA4QzE3LjQ0NzcgOCAxNyA4LjQ0NzcxIDE3IDlDMTcgOS41NTIyOCAxNy40NDc3IDEwIDE4IDEwQzE5LjEwNDYgMTAgMjAgMTAuODk1NCAyMCAxMlYxN0MyMCAxOC42NTY5IDE4LjY1NjkgMjAgMTcgMjBINkM0Ljg5NTQzIDIwIDQgMTkuMTA0NiA0IDE4VjEyWiIgZmlsbD0iI2ZmZmZmZiIvPiA8L2c+Cg08L3N2Zz4="></a>
   </p>
 </div>
 
@@ -20,7 +21,7 @@ https://github.com/user-attachments/assets/8e7d8dec-33c4-4d2b-a268-4abd1dbac405
 
 ### Supported Games and Instruments
 - **Genshin Impact** - Windsong Lyre, Floral Zither, Vintage Lyre
-- **Heartopia** - Piano
+- **Heartopia** - Piano, 15-key instruments
 
 ## How to use
 
@@ -122,9 +123,6 @@ cd AutoMidiPlayer
 dotnet publish
 ```
 
-# Notes
-* I don't have knowledge about music theory, if you find any issues with note mappings or transpositions, please open an issue or PR.
-
 # Special Thanks
 * This project is inspired by and built on top of **[sabihoshi/GenshinLyreMidiPlayer][GenshinLyreMidiPlayer]** [v4.0.5](https://github.com/sabihoshi/GenshinLyreMidiPlayer/releases/tag/v4.0.5). Huge thanks for the original work!
 * **[ianespana/ShawzinBot](https://github.com/ianespana/ShawzinBot)** - Original inspiration for the concept *`~GenshinLyreMidiPlayer`*
@@ -135,8 +133,12 @@ dotnet publish
 * This project is under the [MIT](LICENSE.md) license.
 * Originally created by [sabihoshi][GenshinLyreMidiPlayer]. Modified by [Jed556](https://github.com/Jed556) for multi-game support and modernization.
 * All rights reserved by © miHoYo Co., Ltd. and © XD Inc. This project is not affiliated nor endorsed by miHoYo or XD. Genshin Impact™, Heartopia™, and other properties belong to their respective owners.
-* This project uses third-party libraries or other resources that may be
-distributed under [different licenses](THIRD-PARTY-NOTICES.md).
+* This project uses third-party libraries or other resources that may be distributed under [different licenses](THIRD-PARTY-NOTICES.md).
+
+<br/>
+
+> [!NOTE]
+> I don't have knowledge about music theory, if you find any issues with note mappings or transpositions, please open an issue or PR. Thank you! 💖
 
 [latest]: https://github.com/Jed556/AutoMidiPlayer/releases/latest
 [GenshinLyreMidiPlayer]: https://github.com/sabihoshi/GenshinLyreMidiPlayer
