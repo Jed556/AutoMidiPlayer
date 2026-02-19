@@ -23,7 +23,9 @@ public static class WindowHelper
             var instrument = Keyboard.GetInstrumentAtIndex(Settings.Default.SelectedInstrument).Key;
             var location = instrument.Contains("Heartopia", StringComparison.OrdinalIgnoreCase)
                 ? Settings.Default.HeartopiaLocation
-                : Settings.Default.GenshinLocation;
+                : instrument.Contains("Roblox", StringComparison.OrdinalIgnoreCase)
+                    ? Settings.Default.RobloxLocation
+                    : Settings.Default.GenshinLocation;
 
             return Path.GetFileNameWithoutExtension(location);
         }
