@@ -44,7 +44,8 @@ public static class RobloxKeyboardPlayer
         public uint dwFlags;
         public uint time;
         public IntPtr dwExtraInfo;
-        // Padding to match MOUSEINPUT size (needed for union behavior in Win32)
+        // Padding to match MOUSEINPUT size (INPUT structure uses union in Win32, requires matching sizes)
+        // These fields ensure proper memory layout for the INPUT union structure
         private readonly uint padding1;
         private readonly uint padding2;
     }
