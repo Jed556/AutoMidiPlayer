@@ -486,13 +486,26 @@ public class SettingsPageViewModel : Screen
 
         robloxLocations.AddRange(new[]
         {
-            // Common Roblox install locations
-            @"C:\Program Files (x86)\Roblox\Versions\RobloxPlayerBeta.exe",
-            @"C:\Program Files\Roblox\Versions\RobloxPlayerBeta.exe",
-
             // Relative location (Roblox)
             AppContext.BaseDirectory + "RobloxPlayerBeta.exe"
         });
+
+        // Also scan Program Files Roblox version directories
+        var programFilesRobloxDirs = new[]
+        {
+            @"C:\Program Files (x86)\Roblox\Versions",
+            @"C:\Program Files\Roblox\Versions"
+        };
+        foreach (var baseDir in programFilesRobloxDirs)
+        {
+            if (Directory.Exists(baseDir))
+            {
+                foreach (var dir in Directory.GetDirectories(baseDir))
+                {
+                    robloxLocations.Add(Path.Combine(dir, "RobloxPlayerBeta.exe"));
+                }
+            }
+        }
 
         var foundGenshin = false;
         var foundHeartopia = false;
@@ -558,7 +571,7 @@ public class SettingsPageViewModel : Screen
     {
         var dialog = DialogHelper.CreateDialog();
         dialog.Title = "Error";
-        dialog.Content = "Could not find game executable locations. You can set Genshin, Heartopia, and Roblox paths separately in Settings.";
+        dialog.Content = "Could not find game executable locations. You can set Genshin and Heartopia paths here, and set the Roblox path separately in Settings.";
         dialog.PrimaryButtonText = "Find Genshin...";
         dialog.SecondaryButtonText = "Find Heartopia...";
         dialog.CloseButtonText = "Ignore";
