@@ -6,7 +6,7 @@
         <UseWPF>true</UseWPF>
         <StartupObject>AutoMidiPlayer.WPF.App</StartupObject>
         <ApplicationManifest>app.manifest</ApplicationManifest>
-        <Version>6.8.1</Version>
+        <Version>6.8.2</Version>
         <ApplicationIcon>logo.ico</ApplicationIcon>
         <Nullable>enable</Nullable>
         <RepositoryUrl>https://github.com/Jed556/AutoMidiPlayer</RepositoryUrl>
@@ -14,7 +14,7 @@
         <Product>Auto MIDI Player</Product>
         <Company />
         <Copyright>Copyright (c) 2026 Jed556</Copyright>
-        <Description>A MIDI to key player for in-game instruments. Supports games such as Genshin Impact and Heartopia.</Description>
+        <Description>A MIDI to key player for in-game instruments. Supports games such as Genshin Impact, Heartopia, and Roblox.</Description>
         <LangVersion>latest</LangVersion>
         <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
         <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>

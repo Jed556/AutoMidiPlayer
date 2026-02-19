@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
 using AutoMidiPlayer.Data.Entities;
+using AutoMidiPlayer.WPF.Core.Instruments;
 using WindowsInput;
 using WindowsInput.Native;
 using static AutoMidiPlayer.WPF.Core.Keyboard;
@@ -12,42 +12,6 @@ namespace AutoMidiPlayer.WPF.Core;
 public static class KeyboardPlayer
 {
     private static readonly IInputSimulator Input = new InputSimulator();
-
-    // Win32 API for direct keyboard input (more compatible with games)
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
-
-    [DllImport("user32.dll")]
-    private static extern uint MapVirtualKey(uint uCode, uint uMapType);
-
-
-
-    private const int INPUT_KEYBOARD = 1;
-    private const uint KEYEVENTF_KEYDOWN = 0x0000;
-    private const uint KEYEVENTF_KEYUP = 0x0002;
-    private const uint KEYEVENTF_SCANCODE = 0x0008;
-    private const uint MAPVK_VK_TO_VSC = 0;
-
-    // Correct struct layout for 64-bit Windows
-    [StructLayout(LayoutKind.Sequential)]
-    private struct INPUT
-    {
-        public int type;
-        public KEYBDINPUT ki;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct KEYBDINPUT
-    {
-        public ushort wVk;
-        public ushort wScan;
-        public uint dwFlags;
-        public uint time;
-        public IntPtr dwExtraInfo;
-        // Padding to match MOUSEINPUT size (needed for union behavior)
-        private readonly uint pad1;
-        private readonly uint pad2;
-    }
 
     // Use direct SendInput for games that don't respond to InputSimulator
     public static bool UseDirectInput { get; set; } = true;
@@ -80,13 +44,51 @@ public static class KeyboardPlayer
     }
 
     public static void NoteDown(int noteId, string layoutName, string instrumentId)
-        => InteractNote(noteId, layoutName, instrumentId, Input.Keyboard.KeyDown);
+    {
+        // Check if this is a Roblox instrument (character-based input)
+        if (IsRobloxInstrument(instrumentId))
+        {
+            RobloxKeyboardPlayer.NoteDown(noteId);
+        }
+        else
+        {
+            InteractNote(noteId, layoutName, instrumentId, Input.Keyboard.KeyDown);
+        }
+    }
 
     public static void NoteUp(int noteId, string layoutName, string instrumentId)
-        => InteractNote(noteId, layoutName, instrumentId, Input.Keyboard.KeyUp);
+    {
+        // Check if this is a Roblox instrument (character-based input)
+        if (IsRobloxInstrument(instrumentId))
+        {
+            RobloxKeyboardPlayer.NoteUp(noteId);
+        }
+        else
+        {
+            InteractNote(noteId, layoutName, instrumentId, Input.Keyboard.KeyUp);
+        }
+    }
 
     public static void PlayNote(int noteId, string layoutName, string instrumentId)
-        => InteractNote(noteId, layoutName, instrumentId, Input.Keyboard.KeyPress);
+    {
+        // Check if this is a Roblox instrument (character-based input)
+        if (IsRobloxInstrument(instrumentId))
+        {
+            RobloxKeyboardPlayer.PlayNote(noteId);
+        }
+        else
+        {
+            InteractNote(noteId, layoutName, instrumentId, Input.Keyboard.KeyPress);
+        }
+    }
+
+    /// <summary>
+    /// Checks if the instrument is a Roblox instrument that requires character-based input.
+    /// </summary>
+    private static bool IsRobloxInstrument(string instrumentId)
+    {
+        return instrumentId.StartsWith("Roblox", StringComparison.OrdinalIgnoreCase);
+    }
 
     public static bool TryGetKey(string layoutName, string instrumentId, int noteId, out VirtualKeyCode key)
     {
@@ -114,32 +116,12 @@ public static class KeyboardPlayer
             if (UseDirectInput)
             {
                 // Use direct Win32 SendInput with scan codes for better game compatibility
-                SendKeyDirect(key, action == Input.Keyboard.KeyUp);
+                Win32InputHelper.SendKeyDirect(key, action == Input.Keyboard.KeyUp);
             }
             else
             {
                 action.Invoke(key);
             }
         }
-    }
-
-    private static void SendKeyDirect(VirtualKeyCode key, bool keyUp)
-    {
-        uint scanCode = MapVirtualKey((uint)key, MAPVK_VK_TO_VSC);
-
-        var input = new INPUT
-        {
-            type = INPUT_KEYBOARD,
-            ki = new KEYBDINPUT
-            {
-                wVk = (ushort)key,
-                wScan = (ushort)scanCode,
-                dwFlags = (keyUp ? KEYEVENTF_KEYUP : KEYEVENTF_KEYDOWN) | KEYEVENTF_SCANCODE,
-                time = 0,
-                dwExtraInfo = IntPtr.Zero
-            }
-        };
-
-        _ = SendInput(1, [input], Marshal.SizeOf(typeof(INPUT)));
     }
 }

@@ -276,6 +276,21 @@ namespace AutoMidiPlayer.Data.Properties
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("RobloxPlayerBeta.exe")]
+        public string RobloxLocation
+        {
+            get
+            {
+                return ((string)(this["RobloxLocation"]));
+            }
+            set
+            {
+                this["RobloxLocation"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("0")]
         public int SelectedInstrument
         {

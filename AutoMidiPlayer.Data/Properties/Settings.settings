@@ -59,6 +59,9 @@
     <Setting Name="HeartopiaLocation" Type="System.String" Scope="User">
       <Value Profile="(Default)">xdt.exe</Value>
     </Setting>
+    <Setting Name="RobloxLocation" Type="System.String" Scope="User">
+      <Value Profile="(Default)">RobloxPlayerBeta.exe</Value>
+    </Setting>
     <Setting Name="SelectedInstrument" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">0</Value>
     </Setting>

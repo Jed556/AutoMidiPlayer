@@ -151,6 +151,19 @@
                         </controls:SimpleStackPanel>
                     </GroupBox>
 
+                    <GroupBox Header="Roblox Location">
+                        <controls:SimpleStackPanel Orientation="Horizontal">
+                            <Button Command="{s:Action SetRobloxLocation}"
+                                    Style="{DynamicResource GhostIconButton}">
+                                <ui:SymbolIcon Symbol="AppsAddIn16"
+                                               FontSize="18"/>
+                            </Button>
+                            <TextBlock Text="{Binding RobloxLocation}"
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </controls:SimpleStackPanel>
+                    </GroupBox>
+
                     <GroupBox Header="MIDI Folder">
                         <controls:SimpleStackPanel Orientation="Horizontal">
                             <Button Command="{s:Action BrowseMidiFolder}"
