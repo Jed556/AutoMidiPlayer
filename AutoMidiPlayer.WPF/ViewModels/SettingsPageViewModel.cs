@@ -399,6 +399,19 @@ public class SettingsPageViewModel : Screen
         }
     }
 
+    public string RobloxLocation
+    {
+        get => Settings.RobloxLocation;
+        set
+        {
+            if (Settings.RobloxLocation == value)
+                return;
+
+            Settings.RobloxLocation = value;
+            NotifyOfPropertyChange(nameof(RobloxLocation));
+        }
+    }
+
     /// <summary>
     /// Path where application data (database, logs, etc.) is stored
     /// </summary>
@@ -454,8 +467,23 @@ public class SettingsPageViewModel : Screen
             AppContext.BaseDirectory + "xdt.exe"
         };
 
+        var robloxLocations = new[]
+        {
+            // User set location
+            Settings.RobloxLocation,
+
+            // Common Roblox install locations
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Roblox\Versions\RobloxPlayerBeta.exe"),
+            @"C:\Program Files (x86)\Roblox\Versions\RobloxPlayerBeta.exe",
+            @"C:\Program Files\Roblox\Versions\RobloxPlayerBeta.exe",
+
+            // Relative location (Roblox)
+            AppContext.BaseDirectory + "RobloxPlayerBeta.exe"
+        };
+
         var foundGenshin = false;
         var foundHeartopia = false;
+        var foundRoblox = false;
 
         foreach (var location in genshinLocations)
         {
@@ -475,7 +503,16 @@ public class SettingsPageViewModel : Screen
             }
         }
 
-        return foundGenshin || foundHeartopia;
+        foreach (var location in robloxLocations)
+        {
+            if (await TrySetRobloxLocationAsync(location))
+            {
+                foundRoblox = true;
+                break;
+            }
+        }
+
+        return foundGenshin || foundHeartopia || foundRoblox;
     }
 
     public async Task CheckForUpdate()
@@ -508,7 +545,7 @@ public class SettingsPageViewModel : Screen
     {
         var dialog = DialogHelper.CreateDialog();
         dialog.Title = "Error";
-        dialog.Content = "Could not find game executable locations. You can set Genshin and Heartopia paths separately in Settings.";
+        dialog.Content = "Could not find game executable locations. You can set Genshin, Heartopia, and Roblox paths separately in Settings.";
         dialog.PrimaryButtonText = "Find Genshin...";
         dialog.SecondaryButtonText = "Find Heartopia...";
         dialog.CloseButtonText = "Ignore";
@@ -567,6 +604,23 @@ public class SettingsPageViewModel : Screen
             return;
 
         await TrySetHeartopiaLocationAsync(openFileDialog.FileName);
+    }
+
+    [PublicAPI]
+    public async Task SetRobloxLocation()
+    {
+        var openFileDialog = new OpenFileDialog
+        {
+            Filter = "Executable|*.exe|All files (*.*)|*.*",
+            InitialDirectory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Roblox")
+        };
+
+        var success = openFileDialog.ShowDialog() == true;
+        if (!success)
+            return;
+
+        await TrySetRobloxLocationAsync(openFileDialog.FileName);
     }
 
     public async Task BrowseMidiFolder()
@@ -706,6 +760,26 @@ public class SettingsPageViewModel : Screen
         }
 
         HeartopiaLocation = location;
+        Settings.Save();
+
+        return true;
+    }
+
+    private async Task<bool> TrySetRobloxLocationAsync(string? location)
+    {
+        if (!File.Exists(location)) return false;
+        if (!Path.GetFileName(location).Equals("RobloxPlayerBeta.exe", StringComparison.OrdinalIgnoreCase))
+        {
+            var dialog = DialogHelper.CreateDialog();
+            dialog.Title = "Incorrect Location";
+            dialog.Content = "Please select RobloxPlayerBeta.exe for Roblox.";
+            dialog.CloseButtonText = "Ok";
+
+            await dialog.ShowAsync();
+            return false;
+        }
+
+        RobloxLocation = location;
         Settings.Save();
 
         return true;
