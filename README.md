@@ -21,6 +21,7 @@ https://github.com/user-attachments/assets/8e7d8dec-33c4-4d2b-a268-4abd1dbac405
 ### Supported Games and Instruments
 - **Genshin Impact** - Windsong Lyre, Floral Zither, Vintage Lyre
 - **Heartopia** - Piano
+- **Roblox** - Piano (61-key, MIRP layout)
 
 ## How to use
 
@@ -82,6 +83,14 @@ MIDI files (.mid) is a set of instructions that play various instruments on what
 The short answer is that it's uncertain. Use it at your own risk. Do not play songs that will spam the keyboard, listen to the MIDI file first and make sure to play only one instrument so that the tool doesn't spam keyboard inputs.
 * For Genshin Impact, here is [miHoYo's response](https://genshin.mihoyo.com/en/news/detail/5763) to using 3rd party tools.
 * For Heartopia, here is their [Official Discord message](https://discord.com/channels/1128257488375005215/1460985755529773301/1465702188700405986) about using 3rd party tools.
+* For Roblox, use at your own discretion. Different games may have different policies.
+
+### Roblox Piano Support
+AutoMidiPlayer now supports Roblox virtual pianos using the MIRP (MIDI Input to Roblox Piano) layout. This provides:
+* **61-note chromatic piano** (C2 to C7, MIDI notes 36-96)
+* **Automatic character mapping** with Shift key handling
+* **Compatible with MIRP layout files** (.mlf format)
+* See [ROBLOX_KEYMAP.md](ROBLOX_KEYMAP.md) for detailed documentation
 
 ## Pull Request Process
 
