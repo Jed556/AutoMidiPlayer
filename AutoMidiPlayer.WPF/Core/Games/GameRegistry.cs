@@ -88,6 +88,31 @@ public static class GameRegistry
             setLocation: v => Settings.Modify(s => s.RobloxLocation = v),
             getIsActive: () => Settings.ActiveRoblox,
             setIsActive: v => Settings.Modify(s => s.ActiveRoblox = v)
+        ),
+        new GameDefinition(
+            id: "Sky",
+            displayName: "Sky: Children of the Light",
+            instrumentGameName: "Sky",
+            imageResourcePath: "pack://application:,,,/Resources/Sky.png",
+            processNames: new[] { "Sky" },
+            defaultExeName: "Sky.exe",
+            defaultSearchPaths: new[]
+            {
+                @"C:\Program Files (x86)\Steam\steamapps\common\Sky Children of the Light\Sky.exe",
+                @"C:\Program Files\Steam\steamapps\common\Sky Children of the Light\Sky.exe",
+                @"D:\Steam\steamapps\common\Sky Children of the Light\Sky.exe",
+                @"D:\SteamLibrary\steamapps\common\Sky Children of the Light\Sky.exe",
+                @"E:\Steam\steamapps\common\Sky Children of the Light\Sky.exe",
+                @"E:\SteamLibrary\steamapps\common\Sky Children of the Light\Sky.exe",
+                @"F:\Steam\steamapps\common\Sky Children of the Light\Sky.exe",
+                @"F:\SteamLibrary\steamapps\common\Sky Children of the Light\Sky.exe",
+                @"G:\Steam\steamapps\common\Sky Children of the Light\Sky.exe",
+                @"G:\SteamLibrary\steamapps\common\Sky Children of the Light\Sky.exe",
+            },
+            getLocation: () => Settings.SkyLocation,
+            setLocation: v => Settings.Modify(s => s.SkyLocation = v),
+            getIsActive: () => Settings.ActiveSky,
+            setIsActive: v => Settings.Modify(s => s.ActiveSky = v)
         )
     };
 

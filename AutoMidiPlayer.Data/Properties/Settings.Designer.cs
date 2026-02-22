@@ -351,6 +351,36 @@ namespace AutoMidiPlayer.Data.Properties
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("Sky.exe")]
+        public string SkyLocation
+        {
+            get
+            {
+                return ((string)(this["SkyLocation"]));
+            }
+            set
+            {
+                this["SkyLocation"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool ActiveSky
+        {
+            get
+            {
+                return ((bool)(this["ActiveSky"]));
+            }
+            set
+            {
+                this["ActiveSky"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("0")]
         public int SelectedInstrument
         {
