@@ -113,6 +113,9 @@
     <Setting Name="UseDirectInput" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>
+    <Setting Name="UseWindowMessage" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
     <Setting Name="LastViewedPage" Type="System.String" Scope="User">
       <Value Profile="(Default)">Songs</Value>
     </Setting>

@@ -297,6 +297,8 @@ public class SettingsPageViewModel : Screen
 
     public bool UseDirectInput { get; set; } = Settings.UseDirectInput;
 
+    public bool UseWindowMessage { get; set; } = Settings.UseWindowMessage;
+
     public bool AutoEnableListenMode
     {
         get => Settings.AutoEnableListenMode;
@@ -640,6 +642,14 @@ public class SettingsPageViewModel : Screen
         Settings.UseDirectInput = UseDirectInput;
         Settings.Save();
         KeyboardPlayer.UseDirectInput = UseDirectInput;
+    }
+
+    [UsedImplicitly]
+    private void OnUseWindowMessageChanged()
+    {
+        Settings.UseWindowMessage = UseWindowMessage;
+        Settings.Save();
+        KeyboardPlayer.UseWindowMessage = UseWindowMessage;
     }
 }
 

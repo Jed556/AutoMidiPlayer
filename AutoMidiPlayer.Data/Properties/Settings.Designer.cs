@@ -546,6 +546,21 @@ namespace AutoMidiPlayer.Data.Properties
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool UseWindowMessage
+        {
+            get
+            {
+                return ((bool)(this["UseWindowMessage"]));
+            }
+            set
+            {
+                this["UseWindowMessage"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("Songs")]
         public string LastViewedPage
         {

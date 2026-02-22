@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -14,54 +15,119 @@ public static class WindowHelper
         .OpenSubKey(@"SOFTWARE\launcher", false)
         ?.GetValue("InstPath") as string;
 
-    private static string ActiveGameProcessName
+    private static string[] ActiveGameProcessNames
     {
         get
         {
             var activeGame = GameRegistry.AllGames.FirstOrDefault(game => game.GetIsActive());
 
             if (activeGame is null)
-                return string.Empty;
+                return [];
+
+            var processNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             var configuredProcessName = Path.GetFileNameWithoutExtension(activeGame.GetLocation());
             if (!string.IsNullOrWhiteSpace(configuredProcessName))
-                return configuredProcessName;
+                processNames.Add(configuredProcessName);
 
-            return activeGame.ProcessNames.FirstOrDefault() ?? string.Empty;
+            foreach (var processName in activeGame.ProcessNames.Where(name => !string.IsNullOrWhiteSpace(name)))
+                processNames.Add(processName);
+
+            return [.. processNames];
         }
     }
 
     public static bool IsGameFocused()
     {
-        var gameWindow = FindWindowByProcessName(ActiveGameProcessName);
-        return gameWindow != null &&
-            IsWindowFocused((IntPtr)gameWindow);
+        var processNames = ActiveGameProcessNames;
+        if (processNames.Length == 0)
+            return false;
+
+        var foregroundWindow = GetForegroundWindow();
+        if (foregroundWindow == IntPtr.Zero)
+            return false;
+
+        GetWindowThreadProcessId(foregroundWindow, out var processId);
+        if (processId == 0)
+            return false;
+
+        try
+        {
+            var process = Process.GetProcessById((int)processId);
+            return processNames.Contains(process.ProcessName, StringComparer.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public static void EnsureGameOnTop()
     {
-        var gameWindow = FindWindowByProcessName(ActiveGameProcessName);
+        var gameWindow = FindWindowByProcessNames(ActiveGameProcessNames);
         if (gameWindow is null) return;
 
         SwitchToThisWindow((IntPtr)gameWindow, true);
     }
 
-    private static bool IsWindowFocused(IntPtr windowPtr)
-    {
-        var hWnd = GetForegroundWindow();
-        return hWnd.Equals(windowPtr);
-    }
+    /// <summary>
+    /// Returns the main window handle of the currently active game process,
+    /// or null if the game is not running. Used by the Window Message input path.
+    /// </summary>
+    public static IntPtr? GetActiveGameWindowHandle()
+        => FindWindowByProcessNames(ActiveGameProcessNames);
 
     [DllImport("user32.dll", CharSet = CharSet.Auto, ExactSpelling = true)]
     private static extern IntPtr GetForegroundWindow();
 
-    private static IntPtr? FindWindowByProcessName(string? processName)
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    private static IntPtr? FindWindowByProcessNames(IEnumerable<string> processNames)
     {
-        if (string.IsNullOrWhiteSpace(processName))
+        var names = processNames
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (names.Length == 0)
             return null;
 
-        var process = Process.GetProcessesByName(processName);
-        return process.FirstOrDefault(p => p.MainWindowHandle != IntPtr.Zero)?.MainWindowHandle;
+        var foregroundWindow = GetForegroundWindow();
+        if (foregroundWindow != IntPtr.Zero)
+        {
+            GetWindowThreadProcessId(foregroundWindow, out var processId);
+            if (processId != 0)
+            {
+                try
+                {
+                    var process = Process.GetProcessById((int)processId);
+                    if (names.Contains(process.ProcessName, StringComparer.OrdinalIgnoreCase))
+                        return foregroundWindow;
+                }
+                catch
+                {
+                    // Ignore and continue with process enumeration fallback.
+                }
+            }
+        }
+
+        foreach (var processName in names)
+        {
+            try
+            {
+                var process = Process.GetProcessesByName(processName);
+                var handle = process.FirstOrDefault(p => p.MainWindowHandle != IntPtr.Zero)?.MainWindowHandle;
+                if (handle.HasValue && handle.Value != IntPtr.Zero)
+                    return handle;
+            }
+            catch
+            {
+                // Ignore process access errors and continue.
+            }
+        }
+
+        return null;
     }
 
     [DllImport("user32.dll")]

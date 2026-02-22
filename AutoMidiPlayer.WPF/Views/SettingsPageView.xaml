@@ -55,6 +55,13 @@
                                FontSize="12"
                                Margin="0,8,0,0"/>
 
+                    <ui:ToggleSwitch
+                        Content="Use Window Message"
+                        IsChecked="{Binding UseWindowMessage}"
+                        ToolTip="Sends WM_KEYDOWN directly to the game window instead of global SendInput. Use this for games like Sky: CotL that detect and block injected input."/>
+
+
+
                     <!-- Keybinds Section -->
                     <TextBlock Text="Keybinds"
                                FontSize="20"

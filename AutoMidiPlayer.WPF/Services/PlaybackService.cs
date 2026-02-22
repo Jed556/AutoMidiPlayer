@@ -455,6 +455,8 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
             var layout = InstrumentPage.SelectedLayout.Key;
             var instrument = InstrumentPage.SelectedInstrument.Key;
             var note = ApplyNoteSettings(instrument, noteEvent.NoteNumber);
+            var selectedGame = _main.SelectedGame?.Definition;
+            var isGameRunning = selectedGame is not null && GameRegistry.IsGameRunning(selectedGame);
 
             // Notify listeners about note being played (for track glow effects)
             if (noteEvent.EventType == MidiEventType.NoteOn && noteEvent.Velocity > 0)
@@ -469,13 +471,19 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
                 return;
             }
 
-            if (!WindowHelper.IsGameFocused())
+            if (!isGameRunning)
             {
-                if (!HandleInactiveGameForPlayback())
+                if (!HandleGameNotRunning())
                     return;
 
                 noteEvent.NoteNumber = new((byte)note);
                 _speakers?.SendEvent(noteEvent);
+                return;
+            }
+
+            if (!WindowHelper.IsGameFocused())
+            {
+                HandleGameFocusLoss();
                 return;
             }
 
@@ -510,7 +518,7 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
             : noteId;
     }
 
-    private bool HandleInactiveGameForPlayback()
+    private bool HandleGameNotRunning()
     {
         var shouldAutoEnableListenMode = Settings.AutoEnableListenMode;
 
@@ -522,8 +530,7 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
         }
 
         var selectedGameName = _main.SelectedGame?.Definition.DisplayName ?? "Selected game";
-        var isRunning = _main.SelectedGame is not null && GameRegistry.IsGameRunning(_main.SelectedGame.Definition);
-        var gameLabel = isRunning ? selectedGameName : $"{selectedGameName} is not running";
+        var gameLabel = $"{selectedGameName} is not running";
 
         var listenModeEnabled = Settings.UseSpeakers;
         _main.ShowGameInactiveToast(gameLabel, listenModeEnabled);
@@ -531,10 +538,27 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
         return listenModeEnabled;
     }
 
+    private void HandleGameFocusLoss()
+    {
+        var wasRunning = Playback is not null && Playback.IsRunning;
+        if (wasRunning)
+        {
+            Playback!.Stop();
+            Queue.SaveCurrentSong(CurrentTime.TotalSeconds);
+            UpdateButtons();
+        }
+
+        var selectedGameName = _main.SelectedGame?.Definition.DisplayName ?? "Selected game";
+        _main.ShowGameFocusLossToast(selectedGameName);
+    }
+
     private async Task<bool> StartPlayback()
     {
         if (Playback is null)
             return false;
+
+        var selectedGame = _main.SelectedGame?.Definition;
+        var isGameRunning = selectedGame is not null && GameRegistry.IsGameRunning(selectedGame);
 
         if (Settings.UseSpeakers)
         {
@@ -543,8 +567,18 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
             return true;
         }
 
+        if (!isGameRunning)
+        {
+            if (!HandleGameNotRunning())
+                return false;
+
+            Playback.PlaybackStart = Playback.GetCurrentTime(TimeSpanType.Midi);
+            Playback.Start();
+            return true;
+        }
+
         WindowHelper.EnsureGameOnTop();
-        await Task.Delay(100);
+        await Task.Delay(120);
 
         if (WindowHelper.IsGameFocused())
         {
@@ -553,12 +587,7 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
             return true;
         }
 
-        if (!HandleInactiveGameForPlayback())
-            return false;
-
-        Playback.PlaybackStart = Playback.GetCurrentTime(TimeSpanType.Midi);
-        Playback.Start();
-        return true;
+        return false;
     }
 
     public bool SetListenMode(bool enabled, bool pausePlaybackOnChange = true)

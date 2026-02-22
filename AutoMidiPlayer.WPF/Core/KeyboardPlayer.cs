@@ -26,13 +26,17 @@ public static class KeyboardPlayer
     [DllImport("user32.dll")]
     private static extern uint MapVirtualKey(uint uCode, uint uMapType);
 
-
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
     private const int INPUT_KEYBOARD = 1;
     private const uint KEYEVENTF_KEYDOWN = 0x0000;
     private const uint KEYEVENTF_KEYUP = 0x0002;
     private const uint KEYEVENTF_SCANCODE = 0x0008;
     private const uint MAPVK_VK_TO_VSC = 0;
+    private const uint WM_KEYDOWN = 0x0100;
+    private const uint WM_KEYUP = 0x0101;
 
     // Correct struct layout for 64-bit Windows
     [StructLayout(LayoutKind.Sequential)]
@@ -57,6 +61,14 @@ public static class KeyboardPlayer
 
     // Use direct SendInput for games that don't respond to InputSimulator
     public static bool UseDirectInput { get; set; } = true;
+
+    /// <summary>
+    /// Send input via PostMessage to the game window instead of global SendInput.
+    /// Use this for games (e.g. Sky: CotL) that detect and block injected input by
+    /// checking the LLKHF_INJECTED flag in a low-level keyboard hook.
+    /// PostMessage bypasses global hooks entirely.
+    /// </summary>
+    public static bool UseWindowMessage { get; set; } = false;
 
     public static int TransposeNote(
         string instrumentId, ref int noteId,
@@ -125,6 +137,17 @@ public static class KeyboardPlayer
     {
         if (!TryGetKeyStroke(layoutName, instrumentId, noteId, out var keyStroke))
             return;
+
+        if (UseWindowMessage)
+        {
+            var hWnd = WindowHelper.GetActiveGameWindowHandle();
+            if (hWnd.HasValue && hWnd.Value != IntPtr.Zero)
+            {
+                SendKeyStrokeWindow(keyStroke, hWnd.Value, action);
+                return;
+            }
+            // Fall through to normal input if window not found
+        }
 
         if (UseDirectInput)
         {
@@ -223,5 +246,32 @@ public static class KeyboardPlayer
         };
 
         _ = SendInput(1, [input], Marshal.SizeOf(typeof(INPUT)));
+    }
+
+    private static void SendKeyStrokeWindow(Keyboard.KeyStroke keyStroke, IntPtr hWnd, KeyAction action)
+    {
+        // PostMessage bypasses low-level keyboard hooks and the LLKHF_INJECTED flag.
+        // lParam encoding for WM_KEYDOWN: repeat=1 | (scanCode << 16)
+        // lParam encoding for WM_KEYUP:  repeat=1 | (scanCode << 16) | (0xC0 << 24) [prev-state + transition bits]
+        var vk = (uint)keyStroke.Key;
+        var scanCode = MapVirtualKey(vk, MAPVK_VK_TO_VSC);
+        var lParamDown = (IntPtr)(1 | ((int)scanCode << 16));
+        var lParamUp = (IntPtr)(1 | ((int)scanCode << 16) | unchecked((int)0xC0000000));
+
+        switch (action)
+        {
+            case KeyAction.Down:
+                PostMessage(hWnd, WM_KEYDOWN, (IntPtr)vk, lParamDown);
+                break;
+
+            case KeyAction.Up:
+                PostMessage(hWnd, WM_KEYUP, (IntPtr)vk, lParamUp);
+                break;
+
+            case KeyAction.Press:
+                PostMessage(hWnd, WM_KEYDOWN, (IntPtr)vk, lParamDown);
+                PostMessage(hWnd, WM_KEYUP, (IntPtr)vk, lParamUp);
+                break;
+        }
     }
 }
