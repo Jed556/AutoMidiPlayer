@@ -6,6 +6,7 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
     {
 
         public static readonly InstrumentConfig Bass2r = new(
+            game: "Heartopia",
             name: "Heartopia Bass 2-Row",
             notes: new List<int>{
                 60, // C4
@@ -32,6 +33,7 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
         );
 
         public static readonly InstrumentConfig Bass3r = new(
+            game: "Heartopia",
             name: "Heartopia Bass 3-Row",
             notes: new List<int>
             {

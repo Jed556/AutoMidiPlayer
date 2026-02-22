@@ -17,6 +17,12 @@ namespace AutoMidiPlayer.WPF.Core;
 [SuppressMessage("ReSharper", "IdentifierTypo")]
 public static class Keyboard
 {
+    private static readonly InstrumentConfig EmptyInstrument = new(
+        game: "System",
+        name: "Empty",
+        notes: new List<int>(),
+        keyboardLayouts: Array.Empty<KeyboardLayoutConfig>());
+
     #region Display Names
 
     /// <summary>
@@ -120,6 +126,21 @@ public static class Keyboard
         return idx >= 0 ? idx : 0;
     }
 
+    public static IReadOnlyDictionary<string, string> GetInstrumentNamesForGames(IEnumerable<string> activeGames)
+    {
+        var games = activeGames
+            .Where(game => !string.IsNullOrWhiteSpace(game))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (games.Count == 0)
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        return _instrumentRegistry
+            .Where(kv => games.Contains(kv.Value.Game))
+            .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(kv => kv.Key, kv => kv.Value.Name, StringComparer.OrdinalIgnoreCase);
+    }
+
     public static IReadOnlyDictionary<string, string> GetLayoutNamesForInstrument(string instrumentId)
     {
         var config = GetInstrumentConfig(instrumentId);
@@ -143,24 +164,25 @@ public static class Keyboard
     /// <summary>
     /// Get the instrument configuration for the specified instrument
     /// </summary>
-    public static InstrumentConfig GetInstrumentConfig(string instrumentId)
+    public static InstrumentConfig GetInstrumentConfig(string? instrumentId)
     {
-        if (_instrumentRegistry.TryGetValue(instrumentId, out var cfg))
+        if (!string.IsNullOrWhiteSpace(instrumentId)
+            && _instrumentRegistry.TryGetValue(instrumentId, out var cfg))
             return cfg;
 
         // fallback: return first discovered instrument if requested id not found
-        return _instrumentRegistry.Values.First();
+        return _instrumentRegistry.Values.FirstOrDefault() ?? EmptyInstrument;
     }
 
     /// <summary>
     /// Get the key layout for the specified keyboard layout and instrument
     /// </summary>
-    public static IEnumerable<VirtualKeyCode> GetLayout(string layoutName, string instrumentId)
+    public static IEnumerable<VirtualKeyCode> GetLayout(string? layoutName, string? instrumentId)
     {
         var config = GetInstrumentConfig(instrumentId);
 
         if (config.KeyboardLayouts.Count == 0)
-            return _layoutRegistry.Values.First().Keys;
+            return _layoutRegistry.Values.FirstOrDefault()?.Keys ?? Array.Empty<VirtualKeyCode>();
 
         var match = config.KeyboardLayouts
             .FirstOrDefault(l => string.Equals(l.Name, layoutName, StringComparison.OrdinalIgnoreCase));
@@ -171,7 +193,7 @@ public static class Keyboard
     /// <summary>
     /// Get the MIDI notes for the specified instrument id
     /// </summary>
-    public static IList<int> GetNotes(string instrumentId)
+    public static IList<int> GetNotes(string? instrumentId)
     {
         var config = GetInstrumentConfig(instrumentId);
         return config.Notes;

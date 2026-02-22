@@ -276,6 +276,36 @@ namespace AutoMidiPlayer.Data.Properties
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool ActiveGenshin
+        {
+            get
+            {
+                return ((bool)(this["ActiveGenshin"]));
+            }
+            set
+            {
+                this["ActiveGenshin"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool ActiveHeartopia
+        {
+            get
+            {
+                return ((bool)(this["ActiveHeartopia"]));
+            }
+            set
+            {
+                this["ActiveHeartopia"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("0")]
         public int SelectedInstrument
         {
@@ -556,6 +586,36 @@ namespace AutoMidiPlayer.Data.Properties
             set
             {
                 this["HotkeyPanic"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("QWERTY")]
+        public string SelectedLayoutName
+        {
+            get
+            {
+                return ((string)(this["SelectedLayoutName"]));
+            }
+            set
+            {
+                this["SelectedLayoutName"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string SelectedInstrumentByGame
+        {
+            get
+            {
+                return ((string)(this["SelectedInstrumentByGame"]));
+            }
+            set
+            {
+                this["SelectedInstrumentByGame"] = value;
             }
         }
     }

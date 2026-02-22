@@ -1,9 +1,13 @@
+using System;
 using System.Collections;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using AutoMidiPlayer.Data.Midi;
 using Stylet;
 
@@ -14,6 +18,9 @@ namespace AutoMidiPlayer.WPF.Controls;
 /// </summary>
 public partial class SongListControl : UserControl
 {
+    private readonly DispatcherTimer _scrollbarFadeTimer = new() { Interval = TimeSpan.FromMilliseconds(650) };
+    private ScrollBar? _verticalScrollBar;
+
     #region Dependency Properties
 
     /// <summary>
@@ -171,6 +178,9 @@ public partial class SongListControl : UserControl
     public SongListControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
+        _scrollbarFadeTimer.Tick += (_, _) => FadeOutScrollBar();
     }
 
     /// <summary>
@@ -250,6 +260,98 @@ public partial class SongListControl : UserControl
             if (item is MidiFile file)
                 SelectedFiles.Add(file);
         }
+    }
+
+    private void TrackListView_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (e.VerticalChange == 0 && e.ExtentHeightChange == 0 && e.ViewportHeightChange == 0)
+            return;
+
+        EnsureScrollBarReference();
+        if (_verticalScrollBar == null)
+            return;
+
+        if (e.ExtentHeight <= e.ViewportHeight)
+        {
+            _verticalScrollBar.BeginAnimation(OpacityProperty, null);
+            _verticalScrollBar.Opacity = 0;
+            return;
+        }
+
+        ShowScrollBarPill();
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        EnsureScrollBarReference();
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        _scrollbarFadeTimer.Stop();
+    }
+
+    private void EnsureScrollBarReference()
+    {
+        if (_verticalScrollBar != null)
+            return;
+
+        _verticalScrollBar = FindDescendant<ScrollBar>(TrackListView, bar => bar.Orientation == Orientation.Vertical);
+    }
+
+    private void ShowScrollBarPill()
+    {
+        if (_verticalScrollBar == null)
+            return;
+
+        var fadeIn = new DoubleAnimation
+        {
+            To = 1,
+            Duration = TimeSpan.FromMilliseconds(140),
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+        };
+        _verticalScrollBar.BeginAnimation(OpacityProperty, fadeIn, HandoffBehavior.SnapshotAndReplace);
+
+        _scrollbarFadeTimer.Stop();
+        _scrollbarFadeTimer.Start();
+    }
+
+    private void FadeOutScrollBar()
+    {
+        _scrollbarFadeTimer.Stop();
+
+        if (_verticalScrollBar == null)
+            return;
+
+        if (_verticalScrollBar.IsMouseOver || _verticalScrollBar.IsMouseCaptureWithin)
+            return;
+
+        var fadeOut = new DoubleAnimation
+        {
+            To = 0,
+            Duration = TimeSpan.FromMilliseconds(260),
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
+        };
+        _verticalScrollBar.BeginAnimation(OpacityProperty, fadeOut, HandoffBehavior.SnapshotAndReplace);
+    }
+
+    private static T? FindDescendant<T>(DependencyObject parent, Func<T, bool>? predicate = null)
+        where T : DependencyObject
+    {
+        var childCount = VisualTreeHelper.GetChildrenCount(parent);
+        for (var i = 0; i < childCount; i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+
+            if (child is T typedChild && (predicate == null || predicate(typedChild)))
+                return typedChild;
+
+            var result = FindDescendant(child, predicate);
+            if (result != null)
+                return result;
+        }
+
+        return null;
     }
 }
 

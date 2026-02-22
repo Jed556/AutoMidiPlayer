@@ -1,10 +1,9 @@
 ﻿using System;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using AutoMidiPlayer.Data.Properties;
+using AutoMidiPlayer.WPF.Core.Games;
 using Microsoft.Win32;
 
 namespace AutoMidiPlayer.WPF.Core;
@@ -15,17 +14,20 @@ public static class WindowHelper
         .OpenSubKey(@"SOFTWARE\launcher", false)
         ?.GetValue("InstPath") as string;
 
-    [SuppressMessage("ReSharper", "AssignNullToNotNullAttribute")]
     private static string ActiveGameProcessName
     {
         get
         {
-            var instrument = Keyboard.GetInstrumentAtIndex(Settings.Default.SelectedInstrument).Key;
-            var location = instrument.Contains("Heartopia", StringComparison.OrdinalIgnoreCase)
-                ? Settings.Default.HeartopiaLocation
-                : Settings.Default.GenshinLocation;
+            var activeGame = GameRegistry.AllGames.FirstOrDefault(game => game.GetIsActive());
 
-            return Path.GetFileNameWithoutExtension(location);
+            if (activeGame is null)
+                return string.Empty;
+
+            var configuredProcessName = Path.GetFileNameWithoutExtension(activeGame.GetLocation());
+            if (!string.IsNullOrWhiteSpace(configuredProcessName))
+                return configuredProcessName;
+
+            return activeGame.ProcessNames.FirstOrDefault() ?? string.Empty;
         }
     }
 
@@ -55,6 +57,9 @@ public static class WindowHelper
 
     private static IntPtr? FindWindowByProcessName(string? processName)
     {
+        if (string.IsNullOrWhiteSpace(processName))
+            return null;
+
         var process = Process.GetProcessesByName(processName);
         return process.FirstOrDefault(p => p.MainWindowHandle != IntPtr.Zero)?.MainWindowHandle;
     }

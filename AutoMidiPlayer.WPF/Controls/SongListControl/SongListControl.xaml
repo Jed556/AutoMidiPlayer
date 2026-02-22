@@ -183,12 +183,6 @@
                                      Value="True">
                                 <Setter Property="Opacity"
                                         Value="1"/>
-                                <Setter TargetName="LineUpButton"
-                                        Property="Opacity"
-                                        Value="1"/>
-                                <Setter TargetName="LineDownButton"
-                                        Property="Opacity"
-                                        Value="1"/>
                             </Trigger>
                             <Trigger Property="IsEnabled"
                                      Value="False">
@@ -304,6 +298,7 @@
                   SelectionMode="Extended"
                   SelectionChanged="TrackListView_SelectionChanged"
                   ContextMenuOpening="TrackListView_ContextMenuOpening"
+                  ScrollViewer.ScrollChanged="TrackListView_ScrollChanged"
                   BorderThickness="0"
                   Background="Transparent"
                   AllowDrop="{Binding AllowReorder, ElementName=SongListRoot}"

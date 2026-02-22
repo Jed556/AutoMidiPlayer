@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using AutoMidiPlayer.Data;
@@ -22,7 +23,9 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>
     private readonly IContainer _ioc;
     private readonly MainWindowViewModel _main;
     private bool _isUpdatingFromSong;
+    private bool _suppressSelectionHandlers;
     private InputDevice? _inputDevice;
+    private readonly Dictionary<string, string> _selectedInstrumentByGame;
 
 
     public InstrumentViewModel(IContainer ioc, MainWindowViewModel main)
@@ -31,17 +34,40 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>
         _main = main;
         _events = ioc.Get<IEventAggregator>();
         _events.Subscribe(this);
+        _selectedInstrumentByGame = LoadSelectedInstrumentsByGame();
+
+        _main.ActiveGamesChanged += HandleActiveGamesChanged;
 
         // Initialize selected MIDI input
         SelectedMidiInput = MidiInputs[0];
 
-        SelectedInstrument = Keyboard.GetInstrumentAtIndex(Settings.SelectedInstrument);
-        RefreshAvailableLayouts();
+        _suppressSelectionHandlers = true;
+        try
+        {
+            RefreshAvailableInstruments();
+            var initialInstrument = GetPreferredInstrumentForActiveGame();
+            if (initialInstrument.Equals(default(KeyValuePair<string, string>)) && AvailableInstruments.Count > 0)
+                initialInstrument = AvailableInstruments[0];
 
-        var preferredLayout = Keyboard.GetLayoutAtIndex(Settings.SelectedLayout);
-        SelectedLayout = AvailableLayouts.FirstOrDefault(layout => layout.Key == preferredLayout.Key);
-        if (SelectedLayout.Equals(default(KeyValuePair<string, string>)) && AvailableLayouts.Count > 0)
-            SelectedLayout = AvailableLayouts[0];
+            SelectedInstrument = initialInstrument;
+
+            RefreshAvailableLayouts();
+            var layout = ResolvePreferredLayout(null);
+            SelectedLayout = layout;
+
+            if (!layout.Equals(default(KeyValuePair<string, string>)))
+            {
+                Settings.Modify(s =>
+                {
+                    s.SelectedLayout = Keyboard.GetLayoutIndex(layout.Key);
+                    s.SelectedLayoutName = layout.Key;
+                });
+            }
+        }
+        finally
+        {
+            _suppressSelectionHandlers = false;
+        }
 
         // Initialize note settings to defaults (will be updated when song is loaded)
         MergeNotes = false;
@@ -100,6 +126,8 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>
     public KeyValuePair<string, string> SelectedInstrument { get; set; }
 
     public KeyValuePair<string, string> SelectedLayout { get; set; }
+
+    public BindableCollection<KeyValuePair<string, string>> AvailableInstruments { get; } = new();
 
     public BindableCollection<KeyValuePair<string, string>> AvailableLayouts { get; } = new();
 
@@ -183,21 +211,65 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>
     [UsedImplicitly]
     private void OnSelectedInstrumentChanged()
     {
-        RefreshAvailableLayouts();
+        if (_suppressSelectionHandlers)
+            return;
 
-        if (AvailableLayouts.Count > 0)
-            SelectedLayout = AvailableLayouts[0];
+        if (SelectedInstrument.Equals(default(KeyValuePair<string, string>)))
+            return;
 
-        var index = Keyboard.GetInstrumentIndex(SelectedInstrument.Key);
+        // Remember current layout name before refreshing
+        var previousLayoutName = SelectedLayout.Key;
+
+        // Suppress handlers during the layout refresh cycle to prevent WPF
+        // ComboBox binding resets from interfering with our final selection.
+        _suppressSelectionHandlers = true;
+        try
+        {
+            RefreshAvailableLayouts();
+            var layout = ResolvePreferredLayout(previousLayoutName);
+            SelectedLayout = layout;
+
+            if (!layout.Equals(default(KeyValuePair<string, string>)))
+            {
+                Settings.Modify(s =>
+                {
+                    s.SelectedLayout = Keyboard.GetLayoutIndex(layout.Key);
+                    s.SelectedLayoutName = layout.Key;
+                });
+            }
+        }
+        finally
+        {
+            _suppressSelectionHandlers = false;
+        }
+
+        // Deferred notify so WPF re-reads the final SelectedLayout after collection changes settle
+        System.Windows.Application.Current.Dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.DataBind,
+            () => NotifyOfPropertyChange(nameof(SelectedLayout)));
+
+        var index = AvailableInstruments.ToList().FindIndex(i =>
+            string.Equals(i.Key, SelectedInstrument.Key, StringComparison.OrdinalIgnoreCase));
         Settings.Modify(s => s.SelectedInstrument = index);
+        SaveSelectedInstrumentForActiveGame();
         _events.Publish(this);
     }
 
     [UsedImplicitly]
     private void OnSelectedLayoutChanged()
     {
+        if (_suppressSelectionHandlers)
+            return;
+
+        if (SelectedLayout.Equals(default(KeyValuePair<string, string>)))
+            return;
+
         var index = Keyboard.GetLayoutIndex(SelectedLayout.Key);
-        Settings.Modify(s => s.SelectedLayout = index);
+        Settings.Modify(s =>
+        {
+            s.SelectedLayout = index;
+            s.SelectedLayoutName = SelectedLayout.Key;
+        });
         _events.Publish(this);
     }
 
@@ -205,11 +277,183 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>
     {
         AvailableLayouts.Clear();
 
+        if (SelectedInstrument.Equals(default(KeyValuePair<string, string>)))
+        {
+            NotifyOfPropertyChange(nameof(AvailableLayouts));
+            return;
+        }
+
         var layouts = Keyboard.GetLayoutNamesForInstrument(SelectedInstrument.Key);
         foreach (var layout in layouts)
             AvailableLayouts.Add(layout);
 
         NotifyOfPropertyChange(nameof(AvailableLayouts));
+    }
+
+    private void RefreshAvailableInstruments()
+    {
+        AvailableInstruments.Clear();
+
+        var instruments = Keyboard.GetInstrumentNamesForGames(_main.ActiveGameNames);
+        foreach (var instrument in instruments)
+            AvailableInstruments.Add(instrument);
+
+        NotifyOfPropertyChange(nameof(AvailableInstruments));
+    }
+
+    private void HandleActiveGamesChanged()
+    {
+        var currentLayoutName = SelectedLayout.Key;
+
+        // Suppress all selection change handlers for the entire batch update.
+        // When we Clear() the collections, WPF's ComboBox binding resets SelectedItem
+        // to default, which would trigger On*Changed handlers and cause races.
+        _suppressSelectionHandlers = true;
+
+        try
+        {
+            RefreshAvailableInstruments();
+
+            if (AvailableInstruments.Count == 0)
+            {
+                SelectedInstrument = default;
+                AvailableLayouts.Clear();
+                SelectedLayout = default;
+                NotifyOfPropertyChange(nameof(AvailableLayouts));
+                return;
+            }
+
+            var preferred = GetPreferredInstrumentForActiveGame();
+            SelectedInstrument = preferred.Equals(default(KeyValuePair<string, string>))
+                ? AvailableInstruments[0]
+                : preferred;
+
+            RefreshAvailableLayouts();
+            var layout = ResolvePreferredLayout(currentLayoutName);
+            SelectedLayout = layout;
+
+            // Persist selections
+            var instrIndex = AvailableInstruments.ToList().FindIndex(i =>
+                string.Equals(i.Key, SelectedInstrument.Key, StringComparison.OrdinalIgnoreCase));
+            Settings.Modify(s => s.SelectedInstrument = instrIndex);
+            SaveSelectedInstrumentForActiveGame();
+
+            if (!layout.Equals(default(KeyValuePair<string, string>)))
+            {
+                Settings.Modify(s =>
+                {
+                    s.SelectedLayout = Keyboard.GetLayoutIndex(layout.Key);
+                    s.SelectedLayoutName = layout.Key;
+                });
+            }
+        }
+        finally
+        {
+            _suppressSelectionHandlers = false;
+        }
+
+        // Schedule property-change notifications AFTER WPF has finished processing
+        // the collection changes so the ComboBox re-reads our final values.
+        System.Windows.Application.Current.Dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.DataBind,
+            () =>
+            {
+                NotifyOfPropertyChange(nameof(SelectedInstrument));
+                NotifyOfPropertyChange(nameof(SelectedLayout));
+            });
+
+        _events.Publish(this);
+    }
+
+    private KeyValuePair<string, string> GetPreferredInstrumentForActiveGame()
+    {
+        var gameId = GetActiveGameId();
+        if (!string.IsNullOrWhiteSpace(gameId)
+            && _selectedInstrumentByGame.TryGetValue(gameId, out var preferredInstrumentId)
+            && !string.IsNullOrWhiteSpace(preferredInstrumentId))
+        {
+            var bySaved = AvailableInstruments.FirstOrDefault(instrument =>
+                string.Equals(instrument.Key, preferredInstrumentId, StringComparison.OrdinalIgnoreCase));
+            if (!bySaved.Equals(default(KeyValuePair<string, string>)))
+                return bySaved;
+        }
+
+        var fromSettings = AvailableInstruments.ElementAtOrDefault(Settings.SelectedInstrument);
+        if (!fromSettings.Equals(default(KeyValuePair<string, string>)))
+            return fromSettings;
+
+        return default;
+    }
+
+    private string? GetActiveGameId() => _main.SelectedGame?.Definition.Id;
+
+    private void SaveSelectedInstrumentForActiveGame()
+    {
+        var gameId = GetActiveGameId();
+        if (string.IsNullOrWhiteSpace(gameId)
+            || SelectedInstrument.Equals(default(KeyValuePair<string, string>))
+            || string.IsNullOrWhiteSpace(SelectedInstrument.Key))
+            return;
+
+        _selectedInstrumentByGame[gameId] = SelectedInstrument.Key;
+        var json = JsonSerializer.Serialize(_selectedInstrumentByGame);
+        Settings.Modify(s => s.SelectedInstrumentByGame = json);
+    }
+
+    private static Dictionary<string, string> LoadSelectedInstrumentsByGame()
+    {
+        try
+        {
+            var json = Settings.SelectedInstrumentByGame;
+            if (string.IsNullOrWhiteSpace(json))
+                return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            var map = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+            return map is null
+                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(map, StringComparer.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    private KeyValuePair<string, string> ResolvePreferredLayout(string? preferredLayoutName)
+    {
+        if (AvailableLayouts.Count == 0)
+            return default;
+
+        if (!string.IsNullOrWhiteSpace(preferredLayoutName))
+        {
+            var byPreferredName = AvailableLayouts.FirstOrDefault(l =>
+                string.Equals(l.Key, preferredLayoutName, StringComparison.OrdinalIgnoreCase));
+
+            if (!byPreferredName.Equals(default(KeyValuePair<string, string>)))
+                return byPreferredName;
+        }
+
+        var savedName = Settings.SelectedLayoutName;
+        if (!string.IsNullOrWhiteSpace(savedName))
+        {
+            var bySavedName = AvailableLayouts.FirstOrDefault(l =>
+                string.Equals(l.Key, savedName, StringComparison.OrdinalIgnoreCase));
+
+            if (!bySavedName.Equals(default(KeyValuePair<string, string>)))
+                return bySavedName;
+        }
+
+        var savedLayout = Keyboard.GetLayoutAtIndex(Settings.SelectedLayout);
+        if (!savedLayout.Equals(default(KeyValuePair<string, string>)))
+        {
+            var bySavedIndex = AvailableLayouts.FirstOrDefault(l =>
+                string.Equals(l.Key, savedLayout.Key, StringComparison.OrdinalIgnoreCase));
+
+            if (!bySavedIndex.Equals(default(KeyValuePair<string, string>)))
+                return bySavedIndex;
+        }
+
+        return AvailableLayouts[0];
     }
 
     [UsedImplicitly]

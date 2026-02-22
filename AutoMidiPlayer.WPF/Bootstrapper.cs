@@ -198,10 +198,10 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
 
             Task.Run(async () =>
             {
-                const string name = "logo.png";
-                var location = Path.Combine(path!, name);
+                const string resourceName = "Resources/logo.png";
+                var location = Path.Combine(path!, "logo.png");
 
-                var uri = new Uri($"pack://application:,,,/{name}");
+                var uri = new Uri($"pack://application:,,,/{resourceName}");
                 var resource = Application.GetResourceStream(uri)!.Stream;
                 System.Drawing.Image.FromStream(resource).Save(location);
 
