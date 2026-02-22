@@ -9,6 +9,7 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
         /// Vintage Lyre - 21 keys, Dorian mode scale
         /// </summary>
         public static readonly InstrumentConfig VintageLyre = new(
+            game: "Genshin Impact",
             name: "Vintage Lyre",
             notes: new List<int>
             {

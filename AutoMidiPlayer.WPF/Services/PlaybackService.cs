@@ -10,6 +10,7 @@ using AutoMidiPlayer.Data.Midi;
 using AutoMidiPlayer.Data.Notification;
 using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Core;
+using AutoMidiPlayer.WPF.Core.Games;
 using AutoMidiPlayer.WPF.Errors;
 using AutoMidiPlayer.WPF.ViewModels;
 using Melanchall.DryWetMidi.Core;
@@ -99,7 +100,7 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
         catch (ArgumentException e)
         {
             new ErrorContentDialog(e, closeText: "Ignore").ShowAsync();
-            Settings.UseSpeakers = false;
+            SetListenMode(false, pausePlaybackOnChange: false);
         }
     }
 
@@ -219,19 +220,7 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
             Playback.PlaybackStart = time;
             Playback.MoveToTime(time);
 
-            if (Settings.UseSpeakers)
-                Playback.Start();
-            else
-            {
-                WindowHelper.EnsureGameOnTop();
-                await Task.Delay(100);
-
-                if (WindowHelper.IsGameFocused())
-                {
-                    Playback.PlaybackStart = Playback.GetCurrentTime(TimeSpanType.Midi);
-                    Playback.Start();
-                }
-            }
+            await StartPlayback();
         }
     }
 
@@ -276,7 +265,7 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
         _events.Publish(next);
     }
 
-    public void Previous()
+    public async void Previous()
     {
         if (CurrentTime > TimeSpan.FromSeconds(3))
         {
@@ -284,7 +273,9 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
             Playback?.MoveToStart();
 
             MoveSlider(TimeSpan.Zero);
-            Playback?.Start();
+
+            if (Playback is not null)
+                await StartPlayback();
         }
         else
         {
@@ -480,7 +471,11 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
 
             if (!WindowHelper.IsGameFocused())
             {
-                Playback?.Stop();
+                if (!HandleInactiveGameForPlayback())
+                    return;
+
+                noteEvent.NoteNumber = new((byte)note);
+                _speakers?.SendEvent(noteEvent);
                 return;
             }
 
@@ -513,6 +508,77 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
         return Settings.TransposeNotes && SongSettings.Transpose is not null
             ? KeyboardPlayer.TransposeNote(instrumentId, ref noteId, SongSettings.Transpose.Value.Key)
             : noteId;
+    }
+
+    private bool HandleInactiveGameForPlayback()
+    {
+        var shouldAutoEnableListenMode = Settings.AutoEnableListenMode;
+
+        if (shouldAutoEnableListenMode && !Settings.UseSpeakers)
+        {
+            var pausedPlayback = SetListenMode(true, pausePlaybackOnChange: true);
+            if (pausedPlayback)
+                return false;
+        }
+
+        var selectedGameName = _main.SelectedGame?.Definition.DisplayName ?? "Selected game";
+        var isRunning = _main.SelectedGame is not null && GameRegistry.IsGameRunning(_main.SelectedGame.Definition);
+        var gameLabel = isRunning ? selectedGameName : $"{selectedGameName} is not running";
+
+        var listenModeEnabled = Settings.UseSpeakers;
+        _main.ShowGameInactiveToast(gameLabel, listenModeEnabled);
+
+        return listenModeEnabled;
+    }
+
+    private async Task<bool> StartPlayback()
+    {
+        if (Playback is null)
+            return false;
+
+        if (Settings.UseSpeakers)
+        {
+            Playback.PlaybackStart = Playback.GetCurrentTime(TimeSpanType.Midi);
+            Playback.Start();
+            return true;
+        }
+
+        WindowHelper.EnsureGameOnTop();
+        await Task.Delay(100);
+
+        if (WindowHelper.IsGameFocused())
+        {
+            Playback.PlaybackStart = Playback.GetCurrentTime(TimeSpanType.Midi);
+            Playback.Start();
+            return true;
+        }
+
+        if (!HandleInactiveGameForPlayback())
+            return false;
+
+        Playback.PlaybackStart = Playback.GetCurrentTime(TimeSpanType.Midi);
+        Playback.Start();
+        return true;
+    }
+
+    public bool SetListenMode(bool enabled, bool pausePlaybackOnChange = true)
+    {
+        if (Settings.UseSpeakers == enabled)
+            return false;
+
+        Settings.Modify(s => s.UseSpeakers = enabled);
+
+        var pausedPlayback = false;
+        if (pausePlaybackOnChange && Playback is not null && Playback.IsRunning)
+        {
+            Playback.Stop();
+            Queue.SaveCurrentSong(CurrentTime.TotalSeconds);
+            pausedPlayback = true;
+            UpdateButtons();
+        }
+
+        _events.Publish(new ListenModeChangedNotification(enabled));
+        return pausedPlayback;
     }
 
     #endregion

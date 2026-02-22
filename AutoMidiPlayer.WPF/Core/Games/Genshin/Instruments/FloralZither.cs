@@ -9,6 +9,7 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
         /// Floral Zither - 21 keys, diatonic scale (same as Windsong Lyre)
         /// </summary>
         public static readonly InstrumentConfig FloralZither = new(
+            game: "Genshin Impact",
             name: "Floral Zither",
             notes: new List<int>
             {

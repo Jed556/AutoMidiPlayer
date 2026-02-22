@@ -12,9 +12,13 @@
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
     xmlns:transitions="clr-namespace:AutoMidiPlayer.WPF.Animation.Transitions"
     xmlns:properties="clr-namespace:AutoMidiPlayer.Data.Properties;assembly=AutoMidiPlayer.Data"
+    xmlns:games="clr-namespace:AutoMidiPlayer.WPF.Core.Games"
+    xmlns:helpers="clr-namespace:AutoMidiPlayer.WPF.Helpers"
     d:DataContext="{d:DesignInstance Type=viewModels:SettingsPageViewModel}">
     <UserControl.Resources>
         <properties:Settings x:Key="Settings"/>
+        <helpers:BindingProxy x:Key="SettingsVmProxy"
+                              Data="{Binding}"/>
     </UserControl.Resources>
 
     <ScrollViewer>
@@ -34,6 +38,11 @@
                                FontSize="20"
                                FontWeight="SemiBold"
                                Margin="0,0,0,8"/>
+                    <ui:ToggleSwitch
+                        Content="Auto Enable Listen Mode"
+                        IsChecked="{Binding AutoEnableListenMode}"
+                        Margin="0,8,0,0"
+                        ToolTip="Play will automatically switch to Listen Mode (Speakers) if the selected game isn't active."/>
 
                     <ui:ToggleSwitch
                         Content="Use Direct Input (recommended)"
@@ -125,44 +134,31 @@
                                FontWeight="SemiBold"
                                Margin="0,16,0,8"/>
 
-                    <GroupBox Header="Genshin Impact Location">
-                        <controls:SimpleStackPanel Orientation="Horizontal">
-                            <Button Command="{s:Action SetGenshinLocation}"
-                                    Style="{DynamicResource GhostIconButton}">
-                                <ui:SymbolIcon Symbol="AppsAddIn16"
-                                               FontSize="18"/>
-                            </Button>
-                            <TextBlock Text="{Binding GenshinLocation}"
-                                       VerticalAlignment="Center"
-                                       TextTrimming="CharacterEllipsis"/>
-                        </controls:SimpleStackPanel>
-                    </GroupBox>
-
-                    <GroupBox Header="Heartopia Location">
-                        <controls:SimpleStackPanel Orientation="Horizontal">
-                            <Button Command="{s:Action SetHeartopiaLocation}"
-                                    Style="{DynamicResource GhostIconButton}">
-                                <ui:SymbolIcon Symbol="AppsAddIn16"
-                                               FontSize="18"/>
-                            </Button>
-                            <TextBlock Text="{Binding HeartopiaLocation}"
-                                       VerticalAlignment="Center"
-                                       TextTrimming="CharacterEllipsis"/>
-                        </controls:SimpleStackPanel>
-                    </GroupBox>
-
-                    <GroupBox Header="Roblox Location">
-                        <controls:SimpleStackPanel Orientation="Horizontal">
-                            <Button Command="{s:Action SetRobloxLocation}"
-                                    Style="{DynamicResource GhostIconButton}">
-                                <ui:SymbolIcon Symbol="AppsAddIn16"
-                                               FontSize="18"/>
-                            </Button>
-                            <TextBlock Text="{Binding RobloxLocation}"
-                                       VerticalAlignment="Center"
-                                       TextTrimming="CharacterEllipsis"/>
-                        </controls:SimpleStackPanel>
-                    </GroupBox>
+                    <ItemsControl ItemsSource="{Binding GameLocations}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type games:GameInfo}">
+                                <GroupBox Margin="0,0,0,4">
+                                    <GroupBox.Header>
+                                        <TextBlock>
+                                            <Run Text="{Binding DisplayName, Mode=OneWay}"/><Run Text=" Location"/>
+                                        </TextBlock>
+                                    </GroupBox.Header>
+                                    <controls:SimpleStackPanel Orientation="Horizontal">
+                                        <Button s:View.ActionTarget="{Binding Data, Source={StaticResource SettingsVmProxy}}"
+                                                CommandParameter="{Binding}"
+                                                Command="{s:Action BrowseGameLocation}"
+                                                Style="{DynamicResource GhostIconButton}">
+                                            <ui:SymbolIcon Symbol="AppsAddIn16"
+                                                           FontSize="18"/>
+                                        </Button>
+                                        <TextBlock Text="{Binding Location}"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </controls:SimpleStackPanel>
+                                </GroupBox>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
 
                     <GroupBox Header="MIDI Folder">
                         <controls:SimpleStackPanel Orientation="Horizontal">

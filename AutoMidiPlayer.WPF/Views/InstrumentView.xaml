@@ -35,9 +35,8 @@
                            FontWeight="SemiBold"
                            Margin="0,0,0,8"/>
                 <ComboBox
-                    ItemsSource="{x:Static core:Keyboard.InstrumentNames}"
+                    ItemsSource="{Binding AvailableInstruments}"
                     SelectedItem="{Binding SelectedInstrument}"
-                    SelectedIndex="{Binding Default.SelectedInstrument, Source={StaticResource Settings}}"
                     DisplayMemberPath="Value"
                     MinWidth="200"/>
 
@@ -52,9 +51,9 @@
                     MinWidth="200"/>
 
                 <ui:ToggleSwitch
-                    Content="Test Mode (Speakers)"
+                    Content="Listen Mode (Speakers)"
                     IsEnabled="{Binding CanUseSpeakers}"
-                    IsChecked="{Binding Default.UseSpeakers, Source={StaticResource Settings}}"
+                    IsChecked="{Binding UseSpeakers}"
                     Margin="0,8,0,0"/>
 
                 <!-- Scheduled Playback Section -->

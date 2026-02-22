@@ -35,6 +35,9 @@
     <Setting Name="UseSpeakers" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">False</Value>
     </Setting>
+    <Setting Name="AutoEnableListenMode" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
     <Setting Name="AppTheme" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">-1</Value>
     </Setting>
@@ -61,6 +64,15 @@
     </Setting>
     <Setting Name="RobloxLocation" Type="System.String" Scope="User">
       <Value Profile="(Default)">RobloxPlayerBeta.exe</Value>
+    </Setting>
+    <Setting Name="ActiveGenshin" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="ActiveHeartopia" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="ActiveRoblox" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
     </Setting>
     <Setting Name="SelectedInstrument" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">0</Value>
@@ -118,6 +130,12 @@
     </Setting>
     <Setting Name="HotkeyPanic" Type="System.String" Scope="User">
       <Value Profile="(Default)">3|13</Value>
+    </Setting>
+    <Setting Name="SelectedLayoutName" Type="System.String" Scope="User">
+      <Value Profile="(Default)">QWERTY</Value>
+    </Setting>
+    <Setting Name="SelectedInstrumentByGame" Type="System.String" Scope="User">
+      <Value Profile="(Default)"></Value>
     </Setting>
   </Settings>
 </SettingsFile>

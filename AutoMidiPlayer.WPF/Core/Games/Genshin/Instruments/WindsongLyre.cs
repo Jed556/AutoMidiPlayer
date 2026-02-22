@@ -10,6 +10,7 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
         /// Windsong Lyre - 21 keys, diatonic scale (C3-B5)
         /// </summary>
         public static readonly InstrumentConfig WindsongLyre = new(
+            game: "Genshin Impact",
             name: "Windsong Lyre",
             notes: new List<int>
             {

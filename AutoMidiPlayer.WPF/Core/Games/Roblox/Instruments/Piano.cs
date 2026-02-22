@@ -5,12 +5,11 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
     public static partial class RobloxInstruments
     {
         /// <summary>
-        /// Roblox Piano - 61 keys, chromatic scale (C2-C7)
-        /// Standard piano keyboard with full chromatic range.
-        /// Uses MIRP (MIDI Input to Roblox Piano) character-based layout.
+        /// Roblox Piano - 61 keys, full chromatic scale (C2-C7)
         /// </summary>
         public static readonly InstrumentConfig Piano = new(
-            name: "Roblox Piano",
+            game: "Roblox",
+            name: "Piano",
             notes: new List<int>
             {
                 36, // C2
@@ -82,7 +81,7 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
             },
             keyboardLayouts:
             [
-                RobloxKeyboardLayouts.MIRP_Default
+                RobloxKeyboardLayouts.MirpDefault
             ]
         );
     }

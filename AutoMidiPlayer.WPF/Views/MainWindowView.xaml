@@ -14,6 +14,8 @@
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
     xmlns:services="clr-namespace:AutoMidiPlayer.WPF.Services"
     xmlns:core="clr-namespace:AutoMidiPlayer.WPF.Core"
+    xmlns:games="clr-namespace:AutoMidiPlayer.WPF.Core.Games"
+    xmlns:converters="clr-namespace:AutoMidiPlayer.WPF.Converters"
     xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
     d:DataContext="{d:DesignInstance Type=viewModels:MainWindowViewModel}"
     x:Name="MainWindow"
@@ -31,6 +33,28 @@
     <ui:FluentWindow.Resources>
         <helpers:BindingProxy x:Key="DataContextProxy"
                               Data="{Binding}"/>
+        <converters:GameImageStateConverter x:Key="GameImageStateConverter"/>
+        <Style x:Key="GameSelectorItemButtonStyle"
+               TargetType="Button">
+            <Setter Property="Background"
+                    Value="Transparent"/>
+            <Setter Property="BorderBrush"
+                    Value="Transparent"/>
+            <Setter Property="BorderThickness"
+                    Value="0"/>
+            <Setter Property="Padding"
+                    Value="0"/>
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <ContentPresenter HorizontalAlignment="Stretch"
+                                          VerticalAlignment="Center"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </ui:FluentWindow.Resources>
 
     <Grid>
@@ -54,7 +78,7 @@
                 LeftClick="TrayShowWindow_Click"
                 LeftDoubleClick="TrayShowWindow_Click">
                 <tray:NotifyIcon.Icon>
-                    <BitmapImage UriSource="pack://application:,,,/logo.png"/>
+                    <BitmapImage UriSource="pack://application:,,,/Resources/logo.png"/>
                 </tray:NotifyIcon.Icon>
                 <tray:NotifyIcon.Menu>
                     <ContextMenu>
@@ -101,7 +125,7 @@
                                    Height="16"
                                    Margin="0,0,10,0"
                                    VerticalAlignment="Center"
-                                   Source="pack://application:,,,/logo.png"/>
+                                   Source="pack://application:,,,/Resources/logo.png"/>
                             <TextBlock Text="{Binding Title}"
                                        VerticalAlignment="Center"
                                        FontSize="12"/>
@@ -138,49 +162,204 @@
             </ui:TitleBar>
 
             <!-- Main Content Area -->
-            <Grid Grid.Row="1">
+            <Grid Grid.Row="1"
+                  Panel.ZIndex="0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
                 <!-- Left Navigation -->
-                <ui:NavigationView
-                    x:Name="RootNavigation"
-                    Margin="6,0"
-                    PaneDisplayMode="LeftFluent"
-                    IsBackButtonVisible="Collapsed"
-                    IsPaneToggleVisible="False">
-                    <ui:NavigationView.MenuItems>
-                        <ui:NavigationViewItem Content="Tracks"
-                                               Icon="{ui:SymbolIcon AppsListDetail24}"
-                                               Tag="{Binding TrackView}"
-                                               Click="{s:Action NavigateToItem}"/>
-                        <ui:NavigationViewItem Content="Sheet"
-                                               Icon="{ui:SymbolIcon ImmersiveReader16}"
-                                               Tag="{Binding PianoSheetView}"
-                                               Click="{s:Action NavigateToItem}"/>
-                        <ui:NavigationViewItem Content="Instrument"
-                                               Icon="{ui:SymbolIcon Guitar28}"
-                                               Tag="{Binding InstrumentView}"
-                                               Click="{s:Action NavigateToItem}"/>
-                        <ui:NavigationViewItem Content="Queue"
-                                               Icon="{ui:SymbolIcon TextBulletListSquare24}"
-                                               Tag="{Binding QueueView}"
-                                               Click="{s:Action NavigateToItem}">
-                        </ui:NavigationViewItem>
-                        <ui:NavigationViewItem Content="Songs"
-                                               Icon="{ui:SymbolIcon Cd16}"
-                                               Tag="{Binding SongsView}"
-                                               Click="{s:Action NavigateToItem}"/>
-                    </ui:NavigationView.MenuItems>
-                    <ui:NavigationView.FooterMenuItems>
-                        <ui:NavigationViewItem Content="Settings"
-                                               Icon="{ui:SymbolIcon Settings16}"
-                                               Tag="{Binding SettingsView}"
-                                               Click="{s:Action NavigateToItem}"/>
-                    </ui:NavigationView.FooterMenuItems>
-                </ui:NavigationView>
+                <Grid Grid.Column="0">
+
+                    <!-- OpenPaneLength & PaneDisplayMode is responsible for the width -->
+                    <ui:NavigationView
+                        x:Name="RootNavigation"
+                        Margin="3,0,3,3"
+                        UseLayoutRounding="True"
+                        IsPaneOpen="False"
+                        OpenPaneLength="67"
+                        CompactPaneLength="67"
+                        PaneDisplayMode="LeftFluent"
+                        IsBackButtonVisible="Collapsed"
+                        IsPaneToggleVisible="False">
+                        <ui:NavigationView.MenuItems>
+                            <ui:NavigationViewItem Content="Tracks"
+                                                   Icon="{ui:SymbolIcon AppsListDetail24}"
+                                                   Tag="{Binding TrackView}"
+                                                   Click="{s:Action NavigateToItem}"/>
+                            <ui:NavigationViewItem Content="Sheet"
+                                                   Icon="{ui:SymbolIcon ImmersiveReader16}"
+                                                   Tag="{Binding PianoSheetView}"
+                                                   Click="{s:Action NavigateToItem}"/>
+                            <ui:NavigationViewItem Content="Instrument"
+                                                   Icon="{ui:SymbolIcon Guitar28}"
+                                                   Tag="{Binding InstrumentView}"
+                                                   Click="{s:Action NavigateToItem}"/>
+                            <ui:NavigationViewItem Content="Queue"
+                                                   Icon="{ui:SymbolIcon TextBulletListSquare24}"
+                                                   Tag="{Binding QueueView}"
+                                                   Click="{s:Action NavigateToItem}"/>
+                            <ui:NavigationViewItem Content="Songs"
+                                                   Icon="{ui:SymbolIcon Cd16}"
+                                                   Tag="{Binding SongsView}"
+                                                   Click="{s:Action NavigateToItem}"/>
+                        </ui:NavigationView.MenuItems>
+                        <ui:NavigationView.FooterMenuItems>
+                            <ui:NavigationViewItem x:Name="GameDrawerItem"
+                                                   Padding="0"
+                                                   HorizontalContentAlignment="Center"
+                                                   VerticalContentAlignment="Center"
+                                                   Click="{s:Action ToggleGameSelector}">
+                                <ui:NavigationViewItem.Content>
+                                    <Grid HorizontalAlignment="Center"
+                                          VerticalAlignment="Center">
+                                        <Border Padding="0"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"
+                                                Margin="0,-28,0,0"
+                                                CornerRadius="10"
+                                                ClipToBounds="True"
+                                                ToolTip="{Binding SelectedGame.DisplayName}">
+                                            <Image Stretch="UniformToFill"
+                                                   RenderOptions.BitmapScalingMode="HighQuality">
+                                                <Image.Source>
+                                                    <MultiBinding Converter="{StaticResource GameImageStateConverter}">
+                                                        <Binding Path="SelectedGame.ImagePath"/>
+                                                        <Binding Path="SelectedGame.IsRunning"/>
+                                                    </MultiBinding>
+                                                </Image.Source>
+                                            </Image>
+                                        </Border>
+                                    </Grid>
+                                </ui:NavigationViewItem.Content>
+                            </ui:NavigationViewItem>
+                            <ui:NavigationViewItem Content="Settings"
+                                                   Icon="{ui:SymbolIcon Settings16}"
+                                                   Tag="{Binding SettingsView}"
+                                                   Click="{s:Action NavigateToItem}"/>
+                        </ui:NavigationView.FooterMenuItems>
+                    </ui:NavigationView>
+
+                    <!-- Game selector popup -->
+                    <Popup PlacementTarget="{Binding ElementName=GameDrawerItem}"
+                           Placement="Right"
+                           IsOpen="{Binding IsGameSelectorOpen, Mode=TwoWay}"
+                           StaysOpen="False"
+                           AllowsTransparency="True"
+                           PopupAnimation="Fade">
+                        <!-- Outer border: solid opaque background to prevent transparency bleed -->
+                        <Border Margin="8,0,0,0"
+                                CornerRadius="12"
+                                Background="{DynamicResource ApplicationBackgroundBrush}"
+                                TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                            <!-- Inner border: themed surface with stroke -->
+                            <Border Padding="10"
+                                    Width="260"
+                                    CornerRadius="12"
+                                    BorderThickness="1"
+                                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+                                <controls:SimpleStackPanel Spacing="6">
+                                    <TextBlock Text="Select Game"
+                                               FontWeight="SemiBold"
+                                               Margin="4,2,0,4"/>
+
+                                    <!-- Dynamic game list from GameRegistry -->
+                                    <ItemsControl ItemsSource="{Binding Games}"
+                                                  HorizontalAlignment="Stretch">
+                                        <ItemsControl.ItemContainerStyle>
+                                            <Style TargetType="ContentPresenter">
+                                                <Setter Property="HorizontalAlignment"
+                                                        Value="Stretch"/>
+                                            </Style>
+                                        </ItemsControl.ItemContainerStyle>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type games:GameInfo}">
+                                                <Button s:View.ActionTarget="{Binding Data, Source={StaticResource DataContextProxy}}"
+                                                        CommandParameter="{Binding}"
+                                                        Command="{s:Action SelectGame}"
+                                                        Margin="0"
+                                                        HorizontalAlignment="Stretch"
+                                                        HorizontalContentAlignment="Stretch"
+                                                        Style="{StaticResource GameSelectorItemButtonStyle}">
+                                                    <Border CornerRadius="10"
+                                                            Padding="10"
+                                                            Margin="0,2"
+                                                            ClipToBounds="True">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Background"
+                                                                        Value="{DynamicResource SubtleFillColorSecondaryBrush}"/>
+                                                                <Setter Property="BorderThickness"
+                                                                        Value="1"/>
+                                                                <Setter Property="BorderBrush"
+                                                                        Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsSelected}"
+                                                                                 Value="True">
+                                                                        <Setter Property="BorderBrush"
+                                                                                Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
+                                                                        <Setter Property="BorderThickness"
+                                                                                Value="2"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Border Width="44"
+                                                                    Height="44"
+                                                                    CornerRadius="10"
+                                                                    ClipToBounds="True">
+                                                                <Image Stretch="UniformToFill"
+                                                                       RenderOptions.BitmapScalingMode="HighQuality">
+                                                                    <Image.Source>
+                                                                        <MultiBinding Converter="{StaticResource GameImageStateConverter}">
+                                                                            <Binding Path="ImagePath"/>
+                                                                            <Binding Path="IsRunning"/>
+                                                                        </MultiBinding>
+                                                                    </Image.Source>
+                                                                </Image>
+                                                            </Border>
+                                                            <StackPanel Grid.Column="1"
+                                                                        Margin="12,0,0,0"
+                                                                        VerticalAlignment="Center">
+                                                                <StackPanel.Resources>
+                                                                    <Style TargetType="{x:Type TextBlock}">
+                                                                        <Setter Property="Foreground"
+                                                                                Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsSelected}"
+                                                                                         Value="True">
+                                                                                <Setter Property="Foreground"
+                                                                                        Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </StackPanel.Resources>
+
+                                                                <TextBlock Text="{Binding DisplayName}"
+                                                                           FontWeight="SemiBold"
+                                                                           FontSize="13"/>
+                                                                <TextBlock Text="{Binding StatusText}"
+                                                                           FontSize="11"
+                                                                           Opacity="0.6"/>
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Border>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </controls:SimpleStackPanel>
+                            </Border>
+                        </Border>
+                    </Popup>
+                </Grid>
 
                 <!-- Content Panel -->
                 <Border Grid.Column="1"
@@ -214,8 +393,19 @@
                 </Border>
             </Grid>
 
+            <!-- Snackbar presenter: constrained to content row so it doesn't overlap playback bar -->
+            <ui:SnackbarPresenter x:Name="RootSnackbarPresenter"
+                                  Grid.Row="1"
+                                  Panel.ZIndex="5"
+                                  ClipToBounds="True"
+                                  Margin="73,0,16,16"
+                                  VerticalAlignment="Bottom"
+                                  HorizontalAlignment="Stretch"/>
+
+
             <!-- Fixed Bottom Player Controls -->
             <Border Grid.Row="2"
+                    Panel.ZIndex="10"
                     Background="{ui:ThemeResource ControlFillColorDefaultBrush}"
                     BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                     BorderThickness="0,1,0,0"

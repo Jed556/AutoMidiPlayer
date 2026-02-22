@@ -17,6 +17,7 @@ using AutoMidiPlayer.Data.Midi;
 using AutoMidiPlayer.Data.Notification;
 using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Core;
+using AutoMidiPlayer.WPF.Core.Games;
 using AutoMidiPlayer.WPF.Animation;
 using AutoMidiPlayer.WPF.Dialogs;
 using AutoMidiPlayer.WPF.Helpers;
@@ -96,7 +97,14 @@ public class SettingsPageViewModel : Screen
 
         SelectedInstrument = Core.Keyboard.GetInstrumentAtIndex(Settings.SelectedInstrument);
         SelectedLayout = Core.Keyboard.GetLayoutAtIndex(Settings.SelectedLayout);
+
+        // Initialize game locations from registry (shared with MainWindowViewModel's Games list)
+        GameLocations = new BindableCollection<GameInfo>(
+            GameRegistry.AllGames.Select(g => new GameInfo(g)));
     }
+
+    /// <summary>Observable collection of game location entries for the settings UI</summary>
+    public BindableCollection<GameInfo> GameLocations { get; }
 
     public AccentColorOption SelectedAccentColor
     {
@@ -289,6 +297,19 @@ public class SettingsPageViewModel : Screen
 
     public bool UseDirectInput { get; set; } = Settings.UseDirectInput;
 
+    public bool AutoEnableListenMode
+    {
+        get => Settings.AutoEnableListenMode;
+        set
+        {
+            if (Settings.AutoEnableListenMode == value)
+                return;
+
+            Settings.Modify(s => s.AutoEnableListenMode = value);
+            NotifyOfPropertyChange();
+        }
+    }
+
     // Hotkey properties - delegating to GlobalHotkeyService
     public bool HotkeysEnabled
     {
@@ -373,45 +394,6 @@ public class SettingsPageViewModel : Screen
 
     public KeyValuePair<string, string> SelectedLayout { get; set; }
 
-    public string GenshinLocation
-    {
-        get => Settings.GenshinLocation;
-        set
-        {
-            if (Settings.GenshinLocation == value)
-                return;
-
-            Settings.GenshinLocation = value;
-            NotifyOfPropertyChange(nameof(GenshinLocation));
-        }
-    }
-
-    public string HeartopiaLocation
-    {
-        get => Settings.HeartopiaLocation;
-        set
-        {
-            if (Settings.HeartopiaLocation == value)
-                return;
-
-            Settings.HeartopiaLocation = value;
-            NotifyOfPropertyChange(nameof(HeartopiaLocation));
-        }
-    }
-
-    public string RobloxLocation
-    {
-        get => Settings.RobloxLocation;
-        set
-        {
-            if (Settings.RobloxLocation == value)
-                return;
-
-            Settings.RobloxLocation = value;
-            NotifyOfPropertyChange(nameof(RobloxLocation));
-        }
-    }
-
     /// <summary>
     /// Path where application data (database, logs, etc.) is stored
     /// </summary>
@@ -427,118 +409,19 @@ public class SettingsPageViewModel : Screen
 
     public async Task<bool> TryGetLocationAsync()
     {
-        var genshinLocations = new[]
+        var foundAny = false;
+
+        foreach (var gameInfo in GameLocations)
         {
-            // User set location
-            Settings.GenshinLocation,
-
-            // Default Genshin Impact install locations
-            @"C:\Program Files\Genshin Impact\Genshin Impact Game\GenshinImpact.exe",
-            @"C:\Program Files\Genshin Impact\Genshin Impact Game\YuanShen.exe",
-
-            // Custom Genshin Impact install location
-            Path.Combine(WindowHelper.InstallLocation ?? string.Empty, @"Genshin Impact Game\GenshinImpact.exe"),
-            Path.Combine(WindowHelper.InstallLocation ?? string.Empty, @"Genshin Impact Game\YuanShen.exe"),
-
-            // Relative location (Genshin)
-            AppContext.BaseDirectory + "GenshinImpact.exe",
-            AppContext.BaseDirectory + "YuanShen.exe"
-        };
-
-        var heartopiaLocations = new[]
-        {
-            // User set location
-            Settings.HeartopiaLocation,
-
-            // Common Steam Heartopia locations
-            @"C:\Program Files (x86)\Steam\steamapps\common\Heartopia\xdt.exe",
-            @"C:\Program Files\Steam\steamapps\common\Heartopia\xdt.exe",
-            @"D:\Steam\steamapps\common\Heartopia\xdt.exe",
-            @"D:\SteamLibrary\steamapps\common\Heartopia\xdt.exe",
-            @"E:\Steam\steamapps\common\Heartopia\xdt.exe",
-            @"E:\SteamLibrary\steamapps\common\Heartopia\xdt.exe",
-            @"F:\Steam\steamapps\common\Heartopia\xdt.exe",
-            @"F:\SteamLibrary\steamapps\common\Heartopia\xdt.exe",
-            @"G:\Steam\steamapps\common\Heartopia\xdt.exe",
-            @"G:\SteamLibrary\steamapps\common\Heartopia\xdt.exe",
-            @"G:\GAMES\Steam\steamapps\common\Heartopia\xdt.exe",
-
-            // Relative location (Heartopia)
-            AppContext.BaseDirectory + "xdt.exe"
-        };
-
-        var robloxLocations = new List<string>
-        {
-            // User set location
-            Settings.RobloxLocation
-        };
-
-        // Scan Roblox version directories (Roblox installs to Versions\<version-hash>\)
-        var robloxVersionsDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Roblox\Versions");
-        if (Directory.Exists(robloxVersionsDir))
-        {
-            foreach (var dir in Directory.GetDirectories(robloxVersionsDir))
+            var location = GameRegistry.TryFindGameLocation(gameInfo.Definition);
+            if (location != null)
             {
-                robloxLocations.Add(Path.Combine(dir, "RobloxPlayerBeta.exe"));
+                gameInfo.Location = location;
+                foundAny = true;
             }
         }
 
-        robloxLocations.AddRange(new[]
-        {
-            // Relative location (Roblox)
-            AppContext.BaseDirectory + "RobloxPlayerBeta.exe"
-        });
-
-        // Also scan Program Files Roblox version directories
-        var programFilesRobloxDirs = new[]
-        {
-            @"C:\Program Files (x86)\Roblox\Versions",
-            @"C:\Program Files\Roblox\Versions"
-        };
-        foreach (var baseDir in programFilesRobloxDirs)
-        {
-            if (Directory.Exists(baseDir))
-            {
-                foreach (var dir in Directory.GetDirectories(baseDir))
-                {
-                    robloxLocations.Add(Path.Combine(dir, "RobloxPlayerBeta.exe"));
-                }
-            }
-        }
-
-        var foundGenshin = false;
-        var foundHeartopia = false;
-        var foundRoblox = false;
-
-        foreach (var location in genshinLocations)
-        {
-            if (await TrySetGenshinLocationAsync(location))
-            {
-                foundGenshin = true;
-                break;
-            }
-        }
-
-        foreach (var location in heartopiaLocations)
-        {
-            if (await TrySetHeartopiaLocationAsync(location))
-            {
-                foundHeartopia = true;
-                break;
-            }
-        }
-
-        foreach (var location in robloxLocations)
-        {
-            if (await TrySetRobloxLocationAsync(location))
-            {
-                foundRoblox = true;
-                break;
-            }
-        }
-
-        return foundGenshin || foundHeartopia || foundRoblox;
+        return await Task.FromResult(foundAny);
     }
 
     public async Task CheckForUpdate()
@@ -569,84 +452,55 @@ public class SettingsPageViewModel : Screen
 
     public async Task LocationMissing()
     {
+        var missingGames = GameLocations
+            .Where(g => !File.Exists(g.Location))
+            .Select(g => g.DisplayName)
+            .ToList();
+
+        if (missingGames.Count == 0) return;
+
+        var gameList = string.Join(", ", missingGames);
         var dialog = DialogHelper.CreateDialog();
         dialog.Title = "Error";
-        dialog.Content = "Could not find game executable locations. You can set Genshin and Heartopia paths here, and set the Roblox path separately in Settings.";
-        dialog.PrimaryButtonText = "Find Genshin...";
-        dialog.SecondaryButtonText = "Find Heartopia...";
+        dialog.Content = $"Could not find game executable locations for: {gameList}. You can set game paths in Settings.";
+        dialog.PrimaryButtonText = "Go to Settings";
         dialog.CloseButtonText = "Ignore";
 
         var result = await dialog.ShowAsync();
 
-        switch (result)
+        if (result == ContentDialogResult.Primary)
         {
-            case ContentDialogResult.Primary:
-                await SetGenshinLocation();
-                break;
-            case ContentDialogResult.Secondary:
-                await SetHeartopiaLocation();
-                break;
-            case ContentDialogResult.None:
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(
-                    nameof(result), result, $"Invalid {nameof(ContentDialogResult)}");
+            _main.NavigateToSettings();
         }
     }
 
+    /// <summary>
+    /// Browse for a game executable location. Called from settings view via Stylet action.
+    /// </summary>
     [PublicAPI]
-    public async Task SetLocation()
-        => await SetGenshinLocation();
-
-    [PublicAPI]
-    public async Task SetGenshinLocation()
+    public async Task BrowseGameLocation(GameInfo game)
     {
         var openFileDialog = new OpenFileDialog
         {
             Filter = "Executable|*.exe|All files (*.*)|*.*",
-            InitialDirectory = WindowHelper.InstallLocation is null
-                ? @"C:\Program Files\Genshin Impact\Genshin Impact Game\"
-                : Path.Combine(WindowHelper.InstallLocation, "Genshin Impact Game")
+            Title = $"Find {game.DisplayName} executable"
         };
 
         var success = openFileDialog.ShowDialog() == true;
-        if (!success)
-            return;
+        if (!success) return;
 
-        await TrySetGenshinLocationAsync(openFileDialog.FileName);
-    }
-
-    [PublicAPI]
-    public async Task SetHeartopiaLocation()
-    {
-        var openFileDialog = new OpenFileDialog
+        var fileName = openFileDialog.FileName;
+        if (Path.GetFileName(fileName).Equals("launcher.exe", StringComparison.OrdinalIgnoreCase))
         {
-            Filter = "Executable|*.exe|All files (*.*)|*.*",
-            InitialDirectory = @"C:\Program Files (x86)\Steam\steamapps\common\Heartopia\"
-        };
-
-        var success = openFileDialog.ShowDialog() == true;
-        if (!success)
+            var dialog = DialogHelper.CreateDialog();
+            dialog.Title = "Incorrect Location";
+            dialog.Content = "launcher.exe is not the game executable. Please select the actual game executable.";
+            dialog.CloseButtonText = "Ok";
+            await dialog.ShowAsync();
             return;
+        }
 
-        await TrySetHeartopiaLocationAsync(openFileDialog.FileName);
-    }
-
-    [PublicAPI]
-    public async Task SetRobloxLocation()
-    {
-        var openFileDialog = new OpenFileDialog
-        {
-            Filter = "Executable|*.exe|All files (*.*)|*.*",
-            InitialDirectory = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Roblox")
-        };
-
-        var success = openFileDialog.ShowDialog() == true;
-        if (!success)
-            return;
-
-        await TrySetRobloxLocationAsync(openFileDialog.FileName);
+        game.Location = fileName;
     }
 
     public async Task BrowseMidiFolder()
@@ -749,66 +603,6 @@ public class SettingsPageViewModel : Screen
     {
         if (AutoCheckUpdates)
             _ = CheckForUpdate();
-    }
-
-    private async Task<bool> TrySetGenshinLocationAsync(string? location)
-    {
-        if (!File.Exists(location)) return false;
-        if (Path.GetFileName(location).Equals("launcher.exe", StringComparison.OrdinalIgnoreCase))
-        {
-            var dialog = DialogHelper.CreateDialog();
-            dialog.Title = "Incorrect Location";
-            dialog.Content = "launcher.exe is not the game, please find GenshinImpact.exe, YuanShen.exe, or xdt.exe (Heartopia)";
-            dialog.CloseButtonText = "Ok";
-
-            await dialog.ShowAsync();
-            return false;
-        }
-
-        GenshinLocation = location;
-        Settings.Save();
-
-        return true;
-    }
-
-    private async Task<bool> TrySetHeartopiaLocationAsync(string? location)
-    {
-        if (!File.Exists(location)) return false;
-        if (!Path.GetFileName(location).Equals("xdt.exe", StringComparison.OrdinalIgnoreCase))
-        {
-            var dialog = DialogHelper.CreateDialog();
-            dialog.Title = "Incorrect Location";
-            dialog.Content = "Please select xdt.exe for Heartopia.";
-            dialog.CloseButtonText = "Ok";
-
-            await dialog.ShowAsync();
-            return false;
-        }
-
-        HeartopiaLocation = location;
-        Settings.Save();
-
-        return true;
-    }
-
-    private async Task<bool> TrySetRobloxLocationAsync(string? location)
-    {
-        if (!File.Exists(location)) return false;
-        if (!Path.GetFileName(location).Equals("RobloxPlayerBeta.exe", StringComparison.OrdinalIgnoreCase))
-        {
-            var dialog = DialogHelper.CreateDialog();
-            dialog.Title = "Incorrect Location";
-            dialog.Content = "Please select RobloxPlayerBeta.exe for Roblox.";
-            dialog.CloseButtonText = "Ok";
-
-            await dialog.ShowAsync();
-            return false;
-        }
-
-        RobloxLocation = location;
-        Settings.Save();
-
-        return true;
     }
 
     private async Task<GitVersion?> GetLatestVersion()

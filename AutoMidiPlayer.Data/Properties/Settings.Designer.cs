@@ -156,6 +156,21 @@ namespace AutoMidiPlayer.Data.Properties
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool AutoEnableListenMode
+        {
+            get
+            {
+                return ((bool)(this["AutoEnableListenMode"]));
+            }
+            set
+            {
+                this["AutoEnableListenMode"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("-1")]
         public int AppTheme
         {
@@ -286,6 +301,51 @@ namespace AutoMidiPlayer.Data.Properties
             set
             {
                 this["RobloxLocation"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool ActiveGenshin
+        {
+            get
+            {
+                return ((bool)(this["ActiveGenshin"]));
+            }
+            set
+            {
+                this["ActiveGenshin"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool ActiveHeartopia
+        {
+            get
+            {
+                return ((bool)(this["ActiveHeartopia"]));
+            }
+            set
+            {
+                this["ActiveHeartopia"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool ActiveRoblox
+        {
+            get
+            {
+                return ((bool)(this["ActiveRoblox"]));
+            }
+            set
+            {
+                this["ActiveRoblox"] = value;
             }
         }
 
@@ -571,6 +631,36 @@ namespace AutoMidiPlayer.Data.Properties
             set
             {
                 this["HotkeyPanic"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("QWERTY")]
+        public string SelectedLayoutName
+        {
+            get
+            {
+                return ((string)(this["SelectedLayoutName"]));
+            }
+            set
+            {
+                this["SelectedLayoutName"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string SelectedInstrumentByGame
+        {
+            get
+            {
+                return ((string)(this["SelectedInstrumentByGame"]));
+            }
+            set
+            {
+                this["SelectedInstrumentByGame"] = value;
             }
         }
     }
