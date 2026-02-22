@@ -571,7 +571,7 @@ public class SongsViewModel : Screen
 
     public void AddSelectedToQueue(IEnumerable<MidiFile> selectedFiles)
     {
-        var files = selectedFiles.Any() ? selectedFiles : (SelectedFile != null ? new[] { SelectedFile } : Array.Empty<MidiFile>());
+        var files = selectedFiles.Any() ? selectedFiles : (SelectedFile != null ? [SelectedFile] : Array.Empty<MidiFile>());
         foreach (var file in files)
             _main.QueueView.AddFile(file);
     }

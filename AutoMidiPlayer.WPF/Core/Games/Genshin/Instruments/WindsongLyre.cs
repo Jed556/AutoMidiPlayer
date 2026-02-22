@@ -12,8 +12,7 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
         public static readonly InstrumentConfig WindsongLyre = new(
             game: "Genshin Impact",
             name: "Windsong Lyre",
-            notes: new List<int>
-            {
+            notes: [
                 48, // C3
                 50, // D3
                 52, // E3
@@ -37,9 +36,8 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
                 79, // G5
                 81, // A5
                 83  // B5
-            },
-            keyboardLayouts:
-            [
+            ],
+            keyboardLayouts: [
                 GenshinKeyboardLayouts.QWERTY,
                 GenshinKeyboardLayouts.QWERTZ,
                 GenshinKeyboardLayouts.AZERTY,

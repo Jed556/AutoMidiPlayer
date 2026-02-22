@@ -17,12 +17,11 @@ internal static class SkyKeyboardLayouts
     /// </summary>
     public static readonly KeyboardLayoutConfig QWERTY_15 = new(
         name: "QWERTY",
-        characters: new List<char>
-        {
+        keys: [
             'n', 'm', ',', '.', '/',
             'h', 'j', 'k', 'l', ';',
             'y', 'u', 'i', 'o', 'p'
-        });
+            ]);
 
     /// <summary>
     /// 8-note QWERTY layout for percussion instruments.
@@ -31,11 +30,10 @@ internal static class SkyKeyboardLayouts
     /// </summary>
     public static readonly KeyboardLayoutConfig QWERTY_8 = new(
         name: "QWERTY",
-        characters: new List<char>
-        {
+        keys: [
             'p', 'h', 'j', 'k',
             'y', 'u', 'i', 'o'
-        });
+            ]);
 
     /// <summary>
     /// 4-note QWERTY layout (notable percussion exception).
@@ -44,9 +42,8 @@ internal static class SkyKeyboardLayouts
     /// </summary>
     public static readonly KeyboardLayoutConfig QWERTY_4 = new(
         name: "QWERTY",
-        characters: new List<char>
-        {
+        keys: [
             'i', 'o',
             'y', 'u'
-        });
+        ]);
 }

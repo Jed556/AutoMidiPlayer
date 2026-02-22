@@ -11,8 +11,7 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
         public static readonly InstrumentConfig VintageLyre = new(
             game: "Genshin Impact",
             name: "Vintage Lyre",
-            notes: new List<int>
-            {
+            notes: [
                 48, // C3
                 50, // D3
                 51, // Eb3
@@ -36,9 +35,8 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
                 79, // G5
                 80, // Ab5
                 82  // Bb5
-            },
-            keyboardLayouts:
-            [
+            ],
+            keyboardLayouts: [
                 GenshinKeyboardLayouts.QWERTY,
                 GenshinKeyboardLayouts.QWERTZ,
                 GenshinKeyboardLayouts.AZERTY,

@@ -10,8 +10,7 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
         public static readonly InstrumentConfig Piano = new(
             game: "Roblox",
             name: "Piano",
-            notes: new List<int>
-            {
+            notes:            [
                 36, // C2
                 37, // C#2
                 38, // D2
@@ -78,9 +77,8 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
                 95, // B6
 
                 96  // C7
-            },
-            keyboardLayouts:
-            [
+            ],
+            keyboardLayouts: [
                 RobloxKeyboardLayouts.MirpDefault
             ]
         );

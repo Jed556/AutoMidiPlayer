@@ -7,9 +7,8 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
 
         public static readonly InstrumentConfig Lyre2r = new(
             game: "Heartopia",
-            name: "Lyre 2-Row",
-            notes: new List<int>
-            {
+            name: "Lyre (2 Row)",
+            notes: [
                 60, // C4
                 62, // D4
                 64, // E4
@@ -26,18 +25,16 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
                 81, // A5
                 83, // B5
                 84  // C6
-            },
-            keyboardLayouts:
-            [
+            ],
+            keyboardLayouts: [
                 HeartopiaKeyboardLayouts.QWERTY_2Row
             ]
         );
 
         public static readonly InstrumentConfig Lyre3r = new(
             game: "Heartopia",
-            name: "Lyre 3-Row",
-            notes: new List<int>
-            {
+            name: "Lyre (3 Row)",
+            notes: [
                 60, // C4
                 62, // D4
                 64, // E4
@@ -55,9 +52,8 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
                 81, // A5
                 83, // B5
                 84  // C6
-            },
-            keyboardLayouts:
-            [
+            ],
+            keyboardLayouts: [
                 HeartopiaKeyboardLayouts.QWERTY_3Row
             ]
         );

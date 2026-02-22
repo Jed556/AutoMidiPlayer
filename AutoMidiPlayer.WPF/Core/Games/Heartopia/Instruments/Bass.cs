@@ -7,8 +7,8 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
 
         public static readonly InstrumentConfig Bass2r = new(
             game: "Heartopia",
-            name: "Bass 2-Row",
-            notes: new List<int>{
+            name: "Bass (2 Row)",
+            notes: [
                 60, // C4
                 62, // D4
                 64, // E4
@@ -25,18 +25,16 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
                 81, // A5
                 83, // B5
                 84  // C6
-            },
-            keyboardLayouts:
-            [
+            ],
+            keyboardLayouts: [
                 HeartopiaKeyboardLayouts.QWERTY_2Row
             ]
         );
 
         public static readonly InstrumentConfig Bass3r = new(
             game: "Heartopia",
-            name: "Bass 3-Row",
-            notes: new List<int>
-            {
+            name: "Bass (3 Row)",
+            notes: [
                 60, // C4
                 62, // D4
                 64, // E4
@@ -54,9 +52,8 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
                 81, // A5
                 83, // B5
                 84  // C6
-            },
-            keyboardLayouts:
-            [
+            ],
+            keyboardLayouts: [
                 HeartopiaKeyboardLayouts.QWERTY_3Row
             ]
         );

@@ -13,10 +13,10 @@ public class KeyboardLayoutConfig
 
     public IReadOnlyList<VirtualKeyCode> Keys => KeyStrokes.Select(k => k.Key).ToArray();
 
-    public KeyboardLayoutConfig(string name, IReadOnlyList<VirtualKeyCode> keys)
+    public KeyboardLayoutConfig(string name, IReadOnlyList<VirtualKeyCode> keyCodes)
     {
         Name = name;
-        KeyStrokes = keys.Select(key => new Keyboard.KeyStroke(key)).ToArray();
+        KeyStrokes = keyCodes.Select(key => new Keyboard.KeyStroke(key)).ToArray();
     }
 
     public KeyboardLayoutConfig(string name, IReadOnlyList<Keyboard.KeyStroke> keyStrokes)
@@ -25,10 +25,10 @@ public class KeyboardLayoutConfig
         KeyStrokes = keyStrokes;
     }
 
-    public KeyboardLayoutConfig(string name, IReadOnlyList<char> characters)
+    public KeyboardLayoutConfig(string name, IReadOnlyList<char> keys)
     {
         Name = name;
-        KeyStrokes = characters
+        KeyStrokes = keys
             .Select(character => Keyboard.TryGetKeyStrokeForCharacter(character, out var keyStroke)
                 ? keyStroke
                 : new Keyboard.KeyStroke(VirtualKeyCode.SPACE))

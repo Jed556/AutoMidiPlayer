@@ -7,8 +7,8 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
 
         public static readonly InstrumentConfig Piano2r = new(
             game: "Heartopia",
-            name: "Piano 2-Row",
-            notes: new List<int> {
+            name: "Piano (2 Row)",
+            notes: [
                 60, // C4
                 62, // D4
                 64, // E4
@@ -25,18 +25,16 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
                 81, // A5
                 83, // B5
                 84  // C6
-            },
-            keyboardLayouts:
-            [
+            ],
+            keyboardLayouts: [
                 HeartopiaKeyboardLayouts.QWERTY_2Row
             ]
         );
 
         public static readonly InstrumentConfig Piano3r = new(
             game: "Heartopia",
-            name: "Piano 3-Row",
-            notes: new List<int>
-            {
+            name: "Piano (3 Row)",
+            notes: [
                 60, // C4
                 62, // D4
                 64, // E4
@@ -54,18 +52,16 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
                 81, // A5
                 83, // B5
                 84  // C6
-            },
-            keyboardLayouts:
-            [
+            ],
+            keyboardLayouts: [
                 HeartopiaKeyboardLayouts.QWERTY_3Row
             ]
         );
 
         public static readonly InstrumentConfig Piano22k = new(
             game: "Heartopia",
-            name: "Piano 22",
-            notes: new List<int>
-            {
+            name: "Piano (22 Key)",
+            notes: [
                 48, // C3
                 50, // D3
                 52, // E3
@@ -90,17 +86,16 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
                 81, // A5
                 83, // B5
                 84  // C6
-            },
-            keyboardLayouts:
-            [
+            ],
+            keyboardLayouts: [
                 HeartopiaKeyboardLayouts.QWERTY_22Key
             ]
         );
 
         public static readonly InstrumentConfig Piano37k = new(
             game: "Heartopia",
-            name: "Piano 37",
-            notes: new List<int> {
+            name: "Piano (37 Key)",
+            notes: [
                 48, // C3
                 49, // C#3
                 50, // D3
@@ -140,9 +135,8 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
                 82, // A#5
                 83, // B5
                 84  // C6
-            },
-            keyboardLayouts:
-            [
+            ],
+            keyboardLayouts: [
                 HeartopiaKeyboardLayouts.QWERTY_37Key
             ]
         );

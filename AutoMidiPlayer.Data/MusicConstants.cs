@@ -143,7 +143,7 @@ public static class MusicConstants
             speeds.Add(s);
 
         // 2.5, 3.0, 3.5, 4.0
-        speeds.AddRange(new[] { 2.5, 3.0, 3.5, 4.0 });
+        speeds.AddRange([2.5, 3.0, 3.5, 4.0]);
 
         return speeds.Select(s => new SpeedOption { Value = s, Display = $"{s:0.0}x" }).ToList();
     }

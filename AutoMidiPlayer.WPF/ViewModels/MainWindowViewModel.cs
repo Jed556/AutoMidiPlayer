@@ -34,11 +34,11 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
     private static readonly Settings Settings = Settings.Default;
 
     private static readonly string AppName = $"Auto MIDI Player {SettingsPageViewModel.ProgramVersion}";
-    private static readonly string[] MidiExtensions = { ".mid", ".midi" };
+    private static readonly string[] MidiExtensions = [".mid", ".midi"];
     private readonly DispatcherTimer _gameStateTimer;
 
     // Current page name for breadcrumb display
-    public string[] BreadcrumbItems { get; set; } = { "Tracks" };
+    public string[] BreadcrumbItems { get; set; } = ["Tracks"];
     public event Action? ActiveGamesChanged;
 
     // Helper to set selected navigation item safely
@@ -188,7 +188,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
             var pageName = item.Content?.ToString();
             if (!string.IsNullOrEmpty(pageName))
             {
-                BreadcrumbItems = new[] { pageName };
+                BreadcrumbItems = [pageName];
                 Settings.LastViewedPage = pageName;
                 Settings.Save();
             }
@@ -259,7 +259,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
             if (queue != null)
             {
                 SetSelectedNavItem(queue);
-                BreadcrumbItems = new[] { "Queue" };
+                BreadcrumbItems = ["Queue"];
             }
         }
 
@@ -303,7 +303,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
             if (songs != null)
             {
                 SetSelectedNavItem(songs);
-                BreadcrumbItems = new[] { "Songs" };
+                BreadcrumbItems = ["Songs"];
             }
         }
     }
@@ -332,7 +332,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
             // Set selected item for visual indicator
             SetSelectedNavItem(targetNavItem);
             // Update breadcrumb with current page name
-            BreadcrumbItems = new[] { lastPage };
+            BreadcrumbItems = [lastPage];
         }
 
         if (!await SettingsView.TryGetLocationAsync()) _ = SettingsView.LocationMissing();

@@ -169,8 +169,8 @@ public static class KeyboardPlayer
                 foreach (var modifier in modifiers)
                     Input.Keyboard.KeyDown(modifier);
                 Input.Keyboard.KeyDown(keyStroke.Key);
-                foreach (var modifier in modifiers.Reverse())
-                    Input.Keyboard.KeyUp(modifier);
+                for (int i = modifiers.Length - 1; i >= 0; i--)
+                    Input.Keyboard.KeyUp(modifiers[i]);
                 break;
 
             case KeyAction.Up:
@@ -181,8 +181,8 @@ public static class KeyboardPlayer
                 foreach (var modifier in modifiers)
                     Input.Keyboard.KeyDown(modifier);
                 Input.Keyboard.KeyPress(keyStroke.Key);
-                foreach (var modifier in modifiers.Reverse())
-                    Input.Keyboard.KeyUp(modifier);
+                for (int i = modifiers.Length - 1; i >= 0; i--)
+                    Input.Keyboard.KeyUp(modifiers[i]);
                 break;
         }
     }
@@ -197,8 +197,8 @@ public static class KeyboardPlayer
                 foreach (var modifier in modifiers)
                     SendKeyDirect(modifier, false);
                 SendKeyDirect(keyStroke.Key, false);
-                foreach (var modifier in modifiers.Reverse())
-                    SendKeyDirect(modifier, true);
+                for (int i = modifiers.Length - 1; i >= 0; i--)
+                    SendKeyDirect(modifiers[i], true);
                 break;
 
             case KeyAction.Up:
@@ -210,8 +210,8 @@ public static class KeyboardPlayer
                     SendKeyDirect(modifier, false);
                 SendKeyDirect(keyStroke.Key, false);
                 SendKeyDirect(keyStroke.Key, true);
-                foreach (var modifier in modifiers.Reverse())
-                    SendKeyDirect(modifier, true);
+                for (int i = modifiers.Length - 1; i >= 0; i--)
+                    SendKeyDirect(modifiers[i], true);
                 break;
         }
     }

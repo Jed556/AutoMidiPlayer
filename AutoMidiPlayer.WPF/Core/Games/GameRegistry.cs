@@ -21,17 +21,17 @@ public static class GameRegistry
     private static readonly Settings Settings = Settings.Default;
 
     /// <summary>All registered games in display order</summary>
-    public static readonly IReadOnlyList<GameDefinition> AllGames = new[]
-    {
+    public static readonly IReadOnlyList<GameDefinition> AllGames =
+    [
         new GameDefinition(
             id: "Genshin Impact",
             displayName: "Genshin Impact",
             instrumentGameName: "Genshin Impact",
             imageResourcePath: "pack://application:,,,/Resources/Genshin_Impact.png",
-            processNames: new[] { "GenshinImpact", "YuanShen" },
+            processNames: ["GenshinImpact", "YuanShen"],
             defaultExeName: "GenshinImpact.exe",
-            defaultSearchPaths: new[]
-            {
+            defaultSearchPaths:
+            [
                 @"C:\Program Files\Genshin Impact\Genshin Impact Game\GenshinImpact.exe",
                 @"C:\Program Files\Genshin Impact\Genshin Impact Game\YuanShen.exe",
                 @"D:\Genshin Impact\Genshin Impact Game\GenshinImpact.exe",
@@ -40,7 +40,7 @@ public static class GameRegistry
                 @"E:\Genshin Impact\Genshin Impact Game\YuanShen.exe",
                 @"F:\Genshin Impact\Genshin Impact Game\GenshinImpact.exe",
                 @"F:\Genshin Impact\Genshin Impact Game\YuanShen.exe",
-            },
+            ],
             getLocation: () => Settings.GenshinLocation,
             setLocation: v => Settings.Modify(s => s.GenshinLocation = v),
             getIsActive: () => Settings.ActiveGenshin,
@@ -51,10 +51,10 @@ public static class GameRegistry
             displayName: "Heartopia",
             instrumentGameName: "Heartopia",
             imageResourcePath: "pack://application:,,,/Resources/Heartopia.png",
-            processNames: new[] { "xdt" },
+            processNames: ["xdt"],
             defaultExeName: "xdt.exe",
-            defaultSearchPaths: new[]
-            {
+            defaultSearchPaths:
+            [
                 @"C:\Program Files (x86)\Steam\steamapps\common\Heartopia\xdt.exe",
                 @"C:\Program Files\Steam\steamapps\common\Heartopia\xdt.exe",
                 @"D:\Steam\steamapps\common\Heartopia\xdt.exe",
@@ -66,7 +66,7 @@ public static class GameRegistry
                 @"G:\Steam\steamapps\common\Heartopia\xdt.exe",
                 @"G:\SteamLibrary\steamapps\common\Heartopia\xdt.exe",
                 @"G:\GAMES\Steam\steamapps\common\Heartopia\xdt.exe",
-            },
+            ],
             getLocation: () => Settings.HeartopiaLocation,
             setLocation: v => Settings.Modify(s => s.HeartopiaLocation = v),
             getIsActive: () => Settings.ActiveHeartopia,
@@ -77,13 +77,13 @@ public static class GameRegistry
             displayName: "Roblox",
             instrumentGameName: "Roblox",
             imageResourcePath: "pack://application:,,,/Resources/Roblox.png",
-            processNames: new[] { "RobloxPlayerBeta", "Roblox" },
+            processNames: ["RobloxPlayerBeta", "Roblox"],
             defaultExeName: "RobloxPlayerBeta.exe",
-            defaultSearchPaths: new[]
-            {
+            defaultSearchPaths:
+            [
                 @"C:\Program Files (x86)\Roblox\Versions\version-unknown\RobloxPlayerBeta.exe",
                 @"C:\Program Files\Roblox\Versions\version-unknown\RobloxPlayerBeta.exe",
-            },
+            ],
             getLocation: () => Settings.RobloxLocation,
             setLocation: v => Settings.Modify(s => s.RobloxLocation = v),
             getIsActive: () => Settings.ActiveRoblox,
@@ -94,10 +94,10 @@ public static class GameRegistry
             displayName: "Sky: Children of the Light",
             instrumentGameName: "Sky",
             imageResourcePath: "pack://application:,,,/Resources/Sky.png",
-            processNames: new[] { "Sky" },
+            processNames: ["Sky"],
             defaultExeName: "Sky.exe",
-            defaultSearchPaths: new[]
-            {
+            defaultSearchPaths:
+            [
                 @"C:\Program Files (x86)\Steam\steamapps\common\Sky Children of the Light\Sky.exe",
                 @"C:\Program Files\Steam\steamapps\common\Sky Children of the Light\Sky.exe",
                 @"D:\Steam\steamapps\common\Sky Children of the Light\Sky.exe",
@@ -108,13 +108,13 @@ public static class GameRegistry
                 @"F:\SteamLibrary\steamapps\common\Sky Children of the Light\Sky.exe",
                 @"G:\Steam\steamapps\common\Sky Children of the Light\Sky.exe",
                 @"G:\SteamLibrary\steamapps\common\Sky Children of the Light\Sky.exe",
-            },
+            ],
             getLocation: () => Settings.SkyLocation,
             setLocation: v => Settings.Modify(s => s.SkyLocation = v),
             getIsActive: () => Settings.ActiveSky,
             setIsActive: v => Settings.Modify(s => s.ActiveSky = v)
         )
-    };
+    ];
 
     /// <summary>Get a game definition by its unique ID</summary>
     public static GameDefinition? GetById(string id) =>
