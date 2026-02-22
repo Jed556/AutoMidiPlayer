@@ -20,6 +20,7 @@ public static class GameRegistry
 {
     private static readonly Settings Settings = Settings.Default;
 
+    #region Game Definitions
     /// <summary>All registered games in display order</summary>
     public static readonly IReadOnlyList<GameDefinition> AllGames =
     [
@@ -115,6 +116,11 @@ public static class GameRegistry
             setIsActive: v => Settings.Modify(s => s.ActiveSky = v)
         )
     ];
+
+    #endregion
+
+
+    #region Helper functions
 
     /// <summary>Get a game definition by its unique ID</summary>
     public static GameDefinition? GetById(string id) =>
@@ -264,4 +270,6 @@ public static class GameRegistry
             }
         });
     }
+
+    #endregion
 }

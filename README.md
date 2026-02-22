@@ -21,8 +21,9 @@ https://github.com/user-attachments/assets/8e7d8dec-33c4-4d2b-a268-4abd1dbac405
 
 ### Supported Games and Instruments
 - **Genshin Impact** - Windsong Lyre, Floral Zither, Vintage Lyre
-- **Heartopia** - Piano, 15-key instruments
+- **Heartopia** - Piano (All variations), 15-key instruments (e.g. lyre, wooden bass, violin, etc.)
 - **Roblox** - Piano (61-key)
+- **Sky: Children of the Light** - All available Sky instruments as of Feb 2026 (Listen Mode only)
 
 
 ## How to use
@@ -85,6 +86,8 @@ MIDI files (.mid) is a set of instructions that play various instruments on what
 The short answer is that it's uncertain. Use it at your own risk. Do not play songs that will spam the keyboard, listen to the MIDI file first and make sure to play only one instrument so that the tool doesn't spam keyboard inputs.
 * For Genshin Impact, here is [miHoYo's response](https://genshin.mihoyo.com/en/news/detail/5763) to using 3rd party tools.
 * For Heartopia, here is their [Official Discord message](https://discord.com/channels/1128257488375005215/1460985755529773301/1465702188700405986) about using 3rd party tools.
+* For Sky, see their policy on [third-party apps](https://thatgamecompany.helpshift.com/hc/en/17-sky-children-of-the-light/faq/1250-can-i-use-or-create-third-party-applications-like-mods-or-bots/).
+* For Roblox, refer to their [third-party services Terms of Use](https://en.help.roblox.com/hc/en-us/articles/115004647846-Roblox-Terms-of-Use#third-party-services).
 
 ## Pull Request Process
 
@@ -92,6 +95,70 @@ The short answer is that it's uncertain. Use it at your own risk. Do not play so
 2. Update the README.md with details of changes to the project, new features, and others if applicable.
 3. Increase the version number of the project to the new version that this
    Pull Request would represent. The versioning scheme we use is [SemVer](http://semver.org).
+
+## New Notes/Keyboard Mappings
+The process for adding or adjusting notes and keyboard mappings has a few discrete steps.  Below is a friendly checklist along with example snippets to help you get started.
+
+1. **Create or select a game folder**
+   - Go to `AutoMidiPlayer.WPF/Core/Games/` and either open the existing game directory or create a new one with the game's name.
+
+2. **Prepare layout & instruments subfolders**
+   - In the game folder make sure you have two items:
+     * `KeyboardLayout.cs` – holds any custom key‑assignment maps.
+     * `Instruments` directory – contains one `.cs` file for each instrument.
+   - Look at `Heartopia/` or `Genshin/` for real examples; the structure is identical.
+
+3. **Add or edit instrument config files**
+   - Inside `Instruments`, you can copy and paste an existing config (e.g. `Piano.cs`) and then adjust fields such as `game`, `name`, and the `notes` list.
+   - Optional: specify `keyboardLayouts` if the instrument uses a non‑standard mapping.
+
+   ```csharp
+   public static readonly InstrumentConfig MyNewInstrument = new(
+       game: "MyGame",
+       name: "Special Harp",
+       notes: [ 60, 62, 64, 65, 67 ], // C4,D4,E4,F4,G4
+       keyboardLayouts: [ MyGameLayouts.QWERTY ]
+   );
+   ```
+
+4. **Create a keyboard layout (if necessary)**
+   - Edit `KeyboardLayout.cs` and add a `KeyboardLayoutConfig` with the characters that correspond to each note.
+
+   ```csharp
+   internal static readonly KeyboardLayoutConfig QWERTY = new(
+       name: "QWERTY",
+       keys: ['q','w','e','r','t','y','u']
+   );
+   ```
+
+5. **Register the game in `GameRegistry.cs`**
+   - Add a new `GameDefinition` entry to the `AllGames` list so the app knows about your game.  For example:
+
+   ```csharp
+   new GameDefinition(
+       id: "MyGame",
+       displayName: "My Game Title",
+       instrumentGameName: "MyGame",
+       imageResourcePath: "pack://application:,,,/Resources/MyGame.png",
+       processNames: ["MyGameExe"],
+       defaultExeName: "MyGame.exe",
+       defaultSearchPaths: [
+           @"C:\Program Files\MyGame\MyGame.exe",
+       ],
+       getLocation: () => Settings.MyGameLocation,
+       setLocation: v => Settings.Modify(s => s.MyGameLocation = v),
+       getIsActive: () => Settings.ActiveMyGame,
+       setIsActive: v => Settings.Modify(s => s.ActiveMyGame = v)
+   ),
+   ```
+
+6. **Update user settings for the game**
+   - Open `AutoMidiPlayer.Data/Properties/Settings.settings` and add entries for `MyGameLocation` and `ActiveMyGame` (type string and bool respectively).  Use the other games as templates.
+   - Regenerate the designer file or manually add the corresponding properties in `Settings.Designer.cs`.
+
+Once these steps are complete you can rebuild the project and your new instruments should appear in the UI under the new game.
+
+> I'm planning to expose .json‑based mod support in the future which will allow users to add their own instruments and games without needing to modify and rebuild the app.
 
 ## Build
 If you just want to run the program, there are precompiled binaries in [releases](https://github.com/Jed556/AutoMidiPlayer/releases).
@@ -134,7 +201,7 @@ dotnet publish
 # License
 * This project is under the [MIT](LICENSE.md) license.
 * Originally created by [sabihoshi][GenshinLyreMidiPlayer]. Modified by [Jed556](https://github.com/Jed556) for multi-game support and modernization.
-* All rights reserved by © miHoYo Co., Ltd. and © XD Inc. This project is not affiliated nor endorsed by miHoYo or XD. Genshin Impact™, Heartopia™, and other properties belong to their respective owners.
+* All rights reserved by © miHoYo Co., Ltd., © XD Inc., © thatgamecompany, Inc., and © Roblox Corporation. This project is not affiliated nor endorsed by miHoYo, XD, thatgamecompany, or Roblox. Genshin Impact™, Heartopia™, Sky: Children of the Light™, Roblox™, and other properties belong to their respective owners.
 * This project uses third-party libraries or other resources that may be distributed under [different licenses](THIRD-PARTY-NOTICES.md).
 
 <br/>
