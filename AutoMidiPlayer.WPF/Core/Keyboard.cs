@@ -42,18 +42,36 @@ public static class Keyboard
     /// Instrument display names discovered dynamically from game files.
     /// Instrument id is the instrument Name string.
     /// </summary>
+    // registry keyed by a unique identifier composed of the game and instrument name.
+    // this prevents collisions when multiple games expose instruments with the same name (e.g. "Piano").
     private static readonly Dictionary<string, InstrumentConfig> _instrumentRegistry = BuildInstrumentRegistry();
 
     private static readonly Dictionary<string, KeyboardLayoutConfig> _layoutRegistry = BuildLayoutRegistry();
 
+    /// <summary>
+    /// Instrument display names discovered dynamically from game files.
+    /// Keys are the unique identifier (game:name) but values are the plain
+    /// instrument name so the UI can display a short name.  Because the game
+    /// is selected first, collisions are avoided when the dropdown is built.
+    /// </summary>
     public static readonly IReadOnlyDictionary<string, string> InstrumentNames =
-        _instrumentRegistry.ToDictionary(kv => kv.Key, kv => kv.Value.Name);
+        _instrumentRegistry
+            .OrderBy(kv => kv.Value.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(kv => kv.Key, kv => kv.Value.Name, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Layout display names discovered dynamically from game KeyboardLayout files.
     /// </summary>
     public static readonly IReadOnlyDictionary<string, string> LayoutNames =
         _layoutRegistry.ToDictionary(kv => kv.Key, kv => kv.Value.Name);
+
+    private static string ComposeInstrumentKey(InstrumentConfig config)
+    {
+        // since instrument names are only unique per game, include the game
+        // in the key so that "Piano" from Roblox and "Piano" from Sky can
+        // both exist in the registry.
+        return $"{config.Game}:{config.Name}";
+    }
 
     private static Dictionary<string, InstrumentConfig> BuildInstrumentRegistry()
     {
@@ -73,9 +91,11 @@ public static class Keyboard
             if (string.IsNullOrWhiteSpace(config.Name))
                 continue;
 
-            dict[config.Name] = config;
+            var key = ComposeInstrumentKey(config);
+            dict[key] = config;
         }
 
+        // sort by key for deterministic ordering
         return dict
             .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
@@ -148,9 +168,10 @@ public static class Keyboard
         if (games.Count == 0)
             return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+        // filter by game and preserve the composite key so lookups still work
         return _instrumentRegistry
             .Where(kv => games.Contains(kv.Value.Game))
-            .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(kv => kv.Value.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(kv => kv.Key, kv => kv.Value.Name, StringComparer.OrdinalIgnoreCase);
     }
 
