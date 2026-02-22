@@ -291,6 +291,21 @@ namespace AutoMidiPlayer.Data.Properties
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("RobloxPlayerBeta.exe")]
+        public string RobloxLocation
+        {
+            get
+            {
+                return ((string)(this["RobloxLocation"]));
+            }
+            set
+            {
+                this["RobloxLocation"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("True")]
         public bool ActiveGenshin
         {
@@ -316,6 +331,21 @@ namespace AutoMidiPlayer.Data.Properties
             set
             {
                 this["ActiveHeartopia"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool ActiveRoblox
+        {
+            get
+            {
+                return ((bool)(this["ActiveRoblox"]));
+            }
+            set
+            {
+                this["ActiveRoblox"] = value;
             }
         }
 

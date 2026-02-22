@@ -22,6 +22,8 @@ https://github.com/user-attachments/assets/8e7d8dec-33c4-4d2b-a268-4abd1dbac405
 ### Supported Games and Instruments
 - **Genshin Impact** - Windsong Lyre, Floral Zither, Vintage Lyre
 - **Heartopia** - Piano, 15-key instruments
+- **Roblox** - Piano (61-key)
+
 
 ## How to use
 

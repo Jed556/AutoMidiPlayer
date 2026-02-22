@@ -62,10 +62,16 @@
     <Setting Name="HeartopiaLocation" Type="System.String" Scope="User">
       <Value Profile="(Default)">xdt.exe</Value>
     </Setting>
+    <Setting Name="RobloxLocation" Type="System.String" Scope="User">
+      <Value Profile="(Default)">RobloxPlayerBeta.exe</Value>
+    </Setting>
     <Setting Name="ActiveGenshin" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>
     <Setting Name="ActiveHeartopia" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="ActiveRoblox" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>
     <Setting Name="SelectedInstrument" Type="System.Int32" Scope="User">

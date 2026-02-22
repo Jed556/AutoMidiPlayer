@@ -71,6 +71,23 @@ public static class GameRegistry
             setLocation: v => Settings.Modify(s => s.HeartopiaLocation = v),
             getIsActive: () => Settings.ActiveHeartopia,
             setIsActive: v => Settings.Modify(s => s.ActiveHeartopia = v)
+        ),
+        new GameDefinition(
+            id: "Roblox",
+            displayName: "Roblox",
+            instrumentGameName: "Roblox",
+            imageResourcePath: "pack://application:,,,/Resources/Roblox.png",
+            processNames: new[] { "RobloxPlayerBeta", "Roblox" },
+            defaultExeName: "RobloxPlayerBeta.exe",
+            defaultSearchPaths: new[]
+            {
+                @"C:\Program Files (x86)\Roblox\Versions\version-unknown\RobloxPlayerBeta.exe",
+                @"C:\Program Files\Roblox\Versions\version-unknown\RobloxPlayerBeta.exe",
+            },
+            getLocation: () => Settings.RobloxLocation,
+            setLocation: v => Settings.Modify(s => s.RobloxLocation = v),
+            getIsActive: () => Settings.ActiveRoblox,
+            setIsActive: v => Settings.Modify(s => s.ActiveRoblox = v)
         )
     };
 
@@ -126,8 +143,8 @@ public static class GameRegistry
                 return registryPath;
         }
 
-        // 3. Search all default paths
-        foreach (var path in game.DefaultSearchPaths)
+        // 3. Search all known paths
+        foreach (var path in GetSearchPaths(game))
         {
             if (File.Exists(path))
                 return path;
@@ -139,6 +156,55 @@ public static class GameRegistry
             return relativePath;
 
         return null;
+    }
+
+    private static IEnumerable<string> GetSearchPaths(GameDefinition game)
+    {
+        foreach (var path in game.DefaultSearchPaths)
+        {
+            if (!string.IsNullOrWhiteSpace(path) && !path.Contains("version-unknown", StringComparison.OrdinalIgnoreCase))
+                yield return path;
+        }
+
+        if (!string.Equals(game.Id, "Roblox", StringComparison.OrdinalIgnoreCase))
+            yield break;
+
+        var localRobloxVersions = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Roblox",
+            "Versions");
+
+        foreach (var path in EnumerateRobloxVersionExecutables(localRobloxVersions))
+            yield return path;
+
+        foreach (var baseDir in new[]
+                 {
+                     @"C:\Program Files (x86)\Roblox\Versions",
+                     @"C:\Program Files\Roblox\Versions"
+                 })
+        {
+            foreach (var path in EnumerateRobloxVersionExecutables(baseDir))
+                yield return path;
+        }
+    }
+
+    private static IEnumerable<string> EnumerateRobloxVersionExecutables(string versionsDir)
+    {
+        if (!Directory.Exists(versionsDir))
+            yield break;
+
+        IEnumerable<string> dirs;
+        try
+        {
+            dirs = Directory.GetDirectories(versionsDir);
+        }
+        catch
+        {
+            yield break;
+        }
+
+        foreach (var dir in dirs)
+            yield return Path.Combine(dir, "RobloxPlayerBeta.exe");
     }
 
     /// <summary>

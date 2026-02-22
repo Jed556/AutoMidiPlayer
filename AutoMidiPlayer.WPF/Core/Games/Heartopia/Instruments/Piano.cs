@@ -7,7 +7,7 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
 
         public static readonly InstrumentConfig Piano2r = new(
             game: "Heartopia",
-            name: "Heartopia Piano 2-Row",
+            name: "Piano 2-Row",
             notes: new List<int> {
                 60, // C4
                 62, // D4
@@ -34,7 +34,7 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
 
         public static readonly InstrumentConfig Piano3r = new(
             game: "Heartopia",
-            name: "Heartopia Piano 3-Row",
+            name: "Piano 3-Row",
             notes: new List<int>
             {
                 60, // C4
@@ -63,7 +63,7 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
 
         public static readonly InstrumentConfig Piano22k = new(
             game: "Heartopia",
-            name: "Heartopia Piano 22",
+            name: "Piano 22",
             notes: new List<int>
             {
                 48, // C3
@@ -99,7 +99,7 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
 
         public static readonly InstrumentConfig Piano37k = new(
             game: "Heartopia",
-            name: "Heartopia Piano 37",
+            name: "Piano 37",
             notes: new List<int> {
                 48, // C3
                 49, // C#3
