@@ -51,9 +51,9 @@
                     MinWidth="200"/>
 
                 <ui:ToggleSwitch
-                    Content="Test Mode (Speakers)"
+                    Content="Listen Mode (Speakers)"
                     IsEnabled="{Binding CanUseSpeakers}"
-                    IsChecked="{Binding Default.UseSpeakers, Source={StaticResource Settings}}"
+                    IsChecked="{Binding UseSpeakers}"
                     Margin="0,8,0,0"/>
 
                 <!-- Scheduled Playback Section -->

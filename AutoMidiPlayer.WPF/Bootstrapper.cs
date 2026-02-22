@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Diagnostics;
-using System.Drawing;
-using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Documents;
@@ -9,7 +7,6 @@ using System.Windows.Navigation;
 using System.Windows.Threading;
 using Windows.Media;
 using Windows.Media.Playback;
-using Windows.Storage;
 using Windows.Storage.Streams;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Properties;
@@ -87,7 +84,6 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
     protected override void ConfigureIoC(IStyletIoCBuilder builder)
     {
         // Use centralized app data path
-        var path = AppPaths.AppDataDirectory;
         AppPaths.EnsureDirectoryExists();
 
         builder.Bind<LyreContext>().ToFactory(_ =>
@@ -198,15 +194,9 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
 
             Task.Run(async () =>
             {
-                const string resourceName = "Resources/logo.png";
-                var location = Path.Combine(path!, "logo.png");
-
-                var uri = new Uri($"pack://application:,,,/{resourceName}");
-                var resource = Application.GetResourceStream(uri)!.Stream;
-                System.Drawing.Image.FromStream(resource).Save(location);
-
-                var file = await StorageFile.GetFileFromPathAsync(location);
-                controls.DisplayUpdater.Thumbnail = RandomAccessStreamReference.CreateFromFile(file);
+                await Task.Yield();
+                controls.DisplayUpdater.Thumbnail =
+                    RandomAccessStreamReference.CreateFromUri(new Uri("ms-appx:///Resources/logo.png"));
             });
 
             return player;

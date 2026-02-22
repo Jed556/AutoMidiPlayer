@@ -5,6 +5,7 @@ using System.IO;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Properties;
@@ -26,6 +27,8 @@ namespace AutoMidiPlayer.WPF.ViewModels;
 public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 {
     public static NavigationView? Navigation = null;
+    public static SnackbarPresenter? SnackbarPresenter = null;
+    private static bool _isGameInactiveSnackbarVisible;
     private readonly IEventAggregator _events;
     private static readonly Settings Settings = Settings.Default;
 
@@ -307,6 +310,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
     protected override async void OnViewLoaded()
     {
         Navigation = ((MainWindowView)View).RootNavigation;
+        SnackbarPresenter = ((MainWindowView)View).RootSnackbarPresenter;
         SettingsView.OnThemeChanged();
 
         // Restore last viewed page (default to Songs if not set)
@@ -359,6 +363,35 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
         _gameStateTimer.Start();
         NotifyActiveGamesChanged();
+    }
+
+    public void ShowGameInactiveToast(string gameName, bool listenModeEnabled)
+    {
+        if (SnackbarPresenter is null)
+            return;
+
+        if (_isGameInactiveSnackbarVisible)
+            return;
+
+        var content = listenModeEnabled
+            ? $"{gameName}. Enabled Listen Mode (Speakers) so you can test playback."
+            : $"{gameName}. Go to Instrument view and enable Listen Mode (Speakers) if you want to test playback.";
+
+        var snackbar = new Snackbar(SnackbarPresenter)
+        {
+            Title = "Game isn't active",
+            Content = content,
+            Appearance = ControlAppearance.Caution,
+            Icon = new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+            SlideTransform = new TranslateTransform(0, 24),
+            Timeout = TimeSpan.FromSeconds(4),
+            IsCloseButtonEnabled = true
+        };
+
+        snackbar.Opened += (_, _) => _isGameInactiveSnackbarVisible = true;
+        snackbar.Closed += (_, _) => _isGameInactiveSnackbarVisible = false;
+
+        snackbar.Show();
     }
 
     private void RefreshGameRunningState()

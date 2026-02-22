@@ -16,7 +16,7 @@ using StyletIoC;
 
 namespace AutoMidiPlayer.WPF.ViewModels;
 
-public class InstrumentViewModel : Screen, IHandle<MidiFile>
+public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenModeChangedNotification>
 {
     private static readonly Settings Settings = Settings.Default;
     private readonly IEventAggregator _events;
@@ -24,6 +24,7 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>
     private readonly MainWindowViewModel _main;
     private bool _isUpdatingFromSong;
     private bool _suppressSelectionHandlers;
+    private bool _suppressListenModeHandler;
     private InputDevice? _inputDevice;
     private readonly Dictionary<string, string> _selectedInstrumentByGame;
 
@@ -73,11 +74,14 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>
         MergeNotes = false;
         MergeMilliseconds = 100;
         HoldNotes = false;
+
+        SyncListenModeFromSettings();
     }
 
     protected override void OnActivate()
     {
         base.OnActivate();
+        SyncListenModeFromSettings();
         UpdateFromCurrentSong();
         NotifyOfPropertyChange(nameof(HasSongOpen));
     }
@@ -89,6 +93,24 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>
     {
         UpdateFromCurrentSong();
         NotifyOfPropertyChange(nameof(HasSongOpen));
+    }
+
+    public void Handle(ListenModeChangedNotification message)
+    {
+        if (UseSpeakers == message.Enabled)
+            return;
+
+        _suppressListenModeHandler = true;
+        try
+        {
+            UseSpeakers = message.Enabled;
+        }
+        finally
+        {
+            _suppressListenModeHandler = false;
+        }
+
+        NotifyOfPropertyChange(nameof(UseSpeakers));
     }
 
     /// <summary>
@@ -136,6 +158,8 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>
     public uint MergeMilliseconds { get; set; }
 
     public bool HoldNotes { get; set; }
+
+    public bool UseSpeakers { get; set; }
 
     public bool HasSongOpen => _main.QueueView.OpenedFile != null;
 
@@ -508,5 +532,33 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>
         await using var db = _ioc.Get<LyreContext>();
         db.Songs.Update(song);
         await db.SaveChangesAsync();
+    }
+
+    [UsedImplicitly]
+    private void OnUseSpeakersChanged()
+    {
+        if (_suppressListenModeHandler)
+            return;
+
+        _main.Playback.SetListenMode(UseSpeakers, pausePlaybackOnChange: true);
+    }
+
+    private void SyncListenModeFromSettings()
+    {
+        var current = Settings.UseSpeakers;
+        if (UseSpeakers == current)
+            return;
+
+        _suppressListenModeHandler = true;
+        try
+        {
+            UseSpeakers = current;
+        }
+        finally
+        {
+            _suppressListenModeHandler = false;
+        }
+
+        NotifyOfPropertyChange(nameof(UseSpeakers));
     }
 }

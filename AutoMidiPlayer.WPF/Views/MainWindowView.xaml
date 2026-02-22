@@ -162,7 +162,8 @@
             </ui:TitleBar>
 
             <!-- Main Content Area -->
-            <Grid Grid.Row="1">
+            <Grid Grid.Row="1"
+                  Panel.ZIndex="0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
@@ -392,8 +393,19 @@
                 </Border>
             </Grid>
 
+            <!-- Snackbar presenter: constrained to content row so it doesn't overlap playback bar -->
+            <ui:SnackbarPresenter x:Name="RootSnackbarPresenter"
+                                  Grid.Row="1"
+                                  Panel.ZIndex="5"
+                                  ClipToBounds="True"
+                                  Margin="73,0,16,16"
+                                  VerticalAlignment="Bottom"
+                                  HorizontalAlignment="Stretch"/>
+
+
             <!-- Fixed Bottom Player Controls -->
             <Border Grid.Row="2"
+                    Panel.ZIndex="10"
                     Background="{ui:ThemeResource ControlFillColorDefaultBrush}"
                     BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                     BorderThickness="0,1,0,0"

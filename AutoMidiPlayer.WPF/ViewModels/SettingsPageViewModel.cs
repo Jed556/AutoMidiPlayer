@@ -297,6 +297,19 @@ public class SettingsPageViewModel : Screen
 
     public bool UseDirectInput { get; set; } = Settings.UseDirectInput;
 
+    public bool AutoEnableListenMode
+    {
+        get => Settings.AutoEnableListenMode;
+        set
+        {
+            if (Settings.AutoEnableListenMode == value)
+                return;
+
+            Settings.Modify(s => s.AutoEnableListenMode = value);
+            NotifyOfPropertyChange();
+        }
+    }
+
     // Hotkey properties - delegating to GlobalHotkeyService
     public bool HotkeysEnabled
     {
