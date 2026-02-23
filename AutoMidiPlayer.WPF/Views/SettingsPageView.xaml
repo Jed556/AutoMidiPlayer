@@ -346,7 +346,7 @@
             <controls:SimpleStackPanel Spacing="4">
                 <TextBlock TextWrapping="Wrap"
                            FontSize="12">
-                Originally created by © 2022 sabihoshi. Modified by © 2026 Jed556 for multi-game support.
+                Originally created by © 2022 sabihoshi. Modified by © 2026 Jed556 for multi-game support and modernization.
                 Licensed under the
                 <Hyperlink NavigateUri="{Binding Default.LicenseUri, Source={StaticResource Settings}}"
                            Style="{DynamicResource AppHyperlinkStyle}">MIT License</Hyperlink>.
@@ -360,8 +360,9 @@
                 <TextBlock TextWrapping="Wrap"
                            FontSize="11"
                            Opacity="0.7">
-                All rights reserved by © miHoYo Co., Ltd. and © XD Inc.
-                Not affiliated with miHoYo or XD.
+                           
+                All rights reserved by © miHoYo Co., Ltd., © XD Inc., © thatgamecompany, Inc., and © Roblox Corporation.
+                Not affiliated with miHoYo, XD, thatgamecompany, or Roblox.
                 </TextBlock>
             </controls:SimpleStackPanel>
         </controls:SimpleStackPanel>

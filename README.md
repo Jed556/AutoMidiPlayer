@@ -110,7 +110,7 @@ The process for adding or adjusting notes and keyboard mappings has a few discre
 
 3. **Add or edit instrument config files**
    - Inside `Instruments`, you can copy and paste an existing config (e.g. `Piano.cs`) and then adjust fields such as `game`, `name`, and the `notes` list.
-   - Optional: specify `keyboardLayouts` if the instrument uses a non‑standard mapping.
+   - Specify additional `keyboardLayouts` if the instrument uses a different mapping.
 
    ```csharp
    public static readonly InstrumentConfig MyNewInstrument = new(
@@ -153,7 +153,7 @@ The process for adding or adjusting notes and keyboard mappings has a few discre
    ```
 
 6. **Update user settings for the game**
-   - Open `AutoMidiPlayer.Data/Properties/Settings.settings` and add entries for `MyGameLocation` and `ActiveMyGame` (type string and bool respectively).  Use the other games as templates.
+   - Open `AutoMidiPlayer.Data/Properties/Settings.settings` and add entries for `MyGameLocation` and `ActiveMyGame` (type string and bool respectively). Use the other games as templates.
    - Regenerate the designer file or manually add the corresponding properties in `Settings.Designer.cs`.
 
 Once these steps are complete you can rebuild the project and your new instruments should appear in the UI under the new game.
