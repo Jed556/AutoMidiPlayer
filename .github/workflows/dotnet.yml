@@ -8,7 +8,10 @@ on:
       version:
         description: 'Version (e.g. v1.0.0)'
         required: true
-        default: 'v1.0.0'
+        default: 'v6.0.0'
+      commit:
+        description: 'Commit-ish to tag'
+        required: false
 
 jobs:
   build:
@@ -20,15 +23,20 @@ jobs:
       shell: bash
       run: |
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          VERSION="${{ github.event.inputs.version }}"
         else
-          echo "VERSION=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_OUTPUT
+          VERSION="${GITHUB_REF#refs/tags/}"
         fi
+        if [ -z "$VERSION" ]; then
+          echo "Error: no tag found in ref or input!" >&2
+          exit 1
+        fi
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Setup .NET Core SDK
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v2
       with:
         dotnet-version: 8.0.x
 
@@ -38,31 +46,36 @@ jobs:
         Remove-Item .\portable -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item AutoMidiPlayer_*_win-x64_*.zip -Force -ErrorAction SilentlyContinue
 
-    - name: Publish with dotnet
+    - name: Publish install (framework-dependent)
       run: |
         dotnet publish AutoMidiPlayer.WPF -r win-x64 -c Release -o .\install --self-contained false -p:PublishSingleFile=true
+
+    - name: Inspect install output
+      run: |
+        Get-ChildItem .\install -Recurse | Select Name,Length
+
+    - name: Publish portable (self-contained)
+      run: |
         dotnet publish AutoMidiPlayer.WPF -r win-x64 -c Release -o .\portable --self-contained true -p:PublishSingleFile=true
 
-    - name: Inspect publish outputs
+    - name: Inspect portable output
       run: |
-        Write-Host '=== install ==='
-        Get-ChildItem .\install -Recurse | Select Name,Length
-        Write-Host '=== portable ==='
         Get-ChildItem .\portable -Recurse | Select Name,Length
 
     - name: Zip release
       run: |
-        7z a AutoMidiPlayer_${{ steps.tag.outputs.VERSION }}_win-x64_net-install.zip .\install\* -mx9 -xr!*.pdb
-        7z a AutoMidiPlayer_${{ steps.tag.outputs.VERSION }}_win-x64_portable.zip .\portable\* -mx9 -xr!*.pdb
+        if (Test-Path .\install) { Get-ChildItem .\install\*.pdb -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }
+        if (Test-Path .\portable) { Get-ChildItem .\portable\*.pdb -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }
+        7z a AutoMidiPlayer_${{ steps.tag.outputs.VERSION }}_win-x64_net-install.zip .\install\* -mx9
+        7z a AutoMidiPlayer_${{ steps.tag.outputs.VERSION }}_win-x64_portable.zip .\portable\* -mx9
 
-    - name: Create Release
-      uses: ncipollo/release-action@v1
+    - name: Create or update GitHub Release
+      uses: softprops/action-gh-release@v2
       with:
-          allowUpdates: true
-          omitBodyDuringUpdate: true
-          omitNameDuringUpdate: true
-          artifacts:
-              ./AutoMidiPlayer_${{ steps.tag.outputs.VERSION }}_win-x64_net-install.zip,
-              ./AutoMidiPlayer_${{ steps.tag.outputs.VERSION }}_win-x64_portable.zip
-          artifactContentType: application/zip
-          token: ${{ secrets.GITHUB_TOKEN }}
+        tag_name: ${{ steps.tag.outputs.VERSION }}
+        target_commitish: ${{ github.event.inputs.commit || github.sha }}
+        files: |
+          AutoMidiPlayer_${{ steps.tag.outputs.VERSION }}_win-x64_net-install.zip
+          AutoMidiPlayer_${{ steps.tag.outputs.VERSION }}_win-x64_portable.zip
+        overwrite_files: true
+        token: ${{ secrets.GITHUB_TOKEN }}
