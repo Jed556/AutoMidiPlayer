@@ -238,10 +238,11 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
         ApplyFilter();
     }
 
-    public void RemoveTrack(IEnumerable<MidiFile> selectedFiles)
+    public void RemoveTrack(IEnumerable<MidiFile>? selectedFiles)
     {
-        // Get files to remove - either multi-select or single select
-        var filesToRemove = selectedFiles.Any()
+        // Get files to remove - either multi-select or single select. The parameter may be null when
+        // invoked via a command without a CommandParameter, so guard against that.
+        var filesToRemove = (selectedFiles != null && selectedFiles.Any())
             ? selectedFiles.ToList()
             : (SelectedFile is not null ? new List<MidiFile> { SelectedFile } : new List<MidiFile>());
 

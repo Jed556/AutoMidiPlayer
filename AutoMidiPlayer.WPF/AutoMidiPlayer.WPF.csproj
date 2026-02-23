@@ -6,7 +6,7 @@
         <UseWPF>true</UseWPF>
         <StartupObject>AutoMidiPlayer.WPF.App</StartupObject>
         <ApplicationManifest>app.manifest</ApplicationManifest>
-        <Version>6.12.3</Version>
+        <Version>6.12.4</Version>
         <ApplicationIcon>Resources\logo.ico</ApplicationIcon>
         <Nullable>enable</Nullable>
         <RepositoryUrl>https://github.com/Jed556/AutoMidiPlayer</RepositoryUrl>

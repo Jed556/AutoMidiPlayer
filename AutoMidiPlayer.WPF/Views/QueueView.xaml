@@ -49,11 +49,29 @@
             <controls:SimpleStackPanel Grid.Column="1"
                                        Orientation="Horizontal"
                                        Spacing="4">
+                <!-- Remove selected items -->
                 <Button Command="{s:Action RemoveTrack}"
-                        Content="Remove"
-                        ToolTip="Remove selected from queue"/>
+                        CommandParameter="{Binding ElementName=SongList, Path=SelectedFiles}"
+                        Style="{DynamicResource GhostIconButton}"
+                        Padding="8"
+                        ToolTip="Remove selected from queue">
+                    <Path Data="{StaticResource RemoveCircleIconGeometry}"
+                          Fill="{DynamicResource TextFillColorPrimaryBrush}"
+                          Stretch="Uniform"
+                          Width="16"
+                          Height="16"/>
+                </Button>
+                <!-- Clear entire queue -->
                 <Button Command="{s:Action ClearQueue}"
-                        Content="Clear Queue"/>
+                        Style="{DynamicResource GhostIconButton}"
+                        Padding="8"
+                        ToolTip="Clear queue">
+                    <Path Data="{StaticResource DeleteIconGeometry}"
+                          Fill="{DynamicResource TextFillColorPrimaryBrush}"
+                          Stretch="Uniform"
+                          Width="16"
+                          Height="16"/>
+                </Button>
             </controls:SimpleStackPanel>
         </Grid>
 
