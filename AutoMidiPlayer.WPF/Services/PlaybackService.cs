@@ -805,8 +805,13 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
 
     public async void Handle(PlayTimerNotification message)
     {
-        if (!IsPlaying && CanHitPlayPause)
-            await PlayPause();
+        if (IsPlaying == message.ShouldPlay)
+            return;
+
+        if (message.ShouldPlay && !CanHitPlayPause)
+            return;
+
+        await PlayPause();
     }
 
     #endregion

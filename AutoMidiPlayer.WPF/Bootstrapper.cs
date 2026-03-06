@@ -29,8 +29,8 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         // Clear log on startup
         CrashLogger.ClearLog();
 
-        // log application start along with the current version
-        CrashLogger.Log($"Application starting v{GetAppVersion()}");
+        // log application start along with the product name and current version
+        CrashLogger.Log($"{GetProductName()} v{GetAppVersion()} Starting");
 
         // Handle unhandled exceptions
         Application.Current.DispatcherUnhandledException += OnDispatcherUnhandledException;
@@ -56,6 +56,14 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         // assembly version should be kept in sync with project version
         var version = Assembly.GetExecutingAssembly().GetName().Version;
         return version?.ToString() ?? "unknown";
+    }
+
+    private static string GetProductName()
+    {
+        // read product attribute from assembly (populated from csproj <Product>)
+        var attr = Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<AssemblyProductAttribute>();
+        return attr?.Product ?? "Unknown Product";
     }
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)

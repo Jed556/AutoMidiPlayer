@@ -9,13 +9,11 @@
     xmlns:s="https://github.com/canton7/Stylet"
     xmlns:core="clr-namespace:AutoMidiPlayer.WPF.Core"
     xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
-    xmlns:converters="clr-namespace:AutoMidiPlayer.WPF.Converters"
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
     xmlns:properties="clr-namespace:AutoMidiPlayer.Data.Properties;assembly=AutoMidiPlayer.Data"
     d:DataContext="{d:DesignInstance Type=viewModels:InstrumentViewModel}">
     <UserControl.Resources>
         <properties:Settings x:Key="Settings"/>
-        <converters:DateTimeToTimeSpanConverter x:Key="DateTimeToTimeSpanConverter"/>
     </UserControl.Resources>
 
     <ScrollViewer>
@@ -62,17 +60,37 @@
                            FontWeight="SemiBold"
                            Margin="0,16,0,8"/>
 
-                <controls:SimpleStackPanel Orientation="Horizontal">
+                <controls:SimpleStackPanel>
                     <controls:SimpleStackPanel.Resources>
                         <Style TargetType="Button"
                                BasedOn="{StaticResource {x:Type Button}}"/>
                     </controls:SimpleStackPanel.Resources>
-                    <ui:TimePicker SelectedTime="{Binding DateTime, Mode=TwoWay, Converter={StaticResource DateTimeToTimeSpanConverter}}"
-                                   IsEnabled="{Binding CanChangeTime}"/>
+                    <controls:SimpleStackPanel Orientation="Horizontal"
+                                   Spacing="8">
+                    <ui:NumberBox PlaceholderText="hour"
+                              Value="{Binding ScheduledHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      Minimum="0"
+                                      Maximum="23"
+                                      MaxDecimalPlaces="0"
+                              MinWidth="70"
+                              IsEnabled="{Binding CanChangeTime}"/>
+                    <TextBlock Text=":"
+                           VerticalAlignment="Center"/>
+                    <ui:NumberBox PlaceholderText="minute"
+                              Value="{Binding ScheduledMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      Minimum="0"
+                                      Maximum="59"
+                                      MaxDecimalPlaces="0"
+                              MinWidth="80"
+                              IsEnabled="{Binding CanChangeTime}"/>
                     <Button Command="{s:Action SetTimeToNow}"
-                            IsEnabled="{Binding CanChangeTime}">Now</Button>
+                        IsEnabled="{Binding CanChangeTime}">Now</Button>
                     <Button Command="{s:Action StartStopTimer}"
-                            Content="{Binding TimerText}"/>
+                        Content="{Binding TimerText}"/>
+                    </controls:SimpleStackPanel>
+                          <TextBlock Text="{Binding ScheduledTimeText}"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           Margin="0,4,0,0"/>
                 </controls:SimpleStackPanel>
             </controls:SimpleStackPanel>
 

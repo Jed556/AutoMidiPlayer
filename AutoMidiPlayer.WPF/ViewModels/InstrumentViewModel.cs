@@ -25,6 +25,7 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
     private bool _isUpdatingFromSong;
     private bool _suppressSelectionHandlers;
     private bool _suppressListenModeHandler;
+    private bool _timerTargetShouldPlay;
     private InputDevice? _inputDevice;
     private readonly Dictionary<string, string> _selectedInstrumentByGame;
 
@@ -36,8 +37,10 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
         _events = ioc.Get<IEventAggregator>();
         _events.Subscribe(this);
         _selectedInstrumentByGame = LoadSelectedInstrumentsByGame();
+        _timerTargetShouldPlay = !_main.Playback.IsPlaying;
 
         _main.ActiveGamesChanged += HandleActiveGamesChanged;
+        _main.Playback.PlaybackStateChanged += HandlePlaybackStateChanged;
 
         // Initialize selected MIDI input
         SelectedMidiInput = MidiInputs[0];
@@ -84,6 +87,7 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
         SyncListenModeFromSettings();
         UpdateFromCurrentSong();
         NotifyOfPropertyChange(nameof(HasSongOpen));
+        NotifyOfPropertyChange(nameof(ScheduledTimeText));
     }
 
     /// <summary>
@@ -165,13 +169,72 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
 
     public bool CanChangeTime => PlayTimerToken is null;
 
-    public bool CanStartStopTimer => DateTime - DateTime.Now > TimeSpan.Zero;
+    public bool CanStartStopTimer => true;
 
     [UsedImplicitly] public CancellationTokenSource? PlayTimerToken { get; private set; }
 
-    public DateTime DateTime { get; set; } = DateTime.Now;
+    public TimeSpan ScheduledTime { get; set; } = new(DateTime.Now.Hour, DateTime.Now.Minute, 0);
+
+    public int ScheduledHour
+    {
+        get => ScheduledTime.Hours;
+        set
+        {
+            var clamped = Math.Clamp(value, 0, 23);
+            var next = new TimeSpan(clamped, ScheduledTime.Minutes, 0);
+            if (ScheduledTime == next)
+                return;
+
+            ScheduledTime = next;
+        }
+    }
+
+    public int ScheduledMinute
+    {
+        get => ScheduledTime.Minutes;
+        set
+        {
+            var clamped = Math.Clamp(value, 0, 59);
+            var next = new TimeSpan(ScheduledTime.Hours, clamped, 0);
+            if (ScheduledTime == next)
+                return;
+
+            ScheduledTime = next;
+        }
+    }
+
+    public string ScheduledTimeText =>
+        $"{(GetCurrentTimerTargetShouldPlay() ? "Scheduled start time" : "Scheduled stop time")}: {DateTime.Today.Add(ScheduledTime):HH:mm}";
 
     public string TimerText => CanChangeTime ? "Start" : "Stop";
+
+    [UsedImplicitly]
+    private void OnScheduledTimeChanged()
+    {
+        NotifyOfPropertyChange(nameof(ScheduledHour));
+        NotifyOfPropertyChange(nameof(ScheduledMinute));
+        NotifyOfPropertyChange(nameof(ScheduledTimeText));
+        NotifyOfPropertyChange(nameof(CanStartStopTimer));
+    }
+
+    [UsedImplicitly]
+    private void OnPlayTimerTokenChanged()
+    {
+        NotifyOfPropertyChange(nameof(CanChangeTime));
+        NotifyOfPropertyChange(nameof(CanStartStopTimer));
+        NotifyOfPropertyChange(nameof(ScheduledTimeText));
+        NotifyOfPropertyChange(nameof(TimerText));
+    }
+
+    private void HandlePlaybackStateChanged(object? sender, EventArgs e)
+    {
+        if (PlayTimerToken is null)
+            NotifyOfPropertyChange(nameof(ScheduledTimeText));
+    }
+
+    private bool GetCurrentTimerTargetShouldPlay() => PlayTimerToken is not null
+        ? _timerTargetShouldPlay
+        : !_main.Playback.IsPlaying;
 
     public void RefreshDevices()
     {
@@ -217,20 +280,37 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
             return;
         }
 
+        _timerTargetShouldPlay = !_main.Playback.IsPlaying;
+        NotifyOfPropertyChange(nameof(ScheduledTimeText));
+
         PlayTimerToken = new();
 
-        var start = DateTime - DateTime.Now;
+        var start = GetNextScheduledDateTime(ScheduledTime) - DateTime.Now;
+        if (start < TimeSpan.Zero)
+            start = TimeSpan.Zero;
+
         await Task.Delay(start, PlayTimerToken.Token)
             .ContinueWith(_ => { });
 
         if (!PlayTimerToken.IsCancellationRequested)
-            _events.Publish(new PlayTimerNotification());
+            _events.Publish(new PlayTimerNotification(_timerTargetShouldPlay));
 
         PlayTimerToken = null;
     }
 
     [UsedImplicitly]
-    public void SetTimeToNow() => DateTime = DateTime.Now;
+    public void SetTimeToNow() => ScheduledTime = new TimeSpan(DateTime.Now.Hour, DateTime.Now.Minute, 0);
+
+    private static DateTime GetNextScheduledDateTime(TimeSpan scheduledTime)
+    {
+        var now = DateTime.Now;
+        var scheduledAt = now.Date.Add(scheduledTime);
+
+        if (scheduledAt <= now)
+            scheduledAt = scheduledAt.AddDays(1);
+
+        return scheduledAt;
+    }
 
     [UsedImplicitly]
     private void OnSelectedInstrumentChanged()
