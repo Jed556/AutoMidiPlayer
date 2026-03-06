@@ -229,6 +229,14 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
 
     public void ClearQueue()
     {
+        // Clearing the queue should always stop current playback.
+        if (OpenedFile is not null || _main.Playback.Playback is not null)
+        {
+            _main.Playback.CloseFile();
+            ClearSavedSong();
+            _main.Playback.UpdateButtons();
+        }
+
         Tracks.Clear();
         History.Clear();
 
@@ -246,17 +254,38 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
             ? selectedFiles.ToList()
             : (SelectedFile is not null ? new List<MidiFile> { SelectedFile } : new List<MidiFile>());
 
-        foreach (var file in filesToRemove)
+        if (filesToRemove.Count == 0)
+            return;
+
+        var removedSongIds = filesToRemove
+            .Select(file => file.Song.Id)
+            .ToHashSet();
+
+        // If the currently opened song is being removed from queue, stop playback.
+        if (OpenedFile is not null && removedSongIds.Contains(OpenedFile.Song.Id))
         {
-            if (OpenedFile == file)
-                OpenedFile = null;
-            Tracks.Remove(file);
+            _main.Playback.CloseFile();
+            ClearSavedSong();
+            _main.Playback.UpdateButtons();
         }
 
-        if (filesToRemove.Count > 0)
+        foreach (var track in Tracks.Where(t => removedSongIds.Contains(t.Song.Id)).ToList())
         {
-            OnQueueModified();
+            Tracks.Remove(track);
         }
+
+        if (SelectedFile is not null && removedSongIds.Contains(SelectedFile.Song.Id))
+            SelectedFile = null;
+
+        if (OpenedFile is not null && removedSongIds.Contains(OpenedFile.Song.Id))
+            OpenedFile = null;
+
+        if (removedSongIds.Count > 0)
+        {
+            RemoveSongsFromHistory(removedSongIds);
+        }
+
+        OnQueueModified();
     }
 
     public async Task DeleteSongs(IEnumerable<MidiFile> selectedFiles)
@@ -336,6 +365,26 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
         if (_main.SongsView.SelectedFile is not null && songIds.Contains(_main.SongsView.SelectedFile.Song.Id))
         {
             _main.SongsView.SelectedFile = null;
+        }
+
+        RemoveSongsFromHistory(songIds);
+    }
+
+    private void RemoveSongsFromHistory(IReadOnlyCollection<Guid> songIds)
+    {
+        if (songIds.Count == 0 || History.Count == 0)
+            return;
+
+        // Preserve chronological order while removing stale entries.
+        var pruned = History
+            .Reverse()
+            .Where(file => !songIds.Contains(file.Song.Id))
+            .ToList();
+
+        History.Clear();
+        foreach (var file in pruned)
+        {
+            History.Push(file);
         }
     }
 
@@ -418,8 +467,17 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
 
     public void Previous()
     {
-        History.Pop();
-        _events.Publish(History.Pop());
+        while (History.Count > 1)
+        {
+            History.Pop();
+            var candidate = History.Pop();
+
+            if (Tracks.Any(track => track.Song.Id == candidate.Song.Id))
+            {
+                _events.Publish(candidate);
+                return;
+            }
+        }
     }
 
     public void ToggleLoop()

@@ -330,11 +330,16 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
         }
         else
         {
-            if (Queue.History.Count > 1)
+            while (Queue.History.Count > 1)
             {
                 Queue.History.Pop();
                 var previous = Queue.History.Pop();
-                await LoadFileAsync(previous, autoPlay: true);
+
+                if (Queue.GetPlaylist().Any(track => track.Song.Id == previous.Song.Id))
+                {
+                    await LoadFileAsync(previous, autoPlay: true);
+                    return;
+                }
             }
         }
     }
