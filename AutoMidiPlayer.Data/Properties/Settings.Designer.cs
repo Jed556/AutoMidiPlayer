@@ -561,6 +561,36 @@ namespace AutoMidiPlayer.Data.Properties
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("20")]
+        public int DirectInputPressDelayMs
+        {
+            get
+            {
+                return ((int)(this["DirectInputPressDelayMs"]));
+            }
+            set
+            {
+                this["DirectInputPressDelayMs"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool EnableKeyUp
+        {
+            get
+            {
+                return ((bool)(this["EnableKeyUp"]));
+            }
+            set
+            {
+                this["EnableKeyUp"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("Songs")]
         public string LastViewedPage
         {

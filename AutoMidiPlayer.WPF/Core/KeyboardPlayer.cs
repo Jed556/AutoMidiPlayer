@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using AutoMidiPlayer.Data.Entities;
 using WindowsInput;
 using WindowsInput.Native;
@@ -61,6 +62,20 @@ public static class KeyboardPlayer
 
     // Use direct SendInput for games that don't respond to InputSimulator
     public static bool UseDirectInput { get; set; } = true;
+
+    /// <summary>
+    /// Delay (in milliseconds) inserted between key-down and key-up when performing
+    /// <see cref="KeyAction.Press"/> in InputSimulator, direct input, and window-message paths.
+    /// A non-zero value can improve compatibility with games that require a
+    /// slightly longer held press. Default is 0.
+    /// </summary>
+    public static int DirectInputPressDelayMs { get; set; } = 0;
+
+    /// <summary>
+    /// When using <see cref="UseDirectInput"/>, controls whether the key-up event is sent for
+    /// <see cref="KeyAction.Press"/>. Default is true.
+    /// </summary>
+    public static bool EnableKeyUp { get; set; } = true;
 
     /// <summary>
     /// Send input via PostMessage to the game window instead of global SendInput.
@@ -180,7 +195,11 @@ public static class KeyboardPlayer
             case KeyAction.Press:
                 foreach (var modifier in modifiers)
                     Input.Keyboard.KeyDown(modifier);
-                Input.Keyboard.KeyPress(keyStroke.Key);
+                Input.Keyboard.KeyDown(keyStroke.Key);
+                if (DirectInputPressDelayMs > 0)
+                    Thread.Sleep(DirectInputPressDelayMs);
+                if (EnableKeyUp)
+                    Input.Keyboard.KeyUp(keyStroke.Key);
                 for (int i = modifiers.Length - 1; i >= 0; i--)
                     Input.Keyboard.KeyUp(modifiers[i]);
                 break;
@@ -209,8 +228,11 @@ public static class KeyboardPlayer
                 foreach (var modifier in modifiers)
                     SendKeyDirect(modifier, false);
                 SendKeyDirect(keyStroke.Key, false);
-                // Legacy compatibility: commit 610c016 direct "press" path emitted key-down only.
-                // Some games are more reliable with this behavior than with an immediate key-up.
+                // Add custom delay between key-down and key-up to improve compatibility with games
+                if (DirectInputPressDelayMs > 0)
+                    Thread.Sleep(DirectInputPressDelayMs);
+                if (EnableKeyUp)
+                    SendKeyDirect(keyStroke.Key, true);
                 for (int i = modifiers.Length - 1; i >= 0; i--)
                     SendKeyDirect(modifiers[i], true);
                 break;
@@ -271,7 +293,10 @@ public static class KeyboardPlayer
 
             case KeyAction.Press:
                 PostMessage(hWnd, WM_KEYDOWN, (IntPtr)vk, lParamDown);
-                PostMessage(hWnd, WM_KEYUP, (IntPtr)vk, lParamUp);
+                if (DirectInputPressDelayMs > 0)
+                    Thread.Sleep(DirectInputPressDelayMs);
+                if (EnableKeyUp)
+                    PostMessage(hWnd, WM_KEYUP, (IntPtr)vk, lParamUp);
                 break;
         }
     }

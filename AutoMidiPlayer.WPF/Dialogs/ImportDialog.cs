@@ -93,7 +93,7 @@ public class ImportDialog : ContentDialog
     /// </summary>
     public bool SongHoldNotes => _holdNotesCheckBox.IsChecked ?? false;
 
-    public ImportDialog(string defaultTitle, int defaultKey = 0, Transpose defaultTranspose = Transpose.Ignore, string? defaultAuthor = null, string? defaultAlbum = null, DateTime? defaultDateAdded = null, double nativeBpm = 120, double? customBpm = null, bool? mergeNotes = null, uint? mergeMilliseconds = null, bool? holdNotes = null, double? speed = null)
+    public ImportDialog(string defaultTitle, int defaultKey = 0, Transpose defaultTranspose = Transpose.Ignore, string? defaultAuthor = null, string? defaultAlbum = null, DateTime? defaultDateAdded = null, double nativeBpm = 120, double? customBpm = null, bool? mergeNotes = null, uint? mergeMilliseconds = null, bool? holdNotes = true, double? speed = null)
     {
         // Set up the DialogHost for this ContentDialog
         DialogHelper.SetupDialogHost(this);
@@ -279,7 +279,7 @@ public class ImportDialog : ContentDialog
         {
             Content = "Enable Hold Notes",
             VerticalAlignment = VerticalAlignment.Center,
-            IsChecked = holdNotes ?? false
+            IsChecked = holdNotes ?? true
         };
         holdPanel.Children.Add(_holdNotesCheckBox);
         stackPanel.Children.Add(holdPanel);

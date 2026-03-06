@@ -90,7 +90,7 @@
                     </controls:SimpleStackPanel>
                           <TextBlock Text="{Binding ScheduledTimeText}"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                           Margin="0,4,0,0"/>
+                           Margin="0,-4,0,0"/>
                 </controls:SimpleStackPanel>
             </controls:SimpleStackPanel>
 
@@ -126,6 +126,7 @@
                     Content="Hold notes"
                     IsChecked="{Binding HoldNotes}"
                     IsEnabled="{Binding HasSongOpen}"
+                    ToolTip="Uses MIDI file note-on/note-off for key down/up, ignoring Enable Key-up and key press delay settings."
                     Margin="0,0,0,0"/>
 
                 <!-- MIDI Input Section -->
@@ -153,7 +154,7 @@
                                    TextWrapping="Wrap"
                                    Opacity="0.6"
                                    FontSize="12"
-                                   Margin="0,4,0,0"/>
+                                   Margin="0,-4,0,0"/>
                     </controls:SimpleStackPanel>
                 </GroupBox>
             </controls:SimpleStackPanel>

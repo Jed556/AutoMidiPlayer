@@ -44,21 +44,41 @@
                         Margin="0,8,0,0"
                         ToolTip="Play will automatically switch to Listen Mode (Speakers) if the selected game isn't active."/>
 
-                    <ui:ToggleSwitch
-                        Content="Use Direct Input (recommended)"
-                        IsChecked="{Binding UseDirectInput}"
-                        ToolTip="Uses Win32 SendInput for better game compatibility. Disable only if experiencing issues."/>
+                    <GroupBox Header="Keypress Method"
+                              Margin="0,8,0,0">
+                        <ComboBox
+                            SelectedItem="{Binding SelectedKeypressInputMode}"
+                            ItemsSource="{x:Static viewModels:SettingsPageViewModel.KeypressInputModes}"
+                            DisplayMemberPath="Name"
+                            MinWidth="220"/>
+                    </GroupBox>
 
-                    <TextBlock Text="Direct Input uses low-level Windows API for better compatibility with games. Disable this if notes are not being detected correctly."
+                    <TextBlock Text="{Binding KeypressInputDescription}"
                                TextWrapping="Wrap"
                                Opacity="0.6"
                                FontSize="12"
-                               Margin="0,8,0,0"/>
+                               Margin="0,-8,0,0"/>
 
                     <ui:ToggleSwitch
-                        Content="Use Window Message"
-                        IsChecked="{Binding UseWindowMessage}"
-                        ToolTip="Sends WM_KEYDOWN directly to the game window instead of global SendInput. Use this for games like Sky: CotL that detect and block injected input."/>
+                        Content="Enable Key-up"
+                        IsChecked="{Binding EnableKeyUp}"
+                        IsEnabled="{Binding UseDirectInput}"
+                        Margin="0,8,0,0"
+                        ToolTip="When enabled, direct input sends key-up after key-down for press actions."/>
+
+                    <controls:SimpleStackPanel Orientation="Horizontal"
+                                               Spacing="8"
+                                               Margin="0,8,0,0">
+                        <TextBlock Text="Key Press Delay (ms)"
+                                   VerticalAlignment="Center"/>
+                        <ui:NumberBox
+                            Value="{Binding DirectInputPressDelayMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            Minimum="0"
+                            Maximum="1000"
+                            MaxDecimalPlaces="0"
+                            MinWidth="100"
+                            ToolTip="Delay between key-down and key-up for press actions."/>
+                    </controls:SimpleStackPanel>
 
 
 
@@ -92,7 +112,7 @@
                                TextWrapping="Wrap"
                                Opacity="0.6"
                                FontSize="12"
-                               Margin="0,4,0,8"/>
+                               Margin="0,-8,0,8"/>
 
                     <controls:SimpleStackPanel Spacing="8"
                                                Grid.IsSharedSizeScope="True"

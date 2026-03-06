@@ -64,12 +64,30 @@ public class SettingsPageViewModel : Screen
         new("Use system setting", WpfUiApplicationTheme.Unknown)
     };
 
+    public static List<KeypressInputModeOption> KeypressInputModes { get; } = new()
+    {
+        new(
+            "Input Simulator",
+            "Uses InputSimulator to inject keyboard events globally. Best for standard desktop apps, but some games may ignore it.",
+            mode: KeypressInputMode.InputSimulator),
+        new(
+            "Direct Input (SendInput)",
+            "Uses Win32 SendInput for global low-level key injection. This is usually the most reliable option for games.",
+            mode: KeypressInputMode.DirectInput),
+        new(
+            "Window Message (PostMessage)",
+            "Sends WM_KEYDOWN/WM_KEYUP directly to the active game window. Use this for games that block injected global input.",
+            mode: KeypressInputMode.WindowMessage)
+    };
+
     private static readonly Settings Settings = Settings.Default;
     private readonly IContainer _ioc;
     private readonly IEventAggregator _events;
     private readonly MainWindowViewModel _main;
     private readonly GlobalHotkeyService _hotkeyService;
     private AccentColorOption _selectedAccentColor = null!;
+    private bool _isApplyingKeypressMode;
+    private KeypressInputModeOption _selectedKeypressInputMode = null!;
     private ThemeOption _selectedTheme = null!;
 
     public SettingsPageViewModel(IContainer ioc, MainWindowViewModel main)
@@ -101,6 +119,14 @@ public class SettingsPageViewModel : Screen
         // Initialize game locations from registry (shared with MainWindowViewModel's Games list)
         GameLocations = new BindableCollection<GameInfo>(
             GameRegistry.AllGames.Select(g => new GameInfo(g)));
+
+        // Apply current keyboard input settings on startup.
+        KeyboardPlayer.UseDirectInput = UseDirectInput;
+        KeyboardPlayer.UseWindowMessage = UseWindowMessage;
+        KeyboardPlayer.DirectInputPressDelayMs = Math.Clamp(DirectInputPressDelayMs, 0, 1000);
+        KeyboardPlayer.EnableKeyUp = EnableKeyUp;
+
+        _selectedKeypressInputMode = ResolveKeypressInputMode(UseDirectInput, UseWindowMessage);
     }
 
     /// <summary>Observable collection of game location entries for the settings UI</summary>
@@ -298,6 +324,34 @@ public class SettingsPageViewModel : Screen
     public bool UseDirectInput { get; set; } = Settings.UseDirectInput;
 
     public bool UseWindowMessage { get; set; } = Settings.UseWindowMessage;
+
+    public KeypressInputModeOption SelectedKeypressInputMode
+    {
+        get => _selectedKeypressInputMode;
+        set
+        {
+            if (SetAndNotify(ref _selectedKeypressInputMode, value) && value is not null)
+            {
+                _isApplyingKeypressMode = true;
+                try
+                {
+                    ApplyKeypressMode(value.Mode);
+                }
+                finally
+                {
+                    _isApplyingKeypressMode = false;
+                }
+
+                SyncSelectedKeypressInputMode();
+            }
+        }
+    }
+
+    public string KeypressInputDescription => SelectedKeypressInputMode?.Description ?? string.Empty;
+
+    public int DirectInputPressDelayMs { get; set; } = Settings.DirectInputPressDelayMs;
+
+    public bool EnableKeyUp { get; set; } = Settings.EnableKeyUp;
 
     public bool AutoEnableListenMode
     {
@@ -642,6 +696,9 @@ public class SettingsPageViewModel : Screen
         Settings.UseDirectInput = UseDirectInput;
         Settings.Save();
         KeyboardPlayer.UseDirectInput = UseDirectInput;
+
+        if (!_isApplyingKeypressMode)
+            SyncSelectedKeypressInputMode();
     }
 
     [UsedImplicitly]
@@ -650,6 +707,78 @@ public class SettingsPageViewModel : Screen
         Settings.UseWindowMessage = UseWindowMessage;
         Settings.Save();
         KeyboardPlayer.UseWindowMessage = UseWindowMessage;
+
+        if (!_isApplyingKeypressMode)
+            SyncSelectedKeypressInputMode();
+    }
+
+    [UsedImplicitly]
+    private void OnDirectInputPressDelayMsChanged()
+    {
+        var clampedDelay = Math.Clamp(DirectInputPressDelayMs, 0, 1000);
+        if (clampedDelay != DirectInputPressDelayMs)
+            DirectInputPressDelayMs = clampedDelay;
+
+        Settings.DirectInputPressDelayMs = clampedDelay;
+        Settings.Save();
+        KeyboardPlayer.DirectInputPressDelayMs = clampedDelay;
+    }
+
+    [UsedImplicitly]
+    private void OnEnableKeyUpChanged()
+    {
+        Settings.EnableKeyUp = EnableKeyUp;
+        Settings.Save();
+        KeyboardPlayer.EnableKeyUp = EnableKeyUp;
+    }
+
+    private static KeypressInputModeOption ResolveKeypressInputMode(bool useDirectInput, bool useWindowMessage)
+    {
+        if (useWindowMessage)
+            return GetKeypressInputModeOption(KeypressInputMode.WindowMessage);
+
+        if (useDirectInput)
+            return GetKeypressInputModeOption(KeypressInputMode.DirectInput);
+
+        return GetKeypressInputModeOption(KeypressInputMode.InputSimulator);
+    }
+
+    private static KeypressInputModeOption GetKeypressInputModeOption(KeypressInputMode mode)
+    {
+        return KeypressInputModes.First(option => option.Mode == mode);
+    }
+
+    private void ApplyKeypressMode(KeypressInputMode mode)
+    {
+        switch (mode)
+        {
+            case KeypressInputMode.WindowMessage:
+                UseDirectInput = false;
+                UseWindowMessage = true;
+                break;
+
+            case KeypressInputMode.DirectInput:
+                UseDirectInput = true;
+                UseWindowMessage = false;
+                break;
+
+            default:
+                UseDirectInput = false;
+                UseWindowMessage = false;
+                break;
+        }
+    }
+
+    private void SyncSelectedKeypressInputMode()
+    {
+        var resolvedMode = ResolveKeypressInputMode(UseDirectInput, UseWindowMessage);
+        if (!ReferenceEquals(_selectedKeypressInputMode, resolvedMode))
+        {
+            _selectedKeypressInputMode = resolvedMode;
+            NotifyOfPropertyChange(nameof(SelectedKeypressInputMode));
+        }
+
+        NotifyOfPropertyChange(nameof(KeypressInputDescription));
     }
 }
 
@@ -667,6 +796,25 @@ public class ThemeOption(string name, WpfUiApplicationTheme value)
 {
     public string Name { get; } = name;
     public WpfUiApplicationTheme Value { get; } = value;
+
+    public override string ToString() => Name;
+}
+
+public enum KeypressInputMode
+{
+    InputSimulator = 0,
+    DirectInput = 1,
+    WindowMessage = 2
+}
+
+public class KeypressInputModeOption(
+    string name,
+    string description,
+    KeypressInputMode mode)
+{
+    public string Name { get; } = name;
+    public string Description { get; } = description;
+    public KeypressInputMode Mode { get; } = mode;
 
     public override string ToString() => Name;
 }
