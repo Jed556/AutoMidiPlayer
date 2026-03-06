@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using AutoMidiPlayer.Data.Entities;
 using WindowsInput;
 using WindowsInput.Native;
@@ -67,7 +68,8 @@ public static class KeyboardPlayer
     /// Delay (in milliseconds) inserted between key-down and key-up when performing
     /// <see cref="KeyAction.Press"/> in InputSimulator, direct input, and window-message paths.
     /// A non-zero value can improve compatibility with games that require a
-    /// slightly longer held press. Default is 0.
+    /// slightly longer held press. Delay is handled asynchronously so playback timing
+    /// is not blocked. Default is 0.
     /// </summary>
     public static int DirectInputPressDelayMs { get; set; } = 0;
 
@@ -196,12 +198,21 @@ public static class KeyboardPlayer
                 foreach (var modifier in modifiers)
                     Input.Keyboard.KeyDown(modifier);
                 Input.Keyboard.KeyDown(keyStroke.Key);
-                if (DirectInputPressDelayMs > 0)
-                    Thread.Sleep(DirectInputPressDelayMs);
+
                 if (EnableKeyUp)
-                    Input.Keyboard.KeyUp(keyStroke.Key);
-                for (int i = modifiers.Length - 1; i >= 0; i--)
-                    Input.Keyboard.KeyUp(modifiers[i]);
+                {
+                    ScheduleDelayedAction(() =>
+                    {
+                        Input.Keyboard.KeyUp(keyStroke.Key);
+                        for (int i = modifiers.Length - 1; i >= 0; i--)
+                            Input.Keyboard.KeyUp(modifiers[i]);
+                    });
+                }
+                else
+                {
+                    for (int i = modifiers.Length - 1; i >= 0; i--)
+                        Input.Keyboard.KeyUp(modifiers[i]);
+                }
                 break;
         }
     }
@@ -228,13 +239,21 @@ public static class KeyboardPlayer
                 foreach (var modifier in modifiers)
                     SendKeyDirect(modifier, false);
                 SendKeyDirect(keyStroke.Key, false);
-                // Add custom delay between key-down and key-up to improve compatibility with games
-                if (DirectInputPressDelayMs > 0)
-                    Thread.Sleep(DirectInputPressDelayMs);
+
                 if (EnableKeyUp)
-                    SendKeyDirect(keyStroke.Key, true);
-                for (int i = modifiers.Length - 1; i >= 0; i--)
-                    SendKeyDirect(modifiers[i], true);
+                {
+                    ScheduleDelayedAction(() =>
+                    {
+                        SendKeyDirect(keyStroke.Key, true);
+                        for (int i = modifiers.Length - 1; i >= 0; i--)
+                            SendKeyDirect(modifiers[i], true);
+                    });
+                }
+                else
+                {
+                    for (int i = modifiers.Length - 1; i >= 0; i--)
+                        SendKeyDirect(modifiers[i], true);
+                }
                 break;
         }
     }
@@ -293,11 +312,38 @@ public static class KeyboardPlayer
 
             case KeyAction.Press:
                 PostMessage(hWnd, WM_KEYDOWN, (IntPtr)vk, lParamDown);
-                if (DirectInputPressDelayMs > 0)
-                    Thread.Sleep(DirectInputPressDelayMs);
                 if (EnableKeyUp)
-                    PostMessage(hWnd, WM_KEYUP, (IntPtr)vk, lParamUp);
+                {
+                    ScheduleDelayedAction(() =>
+                    {
+                        PostMessage(hWnd, WM_KEYUP, (IntPtr)vk, lParamUp);
+                    });
+                }
                 break;
         }
+    }
+
+    private static void ScheduleDelayedAction(Action action)
+    {
+        var delayMs = Math.Max(0, DirectInputPressDelayMs);
+
+        if (delayMs == 0)
+        {
+            action();
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(delayMs).ConfigureAwait(false);
+                action();
+            }
+            catch
+            {
+                // Best-effort delayed key-up dispatch.
+            }
+        });
     }
 }
