@@ -816,7 +816,21 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
         if (Queue.OpenedFile == file && Playback is not null)
         {
             if (autoPlay && !Playback.IsRunning)
-                await PlayPause();
+            {
+                var playback = Playback;
+                if (playback is not null)
+                {
+                    try
+                    {
+                        playback.Stop();
+                        playback.PlaybackStart = null;
+                        playback.MoveToStart();
+                        MoveSlider(TimeSpan.Zero);
+                        await StartPlayback(playback);
+                    }
+                    catch (ObjectDisposedException) { }
+                }
+            }
             return;
         }
 
