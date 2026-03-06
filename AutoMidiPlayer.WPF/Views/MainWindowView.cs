@@ -27,7 +27,7 @@ public partial class MainWindowView : FluentWindow
 
             // Wire up hotkey events to playback controls
             _hotkeyService.PlayPausePressed += async (_, _) => await vm.Playback.PlayPause();
-            _hotkeyService.NextPressed += (_, _) => vm.Playback.Next();
+            _hotkeyService.NextPressed += async (_, _) => await vm.Playback.Next();
             _hotkeyService.PreviousPressed += (_, _) => vm.Playback.Previous();
             _hotkeyService.SpeedUpPressed += (_, _) => vm.SongSettings.IncreaseSpeed();
             _hotkeyService.SpeedDownPressed += (_, _) => vm.SongSettings.DecreaseSpeed();
@@ -55,11 +55,11 @@ public partial class MainWindowView : FluentWindow
         }
     }
 
-    private void TrayNext_Click(object sender, RoutedEventArgs e)
+    private async void TrayNext_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is MainWindowViewModel vm)
         {
-            vm.Playback.Next();
+            await vm.Playback.Next();
         }
     }
 

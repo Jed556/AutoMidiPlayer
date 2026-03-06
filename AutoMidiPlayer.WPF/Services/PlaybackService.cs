@@ -46,7 +46,7 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
     private TimeSpan _songPosition;
     private double? _savedPosition;
     private int _savePositionCounter;
-    private bool _autoPlayOnLoad;
+    private int _loadEpoch;
 
     #endregion
 
@@ -86,7 +86,7 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
         {
             _player = ioc.Get<WinMediaPlayer>();
 
-            _player!.CommandManager.NextReceived += (_, _) => Next();
+            _player!.CommandManager.NextReceived += async (_, _) => await Next();
             _player!.CommandManager.PreviousReceived += (_, _) => Previous();
 
             _player!.CommandManager.PlayReceived += async (_, _) => await PlayPause();
@@ -245,37 +245,44 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
         if (Playback is null)
             await InitializePlayback();
 
-        if (Playback is null)
+        var playback = Playback;
+        if (playback is null)
             return;
 
-        if (Playback.IsRunning)
+        try
         {
-            Playback.Stop();
-            Queue.SaveCurrentSong(CurrentTime.TotalSeconds);
-        }
-        else
-        {
-            var time = new MetricTimeSpan(CurrentTime);
-            Playback.PlaybackStart = time;
-            Playback.MoveToTime(time);
+            if (playback.IsRunning)
+            {
+                playback.Stop();
+                Queue.SaveCurrentSong(CurrentTime.TotalSeconds);
+            }
+            else
+            {
+                var time = new MetricTimeSpan(CurrentTime);
+                playback.PlaybackStart = time;
+                playback.MoveToTime(time);
 
-            await StartPlayback();
+                await StartPlayback(playback);
+            }
         }
+        catch (ObjectDisposedException) { }
     }
 
     public void CloseFile()
     {
-        if (Playback != null)
+        var old = Playback;
+        Playback = null;
+
+        if (old != null)
         {
-            _timeWatcher.RemovePlayback(Playback);
-            Playback.Stop();
-            Playback.Dispose();
+            try { _timeWatcher.RemovePlayback(old); } catch (ObjectDisposedException) { }
+            try { old.Stop(); } catch (ObjectDisposedException) { }
+            try { old.Dispose(); } catch (ObjectDisposedException) { }
         }
 
         TrackView.MidiTracks.Clear();
         MoveSlider(TimeSpan.Zero);
 
-        Playback = null;
         Queue.OpenedFile = null;
         SongSettings.ClearSettings();
     }
@@ -284,15 +291,16 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
     /// Go to the next song.
     /// </summary>
     /// <param name="userInitiated">True if user clicked Next button, false if auto-triggered by song finish</param>
-    public void Next(bool userInitiated = true)
+    public async Task Next(bool userInitiated = true)
     {
         var next = Queue.Next(userInitiated);
         if (next is null)
         {
-            if (Playback is not null)
+            var pb = Playback;
+            if (pb is not null)
             {
-                Playback.PlaybackStart = null;
-                Playback.MoveToStart();
+                try { pb.PlaybackStart = null; pb.MoveToStart(); }
+                catch (ObjectDisposedException) { }
             }
 
             MoveSlider(TimeSpan.Zero);
@@ -300,21 +308,25 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
             return;
         }
 
-        _autoPlayOnLoad = true;
-        _events.Publish(next);
+        await LoadFileAsync(next, autoPlay: true);
     }
 
     public async void Previous()
     {
         if (CurrentTime > TimeSpan.FromSeconds(3))
         {
-            Playback?.Stop();
-            Playback?.MoveToStart();
+            var pb = Playback;
+            if (pb is not null)
+            {
+                try { pb.Stop(); pb.MoveToStart(); }
+                catch (ObjectDisposedException) { }
+            }
 
             MoveSlider(TimeSpan.Zero);
 
-            if (Playback is not null)
-                await StartPlayback();
+            pb = Playback;
+            if (pb is not null)
+                await StartPlayback(pb);
         }
         else
         {
@@ -322,9 +334,7 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
             {
                 Queue.History.Pop();
                 var previous = Queue.History.Pop();
-
-                _autoPlayOnLoad = true;
-                _events.Publish(previous);
+                await LoadFileAsync(previous, autoPlay: true);
             }
         }
     }
@@ -335,8 +345,13 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
 
     public Task InitializePlayback()
     {
-        Playback?.Stop();
-        Playback?.Dispose();
+        var old = Playback;
+        Playback = null;
+        if (old != null)
+        {
+            try { old.Stop(); } catch (ObjectDisposedException) { }
+            try { old.Dispose(); } catch (ObjectDisposedException) { }
+        }
 
         if (Queue.OpenedFile is null)
         {
@@ -382,8 +397,12 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
         playback.Finished += (_, _) =>
         {
             // Marshal to UI thread to avoid cross-thread issues
-            // Pass false to indicate this is auto-next from song finish, not user clicking Next
-            System.Windows.Application.Current?.Dispatcher?.BeginInvoke(() => Next(userInitiated: false));
+            // Only auto-next if this playback is still the current one
+            System.Windows.Application.Current?.Dispatcher?.BeginInvoke(async () =>
+            {
+                if (Playback == playback)
+                    await Next(userInitiated: false);
+            });
         };
         playback.EventPlayed += OnNoteEvent;
 
@@ -431,17 +450,25 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
 
     public void OnSongPositionChanged()
     {
-        if (Playback is null) Next();
-
-        if (!_ignoreSliderChange && Playback is not null)
+        if (_ignoreSliderChange)
         {
-            var isRunning = Playback.IsRunning;
-            Playback.Stop();
-            Playback.MoveToTime(new MetricTimeSpan(_songPosition));
-
-            if (Settings.UseSpeakers && isRunning)
-                Playback.Start();
+            _ignoreSliderChange = false;
+            return;
         }
+
+        var pb = Playback;
+        if (pb is null)
+            return;
+
+        try
+        {
+            var isRunning = pb.IsRunning;
+            pb.Stop();
+            pb.MoveToTime(new MetricTimeSpan(_songPosition));
+            if (Settings.UseSpeakers && isRunning)
+                pb.Start();
+        }
+        catch (ObjectDisposedException) { }
 
         _ignoreSliderChange = false;
     }
@@ -579,52 +606,64 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
 
     private void HandleGameFocusLoss()
     {
-        var wasRunning = Playback is not null && Playback.IsRunning;
-        if (wasRunning)
+        var pb = Playback;
+        if (pb is not null)
         {
-            Playback!.Stop();
-            Queue.SaveCurrentSong(CurrentTime.TotalSeconds);
-            UpdateButtons();
+            try
+            {
+                if (pb.IsRunning)
+                {
+                    pb.Stop();
+                    Queue.SaveCurrentSong(CurrentTime.TotalSeconds);
+                    UpdateButtons();
+                }
+            }
+            catch (ObjectDisposedException) { }
         }
 
         var selectedGameName = _main.SelectedGame?.Definition.DisplayName ?? "Selected game";
         _main.ShowGameFocusLossToast(selectedGameName);
     }
 
-    private async Task<bool> StartPlayback()
+    private async Task<bool> StartPlayback(Playback playback)
     {
-        if (Playback is null)
-            return false;
-
         var selectedGame = _main.SelectedGame?.Definition;
         var isGameRunning = selectedGame is not null && GameRegistry.IsGameRunning(selectedGame);
 
-        if (Settings.UseSpeakers)
+        try
         {
-            Playback.PlaybackStart = Playback.GetCurrentTime(TimeSpanType.Midi);
-            Playback.Start();
-            return true;
-        }
+            if (Settings.UseSpeakers)
+            {
+                playback.PlaybackStart = playback.GetCurrentTime(TimeSpanType.Midi);
+                playback.Start();
+                return true;
+            }
 
-        if (!isGameRunning)
-        {
-            if (!HandleGameNotRunning())
+            if (!isGameRunning)
+            {
+                if (!HandleGameNotRunning())
+                    return false;
+
+                playback.PlaybackStart = playback.GetCurrentTime(TimeSpanType.Midi);
+                playback.Start();
+                return true;
+            }
+
+            WindowHelper.EnsureGameOnTop();
+            await Task.Delay(120);
+
+            // After delay, verify this playback is still current
+            if (Playback != playback)
                 return false;
 
-            Playback.PlaybackStart = Playback.GetCurrentTime(TimeSpanType.Midi);
-            Playback.Start();
-            return true;
+            if (WindowHelper.IsGameFocused())
+            {
+                playback.PlaybackStart = playback.GetCurrentTime(TimeSpanType.Midi);
+                playback.Start();
+                return true;
+            }
         }
-
-        WindowHelper.EnsureGameOnTop();
-        await Task.Delay(120);
-
-        if (WindowHelper.IsGameFocused())
-        {
-            Playback.PlaybackStart = Playback.GetCurrentTime(TimeSpanType.Midi);
-            Playback.Start();
-            return true;
-        }
+        catch (ObjectDisposedException) { }
 
         return false;
     }
@@ -637,12 +676,20 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
         Settings.Modify(s => s.UseSpeakers = enabled);
 
         var pausedPlayback = false;
-        if (pausePlaybackOnChange && Playback is not null && Playback.IsRunning)
+        var pb = Playback;
+        if (pausePlaybackOnChange && pb is not null)
         {
-            Playback.Stop();
-            Queue.SaveCurrentSong(CurrentTime.TotalSeconds);
-            pausedPlayback = true;
-            UpdateButtons();
+            try
+            {
+                if (pb.IsRunning)
+                {
+                    pb.Stop();
+                    Queue.SaveCurrentSong(CurrentTime.TotalSeconds);
+                    pausedPlayback = true;
+                    UpdateButtons();
+                }
+            }
+            catch (ObjectDisposedException) { }
         }
 
         _events.Publish(new ListenModeChangedNotification(enabled));
@@ -704,37 +751,57 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
 
     #region Event Handlers
 
-    public async void Handle(MidiFile file)
+    /// <summary>
+    /// Loads a MIDI file, initializes playback, and optionally auto-plays.
+    /// Awaitable — callers that need to wait for loading should use this directly.
+    /// </summary>
+    public async Task LoadFileAsync(MidiFile file, bool autoPlay = false)
     {
+        // Ignore duplicate reloads for the currently opened file.
+        // This can be triggered by selection-change events while the same song is already loaded.
+        if (Queue.OpenedFile == file && Playback is not null)
+        {
+            if (autoPlay && !Playback.IsRunning)
+                await PlayPause();
+            return;
+        }
+
+        var epoch = ++_loadEpoch;
+
         CloseFile();
         Queue.OpenedFile = file;
         Queue.History.Push(file);
 
-        // Apply per-song settings (speed, key, transpose)
         SongSettings.ApplyPerSongSettings(file);
 
-        // Re-read the MIDI file from disk to restore all tracks
         file.InitializeMidi();
         TrackView.InitializeTracks();
         TrackView.UpdateTrackPlayableNotes();
 
         await InitializePlayback();
 
-        // Update note statistics for new file
         TrackView.NotifyNoteStatsChanged();
 
-        // Notify UI about property changes
         NotifyOfPropertyChange(nameof(MaximumTime));
         NotifyOfPropertyChange(nameof(CanHitPlayPause));
         NotifyOfPropertyChange(nameof(CanHitNext));
         NotifyOfPropertyChange(nameof(CanHitPrevious));
 
-        // Auto-play if requested (from Next/Previous navigation)
-        if (_autoPlayOnLoad && Playback is not null)
-        {
-            _autoPlayOnLoad = false;
+        _main.SongsView.RefreshCurrentSong();
+        _main.QueueView.RefreshCurrentSong();
+
+        // Only auto-play if this is still the most recent load request
+        if (autoPlay && epoch == _loadEpoch && Playback is not null)
             await PlayPause();
-        }
+    }
+
+    /// <summary>
+    /// Event aggregator handler — fire-and-forget entry point for MidiFile publish.
+    /// No auto-play; callers that need auto-play should use LoadFileAsync directly.
+    /// </summary>
+    public async void Handle(MidiFile file)
+    {
+        await LoadFileAsync(file);
     }
 
     public async void Handle(MidiTrack track)

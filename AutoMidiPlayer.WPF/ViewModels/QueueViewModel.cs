@@ -190,7 +190,7 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
 
         var next = Next();
         if (OpenedFile is null && Tracks.Count > 0 && next is not null)
-            _events.Publish(Next());
+            _events.Publish(next);
     }
 
     public void AddFile(MidiFile file)
@@ -222,9 +222,8 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
         }
         else
         {
-            // Otherwise, load and play this song
-            _events.Publish(file);
-            await _main.Playback.PlayPause();
+            // Load the new file and auto-play it — fully awaited, no race
+            await _main.Playback.LoadFileAsync(file, autoPlay: true);
         }
     }
 
@@ -407,7 +406,7 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
     [SuppressPropertyChangedWarnings]
     public void OnFileChanged(object sender, EventArgs e)
     {
-        if (SelectedFile is not null)
+        if (SelectedFile is not null && SelectedFile != OpenedFile)
             _events.Publish(SelectedFile);
     }
 
