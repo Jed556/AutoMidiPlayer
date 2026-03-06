@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
@@ -143,6 +144,54 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Warning);
         }
+    }
+
+    private static async Task ShowMissingSongFileDialogAsync(string filePath)
+    {
+        var message =
+            "The selected MIDI file could not be found:\n\n" +
+            filePath +
+            "\n\nIt will be moved to the Missing files list.";
+
+        try
+        {
+            var dialog = DialogHelper.CreateDialog();
+            dialog.Title = "Missing MIDI file";
+            dialog.Content = message;
+            dialog.CloseButtonText = "OK";
+
+            var hostReady = await DialogHelper.EnsureDialogHostAsync(dialog);
+            if (hostReady)
+            {
+                await dialog.ShowAsync();
+                return;
+            }
+
+            CrashLogger.Log("DialogHost was not ready while showing missing MIDI file dialog. Falling back to MessageBox.");
+            System.Windows.MessageBox.Show(
+                message,
+                "Missing MIDI file",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+        }
+        catch (Exception dialogError)
+        {
+            CrashLogger.Log("Failed to display missing MIDI file dialog.");
+            CrashLogger.LogException(dialogError);
+            System.Windows.MessageBox.Show(
+                message,
+                "Missing MIDI file",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+        }
+    }
+
+    private async Task HandleMissingSongFileAsync(MidiFile file)
+    {
+        await ShowMissingSongFileDialogAsync(file.Path);
+
+        _main.SongsView.MarkSongAsMissing(file.Song);
+        _main.QueueView.RemoveTrack(new[] { file });
     }
 
     #region Properties
@@ -779,7 +828,21 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
 
         SongSettings.ApplyPerSongSettings(file);
 
-        file.InitializeMidi();
+        try
+        {
+            file.InitializeMidi();
+        }
+        catch (FileNotFoundException)
+        {
+            await HandleMissingSongFileAsync(file);
+            return;
+        }
+        catch (DirectoryNotFoundException)
+        {
+            await HandleMissingSongFileAsync(file);
+            return;
+        }
+
         TrackView.InitializeTracks();
         TrackView.UpdateTrackPlayableNotes();
 
@@ -806,7 +869,15 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
     /// </summary>
     public async void Handle(MidiFile file)
     {
-        await LoadFileAsync(file);
+        try
+        {
+            await LoadFileAsync(file);
+        }
+        catch (Exception e)
+        {
+            CrashLogger.Log("Unhandled playback file-load exception.");
+            CrashLogger.LogException(e);
+        }
     }
 
     public async void Handle(MidiTrack track)

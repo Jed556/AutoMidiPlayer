@@ -540,6 +540,26 @@ public class SongsViewModel : Screen
         NotifyFileErrorsChanged();
     }
 
+    /// <summary>
+    /// Mark a song as missing at runtime (for example, file deleted while app is running).
+    /// </summary>
+    public void MarkSongAsMissing(Song song)
+    {
+        if (!MissingSongs.Any(s => s.Id == song.Id))
+            MissingSongs.Add(song);
+
+        foreach (var track in Tracks.Where(t => t.Song.Id == song.Id).ToList())
+            Tracks.Remove(track);
+
+        if (SelectedFile is not null && SelectedFile.Song.Id == song.Id)
+            SelectedFile = null;
+
+        RemoveBadMidiFileEntries(song.Path, false);
+
+        NotifyFileErrorsChanged();
+        ApplySort();
+    }
+
     private void AddBadMidiFile(Song song, Exception exception)
     {
         if (BadMidiFiles.Any(b => string.Equals(b.Path, song.Path, StringComparison.OrdinalIgnoreCase)))
