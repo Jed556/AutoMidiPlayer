@@ -209,7 +209,8 @@ public static class KeyboardPlayer
                 foreach (var modifier in modifiers)
                     SendKeyDirect(modifier, false);
                 SendKeyDirect(keyStroke.Key, false);
-                SendKeyDirect(keyStroke.Key, true);
+                // Legacy compatibility: commit 610c016 direct "press" path emitted key-down only.
+                // Some games are more reliable with this behavior than with an immediate key-up.
                 for (int i = modifiers.Length - 1; i >= 0; i--)
                     SendKeyDirect(modifiers[i], true);
                 break;
