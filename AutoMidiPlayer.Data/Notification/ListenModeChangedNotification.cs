@@ -1,11 +1,6 @@
 namespace AutoMidiPlayer.Data.Notification;
 
-public sealed class ListenModeChangedNotification
+public sealed class ListenModeChangedNotification(bool enabled)
 {
-    public ListenModeChangedNotification(bool enabled)
-    {
-        Enabled = enabled;
-    }
-
-    public bool Enabled { get; }
+    public bool Enabled { get; } = enabled;
 }

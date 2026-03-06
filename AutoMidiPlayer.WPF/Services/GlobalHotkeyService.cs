@@ -374,19 +374,12 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
 /// <summary>
 /// Represents a configurable hotkey binding.
 /// </summary>
-public class HotkeyBinding : PropertyChangedBase
+public class HotkeyBinding(string name, Key key, ModifierKeys modifiers) : PropertyChangedBase
 {
-    private Key _key;
-    private ModifierKeys _modifiers;
+    private Key _key = key;
+    private ModifierKeys _modifiers = modifiers;
 
-    public HotkeyBinding(string name, Key key, ModifierKeys modifiers)
-    {
-        Name = name;
-        _key = key;
-        _modifiers = modifiers;
-    }
-
-    public string Name { get; }
+    public string Name { get; } = name;
 
     public Key Key
     {
@@ -561,14 +554,8 @@ public class HotkeyBinding : PropertyChangedBase
 /// Represents a single part of a hotkey display (e.g. "Ctrl", "Alt", "Space").
 /// Used for chip-style rendering in the UI.
 /// </summary>
-public class HotkeyPart
+public class HotkeyPart(string text, bool isFirst)
 {
-    public string Text { get; }
-    public bool IsFirst { get; }
-
-    public HotkeyPart(string text, bool isFirst)
-    {
-        Text = text;
-        IsFirst = isFirst;
-    }
+    public string Text { get; } = text;
+    public bool IsFirst { get; } = isFirst;
 }

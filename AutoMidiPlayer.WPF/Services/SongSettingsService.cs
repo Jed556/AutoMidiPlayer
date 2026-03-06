@@ -16,21 +16,15 @@ namespace AutoMidiPlayer.WPF.Services;
 /// Isolated from playback controls so non-playback consumers (e.g. edit dialog, track stats)
 /// can read/write song settings without depending on PlaybackService.
 /// </summary>
-public class SongSettingsService : PropertyChangedBase
+public class SongSettingsService(IContainer ioc) : PropertyChangedBase
 {
-    private readonly IContainer _ioc;
-    private readonly IEventAggregator _events;
+    private readonly IContainer _ioc = ioc;
+    private readonly IEventAggregator _events = ioc.Get<IEventAggregator>();
 
     private int _keyOffset;
     private double _speed = 1.0;
     private MusicConstants.KeyOption? _selectedKeyOption;
     private MusicConstants.SpeedOption? _selectedSpeedOption;
-
-    public SongSettingsService(IContainer ioc)
-    {
-        _ioc = ioc;
-        _events = ioc.Get<IEventAggregator>();
-    }
 
     #region Static Data
 

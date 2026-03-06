@@ -3,26 +3,17 @@ using System;
 
 namespace AutoMidiPlayer.WPF.Helpers;
 
-public class CaptionedObject<T>
+public class CaptionedObject<T>(T o, string? caption = null)
 {
-    public CaptionedObject(T o, string? caption = null)
-    {
-        Object = o;
-        Caption = caption;
-    }
+    public T Object { get; } = o;
 
-    public T Object { get; }
-
-    protected string? Caption { get; }
+    protected string? Caption { get; } = caption;
 
     public override string ToString() => Caption ?? base.ToString() ?? string.Empty;
 }
 
-public class CaptionedObject<T, TEnum> : CaptionedObject<T> where T : Enum
+public class CaptionedObject<T, TEnum>(T o, TEnum type, string? caption = null) : CaptionedObject<T>(o, caption) where T : Enum
 {
-    public CaptionedObject(T o, TEnum type, string? caption = null) : base(o, caption) { Type = type; }
-
-    public TEnum Type { get; }
-
+    public TEnum Type { get; } = type;
     public override string ToString() => Caption ?? Type?.ToString() ?? base.ToString();
 }

@@ -15,6 +15,7 @@ using AutoMidiPlayer.WPF.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using Stylet;
 using StyletIoC;
+using System.Reflection;
 using Wpf.Ui.Controls;
 
 namespace AutoMidiPlayer.WPF;
@@ -23,9 +24,13 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
 {
     public Bootstrapper()
     {
+        // ensure version retrieval helper is available by referencing Reflection
+        _ = GetAppVersion();
         // Clear log on startup
         CrashLogger.ClearLog();
-        CrashLogger.Log("Application starting");
+
+        // log application start along with the current version
+        CrashLogger.Log($"Application starting v{GetAppVersion()}");
 
         // Handle unhandled exceptions
         Application.Current.DispatcherUnhandledException += OnDispatcherUnhandledException;
@@ -44,6 +49,13 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
                 });
             })
         );
+    }
+
+    private static string GetAppVersion()
+    {
+        // assembly version should be kept in sync with project version
+        var version = Assembly.GetExecutingAssembly().GetName().Version;
+        return version?.ToString() ?? "unknown";
     }
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)

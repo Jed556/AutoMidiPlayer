@@ -1,8 +1,6 @@
 ﻿namespace AutoMidiPlayer.Data.Midi;
 
-public class MidiInput
+public class MidiInput(string deviceName)
 {
-    public MidiInput(string deviceName) { DeviceName = deviceName; }
-
-    public string DeviceName { get; }
+    public string DeviceName { get; } = deviceName;
 }

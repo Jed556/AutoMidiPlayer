@@ -358,13 +358,7 @@ public partial class SongListControl : UserControl
 /// <summary>
 /// Event args that includes the clicked MidiFile
 /// </summary>
-public class SongListEventArgs : RoutedEventArgs
+public class SongListEventArgs(RoutedEvent routedEvent, object source, MidiFile file) : RoutedEventArgs(routedEvent, source)
 {
-    public MidiFile File { get; }
-
-    public SongListEventArgs(RoutedEvent routedEvent, object source, MidiFile file)
-        : base(routedEvent, source)
-    {
-        File = file;
-    }
+    public MidiFile File { get; } = file;
 }

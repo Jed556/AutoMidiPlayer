@@ -11,7 +11,7 @@ using AutoMidiPlayer.Data.Notification;
 using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Core;
 using AutoMidiPlayer.WPF.Core.Games;
-using AutoMidiPlayer.WPF.Errors;
+using AutoMidiPlayer.WPF.Dialogs;
 using AutoMidiPlayer.WPF.ViewModels;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
@@ -99,12 +99,51 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
         }
         catch (ArgumentException e)
         {
-            new ErrorContentDialog(e, closeText: "Ignore").ShowAsync();
+            CrashLogger.Log("Failed to initialize Microsoft GS Wavetable Synth.");
+            CrashLogger.LogException(e);
+            _ = ShowAudioInitializationErrorAsync(e);
             SetListenMode(false, pausePlaybackOnChange: false);
         }
     }
 
     #endregion
+
+    private static async Task ShowAudioInitializationErrorAsync(Exception e)
+    {
+        var message = $"Audio output device initialization failed.\n\nError:\n{e.Message}";
+
+        try
+        {
+            var dialog = DialogHelper.CreateDialog();
+            dialog.Title = "Audio device unavailable";
+            dialog.Content = message;
+            dialog.CloseButtonText = "Ignore";
+
+            var hostReady = await DialogHelper.EnsureDialogHostAsync(dialog);
+            if (hostReady)
+            {
+                await dialog.ShowAsync();
+                return;
+            }
+
+            CrashLogger.Log("DialogHost was not ready while showing audio initialization error. Falling back to MessageBox.");
+            System.Windows.MessageBox.Show(
+                message,
+                "Audio device unavailable",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+        }
+        catch (Exception dialogError)
+        {
+            CrashLogger.Log("Failed to display audio initialization error dialog.");
+            CrashLogger.LogException(dialogError);
+            System.Windows.MessageBox.Show(
+                message,
+                "Audio device unavailable",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+        }
+    }
 
     #region Properties
 
@@ -776,12 +815,7 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
 /// <summary>
 /// Event args for note played event
 /// </summary>
-public class NotePlayedEventArgs : EventArgs
+public class NotePlayedEventArgs(int noteNumber) : EventArgs
 {
-    public int NoteNumber { get; }
-
-    public NotePlayedEventArgs(int noteNumber)
-    {
-        NoteNumber = noteNumber;
-    }
+    public int NoteNumber { get; } = noteNumber;
 }

@@ -225,16 +225,9 @@ public partial class HotkeyEditControl : UserControl
     }
 }
 
-public class HotkeyChangedEventArgs : EventArgs
+public class HotkeyChangedEventArgs(string name, Key key, ModifierKeys modifiers) : EventArgs
 {
-    public string Name { get; }
-    public Key Key { get; }
-    public ModifierKeys Modifiers { get; }
-
-    public HotkeyChangedEventArgs(string name, Key key, ModifierKeys modifiers)
-    {
-        Name = name;
-        Key = key;
-        Modifiers = modifiers;
-    }
+    public string Name { get; } = name;
+    public Key Key { get; } = key;
+    public ModifierKeys Modifiers { get; } = modifiers;
 }

@@ -11,16 +11,14 @@ using Stylet;
 
 namespace AutoMidiPlayer.WPF.ViewModels;
 
-public class PianoSheetViewModel : Screen
+public class PianoSheetViewModel(MainWindowViewModel main) : Screen
 {
     private static readonly Settings Settings = Settings.Default;
 
-    private readonly MainWindowViewModel _main;
+    private readonly MainWindowViewModel _main = main;
     private uint _bars = 1;
     private uint _beats;
     private uint _shorten = 1;
-
-    public PianoSheetViewModel(MainWindowViewModel main) { _main = main; }
 
     [OnChangedMethod(nameof(Update))] public char Delimiter { get; set; } = '_';
 

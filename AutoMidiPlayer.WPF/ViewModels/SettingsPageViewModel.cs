@@ -653,33 +653,20 @@ public class SettingsPageViewModel : Screen
     }
 }
 
-public class AccentColorOption
+public class AccentColorOption(string name, string colorHex)
 {
-    public string Name { get; }
-    public string ColorHex { get; }
-    public System.Windows.Media.SolidColorBrush ColorBrush { get; }
-
-    public AccentColorOption(string name, string colorHex)
-    {
-        Name = name;
-        ColorHex = colorHex;
-        ColorBrush = new System.Windows.Media.SolidColorBrush(
+    public string Name { get; } = name;
+    public string ColorHex { get; } = colorHex;
+    public System.Windows.Media.SolidColorBrush ColorBrush { get; } = new System.Windows.Media.SolidColorBrush(
             (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(colorHex));
-    }
 
     public override string ToString() => Name;
 }
 
-public class ThemeOption
+public class ThemeOption(string name, WpfUiApplicationTheme value)
 {
-    public string Name { get; }
-    public WpfUiApplicationTheme Value { get; }
-
-    public ThemeOption(string name, WpfUiApplicationTheme value)
-    {
-        Name = name;
-        Value = value;
-    }
+    public string Name { get; } = name;
+    public WpfUiApplicationTheme Value { get; } = value;
 
     public override string ToString() => Name;
 }

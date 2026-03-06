@@ -52,8 +52,8 @@
                 <Button Command="{s:Action ShowMissingFilesDialog}"
                         Style="{DynamicResource GhostIconButton}"
                         Padding="8"
-                        ToolTip="Missing files detected"
-                        Visibility="{Binding HasMissingSongs, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                        ToolTip="File errors found"
+                        Visibility="{Binding HasFileErrors, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
                     <ui:SymbolIcon Symbol="Warning24"
                                    FontSize="24"
                                    Foreground="#FFB900"

@@ -2,22 +2,14 @@
 
 namespace AutoMidiPlayer.Data.Notification;
 
-public class MergeNotesNotification
+public class MergeNotesNotification(bool merge)
 {
-    public MergeNotesNotification(bool merge) { Merge = merge; }
-
-    public bool Merge { get; }
+    public bool Merge { get; } = merge;
 }
 
-public class TrackNotification
+public class TrackNotification(MidiTrack track, bool enabled)
 {
-    public TrackNotification(MidiTrack track, bool enabled)
-    {
-        Track = track;
-        Enabled = enabled;
-    }
+    public bool Enabled { get; } = enabled;
 
-    public bool Enabled { get; }
-
-    public MidiTrack Track { get; }
+    public MidiTrack Track { get; } = track;
 }

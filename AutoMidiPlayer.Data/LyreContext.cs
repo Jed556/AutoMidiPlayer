@@ -3,9 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutoMidiPlayer.Data;
 
-public class LyreContext : DbContext
+public class LyreContext(DbContextOptions<LyreContext> options) : DbContext(options)
 {
-    public LyreContext(DbContextOptions<LyreContext> options) : base(options) { }
-
     public DbSet<Song> Songs { get; set; } = null!;
 }

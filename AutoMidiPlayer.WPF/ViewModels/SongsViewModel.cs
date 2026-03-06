@@ -9,7 +9,6 @@ using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Entities;
 using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Dialogs;
-using AutoMidiPlayer.WPF.Errors;
 using Melanchall.DryWetMidi.Core;
 using Microsoft.Win32;
 using Wpf.Ui.Controls;
@@ -21,6 +20,19 @@ namespace AutoMidiPlayer.WPF.ViewModels;
 
 public class SongsViewModel : Screen
 {
+    public sealed class BadMidiFileEntry(Song song, string errorMessage)
+    {
+        public Song Song { get; } = song;
+
+        public string Path => Song.Path;
+
+        public string Title => string.IsNullOrWhiteSpace(Song.Title)
+            ? System.IO.Path.GetFileNameWithoutExtension(Song.Path)
+            : Song.Title!;
+
+        public string ErrorMessage { get; } = errorMessage;
+    }
+
     public enum SortMode
     {
         CustomOrder,
@@ -73,10 +85,14 @@ public class SongsViewModel : Screen
     /// </summary>
     public BindableCollection<Song> MissingSongs { get; } = new();
 
+    public BindableCollection<BadMidiFileEntry> BadMidiFiles { get; } = new();
+
     /// <summary>
     /// Whether there are any missing song files
     /// </summary>
     public bool HasMissingSongs => MissingSongs.Count > 0;
+
+    public bool HasFileErrors => MissingSongs.Count > 0 || BadMidiFiles.Count > 0;
 
     public MidiFile? SelectedFile { get; set; }
 
@@ -219,6 +235,8 @@ public class SongsViewModel : Screen
                 {
                     MissingSongs.Add(file);
                 }
+
+                RemoveBadMidiFileEntries(file.Path, false);
                 continue;
             }
             await AddFile(file);
@@ -227,6 +245,8 @@ public class SongsViewModel : Screen
         // Notify UI about missing songs status change
         NotifyOfPropertyChange(nameof(HasMissingSongs));
         NotifyOfPropertyChange(nameof(MissingSongs));
+        NotifyOfPropertyChange(nameof(HasFileErrors));
+        NotifyOfPropertyChange(nameof(BadMidiFiles));
 
         ApplySort();
     }
@@ -236,96 +256,200 @@ public class SongsViewModel : Screen
     /// </summary>
     public async Task ShowMissingFilesDialog()
     {
-        if (MissingSongs.Count == 0) return;
+        if (!HasFileErrors) return;
 
-        var content = new System.Windows.Controls.StackPanel { MinWidth = 400 };
+        var content = new System.Windows.Controls.StackPanel { MinWidth = 460 };
         content.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
 
         var headerText = new System.Windows.Controls.TextBlock
         {
-            Text = $"The following {MissingSongs.Count} song(s) could not be found:",
+            Text = "File errors were found:",
             TextWrapping = System.Windows.TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 12)
         };
         headerText.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
         content.Children.Add(headerText);
 
-        var scrollViewer = new System.Windows.Controls.ScrollViewer
+        System.Windows.Controls.ItemsControl? missingItemsControl = null;
+        System.Windows.Controls.ItemsControl? badMidiItemsControl = null;
+
+        void RefreshLists()
         {
-            MaxHeight = 300,
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(0),
-            VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled
-        };
-        scrollViewer.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, "ControlFillColorDefaultBrush");
-        scrollViewer.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
+            if (missingItemsControl != null)
+                missingItemsControl.ItemsSource = MissingSongs.ToList();
+            if (badMidiItemsControl != null)
+                badMidiItemsControl.ItemsSource = BadMidiFiles.ToList();
+        }
 
-        var itemsControl = new System.Windows.Controls.ItemsControl
+        if (MissingSongs.Count > 0)
         {
-            ItemsSource = MissingSongs.ToList()
-        };
-
-        // Create item template with delete button
-        var template = new DataTemplate();
-
-        var rowBorderFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.Border));
-        rowBorderFactory.SetValue(System.Windows.Controls.Border.PaddingProperty, new Thickness(10, 8, 10, 8));
-        rowBorderFactory.SetValue(System.Windows.Controls.Border.BorderThicknessProperty, new Thickness(0, 0, 0, 1));
-        rowBorderFactory.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
-
-        var gridFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.Grid));
-
-        var col1 = new FrameworkElementFactory(typeof(System.Windows.Controls.ColumnDefinition));
-        col1.SetValue(System.Windows.Controls.ColumnDefinition.WidthProperty, new GridLength(1, GridUnitType.Star));
-        var col2 = new FrameworkElementFactory(typeof(System.Windows.Controls.ColumnDefinition));
-        col2.SetValue(System.Windows.Controls.ColumnDefinition.WidthProperty, GridLength.Auto);
-
-        gridFactory.AppendChild(col1);
-        gridFactory.AppendChild(col2);
-
-        // Title text
-        var textFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.TextBlock));
-        textFactory.SetBinding(System.Windows.Controls.TextBlock.TextProperty,
-            new System.Windows.Data.Binding("Title") { FallbackValue = "Unknown" });
-        textFactory.SetValue(System.Windows.Controls.TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
-        textFactory.SetValue(System.Windows.Controls.TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
-        textFactory.SetValue(System.Windows.Controls.Grid.ColumnProperty, 0);
-        textFactory.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-        gridFactory.AppendChild(textFactory);
-
-        // Delete button
-        var buttonFactory = new FrameworkElementFactory(typeof(Button));
-        buttonFactory.SetValue(System.Windows.Controls.Button.ContentProperty, "✕");
-        buttonFactory.SetResourceReference(FrameworkElement.StyleProperty, "GhostIconButton");
-        buttonFactory.SetValue(System.Windows.Controls.Button.PaddingProperty, new Thickness(6, 2, 6, 2));
-        buttonFactory.SetValue(System.Windows.Controls.Button.MarginProperty, new Thickness(8, 0, 0, 0));
-        buttonFactory.SetValue(System.Windows.Controls.Button.ToolTipProperty, "Remove from database");
-        buttonFactory.SetValue(System.Windows.Controls.Button.BackgroundProperty, Brushes.Transparent);
-        buttonFactory.SetValue(System.Windows.Controls.Button.BorderThicknessProperty, new Thickness(0));
-        buttonFactory.SetValue(System.Windows.Controls.Grid.ColumnProperty, 1);
-        buttonFactory.AddHandler(System.Windows.Controls.Button.ClickEvent,
-            new RoutedEventHandler(async (s, e) =>
+            var missingHeader = new System.Windows.Controls.TextBlock
             {
-                if (s is System.Windows.Controls.Button btn && btn.DataContext is Song song)
+                Text = "Missing files",
+                FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            missingHeader.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
+            content.Children.Add(missingHeader);
+
+            missingItemsControl = new System.Windows.Controls.ItemsControl
+            {
+                ItemsSource = MissingSongs.ToList()
+            };
+
+            var missingTemplate = new DataTemplate();
+            var missingRowBorderFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.Border));
+            missingRowBorderFactory.SetValue(System.Windows.Controls.Border.PaddingProperty, new Thickness(10, 8, 10, 8));
+            missingRowBorderFactory.SetValue(System.Windows.Controls.Border.BorderThicknessProperty, new Thickness(0, 0, 0, 1));
+            missingRowBorderFactory.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
+
+            var missingGridFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.Grid));
+            var missingCol1 = new FrameworkElementFactory(typeof(System.Windows.Controls.ColumnDefinition));
+            missingCol1.SetValue(System.Windows.Controls.ColumnDefinition.WidthProperty, new GridLength(1, GridUnitType.Star));
+            var missingCol2 = new FrameworkElementFactory(typeof(System.Windows.Controls.ColumnDefinition));
+            missingCol2.SetValue(System.Windows.Controls.ColumnDefinition.WidthProperty, GridLength.Auto);
+            missingGridFactory.AppendChild(missingCol1);
+            missingGridFactory.AppendChild(missingCol2);
+
+            var missingTextFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.TextBlock));
+            missingTextFactory.SetBinding(System.Windows.Controls.TextBlock.TextProperty,
+                new System.Windows.Data.Binding("Title") { FallbackValue = "Unknown" });
+            missingTextFactory.SetValue(System.Windows.Controls.TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
+            missingTextFactory.SetValue(System.Windows.Controls.TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
+            missingTextFactory.SetValue(System.Windows.Controls.Grid.ColumnProperty, 0);
+            missingTextFactory.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
+            missingGridFactory.AppendChild(missingTextFactory);
+
+            var missingButtonFactory = new FrameworkElementFactory(typeof(Button));
+            missingButtonFactory.SetValue(System.Windows.Controls.Button.ContentProperty, "✕");
+            missingButtonFactory.SetResourceReference(FrameworkElement.StyleProperty, "GhostIconButton");
+            missingButtonFactory.SetValue(System.Windows.Controls.Button.PaddingProperty, new Thickness(6, 2, 6, 2));
+            missingButtonFactory.SetValue(System.Windows.Controls.Button.MarginProperty, new Thickness(8, 0, 0, 0));
+            missingButtonFactory.SetValue(System.Windows.Controls.Button.ToolTipProperty, "Remove from database");
+            missingButtonFactory.SetValue(System.Windows.Controls.Button.BackgroundProperty, Brushes.Transparent);
+            missingButtonFactory.SetValue(System.Windows.Controls.Button.BorderThicknessProperty, new Thickness(0));
+            missingButtonFactory.SetValue(System.Windows.Controls.Grid.ColumnProperty, 1);
+            missingButtonFactory.AddHandler(System.Windows.Controls.Button.ClickEvent,
+                new RoutedEventHandler(async (s, _) =>
                 {
-                    await RemoveMissingSong(song);
-                    // Refresh the list
-                    itemsControl.ItemsSource = MissingSongs.ToList();
-                }
-            }));
-        gridFactory.AppendChild(buttonFactory);
+                    if (s is System.Windows.Controls.Button btn && btn.DataContext is Song song)
+                    {
+                        await RemoveMissingSong(song);
+                        RefreshLists();
+                    }
+                }));
+            missingGridFactory.AppendChild(missingButtonFactory);
 
-        rowBorderFactory.AppendChild(gridFactory);
-        template.VisualTree = rowBorderFactory;
-        itemsControl.ItemTemplate = template;
+            missingRowBorderFactory.AppendChild(missingGridFactory);
+            missingTemplate.VisualTree = missingRowBorderFactory;
+            missingItemsControl.ItemTemplate = missingTemplate;
 
-        scrollViewer.Content = itemsControl;
+            var missingScrollViewer = new System.Windows.Controls.ScrollViewer
+            {
+                MaxHeight = 200,
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(0),
+                VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled,
+                Content = missingItemsControl
+            };
+            missingScrollViewer.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, "ControlFillColorDefaultBrush");
+            missingScrollViewer.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
+            content.Children.Add(missingScrollViewer);
+        }
 
-        content.Children.Add(scrollViewer);
+        if (BadMidiFiles.Count > 0)
+        {
+            var badMidiHeader = new System.Windows.Controls.TextBlock
+            {
+                Text = "Bad MIDI files",
+                FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, MissingSongs.Count > 0 ? 14 : 0, 0, 8)
+            };
+            badMidiHeader.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
+            content.Children.Add(badMidiHeader);
+
+            badMidiItemsControl = new System.Windows.Controls.ItemsControl
+            {
+                ItemsSource = BadMidiFiles.ToList()
+            };
+
+            var badMidiTemplate = new DataTemplate();
+            var badMidiRowBorderFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.Border));
+            badMidiRowBorderFactory.SetValue(System.Windows.Controls.Border.PaddingProperty, new Thickness(10, 8, 10, 8));
+            badMidiRowBorderFactory.SetValue(System.Windows.Controls.Border.BorderThicknessProperty, new Thickness(0, 0, 0, 1));
+            badMidiRowBorderFactory.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
+
+            var badMidiGridFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.Grid));
+            var badMidiCol1 = new FrameworkElementFactory(typeof(System.Windows.Controls.ColumnDefinition));
+            badMidiCol1.SetValue(System.Windows.Controls.ColumnDefinition.WidthProperty, new GridLength(1, GridUnitType.Star));
+            var badMidiCol2 = new FrameworkElementFactory(typeof(System.Windows.Controls.ColumnDefinition));
+            badMidiCol2.SetValue(System.Windows.Controls.ColumnDefinition.WidthProperty, GridLength.Auto);
+            badMidiGridFactory.AppendChild(badMidiCol1);
+            badMidiGridFactory.AppendChild(badMidiCol2);
+
+            var detailsPanelFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.StackPanel));
+            detailsPanelFactory.SetValue(System.Windows.Controls.StackPanel.OrientationProperty, System.Windows.Controls.Orientation.Vertical);
+            detailsPanelFactory.SetValue(System.Windows.Controls.Grid.ColumnProperty, 0);
+
+            var badMidiTitleFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.TextBlock));
+            badMidiTitleFactory.SetBinding(System.Windows.Controls.TextBlock.TextProperty,
+                new System.Windows.Data.Binding("Title") { FallbackValue = "Unknown" });
+            badMidiTitleFactory.SetValue(System.Windows.Controls.TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
+            badMidiTitleFactory.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
+            detailsPanelFactory.AppendChild(badMidiTitleFactory);
+
+            var badMidiPathFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.TextBlock));
+            badMidiPathFactory.SetBinding(System.Windows.Controls.TextBlock.TextProperty,
+                new System.Windows.Data.Binding("Path") { FallbackValue = string.Empty });
+            badMidiPathFactory.SetValue(System.Windows.Controls.TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
+            badMidiPathFactory.SetValue(System.Windows.Controls.TextBlock.FontSizeProperty, 11.0);
+            badMidiPathFactory.SetValue(System.Windows.Controls.TextBlock.OpacityProperty, 0.72);
+            badMidiPathFactory.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
+            detailsPanelFactory.AppendChild(badMidiPathFactory);
+
+            badMidiGridFactory.AppendChild(detailsPanelFactory);
+
+            var badMidiButtonFactory = new FrameworkElementFactory(typeof(Button));
+            badMidiButtonFactory.SetValue(System.Windows.Controls.Button.ContentProperty, "✕");
+            badMidiButtonFactory.SetResourceReference(FrameworkElement.StyleProperty, "GhostIconButton");
+            badMidiButtonFactory.SetValue(System.Windows.Controls.Button.PaddingProperty, new Thickness(6, 2, 6, 2));
+            badMidiButtonFactory.SetValue(System.Windows.Controls.Button.MarginProperty, new Thickness(8, 0, 0, 0));
+            badMidiButtonFactory.SetValue(System.Windows.Controls.Button.ToolTipProperty, "Remove from database");
+            badMidiButtonFactory.SetValue(System.Windows.Controls.Button.BackgroundProperty, Brushes.Transparent);
+            badMidiButtonFactory.SetValue(System.Windows.Controls.Button.BorderThicknessProperty, new Thickness(0));
+            badMidiButtonFactory.SetValue(System.Windows.Controls.Grid.ColumnProperty, 1);
+            badMidiButtonFactory.AddHandler(System.Windows.Controls.Button.ClickEvent,
+                new RoutedEventHandler(async (s, _) =>
+                {
+                    if (s is System.Windows.Controls.Button btn && btn.DataContext is BadMidiFileEntry badMidiFile)
+                    {
+                        await RemoveBadMidiSong(badMidiFile);
+                        RefreshLists();
+                    }
+                }));
+            badMidiGridFactory.AppendChild(badMidiButtonFactory);
+
+            badMidiRowBorderFactory.AppendChild(badMidiGridFactory);
+            badMidiTemplate.VisualTree = badMidiRowBorderFactory;
+            badMidiItemsControl.ItemTemplate = badMidiTemplate;
+
+            var badMidiScrollViewer = new System.Windows.Controls.ScrollViewer
+            {
+                MaxHeight = 220,
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(0),
+                VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled,
+                Content = badMidiItemsControl
+            };
+            badMidiScrollViewer.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, "ControlFillColorDefaultBrush");
+            badMidiScrollViewer.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
+            content.Children.Add(badMidiScrollViewer);
+        }
 
         var dialog = DialogHelper.CreateDialog();
-        dialog.Title = "Missing Files";
+        dialog.Title = "File Errors";
         dialog.Content = content;
         dialog.PrimaryButtonText = "Remove All";
         dialog.PrimaryButtonAppearance = ControlAppearance.Danger;
@@ -334,9 +458,7 @@ public class SongsViewModel : Screen
         var result = await dialog.ShowAsync();
 
         if (result == ContentDialogResult.Primary)
-        {
-            await RemoveAllMissingSongs();
-        }
+            await RemoveAllFileErrors();
     }
 
     /// <summary>
@@ -345,12 +467,21 @@ public class SongsViewModel : Screen
     public async Task RemoveMissingSong(Song song)
     {
         await using var db = _ioc.Get<LyreContext>();
-        db.Songs.Remove(song);
+
+        // Remove all rows that point to the same missing path to avoid stale duplicates.
+        var songsToRemove = db.Songs.Where(s => s.Path == song.Path).ToList();
+        if (songsToRemove.Count == 0)
+            songsToRemove.Add(song);
+
+        db.Songs.RemoveRange(songsToRemove);
         await db.SaveChangesAsync();
 
-        MissingSongs.Remove(song);
-        NotifyOfPropertyChange(nameof(HasMissingSongs));
-        NotifyOfPropertyChange(nameof(MissingSongs));
+        foreach (var missingSong in MissingSongs.Where(s => s.Path == song.Path).ToList())
+            MissingSongs.Remove(missingSong);
+
+        RemoveBadMidiFileEntries(song.Path, false);
+
+        NotifyFileErrorsChanged();
     }
 
     /// <summary>
@@ -358,18 +489,88 @@ public class SongsViewModel : Screen
     /// </summary>
     public async Task RemoveAllMissingSongs()
     {
-        if (MissingSongs.Count == 0) return;
+        await RemoveAllFileErrors();
+    }
+
+    public async Task RemoveBadMidiSong(BadMidiFileEntry badMidiFile)
+    {
+        await using var db = _ioc.Get<LyreContext>();
+
+        var songsToRemove = db.Songs.Where(s => s.Path == badMidiFile.Path).ToList();
+        if (songsToRemove.Count > 0)
+        {
+            db.Songs.RemoveRange(songsToRemove);
+            await db.SaveChangesAsync();
+        }
+
+        RemoveBadMidiFileEntries(badMidiFile.Path, false);
+
+        foreach (var missingSong in MissingSongs.Where(s => s.Path == badMidiFile.Path).ToList())
+            MissingSongs.Remove(missingSong);
+
+        NotifyFileErrorsChanged();
+    }
+
+    public async Task RemoveAllFileErrors()
+    {
+        if (!HasFileErrors) return;
+
+        var allPaths = MissingSongs.Select(s => s.Path)
+            .Concat(BadMidiFiles.Select(s => s.Path))
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         await using var db = _ioc.Get<LyreContext>();
-        foreach (var song in MissingSongs.ToList())
+
+        if (allPaths.Count > 0)
         {
-            db.Songs.Remove(song);
+            var rows = db.Songs.Where(song => allPaths.Contains(song.Path)).ToList();
+            if (rows.Count > 0)
+            {
+                db.Songs.RemoveRange(rows);
+                await db.SaveChangesAsync();
+            }
         }
-        await db.SaveChangesAsync();
 
         MissingSongs.Clear();
+        BadMidiFiles.Clear();
+
+        NotifyFileErrorsChanged();
+    }
+
+    private void AddBadMidiFile(Song song, Exception exception)
+    {
+        if (BadMidiFiles.Any(b => string.Equals(b.Path, song.Path, StringComparison.OrdinalIgnoreCase)))
+            return;
+
+        foreach (var missingSong in MissingSongs.Where(s => string.Equals(s.Path, song.Path, StringComparison.OrdinalIgnoreCase)).ToList())
+            MissingSongs.Remove(missingSong);
+
+        BadMidiFiles.Add(new BadMidiFileEntry(song, exception.Message));
+
+        NotifyFileErrorsChanged();
+    }
+
+    private void RemoveBadMidiFileEntries(string path, bool notify = true)
+    {
+        var removed = false;
+        foreach (var badMidiSong in BadMidiFiles.Where(b => string.Equals(b.Path, path, StringComparison.OrdinalIgnoreCase)).ToList())
+        {
+            BadMidiFiles.Remove(badMidiSong);
+            removed = true;
+        }
+
+        if (removed && notify)
+            NotifyFileErrorsChanged();
+    }
+
+    private void NotifyFileErrorsChanged()
+    {
         NotifyOfPropertyChange(nameof(HasMissingSongs));
         NotifyOfPropertyChange(nameof(MissingSongs));
+        NotifyOfPropertyChange(nameof(BadMidiFiles));
+        NotifyOfPropertyChange(nameof(HasFileErrors));
     }
 
     public async Task ScanFolder(string folderPath)
@@ -382,17 +583,17 @@ public class SongsViewModel : Screen
         await AddFiles(midiFiles);
     }
 
-    private async Task AddFile(Song song, ReadingSettings? settings = null)
+    private async Task<bool> AddFile(Song song, ReadingSettings? settings = null)
     {
         try
         {
             // Check if file already exists in library by path
             if (Tracks.Any(t => t.Song.Path == song.Path))
-                return;
+                return false;
 
             // Check if file already exists by hash (duplicate content)
             if (song.FileHash != null && Tracks.Any(t => t.Song.FileHash == song.FileHash))
-                return;
+                return false;
 
             // If song doesn't have a hash yet (migrated from old DB), compute it
             if (song.FileHash == null && File.Exists(song.Path))
@@ -401,16 +602,25 @@ public class SongsViewModel : Screen
 
                 // Check again for duplicates after computing hash
                 if (song.FileHash != null && Tracks.Any(t => t.Song.FileHash == song.FileHash))
-                    return;
+                    return false;
             }
 
             Tracks.Add(new(song, settings));
+
+            RemoveBadMidiFileEntries(song.Path, false);
+            NotifyFileErrorsChanged();
+
+            return true;
         }
         catch (Exception e)
         {
             settings ??= new();
-            if (await ExceptionHandler.TryHandleException(e, settings))
-                await AddFile(song, settings);
+            if (await MidiReadDialogHandler.TryHandleAsync(e, settings, song.Path))
+                return await AddFile(song, settings);
+
+            AddBadMidiFile(song, e);
+
+            return false;
         }
     }
 
@@ -458,7 +668,9 @@ public class SongsViewModel : Screen
             Transpose = Transpose.Ignore
         };
 
-        await AddFile(song);
+        var added = await AddFile(song);
+        if (!added)
+            return;
 
         await using var db = _ioc.Get<LyreContext>();
         db.Songs.Add(song);
@@ -467,18 +679,27 @@ public class SongsViewModel : Screen
 
     private async Task RestoreMissingSong(Song missingSong, string newPath, string fileHash)
     {
+        var oldPath = missingSong.Path;
+        var oldHash = missingSong.FileHash;
+
         missingSong.Path = newPath;
         missingSong.FileHash = fileHash;
 
-        await AddFile(missingSong);
+        var restored = await AddFile(missingSong);
+        if (!restored)
+        {
+            missingSong.Path = oldPath;
+            missingSong.FileHash = oldHash;
+            return;
+        }
 
         await using var db = _ioc.Get<LyreContext>();
         db.Songs.Update(missingSong);
         await db.SaveChangesAsync();
 
         MissingSongs.Remove(missingSong);
-        NotifyOfPropertyChange(nameof(HasMissingSongs));
-        NotifyOfPropertyChange(nameof(MissingSongs));
+        RemoveBadMidiFileEntries(missingSong.Path, false);
+        NotifyFileErrorsChanged();
     }
 
     public async Task RemoveTrack()
