@@ -10,6 +10,7 @@ using AutoMidiPlayer.Data.Entities;
 using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Dialogs;
 using Melanchall.DryWetMidi.Core;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Win32;
 using Wpf.Ui.Controls;
 using Stylet;
@@ -802,15 +803,70 @@ public class SongsViewModel : Screen
         var filesToDelete = selectedFiles.Any() ? selectedFiles.ToList() : (SelectedFile != null ? new List<MidiFile> { SelectedFile } : new List<MidiFile>());
         if (filesToDelete.Count == 0) return;
 
-        await using var db = _ioc.Get<LyreContext>();
-        foreach (var file in filesToDelete)
+        var songIdsToDelete = filesToDelete
+            .Select(file => file.Song.Id)
+            .Distinct()
+            .ToList();
+
+        if (songIdsToDelete.Count == 0) return;
+
+        // If deleting the currently opened song, close playback first so no stale
+        // per-song updates continue while deletion is in progress.
+        if (QueueView.OpenedFile is not null && songIdsToDelete.Contains(QueueView.OpenedFile.Song.Id))
         {
-            db.Songs.Remove(file.Song);
-            Tracks.Remove(file);
-            _main.QueueView.Tracks.Remove(file);
+            _main.Playback.CloseFile();
+            QueueView.ClearSavedSong();
+            _main.Playback.UpdateButtons();
         }
-        await db.SaveChangesAsync();
+
+        RemoveSongsFromCollections(songIdsToDelete);
+
+        await using var db = _ioc.Get<LyreContext>();
+
+        var existingSongs = await db.Songs
+            .Where(song => songIdsToDelete.Contains(song.Id))
+            .ToListAsync();
+
+        if (existingSongs.Count > 0)
+        {
+            db.Songs.RemoveRange(existingSongs);
+
+            try
+            {
+                await db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // Another operation already removed one or more rows.
+                // Collections are already updated, so this is safe to ignore.
+            }
+        }
+
+        QueueView.OnQueueModified();
         ApplySort();
+    }
+
+    private void RemoveSongsFromCollections(IReadOnlyCollection<Guid> songIds)
+    {
+        foreach (var track in Tracks.Where(track => songIds.Contains(track.Song.Id)).ToList())
+        {
+            Tracks.Remove(track);
+        }
+
+        foreach (var queueTrack in QueueView.Tracks.Where(track => songIds.Contains(track.Song.Id)).ToList())
+        {
+            QueueView.Tracks.Remove(queueTrack);
+        }
+
+        if (SelectedFile is not null && songIds.Contains(SelectedFile.Song.Id))
+        {
+            SelectedFile = null;
+        }
+
+        if (QueueView.SelectedFile is not null && songIds.Contains(QueueView.SelectedFile.Song.Id))
+        {
+            QueueView.SelectedFile = null;
+        }
     }
 
     public async Task EditSelected(IEnumerable<MidiFile> selectedFiles)
