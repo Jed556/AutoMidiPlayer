@@ -83,8 +83,11 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         // and missing/bad file handling
         FileService = new FileService(ioc);
 
-        // PlaybackService handles all playback logic (play/pause, seeking, note scheduling)
-        Playback = new PlaybackService(ioc, this);
+        // PlaybackService (engine) handles backend playback: initialization, note playing, file loading
+        PlaybackEngine = new PlaybackEngineService(ioc, this);
+
+        // PlaybackControlsService handles user-facing controls: play/pause, slider, listen mode, UI state
+        PlaybackControls = new PlaybackControlsService(ioc, this);
 
         // Initialize game info from registry
         Games = new BindableCollection<GameInfo>(
@@ -127,7 +130,9 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
     public FileService FileService { get; }
 
-    public PlaybackService Playback { get; }
+    public PlaybackControlsService PlaybackControls { get; }
+
+    public PlaybackEngineService PlaybackEngine { get; }
 
     public void Handle(MidiFile message)
     {
@@ -138,7 +143,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
     public void UpdateTitle()
     {
         // Only show song title when actively playing, not when paused or stopped
-        if (Playback.IsPlaying && QueueView.OpenedFile is not null)
+        if (PlaybackControls.IsPlaying && QueueView.OpenedFile is not null)
         {
             var title = QueueView.OpenedFile.Title;
             var author = QueueView.OpenedFile.Author;
@@ -363,7 +368,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         var savedPosition = QueueView.RestoreCurrentSong(SongsView.Tracks);
         if (savedPosition.HasValue)
         {
-            Playback.SetSavedPosition(savedPosition.Value);
+            PlaybackControls.SetSavedPosition(savedPosition.Value);
         }
 
         _gameStateTimer.Start();

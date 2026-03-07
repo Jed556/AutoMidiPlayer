@@ -35,7 +35,7 @@ public class TrackViewModel : Screen
         _main = main;
 
         // Subscribe to note played events from PlaybackService
-        main.Playback.NotePlayed += OnNotePlayed;
+        main.PlaybackEngine.NotePlayed += OnNotePlayed;
     }
 
     #endregion
@@ -48,7 +48,7 @@ public class TrackViewModel : Screen
 
     #region Properties - Delegate to PlaybackService
 
-    public PlaybackService Playback => _main.Playback;
+    public PlaybackControlsService Playback => _main.PlaybackControls;
 
     public QueueViewModel Queue => _main.QueueView;
 

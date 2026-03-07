@@ -54,7 +54,7 @@ public class SongsViewModel : Screen
         IsAscending = Settings.SongsSortAscending;
 
         // Forward IsPlaying changes from Playback so bindings update
-        _main.Playback.PlaybackStateChanged += HandlePlaybackStateChanged;
+        _main.PlaybackControls.PlaybackStateChanged += HandlePlaybackStateChanged;
     }
 
     private void HandlePlaybackStateChanged(object? sender, EventArgs e)
@@ -71,7 +71,7 @@ public class SongsViewModel : Screen
 
     public TrackViewModel TrackView => _main.TrackView;
 
-    public Services.PlaybackService Playback => _main.Playback;
+    public Services.PlaybackControlsService Playback => _main.PlaybackControls;
 
     public BindableCollection<MidiFile> Tracks { get; } = new();
 
@@ -473,13 +473,13 @@ public class SongsViewModel : Screen
         // If this is the currently opened file, toggle play/pause
         if (QueueView.OpenedFile == file)
         {
-            await _main.Playback.PlayPause();
+            await _main.PlaybackControls.PlayPause();
         }
         else
         {
             // Otherwise, add to queue and play this song
             PlaySong(file);
-            await _main.Playback.PlayPause();
+            await _main.PlaybackControls.PlayPause();
         }
     }
 

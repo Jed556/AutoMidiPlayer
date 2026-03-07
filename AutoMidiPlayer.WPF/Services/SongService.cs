@@ -307,7 +307,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
         if (_main.QueueView.OpenedFile?.Song.Id == file.Song.Id)
         {
             SyncFromEditedSong(file.Song);
-            await _main.Playback.RefreshCurrentSongRealtimeAsync();
+            await _main.PlaybackEngine.RefreshCurrentSongRealtimeAsync();
         }
 
         _main.SongsView.ApplySort();
@@ -335,9 +335,9 @@ public class SongService(IContainer ioc) : PropertyChangedBase
         if (_main.QueueView.OpenedFile is not null &&
             songIdsToDelete.Contains(_main.QueueView.OpenedFile.Song.Id))
         {
-            _main.Playback.CloseFile();
+            _main.PlaybackControls.CloseFile();
             _main.QueueView.ClearSavedSong();
-            _main.Playback.UpdateButtons();
+            _main.PlaybackControls.UpdateButtons();
         }
 
         RemoveSongsFromCollections(songIdsToDelete);

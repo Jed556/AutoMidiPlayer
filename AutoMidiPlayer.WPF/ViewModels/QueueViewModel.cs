@@ -40,7 +40,7 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
         Loop = (LoopMode)Settings.QueueLoopMode;
 
         // Forward IsPlaying changes from Playback so bindings update
-        _main.Playback.PlaybackStateChanged += HandlePlaybackStateChanged;
+        _main.PlaybackControls.PlaybackStateChanged += HandlePlaybackStateChanged;
 
         // Subscribe to accent color changes
         _events.Subscribe(this);
@@ -84,7 +84,7 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
 
     public TrackViewModel TrackView => _main.TrackView;
 
-    public Services.PlaybackService Playback => _main.Playback;
+    public Services.PlaybackControlsService Playback => _main.PlaybackControls;
 
     public SolidColorBrush ShuffleStateColor => Shuffle
         ? new SolidColorBrush(AccentColorHelper.GetAccentColor())
@@ -212,23 +212,23 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
         // If this is the currently opened file, toggle play/pause
         if (OpenedFile == file)
         {
-            await _main.Playback.PlayPause();
+            await _main.PlaybackControls.PlayPause();
         }
         else
         {
             // Load the new file and auto-play it — fully awaited, no race
-            await _main.Playback.LoadFileAsync(file, autoPlay: true);
+            await _main.PlaybackEngine.LoadFileAsync(file, autoPlay: true);
         }
     }
 
     public void ClearQueue()
     {
         // Clearing the queue should always stop current playback.
-        if (OpenedFile is not null || _main.Playback.Playback is not null)
+        if (OpenedFile is not null || _main.PlaybackEngine.Playback is not null)
         {
-            _main.Playback.CloseFile();
+            _main.PlaybackControls.CloseFile();
             ClearSavedSong();
-            _main.Playback.UpdateButtons();
+            _main.PlaybackControls.UpdateButtons();
         }
 
         Tracks.Clear();
@@ -258,9 +258,9 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
         // If the currently opened song is being removed from queue, stop playback.
         if (OpenedFile is not null && removedSongIds.Contains(OpenedFile.Song.Id))
         {
-            _main.Playback.CloseFile();
+            _main.PlaybackControls.CloseFile();
             ClearSavedSong();
-            _main.Playback.UpdateButtons();
+            _main.PlaybackControls.UpdateButtons();
         }
 
         foreach (var track in Tracks.Where(t => removedSongIds.Contains(t.Song.Id)).ToList())

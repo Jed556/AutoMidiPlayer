@@ -464,9 +464,9 @@
                                       Height="14"/>
                             </Button>
 
-                            <Button s:View.ActionTarget="{Binding Playback}"
+                            <Button s:View.ActionTarget="{Binding PlaybackControls}"
                                     Command="{s:Action Previous}"
-                                    IsHitTestVisible="{Binding Playback.CanHitPrevious}"
+                                    IsHitTestVisible="{Binding PlaybackControls.CanHitPrevious}"
                                     Style="{DynamicResource GhostIconButton}"
                                     Padding="8"
                                     ToolTip="Previous">
@@ -477,12 +477,12 @@
                                       Height="14"/>
                             </Button>
 
-                            <Button s:View.ActionTarget="{Binding Playback}"
+                            <Button s:View.ActionTarget="{Binding PlaybackControls}"
                                     Command="{s:Action PlayPause}"
-                                    IsHitTestVisible="{Binding Playback.CanHitPlayPause}"
+                                    IsHitTestVisible="{Binding PlaybackControls.CanHitPlayPause}"
                                     Style="{StaticResource PlayPauseButton}"
-                                    ToolTip="{Binding Playback.PlayPauseTooltip}">
-                                <Path Data="{Binding Playback.PlayPauseGeometry}"
+                                    ToolTip="{Binding PlaybackControls.PlayPauseTooltip}">
+                                <Path Data="{Binding PlaybackControls.PlayPauseGeometry}"
                                       Fill="{DynamicResource ApplicationBackgroundBrush}"
                                       Style="{StaticResource PlayerControlIcon}"
                                       Margin="1,0,0,0"
@@ -490,9 +490,9 @@
                                       Height="14"/>
                             </Button>
 
-                            <Button s:View.ActionTarget="{Binding Playback}"
+                            <Button s:View.ActionTarget="{Binding PlaybackControls}"
                                     Command="{s:Action Next}"
-                                    IsHitTestVisible="{Binding Playback.CanHitNext}"
+                                    IsHitTestVisible="{Binding PlaybackControls.CanHitNext}"
                                     Style="{DynamicResource GhostIconButton}"
                                     Padding="8"
                                     ToolTip="Next">
@@ -529,22 +529,22 @@
                                        VerticalAlignment="Center"
                                        FontSize="11"
                                        Opacity="0.7"
-                                       Text="{Binding Playback.CurrentTime, StringFormat=m\\:ss}"/>
+                                       Text="{Binding PlaybackControls.CurrentTime, StringFormat=m\\:ss}"/>
                             <Slider Grid.Column="1"
                                     Margin="8,0"
                                     IsMoveToPointEnabled="True"
-                                    IsEnabled="{Binding Playback.CanHitPlayPause}"
-                                    Value="{Binding Playback.SongPosition}"
-                                    Maximum="{Binding Playback.MaximumTime.TotalSeconds}"
+                                    IsEnabled="{Binding PlaybackControls.CanHitPlayPause}"
+                                    Value="{Binding PlaybackControls.SongPosition}"
+                                    Maximum="{Binding PlaybackControls.MaximumTime.TotalSeconds}"
                                     IsSelectionRangeEnabled="True"
                                     SelectionStart="0"
-                                    SelectionEnd="{Binding Playback.SongPosition, Mode=OneWay}"
+                                    SelectionEnd="{Binding PlaybackControls.SongPosition, Mode=OneWay}"
                                     Style="{StaticResource ProgressSlider}"/>
                             <TextBlock Grid.Column="2"
                                        VerticalAlignment="Center"
                                        FontSize="11"
                                        Opacity="0.7"
-                                       Text="{Binding Playback.MaximumTime, StringFormat=m\\:ss}"/>
+                                       Text="{Binding PlaybackControls.MaximumTime, StringFormat=m\\:ss}"/>
                         </Grid>
                     </StackPanel>
 

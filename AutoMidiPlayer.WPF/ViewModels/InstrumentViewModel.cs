@@ -37,10 +37,10 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
         _events = ioc.Get<IEventAggregator>();
         _events.Subscribe(this);
         _selectedInstrumentByGame = LoadSelectedInstrumentsByGame();
-        _timerTargetShouldPlay = !_main.Playback.IsPlaying;
+        _timerTargetShouldPlay = !_main.PlaybackControls.IsPlaying;
 
         _main.ActiveGamesChanged += HandleActiveGamesChanged;
-        _main.Playback.PlaybackStateChanged += HandlePlaybackStateChanged;
+        _main.PlaybackControls.PlaybackStateChanged += HandlePlaybackStateChanged;
 
         // Initialize selected MIDI input
         SelectedMidiInput = MidiInputs[0];
@@ -234,7 +234,7 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
 
     private bool GetCurrentTimerTargetShouldPlay() => PlayTimerToken is not null
         ? _timerTargetShouldPlay
-        : !_main.Playback.IsPlaying;
+        : !_main.PlaybackControls.IsPlaying;
 
     public void RefreshDevices()
     {
@@ -280,7 +280,7 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
             return;
         }
 
-        _timerTargetShouldPlay = !_main.Playback.IsPlaying;
+        _timerTargetShouldPlay = !_main.PlaybackControls.IsPlaying;
         NotifyOfPropertyChange(nameof(ScheduledTimeText));
 
         PlayTimerToken = new();
@@ -620,7 +620,7 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
         if (_suppressListenModeHandler)
             return;
 
-        _main.Playback.SetListenMode(UseSpeakers, pausePlaybackOnChange: true);
+        _main.PlaybackControls.SetListenMode(UseSpeakers, pausePlaybackOnChange: true);
     }
 
     private void SyncListenModeFromSettings()
