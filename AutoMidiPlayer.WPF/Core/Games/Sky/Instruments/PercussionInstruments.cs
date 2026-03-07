@@ -16,7 +16,8 @@ public static partial class SkyInstruments
     // ── Unpitched drums — mapped to C4-C5 diatonic for MIDI compatibility ──
 
     private static readonly List<int> NotesDrumUnpitched = [
-        60, 62, 64, 65, 67, 69, 71, 72 // C4 D4 E4 F4 G4 A4 B4 C5
+        60, 62, 64, 65, // C4 D4 E4 F4
+        67, 69, 71, 72, // G4 A4 B4 C5
     ];
 
     public static readonly InstrumentConfig SkyDrum = new(

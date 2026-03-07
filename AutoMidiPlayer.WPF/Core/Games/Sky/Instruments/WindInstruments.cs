@@ -11,9 +11,9 @@ public static partial class SkyInstruments
     // ── C2–C4 range (Wind) ───────────────────────────────────────────
 
     private static readonly List<int> NotesC2C4 = [
-        36, 38, 40, 41, 43, 45, 47, // C2 D2 E2 F2 G2 A2 B2
-        48, 50, 52, 53, 55, 57, 59, // C3 D3 E3 F3 G3 A3 B3
-        60                          // C4
+        36, 38, 40, 41, 43, // C2 D2 E2 F2 G2
+        45, 47, 48, 50, 52, // A2 B2 C3 D3 E3
+        53, 55, 57, 59, 60, // C4 F3 G3 A3 B3
     ];
 
     public static readonly InstrumentConfig SkyHorn = new(

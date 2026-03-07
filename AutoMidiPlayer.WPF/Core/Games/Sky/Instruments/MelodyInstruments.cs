@@ -11,21 +11,21 @@ public static partial class SkyInstruments
     // ── Shared note arrays (C-major diatonic, 15 notes) ──────────────
 
     private static readonly List<int> NotesC3C5 = [
-        48, 50, 52, 53, 55, 57, 59, // C3 D3 E3 F3 G3 A3 B3
-        60, 62, 64, 65, 67, 69, 71, // C4 D4 E4 F4 G4 A4 B4
-        72                          // C5
+        48, 50, 52, 53, 55, // C3 D3 E3 F3 G3
+        57, 59, 60, 62, 64, // A3 B3 C4 D4 E4
+        65, 67, 69, 71, 72, // F4 G4 A4 B4 C5
     ];
 
     private static readonly List<int> NotesC4C6 = [
-        60, 62, 64, 65, 67, 69, 71, // C4 D4 E4 F4 G4 A4 B4
-        72, 74, 76, 77, 79, 81, 83, // C5 D5 E5 F5 G5 A5 B5
-        84                          // C6
+        60, 62, 64, 65, 67, // C4 D4 E4 F4 G4 
+        69, 71, 72, 74, 76, // A4 B4 C5 D5 E5 
+        77, 79, 81, 83, 84, // C6 F5 G5 A5 B5
     ];
 
     private static readonly List<int> NotesC5C7 = [
-        72, 74, 76, 77, 79, 81, 83, // C5 D5 E5 F5 G5 A5 B5
-        84, 86, 88, 89, 91, 93, 95, // C6 D6 E6 F6 G6 A6 B6
-        96                          // C7
+        72, 74, 76, 77, 79, // C5 D5 E5 F5 G5 
+        81, 83, 84, 86, 88, // A5 B5 C6 D6 E6 
+        89, 91, 93, 95, 96, // F6 G6 A6 B6 C7
     ];
 
     // ── C3–C5 range ──────────────────────────────────────────────────

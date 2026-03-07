@@ -23,7 +23,7 @@ https://github.com/user-attachments/assets/8e7d8dec-33c4-4d2b-a268-4abd1dbac405
 - **Genshin Impact** - Windsong Lyre, Floral Zither, Vintage Lyre
 - **Heartopia** - Piano (All variations), 15-key instruments (e.g. lyre, wooden bass, violin, etc.)
 - **Roblox** - Piano (61-key)
-- **Sky: Children of the Light** - All available Sky instruments as of Feb 2026 (Listen Mode only)
+- **Sky: Children of the Light** - All available Sky instruments as of Feb 2026
 
 
 ## How to use

@@ -10,10 +10,10 @@ public static partial class SkyInstruments
 {
     // ── C1–C3 range ──────────────────────────────────────────────────
 
-    private static readonly List<int> NotesC1C3 =    [
-        24, 26, 28, 29, 31, 33, 35, // C1 D1 E1 F1 G1 A1 B1
-        36, 38, 40, 41, 43, 45, 47, // C2 D2 E2 F2 G2 A2 B2
-        48                          // C3
+    private static readonly List<int> NotesC1C3 = [
+        24, 26, 28, 29, 31, // C1 D1 E1 F1 G1
+        33, 35, 36, 38, 40, // A1 B1 C2 D2 E2 
+        41, 43, 45, 47, 48, // F2 G2 A2 B2 C3
     ];
 
     public static readonly InstrumentConfig SkyContrabass = new(
