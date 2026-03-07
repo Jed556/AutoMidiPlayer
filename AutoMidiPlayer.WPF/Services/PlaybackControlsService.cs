@@ -193,6 +193,7 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
 
         Queue.OpenedFile = null;
         SongSettings.ClearSettings();
+        _main.InstrumentView.UpdateFromCurrentSong();
     }
 
     /// <summary>

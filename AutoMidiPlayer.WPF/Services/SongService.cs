@@ -306,12 +306,34 @@ public class SongService(IContainer ioc) : PropertyChangedBase
 
         if (_main.QueueView.OpenedFile?.Song.Id == file.Song.Id)
         {
-            SyncFromEditedSong(file.Song);
+            // Queue/Songs entries can point to different MidiFile/Song instances for the same Id.
+            // Keep the currently opened song instance in sync so bound Instrument toggles update immediately.
+            var openedSong = _main.QueueView.OpenedFile.Song;
+            if (!ReferenceEquals(openedSong, file.Song))
+                CopyEditableSongFields(file.Song, openedSong);
+
+            SyncFromEditedSong(openedSong);
+            _main.InstrumentView.UpdateFromCurrentSong();
             await _main.PlaybackEngine.RefreshCurrentSongRealtimeAsync();
         }
 
         _main.SongsView.ApplySort();
         _main.QueueView.ApplyFilter();
+    }
+
+    private static void CopyEditableSongFields(Song source, Song target)
+    {
+        target.Title = source.Title;
+        target.Author = source.Author;
+        target.Album = source.Album;
+        target.DateAdded = source.DateAdded;
+        target.Key = source.Key;
+        target.Transpose = source.Transpose;
+        target.Bpm = source.Bpm;
+        target.MergeNotes = source.MergeNotes;
+        target.MergeMilliseconds = source.MergeMilliseconds;
+        target.HoldNotes = source.HoldNotes;
+        target.Speed = source.Speed;
     }
 
     /// <summary>

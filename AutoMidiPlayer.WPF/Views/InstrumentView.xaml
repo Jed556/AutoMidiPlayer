@@ -51,7 +51,7 @@
                 <ui:ToggleSwitch
                     Content="Listen Mode (Speakers)"
                     IsEnabled="{Binding CanUseSpeakers}"
-                    IsChecked="{Binding UseSpeakers}"
+                    IsChecked="{Binding UseSpeakers, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                     Margin="0,8,0,0"/>
 
                 <!-- Scheduled Playback Section -->
@@ -66,31 +66,31 @@
                                BasedOn="{StaticResource {x:Type Button}}"/>
                     </controls:SimpleStackPanel.Resources>
                     <controls:SimpleStackPanel Orientation="Horizontal"
-                                   Spacing="8">
-                    <ui:NumberBox PlaceholderText="hour"
-                              Value="{Binding ScheduledHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                               Spacing="8">
+                        <ui:NumberBox PlaceholderText="hour"
+                                      Value="{Binding ScheduledHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       Minimum="0"
                                       Maximum="23"
                                       MaxDecimalPlaces="0"
-                              MinWidth="70"
-                              IsEnabled="{Binding CanChangeTime}"/>
-                    <TextBlock Text=":"
-                           VerticalAlignment="Center"/>
-                    <ui:NumberBox PlaceholderText="minute"
-                              Value="{Binding ScheduledMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      MinWidth="70"
+                                      IsEnabled="{Binding CanChangeTime}"/>
+                        <TextBlock Text=":"
+                                   VerticalAlignment="Center"/>
+                        <ui:NumberBox PlaceholderText="minute"
+                                      Value="{Binding ScheduledMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       Minimum="0"
                                       Maximum="59"
                                       MaxDecimalPlaces="0"
-                              MinWidth="80"
-                              IsEnabled="{Binding CanChangeTime}"/>
-                    <Button Command="{s:Action SetTimeToNow}"
-                        IsEnabled="{Binding CanChangeTime}">Now</Button>
-                    <Button Command="{s:Action StartStopTimer}"
-                        Content="{Binding TimerText}"/>
+                                      MinWidth="80"
+                                      IsEnabled="{Binding CanChangeTime}"/>
+                        <Button Command="{s:Action SetTimeToNow}"
+                                IsEnabled="{Binding CanChangeTime}">Now</Button>
+                        <Button Command="{s:Action StartStopTimer}"
+                                Content="{Binding TimerText}"/>
                     </controls:SimpleStackPanel>
-                          <TextBlock Text="{Binding ScheduledTimeText}"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                           Margin="0,-4,0,0"/>
+                    <TextBlock Text="{Binding ScheduledTimeText}"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Margin="0,-4,0,0"/>
                 </controls:SimpleStackPanel>
             </controls:SimpleStackPanel>
 
@@ -114,17 +114,17 @@
                                            IsEnabled="{Binding HasSongOpen}">
                     <ui:ToggleSwitch
                         Content="Merge nearby notes"
-                        IsChecked="{Binding MergeNotes}"/>
+                        IsChecked="{Binding MergeNotes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                     <ui:NumberBox
                         PlaceholderText="Tolerance (ms)"
                         IsEnabled="{Binding MergeNotes}"
-                        Value="{Binding MergeMilliseconds}"
+                        Value="{Binding MergeMilliseconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                         MinWidth="100"/>
                 </controls:SimpleStackPanel>
 
                 <ui:ToggleSwitch
                     Content="Hold notes"
-                    IsChecked="{Binding HoldNotes}"
+                    IsChecked="{Binding HoldNotes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                     IsEnabled="{Binding HasSongOpen}"
                     ToolTip="Uses MIDI file note-on/note-off for key down/up, ignoring Enable Key-up and key press delay settings."
                     Margin="0,0,0,0"/>

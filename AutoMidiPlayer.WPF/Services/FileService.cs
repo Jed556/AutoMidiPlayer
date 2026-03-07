@@ -334,7 +334,8 @@ public class FileService(IContainer ioc)
         var song = new Song(fileName, _main.SongSettings.KeyOffset)
         {
             Title = defaultTitle,
-            Transpose = Transpose.Ignore
+            Transpose = Transpose.Ignore,
+            HoldNotes = true
         };
 
         var added = await AddFile(song);
