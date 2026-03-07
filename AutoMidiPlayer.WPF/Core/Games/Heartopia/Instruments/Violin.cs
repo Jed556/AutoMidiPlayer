@@ -8,22 +8,8 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
             game: "Heartopia",
             name: "Violin (2 Row)",
             notes: [
-                60, // C4
-                62, // D4
-                64, // E4
-                65, // F4
-                67, // G4
-                69, // A4
-                71, // B4
-
-                72, // C5
-                74, // D5
-                76, // E5
-                77, // F5
-                79, // G5
-                81, // A5
-                83, // B5
-                84  // C6
+                72, 74, 76, 77, 79, 81, 83, 84, // C5 D5 E5 F5 G5 A5 B5 C6
+                60, 62, 64, 65, 67, 69, 71      // C4 D4 E4 F4 G4 A4 B4
             ],
             keyboardLayouts: [
                 HeartopiaKeyboardLayouts.QWERTY_2Row
@@ -34,23 +20,9 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
             game: "Heartopia",
             name: "Violin (3 Row)",
             notes: [
-                60, // C4
-                62, // D4
-                64, // E4
-                65, // F4
-                67, // G4
-
-                69, // A4
-                71, // B4
-                72, // C5
-                74, // D5
-                76, // E5
-
-                77, // F5
-                79, // G5
-                81, // A5
-                83, // B5
-                84  // C6
+                60, 62, 64, 65, 67, // C4 D4 E4 F4 G4
+                69, 71, 72, 74, 76, // A4 B4 C5 D5 E5
+                77, 79, 81, 83, 84  // F5 G5 A5 B5 C6
             ],
             keyboardLayouts: [
                 HeartopiaKeyboardLayouts.QWERTY_3Row

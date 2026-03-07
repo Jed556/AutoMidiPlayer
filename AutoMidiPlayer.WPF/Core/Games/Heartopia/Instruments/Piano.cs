@@ -9,22 +9,8 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
             game: "Heartopia",
             name: "Piano (2 Row)",
             notes: [
-                60, // C4
-                62, // D4
-                64, // E4
-                65, // F4
-                67, // G4
-                69, // A4
-                71, // B4
-
-                72, // C5
-                74, // D5
-                76, // E5
-                77, // F5
-                79, // G5
-                81, // A5
-                83, // B5
-                84  // C6
+                72, 74, 76, 77, 79, 81, 83, 84, // C5 D5 E5 F5 G5 A5 B5 C6
+                60, 62, 64, 65, 67, 69, 71      // C4 D4 E4 F4 G4 A4 B4
             ],
             keyboardLayouts: [
                 HeartopiaKeyboardLayouts.QWERTY_2Row
@@ -35,23 +21,9 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
             game: "Heartopia",
             name: "Piano (3 Row)",
             notes: [
-                60, // C4
-                62, // D4
-                64, // E4
-                65, // F4
-                67, // G4
-
-                69, // A4
-                71, // B4
-                72, // C5
-                74, // D5
-                76, // E5
-
-                77, // F5
-                79, // G5
-                81, // A5
-                83, // B5
-                84  // C6
+                60, 62, 64, 65, 67, // C4 D4 E4 F4 G4
+                69, 71, 72, 74, 76, // A4 B4 C5 D5 E5
+                77, 79, 81, 83, 84  // F5 G5 A5 B5 C6
             ],
             keyboardLayouts: [
                 HeartopiaKeyboardLayouts.QWERTY_3Row
@@ -62,30 +34,9 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
             game: "Heartopia",
             name: "Piano (22 Key)",
             notes: [
-                48, // C3
-                50, // D3
-                52, // E3
-                53, // F3
-                55, // G3
-                57, // A3
-                59, // B3
-
-                60, // C4
-                62, // D4
-                64, // E4
-                65, // F4
-                67, // G4
-                69, // A4
-                71, // B4
-
-                72, // C5
-                74, // D5
-                76, // E5
-                77, // F5
-                79, // G5
-                81, // A5
-                83, // B5
-                84  // C6
+                72, 74, 76, 77, 79, 81, 83, 84, // C5 D5 E5 F5 G5 A5 B5 C6
+                60, 62, 64, 65, 67, 69, 71,     // C4 D4 E4 F4 G4 A4 B4
+                48, 50, 52, 53, 55, 57, 59,     // C3 D3 E3 F3 G3 A3 B3
             ],
             keyboardLayouts: [
                 HeartopiaKeyboardLayouts.QWERTY_22Key
@@ -96,45 +47,9 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
             game: "Heartopia",
             name: "Piano (37 Key)",
             notes: [
-                48, // C3
-                49, // C#3
-                50, // D3
-                51, // D#3
-                52, // E3
-                53, // F3
-                54, // F#3
-                55, // G3
-                56, // G#3
-                57, // A3
-                58, // A#3
-                59, // B3
-
-                60, // C4
-                61, // C#4
-                62, // D4
-                63, // D#4
-                64, // E4
-                65, // F4
-                66, // F#4
-                67, // G4
-                68, // G#4
-                69, // A4
-                70, // A#4
-                71, // B4
-
-                72, // C5
-                73, // C#5
-                74, // D5
-                75, // D#5
-                76, // E5
-                77, // F5
-                78, // F#5
-                79, // G5
-                80, // G#5
-                81, // A5
-                82, // A#5
-                83, // B5
-                84  // C6
+                72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, // C5 C#5 D5 D#5 E5 F5 F#5 G5 G#5 A5 A#5 B5 C6
+                60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71,     // C4 C#4 D4 D#4 E4 F4 F#4 G4 G#4 A4 A#4 B4
+                48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59,     // C3 C#3 D3 D#3 E3 F3 F#3 G3 G#3 A3 A#3 B3
             ],
             keyboardLayouts: [
                 HeartopiaKeyboardLayouts.QWERTY_37Key

@@ -12,29 +12,9 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
             game: "Genshin Impact",
             name: "Vintage Lyre",
             notes: [
-                48, // C3
-                50, // D3
-                51, // Eb3
-                53, // F3
-                55, // G3
-                57, // A3
-                58, // Bb3
-
-                60, // C4
-                62, // D4
-                63, // Eb4
-                65, // F4
-                67, // G4
-                69, // A4
-                70, // Bb4
-
-                72, // C5
-                74, // Db5
-                76, // Eb5
-                77, // F5
-                79, // G5
-                80, // Ab5
-                82  // Bb5
+                72, 74, 76, 77, 79, 80, 82, // C5 Db5 Eb5 F5 G5 Ab5 Bb5
+                60, 62, 63, 65, 67, 69, 70, // C4 D4 Eb4 F4 G4 A4 Bb4
+                48, 50, 51, 53, 55, 57, 58, // C3 D3 Eb3 F3 G3 A3 Bb3
             ],
             keyboardLayouts: [
                 GenshinKeyboardLayouts.QWERTY,

@@ -13,29 +13,9 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
             game: "Genshin Impact",
             name: "Windsong Lyre",
             notes: [
-                48, // C3
-                50, // D3
-                52, // E3
-                53, // F3
-                55, // G3
-                57, // A3
-                59, // B3
-
-                60, // C4
-                62, // D4
-                64, // E4
-                65, // F4
-                67, // G4
-                69, // A4
-                71, // B4
-
-                72, // C5
-                74, // D5
-                76, // E5
-                77, // F5
-                79, // G5
-                81, // A5
-                83  // B5
+                72, 74, 76, 77, 79, 81, 83, // C5 D5 E5 F5 G5 A5 B5
+                60, 62, 64, 65, 67, 69, 71, // C4 D4 E4 F4 G4 A4 B4
+                48, 50, 52, 53, 55, 57, 59, // C3 D3 E3 F3 G3 A3 B3
             ],
             keyboardLayouts: [
                 GenshinKeyboardLayouts.QWERTY,

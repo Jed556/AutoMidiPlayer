@@ -12,8 +12,8 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
         public static readonly KeyboardLayoutConfig QWERTY_2Row = new(
             name: "QWERTY",
             keys: [
+                'q', 'w', 'e', 'r','t', 'y', 'u', 'i',
                 'a', 's', 'd', 'f','g', 'h', 'j',
-                'q', 'w', 'e', 'r','t', 'y', 'u', 'i'
             ]);
 
         public static readonly KeyboardLayoutConfig QWERTY_3Row = new(
@@ -27,31 +27,17 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
         public static readonly KeyboardLayoutConfig QWERTY_22Key = new(
             name: "QWERTY",
             keys: [
-                'z', 'x', 'c', 'v',
-                'b', 'n', 'm',
-
-                'a', 's', 'd', 'f',
-                'g', 'h', 'j',
-
-                'q', 'w', 'e', 'r',
-                't', 'y', 'u', 'i'
+                'q', 'w', 'e', 'r', 't', 'y', 'u', 'i',
+                'a', 's', 'd', 'f', 'g', 'h', 'j',
+                'z', 'x', 'c', 'v', 'b', 'n', 'm',
             ]);
 
         public static readonly KeyboardLayoutConfig QWERTY_37Key = new(
             name: "QWERTY",
             keys: [
-                ',', 'l', '.', ';',
-                '/', 'o', '0', 'p',
-                '-', '[', '+', ']',
-
-                'z', 's', 'x', 'd',
-                'c', 'v', 'g', 'b',
-                'h', 'n', 'j', 'm',
-
-                'q', '2', 'w', '3',
-                'e', 'r', '5', 't',
-                '6', 'y', '7', 'u',
-                'i'
+                'q', '2', 'w', '3', 'e', 'r', '5', 't', '6', 'y', '7', 'u', 'i',
+                'z', 's', 'x', 'd', 'c', 'v', 'g', 'b', 'h', 'n', 'j', 'm',
+                ',', 'l', '.', ';', '/', 'o', '0', 'p','-', '[', '=', ']',
             ]);
     }
 }

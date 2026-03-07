@@ -12,92 +12,57 @@ namespace AutoMidiPlayer.WPF.Core.Instruments
         public static readonly KeyboardLayoutConfig QWERTY = new(
             name: "QWERTY",
             keys: [
-                'z', 'x', 'c', 'v',
-                'b', 'n', 'm',
-
-                'a', 's', 'd', 'f',
-                'g', 'h', 'j',
-
-                'q', 'w', 'e', 'r',
-                't', 'y', 'u'
+                'q', 'w', 'e', 'r', 't', 'y', 'u',
+                'a', 's', 'd', 'f', 'g', 'h', 'j',
+                'z', 'x', 'c', 'v', 'b', 'n', 'm',
             ]);
 
         public static readonly KeyboardLayoutConfig QWERTZ = new(
             name: "QWERTZ",
             keys: [
-                'y', 'x', 'c', 'v',
-                'b', 'n', 'm',
-
-                'a', 's', 'd', 'f',
-                'g', 'h', 'j',
-
-                'q', 'w', 'e', 'r',
-                't', 'z', 'u'
+                'q', 'w', 'e', 'r', 't', 'z', 'u',
+                'a', 's', 'd', 'f', 'g', 'h', 'j',
+                'y', 'x', 'c', 'v', 'b', 'n', 'm',
             ]);
 
         public static readonly KeyboardLayoutConfig AZERTY = new(
             name: "AZERTY",
             keys: [
-                'w', 'x', 'c', 'v',
-                'b', 'n', ',',
-
-                'q', 's', 'd', 'f',
-                'g', 'h', 'j',
-
-                'a', 'z', 'e', 'r',
-                't', 'y', 'u'
+                'a', 'z', 'e', 'r', 't', 'y', 'u',
+                'q', 's', 'd', 'f', 'g', 'h', 'j',
+                'w', 'x', 'c', 'v', 'b', 'n', ',',
             ]);
 
         public static readonly KeyboardLayoutConfig DVORAK = new(
             name: "DVORAK",
             keys: [
-                '/', 'b', 'i', '.',
-                'n', 'l', 'm',
-
-                'a', ';', 'h', 'y',
-                'u', 'j', 'c',
-
-                'x', ',', 'd', 'o',
-                'k', 't', 'f'
+                'x', ',', 'd', 'o', 'k', 't', 'f',
+                'a', ';', 'h', 'y', 'u', 'j', 'c',
+                '/', 'b', 'i', '.', 'n', 'l', 'm',
             ]);
 
         public static readonly KeyboardLayoutConfig DVORAKLeft = new(
             name: "DVORAKLeft",
             keys: [
-                'l', 'x', 'd', 'v',
-                'e', 'n', '6',
-
-                'k', 'u', 'f', '5',
-                'c', 'h', '8',
-
-                'w', 'b', 'j', 'y',
-                'g', 'r', 't'
+                'w', 'b', 'j', 'y', 'g', 'r', 't',
+                'k', 'u', 'f', '5', 'c', 'h', '8',
+                'l', 'x', 'd', 'v', 'e', 'n', '6',
             ]);
 
         public static readonly KeyboardLayoutConfig DVORAKRight = new(
             name: "DVORAKRight",
             keys: [
-                'd', 'c', 'l', ',',
-                'p', 'n', '7',
-
-                'f', 'u', 'k', '8',
-                '.', 'h', '5',
-
-                'e', 'm', 'g', 'y',
-                'j', 'o', 'i'
+                'e', 'm', 'g', 'y', 'j', 'o', 'i',
+                'f', 'u', 'k', '8', '.', 'h', '5',
+                'd', 'c', 'l', ',', 'p', 'n', '7',
             ]);
 
         public static readonly KeyboardLayoutConfig Colemak = new(
             name: "Colemak",
             keys: [
-                'z', 'x', 'c', 'v',
-                'b', 'j', 'm',
-
-                'a', 'd', 'g', 'e',
-                't', 'h', 'y',
-
-                'q', 'w', 'k', 's',
-                'f', 'o', 'i'
+                'q', 'w', 'k', 's', 'f', 'o', 'i',
+                'a', 'd', 'g', 'e', 't', 'h', 'y',
+                'z', 'x', 'c', 'v', 'b', 'j', 'm',
             ]);
     }
 }
