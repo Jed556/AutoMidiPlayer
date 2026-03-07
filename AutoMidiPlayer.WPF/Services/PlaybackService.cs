@@ -66,20 +66,7 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
 
         // Subscribe to song settings changes
         SongSettings.SpeedChanged += speed => { if (Playback is not null) Playback.Speed = speed; };
-        SongSettings.SettingsRebuildRequired += async () =>
-        {
-            TrackView.UpdateTrackPlayableNotes();
-            TrackView.NotifyNoteStatsChanged();
-
-            var wasPlaying = Playback?.IsRunning ?? false;
-            _savedPosition = _songPosition.TotalSeconds;
-            await InitializePlayback();
-            if (wasPlaying && Playback is not null) Playback.Start();
-
-            // Notify song list UI to refresh
-            _main.SongsView.RefreshCurrentSong();
-            _main.QueueView.RefreshCurrentSong();
-        };
+        SongSettings.SettingsRebuildRequired += OnSongSettingsRebuildRequired;
 
         // SystemMediaTransportControls is only supported on Windows 10 and later
         if (Environment.OSVersion.Platform == PlatformID.Win32NT &&
@@ -108,6 +95,35 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
     }
 
     #endregion
+
+    private void OnSongSettingsRebuildRequired()
+    {
+        _ = HandleSongSettingsRebuildRequiredAsync();
+    }
+
+    private async Task HandleSongSettingsRebuildRequiredAsync()
+    {
+        try
+        {
+            TrackView.UpdateTrackPlayableNotes();
+            TrackView.NotifyNoteStatsChanged();
+
+            var wasPlaying = Playback?.IsRunning ?? false;
+            _savedPosition = _songPosition.TotalSeconds;
+            await InitializePlayback();
+            if (wasPlaying && Playback is not null)
+                Playback.Start();
+
+            // Notify song list UI to refresh
+            _main.SongsView.RefreshCurrentSong();
+            _main.QueueView.RefreshCurrentSong();
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("Unhandled exception while rebuilding playback after song settings change.");
+            CrashLogger.LogException(ex);
+        }
+    }
 
     private static async Task ShowAudioInitializationErrorAsync(Exception e)
     {

@@ -93,14 +93,25 @@ public static class KeyboardPlayer
     {
         if (direction is Transpose.Ignore) return noteId;
         var notes = Keyboard.GetNotes(instrumentId);
+        if (notes.Count == 0)
+            return noteId;
+
+        var minNote = notes[0];
+        var maxNote = notes[0];
+        for (var i = 1; i < notes.Count; i++)
+        {
+            if (notes[i] < minNote) minNote = notes[i];
+            if (notes[i] > maxNote) maxNote = notes[i];
+        }
+
         while (true)
         {
             if (notes.Contains(noteId))
                 return noteId;
 
-            if (noteId < notes.First())
+            if (noteId < minNote)
                 noteId += 12;
-            else if (noteId > notes.Last())
+            else if (noteId > maxNote)
                 noteId -= 12;
             else
             {
