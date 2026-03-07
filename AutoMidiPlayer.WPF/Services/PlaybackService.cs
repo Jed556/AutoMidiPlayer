@@ -282,7 +282,7 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
     private TrackViewModel TrackView => _main.TrackView;
     private SettingsPageViewModel SettingsPage => _main.SettingsView;
     private InstrumentViewModel InstrumentPage => _main.InstrumentView;
-    private SongSettingsService SongSettings => _main.SongSettings;
+    private SongService SongSettings => _main.SongSettings;
 
     private static string PauseIcon => "\xEDB4";
     private static string PlayIcon => "\xF5B0";

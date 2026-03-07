@@ -145,13 +145,6 @@ public static class Keyboard
         return index >= 0 && index < list.Count ? list[index] : list[0];
     }
 
-    public static int GetInstrumentIndex(string instrumentId)
-    {
-        var list = InstrumentNames.Keys.ToList();
-        var idx = list.FindIndex(id => string.Equals(id, instrumentId, StringComparison.OrdinalIgnoreCase));
-        return idx >= 0 ? idx : 0;
-    }
-
     public static int GetLayoutIndex(string layoutName)
     {
         var list = LayoutNames.Keys.ToList();

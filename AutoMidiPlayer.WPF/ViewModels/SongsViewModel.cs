@@ -152,12 +152,6 @@ public class SongsViewModel : Screen
         }
     }
 
-    public void SetSortCustomOrder() => SetSort(SortMode.CustomOrder);
-    public void SetSortTitle() => SetSort(SortMode.Title);
-    public void SetSortRecentlyAdded() => SetSort(SortMode.RecentlyAdded);
-    public void SetSortDateAdded() => SetSort(SortMode.RecentlyAdded); // Alias for Date Added column
-    public void SetSortDuration() => SetSort(SortMode.Duration);
-
     public void ToggleSortDirection()
     {
         IsAscending = !IsAscending;
@@ -485,14 +479,6 @@ public class SongsViewModel : Screen
         NotifyFileErrorsChanged();
     }
 
-    /// <summary>
-    /// Remove all missing songs from the database
-    /// </summary>
-    public async Task RemoveAllMissingSongs()
-    {
-        await RemoveAllFileErrors();
-    }
-
     public async Task RemoveBadMidiSong(BadMidiFileEntry badMidiFile)
     {
         await using var db = _ioc.Get<LyreContext>();
@@ -723,33 +709,6 @@ public class SongsViewModel : Screen
         NotifyFileErrorsChanged();
     }
 
-    public async Task RemoveTrack()
-    {
-        if (SelectedFile is not null)
-        {
-            await using var db = _ioc.Get<LyreContext>();
-            db.Songs.Remove(SelectedFile.Song);
-            await db.SaveChangesAsync();
-
-            Tracks.Remove(SelectedFile);
-            ApplySort();
-        }
-    }
-
-    public async Task ClearSongs()
-    {
-        await using var db = _ioc.Get<LyreContext>();
-        foreach (var track in Tracks)
-        {
-            db.Songs.Remove(track.Song);
-        }
-        await db.SaveChangesAsync();
-
-        Tracks.Clear();
-        SortedTracks.Clear();
-        SelectedFile = null;
-    }
-
     public void MoveUp()
     {
         if (SelectedFile is null || CurrentSortMode != SortMode.CustomOrder) return;
@@ -820,73 +779,11 @@ public class SongsViewModel : Screen
 
     public async Task DeleteSelected(IEnumerable<MidiFile> selectedFiles)
     {
-        var filesToDelete = selectedFiles.Any() ? selectedFiles.ToList() : (SelectedFile != null ? new List<MidiFile> { SelectedFile } : new List<MidiFile>());
-        if (filesToDelete.Count == 0) return;
+        var filesToDelete = selectedFiles.Any()
+            ? selectedFiles.ToList()
+            : (SelectedFile != null ? new List<MidiFile> { SelectedFile } : new List<MidiFile>());
 
-        var songIdsToDelete = filesToDelete
-            .Select(file => file.Song.Id)
-            .Distinct()
-            .ToList();
-
-        if (songIdsToDelete.Count == 0) return;
-
-        // If deleting the currently opened song, close playback first so no stale
-        // per-song updates continue while deletion is in progress.
-        if (QueueView.OpenedFile is not null && songIdsToDelete.Contains(QueueView.OpenedFile.Song.Id))
-        {
-            _main.Playback.CloseFile();
-            QueueView.ClearSavedSong();
-            _main.Playback.UpdateButtons();
-        }
-
-        RemoveSongsFromCollections(songIdsToDelete);
-
-        await using var db = _ioc.Get<LyreContext>();
-
-        var existingSongs = await db.Songs
-            .Where(song => songIdsToDelete.Contains(song.Id))
-            .ToListAsync();
-
-        if (existingSongs.Count > 0)
-        {
-            db.Songs.RemoveRange(existingSongs);
-
-            try
-            {
-                await db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                // Another operation already removed one or more rows.
-                // Collections are already updated, so this is safe to ignore.
-            }
-        }
-
-        QueueView.OnQueueModified();
-        ApplySort();
-    }
-
-    private void RemoveSongsFromCollections(IReadOnlyCollection<Guid> songIds)
-    {
-        foreach (var track in Tracks.Where(track => songIds.Contains(track.Song.Id)).ToList())
-        {
-            Tracks.Remove(track);
-        }
-
-        foreach (var queueTrack in QueueView.Tracks.Where(track => songIds.Contains(track.Song.Id)).ToList())
-        {
-            QueueView.Tracks.Remove(queueTrack);
-        }
-
-        if (SelectedFile is not null && songIds.Contains(SelectedFile.Song.Id))
-        {
-            SelectedFile = null;
-        }
-
-        if (QueueView.SelectedFile is not null && songIds.Contains(QueueView.SelectedFile.Song.Id))
-        {
-            QueueView.SelectedFile = null;
-        }
+        await _main.SongSettings.DeleteSongsAsync(filesToDelete);
     }
 
     public async Task EditSelected(IEnumerable<MidiFile> selectedFiles)
@@ -896,58 +793,7 @@ public class SongsViewModel : Screen
         var file = filesList.Count == 1 ? filesList[0] : SelectedFile;
         if (file is null) return;
 
-        // Get native BPM from MIDI file
-        var nativeBpm = file.GetNativeBpm();
-
-        var dialog = new ImportDialog(
-            file.Song.Title ?? Path.GetFileNameWithoutExtension(file.Path),
-            file.Song.Key,
-            file.Song.Transpose ?? Transpose.Ignore,
-            file.Song.Author,
-            file.Song.Album,
-            file.Song.DateAdded,
-            nativeBpm,
-            file.Song.Bpm,
-            file.Song.MergeNotes,
-            file.Song.MergeMilliseconds,
-            file.Song.HoldNotes,
-            file.Song.Speed);
-
-        var result = await dialog.ShowAsync();
-        if (result != ContentDialogResult.Primary) return;
-
-        // Update song properties
-        file.Song.Title = string.IsNullOrWhiteSpace(dialog.SongTitle) ? Path.GetFileNameWithoutExtension(file.Path) : dialog.SongTitle;
-        file.Song.Author = string.IsNullOrWhiteSpace(dialog.SongAuthor) ? null : dialog.SongAuthor;
-        file.Song.Album = string.IsNullOrWhiteSpace(dialog.SongAlbum) ? null : dialog.SongAlbum;
-        file.Song.DateAdded = dialog.SongDateAdded;
-        file.Song.Key = dialog.SongKey;
-        file.Song.Transpose = dialog.SongTranspose;
-        file.Song.Bpm = dialog.SongBpm;
-        file.Song.MergeNotes = dialog.SongMergeNotes;
-        file.Song.MergeMilliseconds = dialog.SongMergeMilliseconds;
-        file.Song.HoldNotes = dialog.SongHoldNotes;
-        file.Song.Speed = dialog.SongSpeed;
-
-        await using var db = _ioc.Get<LyreContext>();
-        db.Songs.Update(file.Song);
-        await db.SaveChangesAsync();
-
-        // Apply edits immediately if this is the currently opened song.
-        if (QueueView.OpenedFile?.Song.Id == file.Song.Id)
-        {
-            _main.SongSettings.SyncFromEditedSong(file.Song);
-            await _main.Playback.RefreshCurrentSongRealtimeAsync();
-        }
-
-        // Refresh the display
-        ApplySort();
-    }
-
-    public void AddAllToQueue()
-    {
-        foreach (var track in SortedTracks)
-            _main.QueueView.AddFile(track);
+        await _main.SongSettings.EditSongAsync(file);
     }
 
     private void RefreshPositions()

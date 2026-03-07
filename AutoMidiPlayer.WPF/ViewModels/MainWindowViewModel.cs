@@ -76,8 +76,8 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         _events.Subscribe(this);
 
         // Initialize services FIRST - ViewModels depend on these
-        // SongSettingsService manages per-song settings (key, speed, transpose)
-        SongSettings = new SongSettingsService(ioc);
+        // SongService manages per-song settings (key, speed, transpose), editing, and deletion
+        SongSettings = new SongService(ioc);
 
         // PlaybackService handles all playback logic (play/pause, seeking, note scheduling)
         Playback = new PlaybackService(ioc, this);
@@ -103,6 +103,9 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         SongsView = new(ioc, this);
         PianoSheetView = new(this);
 
+        // Late-bind back-reference so SongService can access ViewModels
+        SongSettings.SetMain(this);
+
         _gameStateTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromSeconds(2)
@@ -115,7 +118,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
     public IContainer Ioc { get; }
 
-    public SongSettingsService SongSettings { get; }
+    public SongService SongSettings { get; }
 
     public PlaybackService Playback { get; }
 
@@ -168,12 +171,6 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
     }
 
     public string Title { get; set; }
-
-    public void Navigate(NavigationView sender, RoutedEventArgs args)
-    {
-        // Legacy method - kept for compatibility
-        NotifyOfPropertyChange(() => ShowUpdate);
-    }
 
     public void NavigateToItem(object sender, RoutedEventArgs args)
     {

@@ -595,7 +595,7 @@
                                       MaxHeight="24"
                                       Padding="8,2"
                                       Margin="0,4,0,0"
-                                      ItemsSource="{x:Static services:SongSettingsService.TransposeNames}"
+                                      ItemsSource="{x:Static services:SongService.TransposeNames}"
                                       SelectedItem="{Binding SongSettings.Transpose}"
                                       DisplayMemberPath="Value"/>
                         </StackPanel>

@@ -1,23 +1,17 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
 using AutoMidiPlayer.Data;
-using AutoMidiPlayer.Data.Entities;
 using AutoMidiPlayer.Data.Properties;
-using AutoMidiPlayer.WPF.Dialogs;
-using Melanchall.DryWetMidi.Core;
 using PropertyChanged;
 using Stylet;
 using StyletIoC;
 using MidiFile = AutoMidiPlayer.Data.Midi.MidiFile;
 using AutoMidiPlayer.Data.Notification;
 using AutoMidiPlayer.WPF.Core;
-using Wpf.Ui.Controls;
-using Microsoft.EntityFrameworkCore;
 
 namespace AutoMidiPlayer.WPF.ViewModels;
 
@@ -294,83 +288,10 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
             ? selectedFiles.ToList()
             : (SelectedFile is not null ? new List<MidiFile> { SelectedFile } : new List<MidiFile>());
 
-        if (filesToDelete.Count == 0) return;
-
-        var songIdsToDelete = filesToDelete
-            .Select(file => file.Song.Id)
-            .Distinct()
-            .ToList();
-
-        if (songIdsToDelete.Count == 0) return;
-
-        // If the currently opened song is being deleted, close playback first so no
-        // background handlers can continue writing to a stale entity.
-        if (OpenedFile is not null && songIdsToDelete.Contains(OpenedFile.Song.Id))
-        {
-            _main.Playback.CloseFile();
-            ClearSavedSong();
-            _main.Playback.UpdateButtons();
-        }
-
-        RemoveSongsFromCollections(songIdsToDelete);
-
-        await using var db = _ioc.Get<LyreContext>();
-
-        // Re-query rows in this DbContext and delete only what still exists.
-        var existingSongs = await db.Songs
-            .Where(song => songIdsToDelete.Contains(song.Id))
-            .ToListAsync();
-
-        if (existingSongs.Count > 0)
-        {
-            db.Songs.RemoveRange(existingSongs);
-
-            try
-            {
-                await db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                // Another operation already deleted one or more rows after we loaded them.
-                // UI collections are already updated, so treat this as a successful delete.
-            }
-        }
-
-        OnQueueModified();
-        _main.SongsView.ApplySort();
+        await _main.SongSettings.DeleteSongsAsync(filesToDelete);
     }
 
-    private void RemoveSongsFromCollections(IReadOnlyCollection<Guid> songIds)
-    {
-        foreach (var queueTrack in Tracks.Where(track => songIds.Contains(track.Song.Id)).ToList())
-        {
-            Tracks.Remove(queueTrack);
-        }
-
-        foreach (var libraryTrack in _main.SongsView.Tracks.Where(track => songIds.Contains(track.Song.Id)).ToList())
-        {
-            _main.SongsView.Tracks.Remove(libraryTrack);
-        }
-
-        if (SelectedFile is not null && songIds.Contains(SelectedFile.Song.Id))
-        {
-            SelectedFile = null;
-        }
-
-        if (OpenedFile is not null && songIds.Contains(OpenedFile.Song.Id))
-        {
-            OpenedFile = null;
-        }
-
-        if (_main.SongsView.SelectedFile is not null && songIds.Contains(_main.SongsView.SelectedFile.Song.Id))
-        {
-            _main.SongsView.SelectedFile = null;
-        }
-
-        RemoveSongsFromHistory(songIds);
-    }
-
-    private void RemoveSongsFromHistory(IReadOnlyCollection<Guid> songIds)
+    public void RemoveSongsFromHistory(IReadOnlyCollection<Guid> songIds)
     {
         if (songIds.Count == 0 || History.Count == 0)
             return;
@@ -390,49 +311,7 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
 
     public async Task EditSong(MidiFile file)
     {
-        // Get native BPM from MIDI file
-        var nativeBpm = file.GetNativeBpm();
-
-        var dialog = new ImportDialog(
-            file.Song.Title ?? Path.GetFileNameWithoutExtension(file.Path),
-            file.Song.Key,
-            file.Song.Transpose ?? Transpose.Ignore,
-            file.Song.Author,
-            file.Song.Album,
-            file.Song.DateAdded,
-            nativeBpm,
-            file.Song.Bpm,
-            file.Song.MergeNotes,
-            file.Song.MergeMilliseconds,
-            file.Song.HoldNotes,
-            file.Song.Speed);
-
-        var result = await dialog.ShowAsync();
-        if (result != ContentDialogResult.Primary) return;
-
-        // Update song properties
-        file.Song.Title = string.IsNullOrWhiteSpace(dialog.SongTitle) ? Path.GetFileNameWithoutExtension(file.Path) : dialog.SongTitle;
-        file.Song.Author = string.IsNullOrWhiteSpace(dialog.SongAuthor) ? null : dialog.SongAuthor;
-        file.Song.Album = string.IsNullOrWhiteSpace(dialog.SongAlbum) ? null : dialog.SongAlbum;
-        file.Song.DateAdded = dialog.SongDateAdded;
-        file.Song.Key = dialog.SongKey;
-        file.Song.Transpose = dialog.SongTranspose;
-        file.Song.Bpm = dialog.SongBpm;
-        file.Song.MergeNotes = dialog.SongMergeNotes;
-        file.Song.MergeMilliseconds = dialog.SongMergeMilliseconds;
-        file.Song.HoldNotes = dialog.SongHoldNotes;
-        file.Song.Speed = dialog.SongSpeed;
-
-        await using var db = _ioc.Get<LyreContext>();
-        db.Songs.Update(file.Song);
-        await db.SaveChangesAsync();
-
-        // Apply edits immediately if this is the currently opened song.
-        if (OpenedFile?.Song.Id == file.Song.Id)
-        {
-            _main.SongSettings.SyncFromEditedSong(file.Song);
-            await _main.Playback.RefreshCurrentSongRealtimeAsync();
-        }
+        await _main.SongSettings.EditSongAsync(file);
     }
 
     public void MoveUp()
@@ -457,19 +336,6 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
             Tracks.Move(index, index + 1);
             OnQueueModified();
         }
-    }
-
-    [SuppressPropertyChangedWarnings]
-    public void OnFileChanged(object sender, EventArgs e)
-    {
-        if (SelectedFile is not null && SelectedFile != OpenedFile)
-            _events.Publish(SelectedFile);
-    }
-
-    public void OnOpenedFileChanged()
-    {
-        if (OpenedFile is null) return;
-
     }
 
     public void Previous()

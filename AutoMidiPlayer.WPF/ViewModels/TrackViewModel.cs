@@ -102,7 +102,7 @@ public class TrackViewModel : Screen
 
     #region Properties - Private Helpers
 
-    private SongSettingsService SongSettings => _main.SongSettings;
+    private SongService SongSettings => _main.SongSettings;
 
     private InstrumentViewModel InstrumentPage => _main.InstrumentView;
 
@@ -213,11 +213,6 @@ public class TrackViewModel : Screen
         NotifyOfPropertyChange(() => TotalNotes);
         NotifyOfPropertyChange(() => AccessibleNotes);
         NotifyOfPropertyChange(() => NotesStatsDisplay);
-    }
-
-    public void OpenFile()
-    {
-        Playback.UpdateButtons();
     }
 
     #endregion

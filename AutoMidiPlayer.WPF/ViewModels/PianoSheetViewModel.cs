@@ -31,7 +31,7 @@ public class PianoSheetViewModel(MainWindowViewModel main) : Screen
 
     public QueueViewModel QueueView => _main.QueueView;
 
-    public SongSettingsService SongSettings => _main.SongSettings;
+    public SongService SongSettings => _main.SongSettings;
 
     public InstrumentViewModel InstrumentPage => _main.InstrumentView;
 

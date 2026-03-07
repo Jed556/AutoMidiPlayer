@@ -1,25 +1,30 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Entities;
+using AutoMidiPlayer.WPF.Dialogs;
+using AutoMidiPlayer.WPF.ViewModels;
+using Microsoft.EntityFrameworkCore;
 using Stylet;
 using StyletIoC;
+using Wpf.Ui.Controls;
 using static AutoMidiPlayer.Data.Entities.Transpose;
 using MidiFile = AutoMidiPlayer.Data.Midi.MidiFile;
 
 namespace AutoMidiPlayer.WPF.Services;
 
 /// <summary>
-/// Service responsible for per-song settings (key, speed, transpose).
-/// Isolated from playback controls so non-playback consumers (e.g. edit dialog, track stats)
-/// can read/write song settings without depending on PlaybackService.
+/// Central service for song operations: per-song settings (key, speed, transpose),
+/// editing, deleting, and persistence.
 /// </summary>
-public class SongSettingsService(IContainer ioc) : PropertyChangedBase
+public class SongService(IContainer ioc) : PropertyChangedBase
 {
     private readonly IContainer _ioc = ioc;
     private readonly IEventAggregator _events = ioc.Get<IEventAggregator>();
+    private MainWindowViewModel? _main;
 
     private int _keyOffset;
     private double _speed = 1.0;
@@ -238,6 +243,152 @@ public class SongSettingsService(IContainer ioc) : PropertyChangedBase
             await db.SaveChangesAsync();
         }
         catch { /* Ignore save errors */ }
+    }
+
+    #endregion
+
+    #region Late Initialization
+
+    /// <summary>
+    /// Called by MainWindowViewModel after construction to provide the back-reference
+    /// needed for cross-ViewModel operations (edit, delete).
+    /// </summary>
+    public void SetMain(MainWindowViewModel main) => _main = main;
+
+    #endregion
+
+    #region Song Operations
+
+    /// <summary>
+    /// Show the edit dialog for a song and persist changes.
+    /// Shared by both Queue and Songs views.
+    /// </summary>
+    public async Task EditSongAsync(MidiFile file)
+    {
+        if (_main is null) return;
+
+        var nativeBpm = file.GetNativeBpm();
+
+        var dialog = new ImportDialog(
+            file.Song.Title ?? Path.GetFileNameWithoutExtension(file.Path),
+            file.Song.Key,
+            file.Song.Transpose ?? Data.Entities.Transpose.Ignore,
+            file.Song.Author,
+            file.Song.Album,
+            file.Song.DateAdded,
+            nativeBpm,
+            file.Song.Bpm,
+            file.Song.MergeNotes,
+            file.Song.MergeMilliseconds,
+            file.Song.HoldNotes,
+            file.Song.Speed);
+
+        var result = await dialog.ShowAsync();
+        if (result != ContentDialogResult.Primary) return;
+
+        file.Song.Title = string.IsNullOrWhiteSpace(dialog.SongTitle)
+            ? Path.GetFileNameWithoutExtension(file.Path)
+            : dialog.SongTitle;
+        file.Song.Author = string.IsNullOrWhiteSpace(dialog.SongAuthor) ? null : dialog.SongAuthor;
+        file.Song.Album = string.IsNullOrWhiteSpace(dialog.SongAlbum) ? null : dialog.SongAlbum;
+        file.Song.DateAdded = dialog.SongDateAdded;
+        file.Song.Key = dialog.SongKey;
+        file.Song.Transpose = dialog.SongTranspose;
+        file.Song.Bpm = dialog.SongBpm;
+        file.Song.MergeNotes = dialog.SongMergeNotes;
+        file.Song.MergeMilliseconds = dialog.SongMergeMilliseconds;
+        file.Song.HoldNotes = dialog.SongHoldNotes;
+        file.Song.Speed = dialog.SongSpeed;
+
+        await using var db = _ioc.Get<LyreContext>();
+        db.Songs.Update(file.Song);
+        await db.SaveChangesAsync();
+
+        if (_main.QueueView.OpenedFile?.Song.Id == file.Song.Id)
+        {
+            SyncFromEditedSong(file.Song);
+            await _main.Playback.RefreshCurrentSongRealtimeAsync();
+        }
+
+        _main.SongsView.ApplySort();
+        _main.QueueView.ApplyFilter();
+    }
+
+    /// <summary>
+    /// Delete songs from the database and remove from all collections.
+    /// Shared by both Queue and Songs views.
+    /// </summary>
+    public async Task DeleteSongsAsync(IEnumerable<MidiFile> filesToDelete)
+    {
+        if (_main is null) return;
+
+        var files = filesToDelete.ToList();
+        if (files.Count == 0) return;
+
+        var songIdsToDelete = files
+            .Select(file => file.Song.Id)
+            .Distinct()
+            .ToList();
+
+        if (songIdsToDelete.Count == 0) return;
+
+        if (_main.QueueView.OpenedFile is not null &&
+            songIdsToDelete.Contains(_main.QueueView.OpenedFile.Song.Id))
+        {
+            _main.Playback.CloseFile();
+            _main.QueueView.ClearSavedSong();
+            _main.Playback.UpdateButtons();
+        }
+
+        RemoveSongsFromCollections(songIdsToDelete);
+
+        await using var db = _ioc.Get<LyreContext>();
+
+        var existingSongs = await db.Songs
+            .Where(song => songIdsToDelete.Contains(song.Id))
+            .ToListAsync();
+
+        if (existingSongs.Count > 0)
+        {
+            db.Songs.RemoveRange(existingSongs);
+
+            try
+            {
+                await db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // Another operation already removed one or more rows.
+            }
+        }
+
+        _main.QueueView.OnQueueModified();
+        _main.SongsView.ApplySort();
+    }
+
+    /// <summary>
+    /// Remove songs from all in-memory collections (Queue, Songs library, selections).
+    /// </summary>
+    public void RemoveSongsFromCollections(IReadOnlyCollection<Guid> songIds)
+    {
+        if (_main is null) return;
+
+        foreach (var track in _main.SongsView.Tracks.Where(t => songIds.Contains(t.Song.Id)).ToList())
+            _main.SongsView.Tracks.Remove(track);
+
+        foreach (var track in _main.QueueView.Tracks.Where(t => songIds.Contains(t.Song.Id)).ToList())
+            _main.QueueView.Tracks.Remove(track);
+
+        if (_main.SongsView.SelectedFile is not null && songIds.Contains(_main.SongsView.SelectedFile.Song.Id))
+            _main.SongsView.SelectedFile = null;
+
+        if (_main.QueueView.SelectedFile is not null && songIds.Contains(_main.QueueView.SelectedFile.Song.Id))
+            _main.QueueView.SelectedFile = null;
+
+        if (_main.QueueView.OpenedFile is not null && songIds.Contains(_main.QueueView.OpenedFile.Song.Id))
+            _main.QueueView.OpenedFile = null;
+
+        _main.QueueView.RemoveSongsFromHistory(songIds);
     }
 
     #endregion
