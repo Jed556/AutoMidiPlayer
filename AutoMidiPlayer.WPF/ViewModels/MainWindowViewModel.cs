@@ -79,6 +79,10 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         // SongService manages per-song settings (key, speed, transpose), editing, and deletion
         SongSettings = new SongService(ioc);
 
+        // FileService handles file operations: adding, removing, scanning MIDI files,
+        // and missing/bad file handling
+        FileService = new FileService(ioc);
+
         // PlaybackService handles all playback logic (play/pause, seeking, note scheduling)
         Playback = new PlaybackService(ioc, this);
 
@@ -103,8 +107,9 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         SongsView = new(ioc, this);
         PianoSheetView = new(this);
 
-        // Late-bind back-reference so SongService can access ViewModels
+        // Late-bind back-references so services can access ViewModels
         SongSettings.SetMain(this);
+        FileService.SetMain(this);
 
         _gameStateTimer = new DispatcherTimer
         {
@@ -119,6 +124,8 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
     public IContainer Ioc { get; }
 
     public SongService SongSettings { get; }
+
+    public FileService FileService { get; }
 
     public PlaybackService Playback { get; }
 
@@ -290,7 +297,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
         if (midiFiles.Length > 0)
         {
-            await SongsView.AddFiles(midiFiles);
+            await FileService.AddFiles(midiFiles);
 
             // Navigate to songs view
             ActivateItem(SongsView);
@@ -341,12 +348,12 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
         // Load songs from database into Songs library
         await using var db = Ioc.Get<LyreContext>();
-        await SongsView.AddFiles(db.Songs);
+        await FileService.AddFiles(db.Songs);
 
         // Auto-scan MIDI folder if configured
         if (!string.IsNullOrEmpty(SettingsView.MidiFolder))
         {
-            await SongsView.ScanFolder(SettingsView.MidiFolder);
+            await FileService.ScanFolder(SettingsView.MidiFolder);
         }
 
         // Restore queue from saved state

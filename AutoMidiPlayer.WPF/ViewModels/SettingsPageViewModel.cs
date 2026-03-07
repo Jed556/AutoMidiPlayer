@@ -583,7 +583,7 @@ public class SettingsPageViewModel : Screen
         if (string.IsNullOrEmpty(MidiFolder) || !Directory.Exists(MidiFolder))
             return;
 
-        await _main.SongsView.ScanFolder(MidiFolder);
+        await _main.FileService.ScanFolder(MidiFolder);
     }
 
     public void ClearMidiFolder()

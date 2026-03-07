@@ -1,16 +1,12 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
-using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Entities;
 using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Dialogs;
-using Melanchall.DryWetMidi.Core;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Win32;
 using Wpf.Ui.Controls;
 using Stylet;
@@ -205,45 +201,7 @@ public class SongsViewModel : Screen
         if (openFileDialog.ShowDialog() != true)
             return;
 
-        await AddFiles(openFileDialog.FileNames);
-    }
-
-    public async Task AddFiles(IEnumerable<string> files)
-    {
-        foreach (var file in files)
-        {
-            await AddFile(file);
-        }
-
-        ApplySort();
-    }
-
-    public async Task AddFiles(IEnumerable<Song> files)
-    {
-        foreach (var file in files)
-        {
-            // Check if file exists before trying to add
-            if (!File.Exists(file.Path))
-            {
-                // Add to missing songs collection if not already there
-                if (!MissingSongs.Any(s => s.Id == file.Id))
-                {
-                    MissingSongs.Add(file);
-                }
-
-                RemoveBadMidiFileEntries(file.Path, false);
-                continue;
-            }
-            await AddFile(file);
-        }
-
-        // Notify UI about missing songs status change
-        NotifyOfPropertyChange(nameof(HasMissingSongs));
-        NotifyOfPropertyChange(nameof(MissingSongs));
-        NotifyOfPropertyChange(nameof(HasFileErrors));
-        NotifyOfPropertyChange(nameof(BadMidiFiles));
-
-        ApplySort();
+        await _main.FileService.AddFiles(openFileDialog.FileNames);
     }
 
     /// <summary>
@@ -329,7 +287,7 @@ public class SongsViewModel : Screen
                 {
                     if (s is System.Windows.Controls.Button btn && btn.DataContext is Song song)
                     {
-                        await RemoveMissingSong(song);
+                        await _main.FileService.RemoveMissingSong(song);
                         RefreshLists();
                     }
                 }));
@@ -419,7 +377,7 @@ public class SongsViewModel : Screen
                 {
                     if (s is System.Windows.Controls.Button btn && btn.DataContext is BadMidiFileEntry badMidiFile)
                     {
-                        await RemoveBadMidiSong(badMidiFile);
+                        await _main.FileService.RemoveBadMidiSong(badMidiFile);
                         RefreshLists();
                     }
                 }));
@@ -453,260 +411,15 @@ public class SongsViewModel : Screen
         var result = await dialog.ShowAsync();
 
         if (result == ContentDialogResult.Primary)
-            await RemoveAllFileErrors();
+            await _main.FileService.RemoveAllFileErrors();
     }
 
-    /// <summary>
-    /// Remove a single missing song from the database
-    /// </summary>
-    public async Task RemoveMissingSong(Song song)
-    {
-        await using var db = _ioc.Get<LyreContext>();
-
-        // Remove all rows that point to the same missing path to avoid stale duplicates.
-        var songsToRemove = db.Songs.Where(s => s.Path == song.Path).ToList();
-        if (songsToRemove.Count == 0)
-            songsToRemove.Add(song);
-
-        db.Songs.RemoveRange(songsToRemove);
-        await db.SaveChangesAsync();
-
-        foreach (var missingSong in MissingSongs.Where(s => s.Path == song.Path).ToList())
-            MissingSongs.Remove(missingSong);
-
-        RemoveBadMidiFileEntries(song.Path, false);
-
-        NotifyFileErrorsChanged();
-    }
-
-    public async Task RemoveBadMidiSong(BadMidiFileEntry badMidiFile)
-    {
-        await using var db = _ioc.Get<LyreContext>();
-
-        var songsToRemove = db.Songs.Where(s => s.Path == badMidiFile.Path).ToList();
-        if (songsToRemove.Count > 0)
-        {
-            db.Songs.RemoveRange(songsToRemove);
-            await db.SaveChangesAsync();
-        }
-
-        RemoveBadMidiFileEntries(badMidiFile.Path, false);
-
-        foreach (var missingSong in MissingSongs.Where(s => s.Path == badMidiFile.Path).ToList())
-            MissingSongs.Remove(missingSong);
-
-        NotifyFileErrorsChanged();
-    }
-
-    public async Task RemoveAllFileErrors()
-    {
-        if (!HasFileErrors) return;
-
-        var allPaths = MissingSongs.Select(s => s.Path)
-            .Concat(BadMidiFiles.Select(s => s.Path))
-            .Where(path => !string.IsNullOrWhiteSpace(path))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        await using var db = _ioc.Get<LyreContext>();
-
-        if (allPaths.Count > 0)
-        {
-            var rows = db.Songs.Where(song => allPaths.Contains(song.Path)).ToList();
-            if (rows.Count > 0)
-            {
-                db.Songs.RemoveRange(rows);
-                await db.SaveChangesAsync();
-            }
-        }
-
-        MissingSongs.Clear();
-        BadMidiFiles.Clear();
-
-        NotifyFileErrorsChanged();
-    }
-
-    /// <summary>
-    /// Mark a song as missing at runtime (for example, file deleted while app is running).
-    /// </summary>
-    public void MarkSongAsMissing(Song song)
-    {
-        if (!MissingSongs.Any(s => s.Id == song.Id))
-            MissingSongs.Add(song);
-
-        foreach (var track in Tracks.Where(t => t.Song.Id == song.Id).ToList())
-            Tracks.Remove(track);
-
-        if (SelectedFile is not null && SelectedFile.Song.Id == song.Id)
-            SelectedFile = null;
-
-        RemoveBadMidiFileEntries(song.Path, false);
-
-        NotifyFileErrorsChanged();
-        ApplySort();
-    }
-
-    private void AddBadMidiFile(Song song, Exception exception)
-    {
-        if (BadMidiFiles.Any(b => string.Equals(b.Path, song.Path, StringComparison.OrdinalIgnoreCase)))
-            return;
-
-        foreach (var missingSong in MissingSongs.Where(s => string.Equals(s.Path, song.Path, StringComparison.OrdinalIgnoreCase)).ToList())
-            MissingSongs.Remove(missingSong);
-
-        BadMidiFiles.Add(new BadMidiFileEntry(song, exception.Message));
-
-        NotifyFileErrorsChanged();
-    }
-
-    private void RemoveBadMidiFileEntries(string path, bool notify = true)
-    {
-        var removed = false;
-        foreach (var badMidiSong in BadMidiFiles.Where(b => string.Equals(b.Path, path, StringComparison.OrdinalIgnoreCase)).ToList())
-        {
-            BadMidiFiles.Remove(badMidiSong);
-            removed = true;
-        }
-
-        if (removed && notify)
-            NotifyFileErrorsChanged();
-    }
-
-    private void NotifyFileErrorsChanged()
+    public void NotifyFileErrorsChanged()
     {
         NotifyOfPropertyChange(nameof(HasMissingSongs));
         NotifyOfPropertyChange(nameof(MissingSongs));
         NotifyOfPropertyChange(nameof(BadMidiFiles));
         NotifyOfPropertyChange(nameof(HasFileErrors));
-    }
-
-    public async Task ScanFolder(string folderPath)
-    {
-        if (!Directory.Exists(folderPath)) return;
-
-        var midiFiles = Directory.GetFiles(folderPath, "*.mid", SearchOption.AllDirectories)
-            .Concat(Directory.GetFiles(folderPath, "*.midi", SearchOption.AllDirectories));
-
-        await AddFiles(midiFiles);
-    }
-
-    private async Task<bool> AddFile(Song song, ReadingSettings? settings = null)
-    {
-        try
-        {
-            // Check if file already exists in library by path
-            if (Tracks.Any(t => t.Song.Path == song.Path))
-                return false;
-
-            // Check if file already exists by hash (duplicate content)
-            if (song.FileHash != null && Tracks.Any(t => t.Song.FileHash == song.FileHash))
-                return false;
-
-            // If song doesn't have a hash yet (migrated from old DB), compute it
-            if (song.FileHash == null && File.Exists(song.Path))
-            {
-                song.FileHash = Song.ComputeFileHash(song.Path);
-
-                // Check again for duplicates after computing hash
-                if (song.FileHash != null && Tracks.Any(t => t.Song.FileHash == song.FileHash))
-                    return false;
-            }
-
-            Tracks.Add(new(song, settings));
-
-            RemoveBadMidiFileEntries(song.Path, false);
-            NotifyFileErrorsChanged();
-
-            return true;
-        }
-        catch (Exception e)
-        {
-            settings ??= new();
-            if (await MidiReadDialogHandler.TryHandleAsync(e, settings, song.Path))
-                return await AddFile(song, settings);
-
-            AddBadMidiFile(song, e);
-
-            return false;
-        }
-    }
-
-    private async Task AddFile(string fileName)
-    {
-        // Check if file already exists by path
-        if (Tracks.Any(t => t.Song.Path == fileName))
-            return;
-
-        // Compute hash for duplicate detection
-        var fileHash = Song.ComputeFileHash(fileName);
-
-        // Check if a file with the same hash already exists (duplicate content)
-        if (fileHash != null)
-        {
-            var missingByHash = MissingSongs.FirstOrDefault(song => song.FileHash == fileHash);
-            if (missingByHash != null)
-            {
-                await RestoreMissingSong(missingByHash, fileName, fileHash);
-                return;
-            }
-
-            var existingByHash = Tracks.FirstOrDefault(t => t.Song.FileHash == fileHash);
-            if (existingByHash != null)
-            {
-                // Show warning dialog about duplicate
-                var dialog = DialogHelper.CreateDialog();
-                dialog.Title = "Duplicate File Detected";
-                dialog.Content = $"This MIDI file appears to be a duplicate of:\n\n" +
-                              $"'{existingByHash.Song.Title ?? existingByHash.Song.Path}'\n\n" +
-                              $"The existing file will be used and this duplicate will be ignored.";
-                dialog.CloseButtonText = "OK";
-                await dialog.ShowAsync();
-                return;
-            }
-        }
-
-        // Get default title from filename
-        var defaultTitle = Path.GetFileNameWithoutExtension(fileName);
-
-        // Add with defaults (no dialog)
-        var song = new Song(fileName, _main.SongSettings.KeyOffset)
-        {
-            Title = defaultTitle,
-            Transpose = Transpose.Ignore
-        };
-
-        var added = await AddFile(song);
-        if (!added)
-            return;
-
-        await using var db = _ioc.Get<LyreContext>();
-        db.Songs.Add(song);
-        await db.SaveChangesAsync();
-    }
-
-    private async Task RestoreMissingSong(Song missingSong, string newPath, string fileHash)
-    {
-        var oldPath = missingSong.Path;
-        var oldHash = missingSong.FileHash;
-
-        missingSong.Path = newPath;
-        missingSong.FileHash = fileHash;
-
-        var restored = await AddFile(missingSong);
-        if (!restored)
-        {
-            missingSong.Path = oldPath;
-            missingSong.FileHash = oldHash;
-            return;
-        }
-
-        await using var db = _ioc.Get<LyreContext>();
-        db.Songs.Update(missingSong);
-        await db.SaveChangesAsync();
-
-        MissingSongs.Remove(missingSong);
-        RemoveBadMidiFileEntries(missingSong.Path, false);
-        NotifyFileErrorsChanged();
     }
 
     public void MoveUp()
