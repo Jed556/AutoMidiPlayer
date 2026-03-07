@@ -933,6 +933,13 @@ public class SongsViewModel : Screen
         db.Songs.Update(file.Song);
         await db.SaveChangesAsync();
 
+        // Apply edits immediately if this is the currently opened song.
+        if (QueueView.OpenedFile?.Song.Id == file.Song.Id)
+        {
+            _main.SongSettings.SyncFromEditedSong(file.Song);
+            await _main.Playback.RefreshCurrentSongRealtimeAsync();
+        }
+
         // Refresh the display
         ApplySort();
     }

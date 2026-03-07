@@ -25,6 +25,7 @@ public class SongSettingsService(IContainer ioc) : PropertyChangedBase
     private double _speed = 1.0;
     private MusicConstants.KeyOption? _selectedKeyOption;
     private MusicConstants.SpeedOption? _selectedSpeedOption;
+    private bool _suppressSongPersistenceAndEvents;
 
     #region Static Data
 
@@ -91,11 +92,14 @@ public class SongSettingsService(IContainer ioc) : PropertyChangedBase
                     ?? SpeedOptions.First(s => s.Value == 1.0);
                 NotifyOfPropertyChange(nameof(SelectedSpeedOption));
 
-                // Notify PlaybackService to update live playback speed
-                SpeedChanged?.Invoke(_speed);
+                if (!_suppressSongPersistenceAndEvents)
+                {
+                    // Notify PlaybackService to update live playback speed
+                    SpeedChanged?.Invoke(_speed);
 
-                // Persist to current song
-                SaveCurrentSongSpeed();
+                    // Persist to current song
+                    SaveCurrentSongSpeed();
+                }
             }
         }
     }
@@ -164,13 +168,41 @@ public class SongSettingsService(IContainer ioc) : PropertyChangedBase
         Transpose = null;
     }
 
+    /// <summary>
+    /// Synchronizes in-memory song settings for the currently opened song after an edit dialog save,
+    /// without triggering persistence writes or extra rebuild events.
+    /// </summary>
+    public void SyncFromEditedSong(Song song)
+    {
+        if (CurrentFile is null || CurrentFile.Song.Id != song.Id)
+            return;
+
+        _suppressSongPersistenceAndEvents = true;
+        try
+        {
+            Speed = song.Speed ?? 1.0;
+            KeyOffset = song.Key;
+
+            var transpose = TransposeNames
+                .FirstOrDefault(e => e.Key == song.Transpose);
+            Transpose = song.Transpose is not null ? transpose : null;
+        }
+        finally
+        {
+            _suppressSongPersistenceAndEvents = false;
+        }
+
+        NotifyOfPropertyChange(nameof(SelectedKeyOption));
+        NotifyOfPropertyChange(nameof(SelectedSpeedOption));
+    }
+
     #endregion
 
     #region Persistence
 
     private async void SaveCurrentSongKey()
     {
-        if (CurrentFile is null) return;
+        if (_suppressSongPersistenceAndEvents || CurrentFile is null) return;
         CurrentFile.Song.Key = KeyOffset;
         await SaveSongAsync(CurrentFile.Song);
 
@@ -180,7 +212,7 @@ public class SongSettingsService(IContainer ioc) : PropertyChangedBase
 
     private async void SaveCurrentSongSpeed()
     {
-        if (CurrentFile is null) return;
+        if (_suppressSongPersistenceAndEvents || CurrentFile is null) return;
         CurrentFile.Song.Speed = _speed;
         await SaveSongAsync(CurrentFile.Song);
     }
@@ -188,6 +220,7 @@ public class SongSettingsService(IContainer ioc) : PropertyChangedBase
     // Called by Fody when Transpose property changes
     private void OnTransposeChanged()
     {
+        if (_suppressSongPersistenceAndEvents) return;
         if (CurrentFile is null) return;
         CurrentFile.Song.Transpose = Transpose?.Key;
         _ = SaveSongAsync(CurrentFile.Song);

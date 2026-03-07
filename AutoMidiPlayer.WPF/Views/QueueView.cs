@@ -64,7 +64,7 @@ public partial class QueueView : UserControl
     {
         if (DataContext is QueueViewModel viewModel)
         {
-            viewModel.RemoveTrack(SongList.SelectedFiles);
+            viewModel.RemoveSong(SongList.SelectedFiles);
         }
     }
 

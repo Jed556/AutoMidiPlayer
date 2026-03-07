@@ -42,7 +42,7 @@
                         Content="Auto Enable Listen Mode"
                         IsChecked="{Binding AutoEnableListenMode}"
                         Margin="0,8,0,0"
-                        ToolTip="Play will automatically switch to Listen Mode (Speakers) if the selected game isn't active."/>
+                        ToolTip="Playing a song will automatically switch to Listen Mode (Speakers) if the selected game isn't running."/>
 
                     <GroupBox Header="Keypress Method"
                               Margin="0,8,0,0">

@@ -50,7 +50,7 @@
                                        Orientation="Horizontal"
                                        Spacing="4">
                 <!-- Remove selected items -->
-                <Button Command="{s:Action RemoveTrack}"
+                <Button Command="{s:Action RemoveSong}"
                         CommandParameter="{Binding ElementName=SongList, Path=SelectedFiles}"
                         Style="{DynamicResource GhostIconButton}"
                         Padding="8"

@@ -65,7 +65,7 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
         _timeWatcher.CurrentTimeChanged += OnSongTick;
 
         // Subscribe to song settings changes
-        SongSettings.SpeedChanged += speed => { if (Playback is not null) Playback.Speed = speed; };
+        SongSettings.SpeedChanged += _ => ApplyEffectivePlaybackSpeed();
         SongSettings.SettingsRebuildRequired += OnSongSettingsRebuildRequired;
 
         // SystemMediaTransportControls is only supported on Windows 10 and later
@@ -100,6 +100,12 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
     {
         _ = HandleSongSettingsRebuildRequiredAsync();
     }
+
+    /// <summary>
+    /// Rebuilds playback in-place for the currently opened song while preserving position and play state.
+    /// Useful when song properties are edited from dialogs and should apply immediately.
+    /// </summary>
+    public Task RefreshCurrentSongRealtimeAsync() => HandleSongSettingsRebuildRequiredAsync();
 
     private async Task HandleSongSettingsRebuildRequiredAsync()
     {
@@ -207,7 +213,7 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
         await ShowMissingSongFileDialogAsync(file.Path);
 
         _main.SongsView.MarkSongAsMissing(file.Song);
-        _main.QueueView.RemoveTrack(new[] { file });
+        _main.QueueView.RemoveSong(new[] { file });
     }
 
     #region Properties
@@ -462,7 +468,7 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
         var playback = tracksToPlay.GetPlayback(tempoMap);
 
         Playback = playback;
-        playback.Speed = SongSettings.Speed;
+        ApplyEffectivePlaybackSpeed();
         playback.InterruptNotesOnStop = true;
         playback.Finished += (_, _) =>
         {
@@ -512,6 +518,28 @@ public class PlaybackService : PropertyChangedBase, IHandle<MidiFile>, IHandle<M
 
         UpdateButtons();
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Applies the combined per-song playback speed:
+    /// base speed option multiplied by custom BPM ratio (if configured).
+    /// </summary>
+    private void ApplyEffectivePlaybackSpeed()
+    {
+        if (Playback is null)
+            return;
+
+        var speed = SongSettings.Speed;
+        var file = Queue.OpenedFile;
+
+        if (file?.Song.Bpm is double customBpm && customBpm > 0)
+        {
+            var nativeBpm = file.GetNativeBpm();
+            if (nativeBpm > 0)
+                speed *= customBpm / nativeBpm;
+        }
+
+        Playback.Speed = speed;
     }
 
     #endregion

@@ -246,7 +246,7 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
         ApplyFilter();
     }
 
-    public void RemoveTrack(IEnumerable<MidiFile>? selectedFiles)
+    public void RemoveSong(IEnumerable<MidiFile>? selectedFiles)
     {
         // Get files to remove - either multi-select or single select. The parameter may be null when
         // invoked via a command without a CommandParameter, so guard against that.
@@ -426,6 +426,13 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
         await using var db = _ioc.Get<LyreContext>();
         db.Songs.Update(file.Song);
         await db.SaveChangesAsync();
+
+        // Apply edits immediately if this is the currently opened song.
+        if (OpenedFile?.Song.Id == file.Song.Id)
+        {
+            _main.SongSettings.SyncFromEditedSong(file.Song);
+            await _main.Playback.RefreshCurrentSongRealtimeAsync();
+        }
     }
 
     public void MoveUp()
