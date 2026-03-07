@@ -332,8 +332,6 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             var layout = InstrumentPage.SelectedLayout.Key;
             var instrument = InstrumentPage.SelectedInstrument.Key;
             var note = ApplyNoteSettings(instrument, noteEvent.NoteNumber);
-            var selectedGame = _main.SelectedGame?.Definition;
-            var isGameRunning = selectedGame is not null && GameRegistry.IsGameRunning(selectedGame);
 
             // Notify listeners about note being played (for track glow effects)
             if (noteEvent.EventType == MidiEventType.NoteOn && noteEvent.Velocity > 0)
@@ -341,12 +339,16 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                 NotePlayed?.Invoke(this, new NotePlayedEventArgs(noteEvent.NoteNumber));
             }
 
+            // Check listen mode BEFORE expensive IsGameRunning process lookup
             if (Settings.UseSpeakers)
             {
                 noteEvent.NoteNumber = new((byte)note);
                 _speakers?.SendEvent(noteEvent);
                 return;
             }
+
+            var selectedGame = _main.SelectedGame?.Definition;
+            var isGameRunning = selectedGame is not null && GameRegistry.IsGameRunning(selectedGame);
 
             if (!isGameRunning)
             {

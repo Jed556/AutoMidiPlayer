@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using AutoMidiPlayer.Data.Properties;
@@ -19,6 +21,10 @@ namespace AutoMidiPlayer.WPF.Core.Games;
 public static class GameRegistry
 {
     private static readonly Settings Settings = Settings.Default;
+
+    // Cache IsGameRunning results to avoid per-note process enumeration
+    private static readonly ConcurrentDictionary<string, (bool result, long timestamp)> _gameRunningCache = new();
+    private const long GameRunningCacheTtlMs = 500;
 
     #region Game Definitions
     /// <summary>All registered games in display order</summary>
@@ -241,8 +247,25 @@ public static class GameRegistry
     /// <summary>
     /// Check if a game process is currently running.
     /// Checks both configured location process name and fallback process names.
+    /// Results are cached briefly to avoid expensive per-note process enumeration.
     /// </summary>
     public static bool IsGameRunning(GameDefinition game)
+    {
+        var now = Stopwatch.GetTimestamp();
+        var nowMs = (long)(now * 1000.0 / Stopwatch.Frequency);
+
+        if (_gameRunningCache.TryGetValue(game.Id, out var cached) &&
+            (nowMs - cached.timestamp) < GameRunningCacheTtlMs)
+        {
+            return cached.result;
+        }
+
+        var result = IsGameRunningCore(game);
+        _gameRunningCache[game.Id] = (result, nowMs);
+        return result;
+    }
+
+    private static bool IsGameRunningCore(GameDefinition game)
     {
         var processNames = game.ProcessNames.ToList();
 
@@ -262,7 +285,7 @@ public static class GameRegistry
         {
             try
             {
-                return System.Diagnostics.Process.GetProcessesByName(processName).Length > 0;
+                return Process.GetProcessesByName(processName).Length > 0;
             }
             catch
             {
