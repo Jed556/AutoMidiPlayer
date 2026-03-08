@@ -112,7 +112,16 @@
                                TextWrapping="Wrap"
                                Opacity="0.6"
                                FontSize="12"
-                               Margin="0,-8,0,8"/>
+                               Margin="0,-8,0,0"/>
+
+                    <GroupBox Header="Stop Playback on Mouse Click"
+                              Visibility="{Binding HotkeysEnabled, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                        <ComboBox
+                            SelectedItem="{Binding SelectedMouseStopClickOption}"
+                            ItemsSource="{x:Static viewModels:SettingsPageViewModel.MouseStopClickOptions}"
+                            DisplayMemberPath="Name"
+                            MinWidth="220"/>
+                    </GroupBox>
 
                     <controls:SimpleStackPanel Spacing="8"
                                                Grid.IsSharedSizeScope="True"

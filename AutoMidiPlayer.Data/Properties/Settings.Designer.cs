@@ -621,6 +621,21 @@ namespace AutoMidiPlayer.Data.Properties
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int MouseStopClickMode
+        {
+            get
+            {
+                return ((int)(this["MouseStopClickMode"]));
+            }
+            set
+            {
+                this["MouseStopClickMode"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("3|18")]
         public string HotkeyPlayPause
         {

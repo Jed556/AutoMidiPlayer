@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Midi;
 using AutoMidiPlayer.Data.Notification;
@@ -101,13 +102,21 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
 
     public void Handle(ListenModeChangedNotification message)
     {
-        if (UseSpeakers == message.Enabled)
+        if (Application.Current?.Dispatcher?.CheckAccess() == false)
+        {
+            Application.Current.Dispatcher.BeginInvoke(() => Handle(message));
+            return;
+        }
+
+        // Settings is the single source of truth for listen mode state.
+        var current = Settings.UseSpeakers;
+        if (UseSpeakers == current)
             return;
 
         _suppressListenModeHandler = true;
         try
         {
-            UseSpeakers = message.Enabled;
+            UseSpeakers = current;
         }
         finally
         {

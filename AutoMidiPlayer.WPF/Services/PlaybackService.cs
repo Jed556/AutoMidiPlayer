@@ -352,7 +352,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
             if (!isGameRunning)
             {
-                if (!HandleGameNotRunning())
+                if (!HandleGameNotRunning(isPlaybackStartAttempt: false))
                     return;
 
                 noteEvent.NoteNumber = new((byte)note);
@@ -397,12 +397,20 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             : noteId;
     }
 
-    private bool HandleGameNotRunning()
+    private bool HandleGameNotRunning(bool isPlaybackStartAttempt)
     {
         var shouldAutoEnableListenMode = Settings.AutoEnableListenMode;
 
         if (shouldAutoEnableListenMode && !Settings.UseSpeakers)
         {
+            // Do not auto-enable mid-playback. User intent (manual off) should stick
+            // until they explicitly press Play again.
+            if (!isPlaybackStartAttempt)
+            {
+                PausePlaybackForGameNotRunning();
+                return false;
+            }
+
             var pausedPlayback = Controls.SetListenMode(true, pausePlaybackOnChange: true);
             if (pausedPlayback)
                 return false;
@@ -415,6 +423,28 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         _main.ShowGameInactiveToast(gameLabel, listenModeEnabled);
 
         return listenModeEnabled;
+    }
+
+    private void PausePlaybackForGameNotRunning()
+    {
+        var pb = Playback;
+        if (pb is not null)
+        {
+            try
+            {
+                if (pb.IsRunning)
+                {
+                    pb.Stop();
+                    Queue.SaveCurrentSong(Controls.CurrentTime.TotalSeconds);
+                    Controls.UpdateButtons();
+                }
+            }
+            catch (ObjectDisposedException) { }
+        }
+
+        var selectedGameName = _main.SelectedGame?.Definition.DisplayName ?? "Selected game";
+        var gameLabel = $"{selectedGameName} is not running";
+        _main.ShowPlaybackStoppedGameNotRunningToast(gameLabel);
     }
 
     private void HandleGameFocusLoss()
@@ -454,7 +484,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
             if (!isGameRunning)
             {
-                if (!HandleGameNotRunning())
+                if (!HandleGameNotRunning(isPlaybackStartAttempt: true))
                     return false;
 
                 playback.PlaybackStart = playback.GetCurrentTime(TimeSpanType.Midi);

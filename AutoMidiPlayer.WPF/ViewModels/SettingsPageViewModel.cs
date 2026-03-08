@@ -80,6 +80,14 @@ public class SettingsPageViewModel : Screen
             mode: KeypressInputMode.WindowMessage)
     };
 
+    public static List<MouseStopClickOption> MouseStopClickOptions { get; } = new()
+    {
+        new("Off", MouseStopClickMode.Off),
+        new("Left Click", MouseStopClickMode.LeftClick),
+        new("Right Click", MouseStopClickMode.RightClick),
+        new("Middle Click", MouseStopClickMode.MiddleClick)
+    };
+
     private static readonly Settings Settings = Settings.Default;
     private readonly IContainer _ioc;
     private readonly IEventAggregator _events;
@@ -87,6 +95,7 @@ public class SettingsPageViewModel : Screen
     private readonly GlobalHotkeyService _hotkeyService;
     private AccentColorOption _selectedAccentColor = null!;
     private bool _isApplyingKeypressMode;
+    private MouseStopClickOption _selectedMouseStopClickOption = null!;
     private KeypressInputModeOption _selectedKeypressInputMode = null!;
     private ThemeOption _selectedTheme = null!;
 
@@ -127,6 +136,7 @@ public class SettingsPageViewModel : Screen
         KeyboardPlayer.EnableKeyUp = EnableKeyUp;
 
         _selectedKeypressInputMode = ResolveKeypressInputMode(UseDirectInput, UseWindowMessage);
+        _selectedMouseStopClickOption = ResolveMouseStopClickOption(Settings.MouseStopClickMode);
     }
 
     /// <summary>Observable collection of game location entries for the settings UI</summary>
@@ -348,6 +358,16 @@ public class SettingsPageViewModel : Screen
     }
 
     public string KeypressInputDescription => SelectedKeypressInputMode?.Description ?? string.Empty;
+
+    public MouseStopClickOption SelectedMouseStopClickOption
+    {
+        get => _selectedMouseStopClickOption;
+        set
+        {
+            if (SetAndNotify(ref _selectedMouseStopClickOption, value) && value is not null)
+                Settings.Modify(s => s.MouseStopClickMode = (int)value.Mode);
+        }
+    }
 
     public int DirectInputPressDelayMs { get; set; } = Settings.DirectInputPressDelayMs;
 
@@ -780,6 +800,15 @@ public class SettingsPageViewModel : Screen
 
         NotifyOfPropertyChange(nameof(KeypressInputDescription));
     }
+
+    private static MouseStopClickOption ResolveMouseStopClickOption(int modeValue)
+    {
+        var mode = Enum.IsDefined(typeof(MouseStopClickMode), modeValue)
+            ? (MouseStopClickMode)modeValue
+            : MouseStopClickMode.Off;
+
+        return MouseStopClickOptions.First(option => option.Mode == mode);
+    }
 }
 
 public class AccentColorOption(string name, string colorHex)
@@ -815,6 +844,14 @@ public class KeypressInputModeOption(
     public string Name { get; } = name;
     public string Description { get; } = description;
     public KeypressInputMode Mode { get; } = mode;
+
+    public override string ToString() => Name;
+}
+
+public class MouseStopClickOption(string name, MouseStopClickMode mode)
+{
+    public string Name { get; } = name;
+    public MouseStopClickMode Mode { get; } = mode;
 
     public override string ToString() => Name;
 }

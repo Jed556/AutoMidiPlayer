@@ -514,6 +514,15 @@
                                       Width="14"
                                       Height="14"/>
                             </Button>
+
+                            <Button s:View.ActionTarget="{Binding PlaybackControls}"
+                                    Command="{s:Action ToggleListenMode}"
+                                    Style="{StaticResource PlayerControlButton}"
+                                    ToolTip="{Binding PlaybackControls.ListenModeTooltip}">
+                                <ui:SymbolIcon Symbol="Headphones24"
+                                               FontSize="16"
+                                               Foreground="{Binding PlaybackControls.ListenModeStateColor}"/>
+                            </Button>
                         </controls:SimpleStackPanel>
 
                         <!-- Progress Bar -->

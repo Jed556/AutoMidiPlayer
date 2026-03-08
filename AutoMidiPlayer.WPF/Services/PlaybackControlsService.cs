@@ -7,6 +7,8 @@ using Windows.Media;
 using Windows.Media.Playback;
 using AutoMidiPlayer.Data.Notification;
 using AutoMidiPlayer.Data.Properties;
+using AutoMidiPlayer.WPF.Core;
+using AutoMidiPlayer.WPF.Core.Games;
 using AutoMidiPlayer.WPF.ViewModels;
 using Melanchall.DryWetMidi.Interaction;
 using Melanchall.DryWetMidi.Multimedia;
@@ -22,7 +24,7 @@ namespace AutoMidiPlayer.WPF.Services;
 /// play/pause, next/previous, slider, listen mode, and UI state.
 /// Backend engine logic lives in <see cref="PlaybackEngineService"/>.
 /// </summary>
-public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNotification>
+public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNotification>, IHandle<ListenModeChangedNotification>
 {
     #region Fields
 
@@ -125,6 +127,16 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
         : (Geometry)Application.Current.FindResource("PlayIconGeometry");
 
     public string PlayPauseTooltip => IsPlaying ? "Pause" : "Play";
+
+    public bool IsListenModeEnabled => Settings.UseSpeakers;
+
+    public SolidColorBrush ListenModeStateColor => IsListenModeEnabled
+        ? new SolidColorBrush(AccentColorHelper.GetAccentColor())
+        : (SolidColorBrush)Application.Current.FindResource("TextFillColorTertiaryBrush");
+
+    public string ListenModeTooltip => IsListenModeEnabled
+        ? "Listen Mode (Speakers): On"
+        : "Listen Mode (Speakers): Off";
 
     private QueueViewModel Queue => _main.QueueView;
     private TrackViewModel TrackView => _main.TrackView;
@@ -340,7 +352,44 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
         }
 
         _events.Publish(new ListenModeChangedNotification(enabled));
+        NotifyListenModeProperties();
         return pausedPlayback;
+    }
+
+    public void ToggleListenMode()
+    {
+        var enableListenMode = !IsListenModeEnabled;
+
+        // If user turns Listen Mode off while currently playing and no game is running,
+        // pause immediately so auto-enable doesn't flip it back on mid-playback.
+        if (!enableListenMode && IsPlaying)
+        {
+            var selectedGame = _main.SelectedGame?.Definition;
+            var isGameRunning = selectedGame is not null && GameRegistry.IsGameRunning(selectedGame);
+
+            if (!isGameRunning)
+            {
+                var pausedPlayback = SetListenMode(false, pausePlaybackOnChange: true);
+                if (pausedPlayback)
+                {
+                    var selectedGameName = _main.SelectedGame?.Definition.DisplayName ?? "Selected game";
+                    var gameLabel = $"{selectedGameName} is not running";
+                    _main.ShowPlaybackStoppedGameNotRunningToast(gameLabel);
+                }
+
+                return;
+            }
+        }
+
+        SetListenMode(enableListenMode, pausePlaybackOnChange: false);
+
+        if (!enableListenMode && IsPlaying)
+        {
+            var selectedGame = _main.SelectedGame?.Definition;
+            var isGameRunning = selectedGame is not null && GameRegistry.IsGameRunning(selectedGame);
+            if (isGameRunning)
+                WindowHelper.EnsureGameOnTop();
+        }
     }
 
     #endregion
@@ -358,6 +407,14 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
         NotifyOfPropertyChange(nameof(CanHitPlayPause));
         NotifyOfPropertyChange(nameof(CanHitNext));
         NotifyOfPropertyChange(nameof(CanHitPrevious));
+        NotifyListenModeProperties();
+    }
+
+    private void NotifyListenModeProperties()
+    {
+        NotifyOfPropertyChange(nameof(IsListenModeEnabled));
+        NotifyOfPropertyChange(nameof(ListenModeStateColor));
+        NotifyOfPropertyChange(nameof(ListenModeTooltip));
     }
 
     public void UpdateButtons()
@@ -420,6 +477,17 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
             return;
 
         await PlayPause();
+    }
+
+    public void Handle(ListenModeChangedNotification message)
+    {
+        if (System.Windows.Application.Current?.Dispatcher?.CheckAccess() == false)
+        {
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(() => Handle(message));
+            return;
+        }
+
+        NotifyListenModeProperties();
     }
 
     #endregion

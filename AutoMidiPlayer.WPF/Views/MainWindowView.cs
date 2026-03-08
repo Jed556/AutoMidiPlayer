@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
+using AutoMidiPlayer.WPF.Core;
 using AutoMidiPlayer.WPF.Services;
 using AutoMidiPlayer.WPF.ViewModels;
 using Wpf.Ui.Controls;
@@ -31,6 +32,16 @@ public partial class MainWindowView : FluentWindow
             _hotkeyService.PreviousPressed += (_, _) => vm.PlaybackControls.Previous();
             _hotkeyService.SpeedUpPressed += (_, _) => vm.SongSettings.IncreaseSpeed();
             _hotkeyService.SpeedDownPressed += (_, _) => vm.SongSettings.DecreaseSpeed();
+            _hotkeyService.MouseStopRequested += async (_, _) =>
+            {
+                if (!vm.PlaybackControls.IsPlaying)
+                    return;
+
+                if (!WindowHelper.IsGameFocused())
+                    return;
+
+                await Dispatcher.InvokeAsync(vm.PlaybackControls.PlayPause);
+            };
             _hotkeyService.PanicPressed += (_, _) =>
             {
                 _hotkeyService?.Dispose();

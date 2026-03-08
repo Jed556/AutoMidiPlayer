@@ -30,6 +30,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
     public static SnackbarPresenter? SnackbarPresenter = null;
     private static bool _isGameNotRunningSnackbarVisible;
     private static bool _isGameLostFocusSnackbarVisible;
+    private static bool _isStoppedForGameNotRunningSnackbarVisible;
     private readonly IEventAggregator _events;
     private static readonly Settings Settings = Settings.Default;
 
@@ -440,6 +441,38 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
         snackbar.Opened += (_, _) => _isGameLostFocusSnackbarVisible = true;
         snackbar.Closed += (_, _) => _isGameLostFocusSnackbarVisible = false;
+
+        snackbar.Show();
+    }
+
+    public void ShowPlaybackStoppedGameNotRunningToast(string gameName)
+    {
+        if (System.Windows.Application.Current?.Dispatcher?.CheckAccess() == false)
+        {
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                ShowPlaybackStoppedGameNotRunningToast(gameName)));
+            return;
+        }
+
+        if (SnackbarPresenter is null)
+            return;
+
+        if (_isStoppedForGameNotRunningSnackbarVisible)
+            return;
+
+        var snackbar = new Snackbar(SnackbarPresenter)
+        {
+            Title = "Playback paused",
+            Content = $"Stopped playback. {gameName}. Press Play to continue.",
+            Appearance = ControlAppearance.Secondary,
+            Icon = new SymbolIcon { Symbol = SymbolRegular.PauseCircle24 },
+            SlideTransform = new TranslateTransform(0, 24),
+            Timeout = TimeSpan.FromSeconds(4),
+            IsCloseButtonEnabled = true
+        };
+
+        snackbar.Opened += (_, _) => _isStoppedForGameNotRunningSnackbarVisible = true;
+        snackbar.Closed += (_, _) => _isStoppedForGameNotRunningSnackbarVisible = false;
 
         snackbar.Show();
     }

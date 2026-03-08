@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
@@ -23,7 +24,24 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
     [DllImport("user32.dll")]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelMouseProc lpfn, IntPtr hMod, uint dwThreadId);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern IntPtr GetModuleHandle(string? lpModuleName);
+
     private const int WM_HOTKEY = 0x0312;
+    private const int WH_MOUSE_LL = 14;
+    private const int WM_LBUTTONDOWN = 0x0201;
+    private const int WM_RBUTTONDOWN = 0x0204;
+    private const int WM_MBUTTONDOWN = 0x0207;
 
     // Modifier keys
     private const uint MOD_NONE = 0x0000;
@@ -41,6 +59,8 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
     private readonly Dictionary<int, HotkeyBinding> _registeredHotkeys = new();
     private HwndSource? _hwndSource;
     private IntPtr _windowHandle;
+    private IntPtr _mouseHookHandle;
+    private LowLevelMouseProc? _mouseHookProc;
     private int _nextHotkeyId = 1;
     private bool _isEnabled = true;
 
@@ -54,6 +74,7 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
     public event EventHandler? SpeedUpPressed;
     public event EventHandler? SpeedDownPressed;
     public event EventHandler? PanicPressed;
+    public event EventHandler? MouseStopRequested;
 
     #endregion
 
@@ -126,6 +147,8 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
         _windowHandle = new WindowInteropHelper(window).Handle;
         _hwndSource = HwndSource.FromHwnd(_windowHandle);
         _hwndSource?.AddHook(HwndHook);
+
+        InstallMouseHook();
 
         if (_isEnabled)
             RegisterAllHotkeys();
@@ -319,6 +342,56 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
         return result;
     }
 
+    private void InstallMouseHook()
+    {
+        if (_mouseHookHandle != IntPtr.Zero)
+            return;
+
+        _mouseHookProc = MouseHookCallback;
+
+        var moduleName = Process.GetCurrentProcess().MainModule?.ModuleName;
+        var moduleHandle = GetModuleHandle(moduleName);
+        _mouseHookHandle = SetWindowsHookEx(WH_MOUSE_LL, _mouseHookProc, moduleHandle, 0);
+
+        if (_mouseHookHandle == IntPtr.Zero)
+        {
+            // Fallback in case module handle resolution fails in some hosting scenarios.
+            _mouseHookHandle = SetWindowsHookEx(WH_MOUSE_LL, _mouseHookProc, IntPtr.Zero, 0);
+        }
+    }
+
+    private IntPtr MouseHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+    {
+        if (nCode >= 0 && _isEnabled)
+        {
+            var configuredMode = ResolveMouseStopClickMode();
+            if (configuredMode != MouseStopClickMode.Off)
+            {
+                var message = wParam.ToInt32();
+                var isMatch = configuredMode switch
+                {
+                    MouseStopClickMode.LeftClick => message == WM_LBUTTONDOWN,
+                    MouseStopClickMode.RightClick => message == WM_RBUTTONDOWN,
+                    MouseStopClickMode.MiddleClick => message == WM_MBUTTONDOWN,
+                    _ => false
+                };
+
+                if (isMatch)
+                    MouseStopRequested?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+    }
+
+    private static MouseStopClickMode ResolveMouseStopClickMode()
+    {
+        var configured = Settings.MouseStopClickMode;
+        return Enum.IsDefined(typeof(MouseStopClickMode), configured)
+            ? (MouseStopClickMode)configured
+            : MouseStopClickMode.Off;
+    }
+
     #endregion
 
     #region Message Hook
@@ -364,12 +437,22 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
     public void Dispose()
     {
         UnregisterAllHotkeys();
+
+        if (_mouseHookHandle != IntPtr.Zero)
+        {
+            UnhookWindowsHookEx(_mouseHookHandle);
+            _mouseHookHandle = IntPtr.Zero;
+        }
+
         _hwndSource?.RemoveHook(HwndHook);
         _hwndSource?.Dispose();
+        _mouseHookProc = null;
     }
 
     #endregion
 }
+
+internal delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
 
 /// <summary>
 /// Represents a configurable hotkey binding.
