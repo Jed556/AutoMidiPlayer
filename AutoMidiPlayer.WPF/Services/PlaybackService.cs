@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using AutoMidiPlayer.Data;
+using AutoMidiPlayer.Data.Entities;
 using AutoMidiPlayer.Data.Midi;
 using AutoMidiPlayer.Data.Notification;
 using AutoMidiPlayer.Data.Properties;
@@ -331,17 +332,22 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         {
             var layout = InstrumentPage.SelectedLayout.Key;
             var instrument = InstrumentPage.SelectedInstrument.Key;
+            var sourceNote = (int)noteEvent.NoteNumber;
+            var isNoteOn = noteEvent.EventType == MidiEventType.NoteOn && noteEvent.Velocity > 0;
             var note = ApplyNoteSettings(instrument, noteEvent.NoteNumber);
-
-            // Notify listeners about note being played (for track glow effects)
-            if (noteEvent.EventType == MidiEventType.NoteOn && noteEvent.Velocity > 0)
-            {
-                NotePlayed?.Invoke(this, new NotePlayedEventArgs(noteEvent.NoteNumber));
-            }
+            var transposeMode = Settings.TransposeNotes && SongSettings.Transpose is not null
+                ? SongSettings.Transpose.Value.Key
+                : (Transpose?)null;
 
             // Check listen mode BEFORE expensive IsGameRunning process lookup
             if (Settings.UseSpeakers)
             {
+                if (ShouldSkipListenNote(instrument, note, transposeMode))
+                    return;
+
+                if (isNoteOn)
+                    NotePlayed?.Invoke(this, new NotePlayedEventArgs(sourceNote));
+
                 noteEvent.NoteNumber = new((byte)note);
                 _speakers?.SendEvent(noteEvent);
                 return;
@@ -354,6 +360,12 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             {
                 if (!HandleGameNotRunning(isPlaybackStartAttempt: false))
                     return;
+
+                if (ShouldSkipListenNote(instrument, note, transposeMode))
+                    return;
+
+                if (isNoteOn)
+                    NotePlayed?.Invoke(this, new NotePlayedEventArgs(sourceNote));
 
                 noteEvent.NoteNumber = new((byte)note);
                 _speakers?.SendEvent(noteEvent);
@@ -375,11 +387,16 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                     break;
                 case MidiEventType.NoteOn when noteEvent.Velocity <= 0:
                     return;
-                case MidiEventType.NoteOn when useHoldNotes:
-                    KeyboardPlayer.NoteDown(note, layout, instrument);
-                    break;
                 case MidiEventType.NoteOn:
-                    KeyboardPlayer.PlayNote(note, layout, instrument);
+                    if (!KeyboardPlayer.TryGetKey(layout, instrument, note, out _))
+                        return;
+
+                    NotePlayed?.Invoke(this, new NotePlayedEventArgs(sourceNote));
+
+                    if (useHoldNotes)
+                        KeyboardPlayer.NoteDown(note, layout, instrument);
+                    else
+                        KeyboardPlayer.PlayNote(note, layout, instrument);
                     break;
             }
         }
@@ -387,6 +404,17 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         {
             CrashLogger.LogException(ex);
         }
+    }
+
+    private static bool ShouldSkipListenNote(string instrumentId, int note, Transpose? transposeMode)
+    {
+        if (transposeMode is not Transpose.Ignore)
+            return false;
+
+        if (Settings.PlayUnplayableOnIgnore)
+            return false;
+
+        return !Keyboard.GetNotes(instrumentId).Contains(note);
     }
 
     private int ApplyNoteSettings(string instrumentId, int noteId)

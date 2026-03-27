@@ -48,11 +48,21 @@
                     DisplayMemberPath="Value"
                     MinWidth="200"/>
 
+                <TextBlock Text="Listening"
+                           FontSize="20"
+                           FontWeight="SemiBold"
+                           Margin="0,16,0,8"/>
+
                 <ui:ToggleSwitch
                     Content="Listen Mode (Speakers)"
                     IsEnabled="{Binding CanUseSpeakers}"
                     IsChecked="{Binding UseSpeakers, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                     Margin="0,8,0,0"/>
+
+                <ui:ToggleSwitch
+                    Content="Play unplayable notes (Ignore transpose)"
+                    IsChecked="{Binding PlayUnplayableOnIgnore, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    Margin="0,0,0,0"/>
 
                 <!-- Scheduled Playback Section -->
                 <TextBlock Text="Scheduled Playback"

@@ -26,6 +26,7 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
     private bool _isUpdatingFromSong;
     private bool _suppressSelectionHandlers;
     private bool _suppressListenModeHandler;
+    private bool _suppressPlayUnplayableOnIgnoreHandler;
     private bool _timerTargetShouldPlay;
     private InputDevice? _inputDevice;
     private readonly Dictionary<string, string> _selectedInstrumentByGame;
@@ -80,12 +81,14 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
         HoldNotes = true;
 
         SyncListenModeFromSettings();
+        SyncPlayUnplayableOnIgnoreFromSettings();
     }
 
     protected override void OnActivate()
     {
         base.OnActivate();
         SyncListenModeFromSettings();
+        SyncPlayUnplayableOnIgnoreFromSettings();
         UpdateFromCurrentSong();
         NotifyOfPropertyChange(nameof(HasSongOpen));
         NotifyOfPropertyChange(nameof(ScheduledTimeText));
@@ -124,6 +127,7 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
         }
 
         NotifyOfPropertyChange(nameof(UseSpeakers));
+        SyncPlayUnplayableOnIgnoreFromSettings();
     }
 
     /// <summary>
@@ -175,6 +179,8 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
     public bool HoldNotes { get; set; }
 
     public bool UseSpeakers { get; set; }
+
+    public bool PlayUnplayableOnIgnore { get; set; }
 
     public bool HasSongOpen => _main.QueueView.OpenedFile != null;
 
@@ -651,5 +657,34 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
         }
 
         NotifyOfPropertyChange(nameof(UseSpeakers));
+    }
+
+    private void SyncPlayUnplayableOnIgnoreFromSettings()
+    {
+        var current = Settings.PlayUnplayableOnIgnore;
+        if (PlayUnplayableOnIgnore == current)
+            return;
+
+        _suppressPlayUnplayableOnIgnoreHandler = true;
+        try
+        {
+            PlayUnplayableOnIgnore = current;
+        }
+        finally
+        {
+            _suppressPlayUnplayableOnIgnoreHandler = false;
+        }
+
+        NotifyOfPropertyChange(nameof(PlayUnplayableOnIgnore));
+    }
+
+    [UsedImplicitly]
+    private void OnPlayUnplayableOnIgnoreChanged()
+    {
+        if (_suppressPlayUnplayableOnIgnoreHandler)
+            return;
+
+        Settings.Modify(s =>
+            s.PlayUnplayableOnIgnore = PlayUnplayableOnIgnore);
     }
 }

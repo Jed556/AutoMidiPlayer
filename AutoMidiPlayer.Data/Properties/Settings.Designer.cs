@@ -171,6 +171,21 @@ namespace AutoMidiPlayer.Data.Properties
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool PlayUnplayableOnIgnore
+        {
+            get
+            {
+                return ((bool)(this["PlayUnplayableOnIgnore"]));
+            }
+            set
+            {
+                this["PlayUnplayableOnIgnore"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("-1")]
         public int AppTheme
         {
