@@ -1,6 +1,5 @@
 using System;
 using System.Diagnostics;
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -18,7 +17,6 @@ public static class CrashMessageBox
 {
     public static void Show(Exception exception, string logPath)
     {
-        var logFolder = Path.GetDirectoryName(logPath) ?? logPath;
         var errorMessage = exception.Message;
 
         // --- Title row with error icon ---
@@ -49,15 +47,12 @@ public static class CrashMessageBox
             TextWrapping = TextWrapping.Wrap
         };
         logText.Inlines.Add(new Run("An error occurred. Log saved to:\n"));
-        var logLink = new Hyperlink(new Run(logPath))
-        {
-            NavigateUri = new Uri(logFolder)
-        };
+        var logLink = new Hyperlink(new Run(logPath));
 
         if (Application.Current.TryFindResource("AppHyperlinkStyle") is Style hyperlinkStyle)
             logLink.Style = hyperlinkStyle;
 
-        logLink.RequestNavigate += (_, args) =>
+        logLink.Click += (_, args) =>
         {
             Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{logPath}\"")
             {
