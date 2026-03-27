@@ -391,7 +391,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                 return;
             }
 
-            var useHoldNotes = Queue.OpenedFile?.Song.HoldNotes ?? true;
+            var useHoldNotes = Queue.OpenedFile?.Song.HoldNotes ?? false;
 
             switch (noteEvent.EventType)
             {

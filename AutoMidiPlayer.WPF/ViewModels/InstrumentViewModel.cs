@@ -78,7 +78,7 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
         // Initialize note settings to defaults (will be updated when song is loaded)
         MergeNotes = false;
         MergeMilliseconds = 100;
-        HoldNotes = true;
+        HoldNotes = false;
 
         SyncListenModeFromSettings();
         SyncPlayUnplayableOnIgnoreFromSettings();
@@ -142,7 +142,7 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
             _isUpdatingFromSong = true;
             MergeNotes = false;
             MergeMilliseconds = 100;
-            HoldNotes = true;
+            HoldNotes = false;
             _isUpdatingFromSong = false;
             NotifyOfPropertyChange(nameof(HasSongOpen));
             return;
@@ -151,7 +151,7 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
         _isUpdatingFromSong = true;
         MergeNotes = song.MergeNotes ?? false;
         MergeMilliseconds = song.MergeMilliseconds ?? 100;
-        HoldNotes = song.HoldNotes ?? true;
+        HoldNotes = song.HoldNotes ?? false;
         _isUpdatingFromSong = false;
         NotifyOfPropertyChange(nameof(HasSongOpen));
     }
