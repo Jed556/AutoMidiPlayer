@@ -201,6 +201,18 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
                 // Column already exists or other error - ignore
             }
 
+            // Add DefaultKey column if it doesn't exist (migration for song-relative key offsets)
+            try
+            {
+                db.Database.ExecuteSqlRaw(@"
+                    ALTER TABLE Songs ADD COLUMN DefaultKey INTEGER NULL;
+                ");
+            }
+            catch
+            {
+                // Column already exists or other error - ignore
+            }
+
             return db;
         });
 

@@ -19,6 +19,10 @@ public class Song
 
     public Guid Id { get; set; }
 
+    /// Detected or assigned default key center for this song.
+    /// If null, <see cref="Key"/> is treated as an absolute offset from C3 (legacy behavior).
+    public int? DefaultKey { get; set; }
+
     public int Key { get; set; }
 
     public string Path { get; set; } = null!;

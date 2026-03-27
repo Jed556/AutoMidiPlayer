@@ -547,7 +547,7 @@
 
                             <!-- Key -->
                             <TextBlock Grid.Column="3"
-                                       Text="{Binding Song.Key, Converter={x:Static converters:KeyToNoteConverter.Instance}}"
+                                       Text="{Binding Song, Converter={x:Static converters:KeyToNoteConverter.Instance}}"
                                        VerticalAlignment="Center"
                                        Opacity="0.7"/>
 

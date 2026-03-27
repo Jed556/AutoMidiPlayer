@@ -58,6 +58,12 @@ public class KeyToNoteConverter : IValueConverter
 
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
+        if (value is Song song)
+        {
+            var effectiveOffset = MusicConstants.GetEffectiveKeyOffset(song.Key, song.DefaultKey);
+            return MusicConstants.GetNoteName(effectiveOffset);
+        }
+
         if (value is int key)
         {
             return MusicConstants.GetNoteName(key);

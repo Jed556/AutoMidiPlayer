@@ -93,7 +93,7 @@ public class ImportDialog : ContentDialog
     /// </summary>
     public bool SongHoldNotes => _holdNotesCheckBox.IsChecked ?? false;
 
-    public ImportDialog(string defaultTitle, int defaultKey = 0, Transpose defaultTranspose = Transpose.Ignore, string? defaultAuthor = null, string? defaultAlbum = null, DateTime? defaultDateAdded = null, double nativeBpm = 120, double? customBpm = null, bool? mergeNotes = null, uint? mergeMilliseconds = null, bool? holdNotes = false, double? speed = null)
+    public ImportDialog(string defaultTitle, int defaultKey = 0, int defaultKeyRoot = 0, Transpose defaultTranspose = Transpose.Ignore, string? defaultAuthor = null, string? defaultAlbum = null, DateTime? defaultDateAdded = null, double nativeBpm = 120, double? customBpm = null, bool? mergeNotes = null, uint? mergeMilliseconds = null, bool? holdNotes = false, double? speed = null)
     {
         // Set up the DialogHost for this ContentDialog
         DialogHelper.SetupDialogHost(this);
@@ -162,10 +162,15 @@ public class ImportDialog : ContentDialog
 
         int selectedKeyIndex = 0;
         int index = 0;
-        foreach (var kvp in MusicConstants.KeyOffsets.OrderBy(k => k.Key))
+        foreach (var option in MusicConstants.GenerateKeyOptions(defaultKeyRoot))
         {
-            _keyComboBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = MusicConstants.FormatKeyDisplay(kvp.Key), Tag = kvp.Key });
-            if (kvp.Key == defaultKey)
+            _keyComboBox.Items.Add(new System.Windows.Controls.ComboBoxItem
+            {
+                Content = CreateKeyOptionContent(option),
+                Tag = option.Value
+            });
+
+            if (option.Value == defaultKey)
                 selectedKeyIndex = index;
             index++;
         }
@@ -325,5 +330,33 @@ public class ImportDialog : ContentDialog
         stackPanel.Children.Add(speedPanel);
 
         Content = stackPanel;
+    }
+
+    private static FrameworkElement CreateKeyOptionContent(MusicConstants.KeyOption option)
+    {
+        var grid = new System.Windows.Controls.Grid();
+        grid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(28) });
+        grid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = GridLength.Auto });
+
+        var offsetText = new System.Windows.Controls.TextBlock
+        {
+            Text = option.OffsetDisplay,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            TextAlignment = TextAlignment.Right
+        };
+        System.Windows.Controls.Grid.SetColumn(offsetText, 0);
+        grid.Children.Add(offsetText);
+
+        var noteText = new System.Windows.Controls.TextBlock
+        {
+            Text = option.NoteDisplay,
+            Margin = new Thickness(8, 0, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            TextAlignment = TextAlignment.Left
+        };
+        System.Windows.Controls.Grid.SetColumn(noteText, 1);
+        grid.Children.Add(noteText);
+
+        return grid;
     }
 }

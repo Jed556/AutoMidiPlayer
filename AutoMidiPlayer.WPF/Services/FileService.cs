@@ -8,6 +8,7 @@ using AutoMidiPlayer.Data.Entities;
 using AutoMidiPlayer.WPF.Dialogs;
 using AutoMidiPlayer.WPF.ViewModels;
 using Melanchall.DryWetMidi.Core;
+using Melanchall.DryWetMidi.Interaction;
 using StyletIoC;
 using MidiFile = AutoMidiPlayer.Data.Midi.MidiFile;
 
@@ -21,6 +22,18 @@ public class FileService(IContainer ioc)
 {
     private readonly IContainer _ioc = ioc;
     private MainWindowViewModel? _main;
+
+    private static readonly double[] MajorKeyProfile =
+    [
+        6.35, 2.23, 3.48, 2.33, 4.38, 4.09,
+        2.52, 5.19, 2.39, 3.66, 2.29, 2.88
+    ];
+
+    private static readonly double[] MinorKeyProfile =
+    [
+        6.33, 2.68, 3.52, 5.38, 2.60, 3.53,
+        2.54, 4.75, 3.98, 2.69, 3.34, 3.17
+    ];
 
     /// <summary>
     /// Late-bind the main ViewModel reference (avoids circular dependency at construction time).
@@ -279,6 +292,10 @@ public class FileService(IContainer ioc)
 
             songs.Tracks.Add(new(song, settings));
 
+            var loadedFile = songs.Tracks.FirstOrDefault(track => ReferenceEquals(track.Song, song));
+            if (loadedFile is not null)
+                await ApplyDetectedSongKeyAsync(song, loadedFile);
+
             RemoveBadMidiFileEntries(song.Path, false);
             songs.NotifyFileErrorsChanged();
 
@@ -295,6 +312,127 @@ public class FileService(IContainer ioc)
             return false;
         }
     }
+
+    private async Task ApplyDetectedSongKeyAsync(Song song, MidiFile loadedFile)
+    {
+        if (!ShouldAutoDetectSongKey(song))
+            return;
+
+        if (!TryDetectSongKeyOffset(loadedFile.Midi, out var detectedKey))
+            return;
+
+        if (song.Key == detectedKey)
+            return;
+
+        song.Key = detectedKey;
+
+        // For songs already in the DB, persist once so future loads use the detected key.
+        if (song.Id == Guid.Empty)
+            return;
+
+        try
+        {
+            await using var db = _ioc.Get<LyreContext>();
+            db.Songs.Update(song);
+            await db.SaveChangesAsync();
+        }
+        catch
+        {
+            // Detection is best-effort; never fail file loading because persistence failed.
+        }
+    }
+
+    private static bool ShouldAutoDetectSongKey(Song song) => song.Id == Guid.Empty || song.Key == 0;
+
+    private static bool TryDetectSongKeyOffset(Melanchall.DryWetMidi.Core.MidiFile midi, out int keyOffset)
+    {
+        if (TryDetectFromKeySignature(midi, out keyOffset))
+            return true;
+
+        return TryDetectFromPitchClassProfile(midi, out keyOffset);
+    }
+
+    private static bool TryDetectFromKeySignature(Melanchall.DryWetMidi.Core.MidiFile midi, out int keyOffset)
+    {
+        var keySignature = midi
+            .GetTimedEvents()
+            .Select(timed => timed.Event)
+            .OfType<KeySignatureEvent>()
+            .FirstOrDefault();
+
+        if (keySignature is null)
+        {
+            keyOffset = 0;
+            return false;
+        }
+
+        var isMinor = keySignature.Scale == 1;
+        var tonicPitchClass = Mod12((isMinor ? 9 : 0) + (keySignature.Key * 7));
+
+        keyOffset = NormalizeDetectedKeyOffset(tonicPitchClass);
+        return true;
+    }
+
+    private static bool TryDetectFromPitchClassProfile(Melanchall.DryWetMidi.Core.MidiFile midi, out int keyOffset)
+    {
+        var notes = midi.GetNotes().ToList();
+        if (notes.Count == 0)
+        {
+            keyOffset = 0;
+            return false;
+        }
+
+        var histogram = new double[12];
+        foreach (var note in notes)
+        {
+            var pitchClass = Mod12(note.NoteNumber);
+            var durationWeight = Math.Max(1L, note.Length);
+            histogram[pitchClass] += durationWeight;
+        }
+
+        var bestScore = double.NegativeInfinity;
+        var bestTonic = 0;
+
+        for (var tonic = 0; tonic < 12; tonic++)
+        {
+            var majorScore = 0.0;
+            var minorScore = 0.0;
+
+            for (var interval = 0; interval < 12; interval++)
+            {
+                var weight = histogram[Mod12(tonic + interval)];
+                majorScore += weight * MajorKeyProfile[interval];
+                minorScore += weight * MinorKeyProfile[interval];
+            }
+
+            if (majorScore > bestScore)
+            {
+                bestScore = majorScore;
+                bestTonic = tonic;
+            }
+
+            if (minorScore > bestScore)
+            {
+                bestScore = minorScore;
+                bestTonic = tonic;
+            }
+        }
+
+        keyOffset = NormalizeDetectedKeyOffset(bestTonic);
+        return true;
+    }
+
+    private static int NormalizeDetectedKeyOffset(int pitchClass)
+    {
+        var normalizedPitchClass = Mod12(pitchClass);
+
+        // Prefer the nearest signed offset around C3 so A/B/G detect as A2/B2/G2.
+        return normalizedPitchClass >= 6
+            ? normalizedPitchClass - 12
+            : normalizedPitchClass;
+    }
+
+    private static int Mod12(int value) => ((value % 12) + 12) % 12;
 
     private async Task AddFile(string fileName)
     {
@@ -335,7 +473,7 @@ public class FileService(IContainer ioc)
         {
             Title = defaultTitle,
             Transpose = Transpose.Ignore,
-            HoldNotes = true
+            HoldNotes = false
         };
 
         var added = await AddFile(song);

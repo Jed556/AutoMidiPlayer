@@ -69,7 +69,7 @@ public class TrackViewModel : Screen
         get
         {
             var instrument = InstrumentPage.SelectedInstrument.Key;
-            var keyOffset = SongSettings.KeyOffset;
+            var keyOffset = SongSettings.EffectiveKeyOffset;
             var transpose = SongSettings.Transpose?.Key;
             var availableNotes = Keyboard.GetNotes(instrument);
 
@@ -185,7 +185,7 @@ public class TrackViewModel : Screen
     public void UpdateTrackPlayableNotes()
     {
         var instrument = InstrumentPage.SelectedInstrument.Key;
-        var keyOffset = SongSettings.KeyOffset;
+        var keyOffset = SongSettings.EffectiveKeyOffset;
         var transpose = SongSettings.Transpose?.Key;
         var availableNotes = Keyboard.GetNotes(instrument).ToHashSet();
 

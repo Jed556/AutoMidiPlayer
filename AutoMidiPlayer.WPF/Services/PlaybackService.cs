@@ -432,7 +432,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
     private int ApplyNoteSettings(string instrumentId, int noteId)
     {
-        noteId -= Queue.OpenedFile?.Song.Key ?? SongSettings.KeyOffset;
+        noteId -= SongSettings.GetEffectiveKeyOffset(Queue.OpenedFile?.Song);
         return Settings.TransposeNotes && SongSettings.Transpose is not null
             ? KeyboardPlayer.TransposeNote(instrumentId, ref noteId, SongSettings.Transpose.Value.Key)
             : noteId;

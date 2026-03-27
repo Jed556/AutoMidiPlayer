@@ -72,6 +72,44 @@
             </DataTemplate.Triggers>
         </DataTemplate>
 
+        <DataTemplate x:Key="SelectorKeyItemTemplate">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"
+                                      SharedSizeGroup="SelectorKeyOffsetColumn"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock x:Name="KeyOffsetText"
+                           Grid.Column="0"
+                           Text="{Binding OffsetDisplay}"
+                           TextAlignment="Right"
+                           HorizontalAlignment="Stretch"
+                           FontSize="12"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+
+                <TextBlock x:Name="KeyNoteText"
+                           Grid.Column="1"
+                           Margin="6,0,0,0"
+                           Text="{Binding NoteDisplay}"
+                           TextAlignment="Left"
+                           HorizontalAlignment="Left"
+                           FontSize="12"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+            </Grid>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}"
+                             Value="True">
+                    <Setter TargetName="KeyOffsetText"
+                            Property="FontWeight"
+                            Value="SemiBold"/>
+                    <Setter TargetName="KeyNoteText"
+                            Property="FontWeight"
+                            Value="SemiBold"/>
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
         <DataTemplate x:Key="SelectorTransposeItemTemplate">
             <TextBlock x:Name="TransposeText"
                        Text="{Binding Value}"
@@ -633,7 +671,7 @@
                             <controls:SelectorPopupButton ToolTip="Key offset for transposition"
                                                           ItemsSource="{Binding SongSettings.KeyOptions}"
                                                           SelectedItem="{Binding SongSettings.SelectedKeyOption, Mode=TwoWay}"
-                                                          ItemTemplate="{StaticResource SelectorDisplayItemTemplate}"
+                                                          ItemTemplate="{StaticResource SelectorKeyItemTemplate}"
                                                           PopupMaxWidth="220">
                                 <controls:SelectorPopupButton.ButtonContent>
                                     <StackPanel Orientation="Horizontal"

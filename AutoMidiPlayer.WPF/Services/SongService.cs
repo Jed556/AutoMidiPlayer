@@ -42,7 +42,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
 
     #region Options (for ComboBox binding)
 
-    public List<MusicConstants.KeyOption> KeyOptions { get; } = MusicConstants.GenerateKeyOptions();
+    public List<MusicConstants.KeyOption> KeyOptions { get; private set; } = MusicConstants.GenerateKeyOptions();
 
     public List<MusicConstants.SpeedOption> SpeedOptions { get; } = MusicConstants.GenerateSpeedOptions();
 
@@ -64,12 +64,15 @@ public class SongService(IContainer ioc) : PropertyChangedBase
         get => _keyOffset;
         set
         {
-            if (SetAndNotify(ref _keyOffset, Math.Clamp(value,
-                    MusicConstants.MinKeyOffset, MusicConstants.MaxKeyOffset)))
+            var minKeyOffset = MusicConstants.GetRelativeMinKeyOffset(CurrentFile?.Song.DefaultKey);
+            var maxKeyOffset = MusicConstants.GetRelativeMaxKeyOffset(CurrentFile?.Song.DefaultKey);
+
+            if (SetAndNotify(ref _keyOffset, Math.Clamp(value, minKeyOffset, maxKeyOffset)))
             {
                 _selectedKeyOption = KeyOptions.FirstOrDefault(k => k.Value == _keyOffset);
                 NotifyOfPropertyChange(nameof(SelectedKeyOption));
                 NotifyOfPropertyChange(nameof(KeyDisplayText));
+                NotifyOfPropertyChange(nameof(EffectiveKeyOffset));
 
                 // Persist + notify for playback rebuild
                 SaveCurrentSongKey();
@@ -126,7 +129,9 @@ public class SongService(IContainer ioc) : PropertyChangedBase
 
     public KeyValuePair<Transpose, string>? Transpose { get; set; }
 
-    public string KeyDisplayText => MusicConstants.GetNoteName(KeyOffset);
+    public int EffectiveKeyOffset => GetEffectiveKeyOffset();
+
+    public string KeyDisplayText => MusicConstants.GetNoteName(EffectiveKeyOffset);
 
     public string SpeedDisplayText => $"{Speed:0.##}x";
 
@@ -169,6 +174,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
     public void ApplyPerSongSettings(MidiFile file)
     {
         CurrentFile = file;
+        UpdateKeyOptionsForCurrentSong();
 
         // Speed: per-song or default 1.0
         Speed = file.Song.Speed ?? 1.0;
@@ -190,6 +196,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
     public void ClearSettings()
     {
         CurrentFile = null;
+        UpdateKeyOptionsForCurrentSong();
         Transpose = null;
         NotifyOfPropertyChange(nameof(TransposeDisplayText));
     }
@@ -206,6 +213,10 @@ public class SongService(IContainer ioc) : PropertyChangedBase
         _suppressSongPersistenceAndEvents = true;
         try
         {
+            if (CurrentFile is not null)
+                CurrentFile.Song.DefaultKey = song.DefaultKey;
+
+            UpdateKeyOptionsForCurrentSong();
             Speed = song.Speed ?? 1.0;
             KeyOffset = song.Key;
 
@@ -222,8 +233,34 @@ public class SongService(IContainer ioc) : PropertyChangedBase
         NotifyOfPropertyChange(nameof(SelectedSpeedOption));
         NotifyOfPropertyChange(nameof(TransposeDisplayText));
         NotifyOfPropertyChange(nameof(TransposeMode));
+        NotifyOfPropertyChange(nameof(EffectiveKeyOffset));
         NotifyOfPropertyChange(nameof(IsSpeedActive));
         NotifyOfPropertyChange(nameof(IsTransposeActive));
+    }
+
+    /// <summary>
+    /// Gets the effective key offset used by playback and note conversion.
+    /// </summary>
+    public int GetEffectiveKeyOffset(Song? song = null)
+    {
+        if (song is not null)
+            return MusicConstants.GetEffectiveKeyOffset(song.Key, song.DefaultKey);
+
+        return MusicConstants.GetEffectiveKeyOffset(KeyOffset, CurrentFile?.Song.DefaultKey);
+    }
+
+    private void UpdateKeyOptionsForCurrentSong()
+    {
+        var defaultKeyOffset = CurrentFile?.Song.DefaultKey;
+        KeyOptions = MusicConstants.GenerateKeyOptions(defaultKeyOffset);
+
+        _selectedKeyOption = KeyOptions.FirstOrDefault(k => k.Value == _keyOffset)
+                             ?? KeyOptions.FirstOrDefault();
+
+        NotifyOfPropertyChange(nameof(KeyOptions));
+        NotifyOfPropertyChange(nameof(SelectedKeyOption));
+        NotifyOfPropertyChange(nameof(KeyDisplayText));
+        NotifyOfPropertyChange(nameof(EffectiveKeyOffset));
     }
 
     #endregion
@@ -301,6 +338,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
         var dialog = new ImportDialog(
             file.Song.Title ?? Path.GetFileNameWithoutExtension(file.Path),
             file.Song.Key,
+            file.Song.DefaultKey ?? 0,
             file.Song.Transpose ?? Data.Entities.Transpose.Ignore,
             file.Song.Author,
             file.Song.Album,
@@ -356,6 +394,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
         target.Author = source.Author;
         target.Album = source.Album;
         target.DateAdded = source.DateAdded;
+        target.DefaultKey = source.DefaultKey;
         target.Key = source.Key;
         target.Transpose = source.Transpose;
         target.Bpm = source.Bpm;

@@ -42,6 +42,7 @@
                         Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
                     <ListBox x:Name="SelectorListBox"
                              Padding="0"
+                             Grid.IsSharedSizeScope="True"
                              BorderThickness="0"
                              Background="Transparent"
                              MaxHeight="{Binding PopupMaxHeight, ElementName=Root}"

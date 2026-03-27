@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using AutoMidiPlayer.Data.Entities;
 
@@ -121,18 +122,67 @@ public static class MusicConstants
     public static string FormatKeyDisplay(int keyOffset, bool includeDefault = false)
     {
         var note = GetNoteName(keyOffset);
-        var prefix = keyOffset > 0 ? "+" : "";
-        var suffix = keyOffset == 0 && includeDefault ? " (Default)" : "";
-        return $"{prefix}{keyOffset} ({note}{suffix})";
+        return FormatAlignedKeyDisplay(keyOffset, note);
     }
+
+    /// <summary>
+    /// Resolve the absolute key offset used for note conversion.
+    /// For songs with a default key center, KeyOffset is relative to that center.
+    /// </summary>
+    public static int GetEffectiveKeyOffset(int keyOffset, int? defaultKeyOffset)
+    {
+        if (defaultKeyOffset is null)
+            return Math.Clamp(keyOffset, MinKeyOffset, MaxKeyOffset);
+
+        return Math.Clamp(defaultKeyOffset.Value + keyOffset, MinKeyOffset, MaxKeyOffset);
+    }
+
+    public static int GetRelativeMinKeyOffset(int? defaultKeyOffset) =>
+        defaultKeyOffset is null ? MinKeyOffset : MinKeyOffset - defaultKeyOffset.Value;
+
+    public static int GetRelativeMaxKeyOffset(int? defaultKeyOffset) =>
+        defaultKeyOffset is null ? MaxKeyOffset : MaxKeyOffset - defaultKeyOffset.Value;
+
+    /// <summary>
+    /// Format relative key offset around a song-specific default key center.
+    /// </summary>
+    public static string FormatRelativeKeyDisplay(int relativeKeyOffset, int defaultKeyOffset, bool includeDefault = false)
+    {
+        var effectiveKeyOffset = GetEffectiveKeyOffset(relativeKeyOffset, defaultKeyOffset);
+        var note = GetNoteName(effectiveKeyOffset);
+        return FormatAlignedKeyDisplay(relativeKeyOffset, note);
+    }
+
+    private static string FormatSignedKeyOffset(int keyOffset) =>
+        keyOffset.ToString("+0;-0;0", CultureInfo.InvariantCulture);
+
+    private static string FormatAlignedKeyDisplay(int keyOffset, string noteName) =>
+        $"{FormatSignedKeyOffset(keyOffset),3} {noteName}";
 
     /// <summary>
     /// Generate key options for ComboBox binding
     /// </summary>
-    public static List<KeyOption> GenerateKeyOptions() =>
-        KeyOffsets.OrderBy(k => k.Key)
-            .Select(k => new KeyOption { Value = k.Key, Display = FormatKeyDisplay(k.Key) })
+    public static List<KeyOption> GenerateKeyOptions(int? defaultKeyOffset = null)
+    {
+        var min = GetRelativeMinKeyOffset(defaultKeyOffset);
+        var max = GetRelativeMaxKeyOffset(defaultKeyOffset);
+
+        return Enumerable.Range(min, max - min + 1)
+            .Select(offset =>
+            {
+                var effectiveKeyOffset = GetEffectiveKeyOffset(offset, defaultKeyOffset);
+                var noteDisplay = GetNoteName(effectiveKeyOffset);
+
+                return new KeyOption
+                {
+                    Value = offset,
+                    OffsetDisplay = FormatSignedKeyOffset(offset),
+                    NoteDisplay = noteDisplay,
+                    Display = FormatAlignedKeyDisplay(offset, noteDisplay)
+                };
+            })
             .ToList();
+    }
 
     /// <summary>
     /// Generate speed options for ComboBox binding
@@ -157,6 +207,8 @@ public static class MusicConstants
     public class KeyOption
     {
         public int Value { get; set; }
+        public string OffsetDisplay { get; set; } = "0";
+        public string NoteDisplay { get; set; } = "C3";
         public string Display { get; set; } = string.Empty;
     }
 
