@@ -1,3 +1,4 @@
+using System;
 using System.ComponentModel;
 using System.Windows;
 using AutoMidiPlayer.WPF.Core;
@@ -86,4 +87,5 @@ public partial class MainWindowView : FluentWindow
         TrayIcon?.Dispose();
         Application.Current.Shutdown();
     }
+
 }

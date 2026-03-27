@@ -69,6 +69,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
             {
                 _selectedKeyOption = KeyOptions.FirstOrDefault(k => k.Value == _keyOffset);
                 NotifyOfPropertyChange(nameof(SelectedKeyOption));
+                NotifyOfPropertyChange(nameof(KeyDisplayText));
 
                 // Persist + notify for playback rebuild
                 SaveCurrentSongKey();
@@ -96,6 +97,9 @@ public class SongService(IContainer ioc) : PropertyChangedBase
                 _selectedSpeedOption = SpeedOptions.FirstOrDefault(s => Math.Abs(s.Value - _speed) < 0.01)
                     ?? SpeedOptions.First(s => s.Value == 1.0);
                 NotifyOfPropertyChange(nameof(SelectedSpeedOption));
+                NotifyOfPropertyChange(nameof(SpeedDisplayText));
+                NotifyOfPropertyChange(nameof(IsDefaultSpeed));
+                NotifyOfPropertyChange(nameof(IsSpeedActive));
 
                 if (!_suppressSongPersistenceAndEvents)
                 {
@@ -121,6 +125,20 @@ public class SongService(IContainer ioc) : PropertyChangedBase
     }
 
     public KeyValuePair<Transpose, string>? Transpose { get; set; }
+
+    public string KeyDisplayText => MusicConstants.GetNoteName(KeyOffset);
+
+    public string SpeedDisplayText => $"{Speed:0.##}x";
+
+    public bool IsDefaultSpeed => Math.Abs(Speed - 1.0) < 0.01;
+
+    public bool IsSpeedActive => !IsDefaultSpeed;
+
+    public string TransposeDisplayText => Transpose?.Value ?? MusicConstants.TransposeNames[Ignore];
+
+    public Transpose TransposeMode => Transpose?.Key ?? Ignore;
+
+    public bool IsTransposeActive => TransposeMode != Ignore;
 
     #endregion
 
@@ -162,6 +180,8 @@ public class SongService(IContainer ioc) : PropertyChangedBase
         var transpose = TransposeNames
             .FirstOrDefault(e => e.Key == file.Song.Transpose);
         Transpose = file.Song.Transpose is not null ? transpose : null;
+
+        NotifyOfPropertyChange(nameof(TransposeDisplayText));
     }
 
     /// <summary>
@@ -171,6 +191,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
     {
         CurrentFile = null;
         Transpose = null;
+        NotifyOfPropertyChange(nameof(TransposeDisplayText));
     }
 
     /// <summary>
@@ -199,6 +220,10 @@ public class SongService(IContainer ioc) : PropertyChangedBase
 
         NotifyOfPropertyChange(nameof(SelectedKeyOption));
         NotifyOfPropertyChange(nameof(SelectedSpeedOption));
+        NotifyOfPropertyChange(nameof(TransposeDisplayText));
+        NotifyOfPropertyChange(nameof(TransposeMode));
+        NotifyOfPropertyChange(nameof(IsSpeedActive));
+        NotifyOfPropertyChange(nameof(IsTransposeActive));
     }
 
     #endregion
@@ -225,6 +250,10 @@ public class SongService(IContainer ioc) : PropertyChangedBase
     // Called by Fody when Transpose property changes
     private void OnTransposeChanged()
     {
+        NotifyOfPropertyChange(nameof(TransposeDisplayText));
+        NotifyOfPropertyChange(nameof(TransposeMode));
+        NotifyOfPropertyChange(nameof(IsTransposeActive));
+
         if (_suppressSongPersistenceAndEvents) return;
         if (CurrentFile is null) return;
         CurrentFile.Song.Transpose = Transpose?.Key;

@@ -73,8 +73,8 @@ public class GameInfo(GameDefinition definition) : INotifyPropertyChanged
     /// <summary>Whether this game is currently selected as the active game</summary>
     public bool IsSelected { get; set; } = definition.GetIsActive();
 
-    /// <summary>Status text for display ("Active" when running, "Inactive" otherwise)</summary>
-    public string StatusText => IsRunning ? "Active" : "Inactive";
+    /// <summary>Status text for display ("Running" when running, "Inactive" otherwise)</summary>
+    public string StatusText => IsRunning ? "Running" : "Inactive";
 
     /// <summary>Convenience: display name from definition</summary>
     public string DisplayName => Definition.DisplayName;
