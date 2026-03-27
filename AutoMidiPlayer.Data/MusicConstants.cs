@@ -79,6 +79,7 @@ public static class MusicConstants
     public static readonly Dictionary<Transpose, string> TransposeNames = new()
     {
         [Transpose.Up] = "Up",
+        [Transpose.Smart] = "Smart",
         [Transpose.Ignore] = "Ignore",
         [Transpose.Down] = "Down"
     };
@@ -89,6 +90,7 @@ public static class MusicConstants
     public static readonly Dictionary<Transpose, string> TransposeTooltips = new()
     {
         [Transpose.Up] = "Transpose out-of-range notes 1 semitone up",
+        [Transpose.Smart] = "Quantize out-of-range notes to the closest playable note using detected scale",
         [Transpose.Ignore] = "Skip out-of-range notes",
         [Transpose.Down] = "Transpose out-of-range notes 1 semitone down"
     };
@@ -99,6 +101,7 @@ public static class MusicConstants
     public static readonly Dictionary<Transpose, string> TransposeShortNames = new()
     {
         [Transpose.Up] = "Up",
+        [Transpose.Smart] = "Smart",
         [Transpose.Ignore] = "Ignore",
         [Transpose.Down] = "Down"
     };

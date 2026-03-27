@@ -13,6 +13,16 @@ namespace AutoMidiPlayer.WPF.Core;
 public static class KeyboardPlayer
 {
     private static readonly IInputSimulator Input = new InputSimulator();
+    private static readonly int[][] SmartModes =
+    [
+        [0, 2, 4, 5, 7, 9, 11], // ionian (major)
+        [0, 2, 3, 5, 7, 9, 10], // dorian
+        [0, 1, 3, 5, 7, 8, 10], // phrygian
+        [0, 2, 4, 6, 7, 9, 11], // lydian
+        [0, 2, 4, 5, 7, 9, 10], // mixolydian
+        [0, 2, 3, 5, 7, 8, 10], // aeolian (minor)
+        [0, 1, 3, 5, 6, 8, 10]  // locrian
+    ];
 
     private enum KeyAction
     {
@@ -95,6 +105,13 @@ public static class KeyboardPlayer
         var notes = Keyboard.GetNotes(instrumentId);
         if (notes.Count == 0)
             return noteId;
+        var noteSet = new HashSet<int>(notes);
+
+        if (direction is Transpose.Smart)
+        {
+            noteId = SmartTransposeNote(notes, noteSet, noteId);
+            return noteId;
+        }
 
         var minNote = notes[0];
         var maxNote = notes[0];
@@ -106,7 +123,7 @@ public static class KeyboardPlayer
 
         while (true)
         {
-            if (notes.Contains(noteId))
+            if (noteSet.Contains(noteId))
                 return noteId;
 
             if (noteId < minNote)
@@ -124,6 +141,85 @@ public static class KeyboardPlayer
             }
         }
     }
+
+    private static int SmartTransposeNote(IList<int> notes, HashSet<int> noteSet, int originalNote)
+    {
+        if (noteSet.Contains(originalNote))
+            return originalNote;
+
+        var (tonic, modeIndex) = DetectBestScale(notes, originalNote);
+        var scalePitchClasses = BuildScalePitchClassSet(tonic, modeIndex);
+
+        var scaleCandidates = notes.Where(note => scalePitchClasses.Contains(Mod12(note))).ToList();
+        var candidates = scaleCandidates.Count > 0 ? scaleCandidates : notes.ToList();
+
+        var best = candidates[0];
+        var bestScore = double.PositiveInfinity;
+
+        foreach (var candidate in candidates)
+        {
+            var originalDistance = Math.Abs(candidate - originalNote);
+            var octaveDistance = Math.Abs((candidate / 12) - (originalNote / 12));
+            var score = originalDistance + (octaveDistance * 0.15);
+
+            if (score < bestScore || (Math.Abs(score - bestScore) < 0.000001 && originalDistance < Math.Abs(best - originalNote)))
+            {
+                bestScore = score;
+                best = candidate;
+            }
+        }
+
+        return best;
+    }
+
+    private static (int tonic, int modeIndex) DetectBestScale(IList<int> noteNumbers, int centerNote)
+    {
+        if (noteNumbers.Count == 0)
+            return (0, 0);
+
+        var histogram = new double[12];
+        foreach (var noteNumber in noteNumbers)
+        {
+            var pitchClass = Mod12(noteNumber);
+            var weight = 1.0 / (1.0 + Math.Abs(noteNumber - centerNote));
+            histogram[pitchClass] += weight;
+        }
+
+        var bestScore = double.NegativeInfinity;
+        var bestTonic = 0;
+        var bestMode = 0;
+
+        for (var tonic = 0; tonic < 12; tonic++)
+        {
+            for (var modeIndex = 0; modeIndex < SmartModes.Length; modeIndex++)
+            {
+                var score = 0.0;
+                foreach (var interval in SmartModes[modeIndex])
+                {
+                    score += histogram[(tonic + interval) % 12];
+                }
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestTonic = tonic;
+                    bestMode = modeIndex;
+                }
+            }
+        }
+
+        return (bestTonic, bestMode);
+    }
+
+    private static HashSet<int> BuildScalePitchClassSet(int tonic, int modeIndex)
+    {
+        var set = new HashSet<int>();
+        foreach (var interval in SmartModes[modeIndex])
+            set.Add((tonic + interval) % 12);
+        return set;
+    }
+
+    private static int Mod12(int note) => ((note % 12) + 12) % 12;
 
     public static void NoteDown(int noteId, string layoutName, string instrumentId)
         => InteractNote(noteId, layoutName, instrumentId, KeyAction.Down);
