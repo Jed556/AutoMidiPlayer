@@ -40,6 +40,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
     private readonly PlaybackCurrentTimeWatcher _timeWatcher;
 
     private int _loadEpoch;
+    private DateTime _suppressFocusLossUntilUtc = DateTime.MinValue;
 
     #endregion
 
@@ -171,6 +172,16 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
     public event EventHandler<NotePlayedEventArgs>? NotePlayed;
 
     #endregion
+
+    public void SuppressFocusLossPause(TimeSpan duration)
+    {
+        if (duration <= TimeSpan.Zero)
+            return;
+
+        var suppressUntilUtc = DateTime.UtcNow.Add(duration);
+        if (suppressUntilUtc > _suppressFocusLossUntilUtc)
+            _suppressFocusLossUntilUtc = suppressUntilUtc;
+    }
 
     #region Playback Initialization
 
@@ -374,6 +385,9 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
             if (!WindowHelper.IsGameFocused())
             {
+                if (DateTime.UtcNow <= _suppressFocusLossUntilUtc)
+                    return;
+
                 HandleGameFocusLoss();
                 return;
             }

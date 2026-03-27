@@ -28,6 +28,8 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
 {
     #region Fields
 
+    private static readonly TimeSpan ListenModeFocusTransitionGrace = TimeSpan.FromMilliseconds(600);
+
     private static readonly Settings Settings = Settings.Default;
     private readonly IContainer _ioc;
     private readonly IEventAggregator _events;
@@ -388,7 +390,12 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
             var selectedGame = _main.SelectedGame?.Definition;
             var isGameRunning = selectedGame is not null && GameRegistry.IsGameRunning(selectedGame);
             if (isGameRunning)
+            {
+                // Give foreground switching a brief grace period to avoid transient
+                // false focus-loss pauses while Windows applies the focus change.
+                Engine.SuppressFocusLossPause(ListenModeFocusTransitionGrace);
                 WindowHelper.EnsureGameOnTop();
+            }
         }
     }
 
