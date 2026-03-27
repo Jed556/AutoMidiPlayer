@@ -12,6 +12,7 @@ using AutoMidiPlayer.WPF.Core;
 using AutoMidiPlayer.WPF.Core.Games;
 using AutoMidiPlayer.WPF.Dialogs;
 using AutoMidiPlayer.WPF.ViewModels;
+using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using Melanchall.DryWetMidi.Multimedia;
@@ -359,8 +360,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                 if (isNoteOn)
                     NotePlayed?.Invoke(this, new NotePlayedEventArgs(sourceNote));
 
-                noteEvent.NoteNumber = new((byte)note);
-                _speakers?.SendEvent(noteEvent);
+                _speakers?.SendEvent(CreateOutputNoteEvent(noteEvent, note));
                 return;
             }
 
@@ -378,8 +378,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                 if (isNoteOn)
                     NotePlayed?.Invoke(this, new NotePlayedEventArgs(sourceNote));
 
-                noteEvent.NoteNumber = new((byte)note);
-                _speakers?.SendEvent(noteEvent);
+                _speakers?.SendEvent(CreateOutputNoteEvent(noteEvent, note));
                 return;
             }
 
@@ -437,6 +436,24 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         return Settings.TransposeNotes && SongSettings.Transpose is not null
             ? KeyboardPlayer.TransposeNote(instrumentId, ref noteId, SongSettings.Transpose.Value.Key)
             : noteId;
+    }
+
+    private static NoteEvent CreateOutputNoteEvent(NoteEvent source, int note)
+    {
+        var outputNote = new SevenBitNumber((byte)note);
+
+        return source switch
+        {
+            NoteOnEvent noteOn => new NoteOnEvent(outputNote, noteOn.Velocity)
+            {
+                Channel = noteOn.Channel
+            },
+            NoteOffEvent noteOff => new NoteOffEvent(outputNote, noteOff.Velocity)
+            {
+                Channel = noteOff.Channel
+            },
+            _ => source
+        };
     }
 
     private bool HandleGameNotRunning(bool isPlaybackStartAttempt)

@@ -224,7 +224,7 @@
                                                    Icon="{ui:SymbolIcon ImmersiveReader16}"
                                                    Tag="{Binding PianoSheetView}"
                                                    Click="{s:Action NavigateToItem}"/>
-                            <ui:NavigationViewItem Content="Inst."
+                            <ui:NavigationViewItem Content="Instrument"
                                                    Icon="{ui:SymbolIcon Guitar28}"
                                                    Tag="{Binding InstrumentView}"
                                                    Click="{s:Action NavigateToItem}"/>
