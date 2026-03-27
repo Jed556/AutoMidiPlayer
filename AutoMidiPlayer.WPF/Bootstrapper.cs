@@ -26,6 +26,10 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
     {
         // ensure version retrieval helper is available by referencing Reflection
         _ = GetAppVersion();
+
+        // Ensure queue loop mode is always a valid enum value before ViewModels read settings.
+        EnsureQueueLoopModeSetting();
+
         // Clear log on startup
         CrashLogger.ClearLog();
 
@@ -49,6 +53,15 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
                 });
             })
         );
+    }
+
+    private static void EnsureQueueLoopModeSetting()
+    {
+        if (Enum.IsDefined(typeof(QueueViewModel.LoopMode), Settings.Default.QueueLoopMode))
+            return;
+
+        Settings.Default.QueueLoopMode = (int)QueueViewModel.LoopMode.Off;
+        Settings.Default.Save();
     }
 
     private static string GetAppVersion()

@@ -64,6 +64,7 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
     }
 
     private BindableCollection<MidiFile> _filteredTracks = new();
+
     public BindableCollection<MidiFile> FilteredTracks
     {
         get => _filteredTracks;

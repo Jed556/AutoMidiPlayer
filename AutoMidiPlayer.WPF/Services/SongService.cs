@@ -335,10 +335,11 @@ public class SongService(IContainer ioc) : PropertyChangedBase
 
         var nativeBpm = file.GetNativeBpm();
 
-        var dialog = new ImportDialog(
+        var dialog = new EditDialog(
             file.Song.Title ?? Path.GetFileNameWithoutExtension(file.Path),
+            file.Path,
             file.Song.Key,
-            file.Song.DefaultKey ?? 0,
+            file.Song.DefaultKey,
             file.Song.Transpose ?? Data.Entities.Transpose.Ignore,
             file.Song.Author,
             file.Song.Album,
@@ -359,6 +360,8 @@ public class SongService(IContainer ioc) : PropertyChangedBase
         file.Song.Author = string.IsNullOrWhiteSpace(dialog.SongAuthor) ? null : dialog.SongAuthor;
         file.Song.Album = string.IsNullOrWhiteSpace(dialog.SongAlbum) ? null : dialog.SongAlbum;
         file.Song.DateAdded = dialog.SongDateAdded;
+        // Preserve existing song-specific default key unless dialog provides a detected value.
+        file.Song.DefaultKey = dialog.SongDefaultKey ?? file.Song.DefaultKey;
         file.Song.Key = dialog.SongKey;
         file.Song.Transpose = dialog.SongTranspose;
         file.Song.Bpm = dialog.SongBpm;

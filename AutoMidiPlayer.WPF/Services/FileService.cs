@@ -35,6 +35,35 @@ public class FileService(IContainer ioc)
         2.54, 4.75, 3.98, 2.69, 3.34, 3.17
     ];
 
+    public readonly record struct MidiAnalysisResult(double NativeBpm, int? DetectedDefaultKeyOffset, DateTime FileDate);
+
+    /// <summary>
+    /// Best-effort analysis for a MIDI file path used by UI flows that need native metadata refresh.
+    /// </summary>
+    public static bool TryAnalyzeMidiFile(string filePath, out MidiAnalysisResult result)
+    {
+        result = default;
+
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+            return false;
+
+        try
+        {
+            var midi = Melanchall.DryWetMidi.Core.MidiFile.Read(filePath);
+            var tempo = midi.GetTempoMap().GetTempoAtTime(new MetricTimeSpan(0));
+            var nativeBpm = tempo.BeatsPerMinute;
+            var fileDate = File.GetLastWriteTime(filePath);
+            var hasDetectedKey = TryDetectSongKeyOffset(midi, out var detectedDefaultKeyOffset);
+
+            result = new MidiAnalysisResult(nativeBpm, hasDetectedKey ? detectedDefaultKeyOffset : null, fileDate);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     /// <summary>
     /// Late-bind the main ViewModel reference (avoids circular dependency at construction time).
     /// </summary>
@@ -321,10 +350,12 @@ public class FileService(IContainer ioc)
         if (!TryDetectSongKeyOffset(loadedFile.Midi, out var detectedKey))
             return;
 
-        if (song.Key == detectedKey)
+        if (song.DefaultKey == detectedKey && song.Key == 0)
             return;
 
-        song.Key = detectedKey;
+        // Keep key offset relative to the detected song center.
+        song.DefaultKey = detectedKey;
+        song.Key = 0;
 
         // For songs already in the DB, persist once so future loads use the detected key.
         if (song.Id == Guid.Empty)
@@ -342,7 +373,8 @@ public class FileService(IContainer ioc)
         }
     }
 
-    private static bool ShouldAutoDetectSongKey(Song song) => song.Id == Guid.Empty || song.Key == 0;
+    private static bool ShouldAutoDetectSongKey(Song song) =>
+        song.Id == Guid.Empty || (song.DefaultKey is null && song.Key == 0);
 
     private static bool TryDetectSongKeyOffset(Melanchall.DryWetMidi.Core.MidiFile midi, out int keyOffset)
     {
