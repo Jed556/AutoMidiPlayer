@@ -373,8 +373,7 @@ public class FileService(IContainer ioc)
         }
     }
 
-    private static bool ShouldAutoDetectSongKey(Song song) =>
-        song.Id == Guid.Empty || (song.DefaultKey is null && song.Key == 0);
+    private static bool ShouldAutoDetectSongKey(Song song) => song.Id == Guid.Empty;
 
     private static bool TryDetectSongKeyOffset(Melanchall.DryWetMidi.Core.MidiFile midi, out int keyOffset)
     {
@@ -501,7 +500,9 @@ public class FileService(IContainer ioc)
 
         var defaultTitle = Path.GetFileNameWithoutExtension(fileName);
 
-        var song = new Song(fileName, _main.SongSettings.KeyOffset)
+        // Key offset is stored relative to DefaultKey for new songs.
+        // Start at 0 so detected DefaultKey becomes the playback base.
+        var song = new Song(fileName, 0)
         {
             Title = defaultTitle,
             Transpose = Transpose.Ignore,

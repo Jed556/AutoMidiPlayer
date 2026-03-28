@@ -346,7 +346,8 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             var instrument = InstrumentPage.SelectedInstrument.Key;
             var sourceNote = (int)noteEvent.NoteNumber;
             var isNoteOn = noteEvent.EventType == MidiEventType.NoteOn && noteEvent.Velocity > 0;
-            var note = ApplyNoteSettings(instrument, noteEvent.NoteNumber);
+            var noteForKeyboard = ApplyNoteSettings(instrument, noteEvent.NoteNumber);
+            var noteForListen = ApplyListenModeSettings(sourceNote);
             var transposeMode = Settings.TransposeNotes && SongSettings.Transpose is not null
                 ? SongSettings.Transpose.Value.Key
                 : (Transpose?)null;
@@ -354,13 +355,13 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             // Check listen mode BEFORE expensive IsGameRunning process lookup
             if (Settings.UseSpeakers)
             {
-                if (ShouldSkipListenNote(instrument, note, transposeMode))
+                if (ShouldSkipListenNote(instrument, noteForListen, transposeMode))
                     return;
 
                 if (isNoteOn)
                     NotePlayed?.Invoke(this, new NotePlayedEventArgs(sourceNote));
 
-                _speakers?.SendEvent(CreateOutputNoteEvent(noteEvent, note));
+                _speakers?.SendEvent(CreateOutputNoteEvent(noteEvent, noteForListen));
                 return;
             }
 
@@ -372,13 +373,13 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                 if (!HandleGameNotRunning(isPlaybackStartAttempt: false))
                     return;
 
-                if (ShouldSkipListenNote(instrument, note, transposeMode))
+                if (ShouldSkipListenNote(instrument, noteForListen, transposeMode))
                     return;
 
                 if (isNoteOn)
                     NotePlayed?.Invoke(this, new NotePlayedEventArgs(sourceNote));
 
-                _speakers?.SendEvent(CreateOutputNoteEvent(noteEvent, note));
+                _speakers?.SendEvent(CreateOutputNoteEvent(noteEvent, noteForListen));
                 return;
             }
 
@@ -396,20 +397,20 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             switch (noteEvent.EventType)
             {
                 case MidiEventType.NoteOff:
-                    KeyboardPlayer.NoteUp(note, layout, instrument);
+                    KeyboardPlayer.NoteUp(noteForKeyboard, layout, instrument);
                     break;
                 case MidiEventType.NoteOn when noteEvent.Velocity <= 0:
                     return;
                 case MidiEventType.NoteOn:
-                    if (!KeyboardPlayer.TryGetKey(layout, instrument, note, out _))
+                    if (!KeyboardPlayer.TryGetKey(layout, instrument, noteForKeyboard, out _))
                         return;
 
                     NotePlayed?.Invoke(this, new NotePlayedEventArgs(sourceNote));
 
                     if (useHoldNotes)
-                        KeyboardPlayer.NoteDown(note, layout, instrument);
+                        KeyboardPlayer.NoteDown(noteForKeyboard, layout, instrument);
                     else
-                        KeyboardPlayer.PlayNote(note, layout, instrument);
+                        KeyboardPlayer.PlayNote(noteForKeyboard, layout, instrument);
                     break;
             }
         }
@@ -417,6 +418,25 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         {
             CrashLogger.LogException(ex);
         }
+    }
+
+    private int ApplyNoteSettings(string instrumentId, int noteId)
+    {
+        noteId -= SongSettings.GetEffectiveKeyOffset(Queue.OpenedFile?.Song);
+        return Settings.TransposeNotes && SongSettings.Transpose is not null
+            ? KeyboardPlayer.TransposeNote(instrumentId, ref noteId, SongSettings.Transpose.Value.Key)
+            : noteId;
+    }
+
+    private int ApplyListenModeSettings(int noteId)
+    {
+        // Listen mode treats DefaultKey as metadata root and only applies the
+        // user-selected relative song offset (+/- around 0).
+        var relativeOffset = Queue.OpenedFile?.Song.DefaultKey is not null
+            ? SongSettings.KeyOffset
+            : 0;
+
+        return Math.Clamp(noteId - relativeOffset, 0, 127);
     }
 
     private static bool ShouldSkipListenNote(string instrumentId, int note, Transpose? transposeMode)
@@ -430,17 +450,9 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         return !Keyboard.GetNotes(instrumentId).Contains(note);
     }
 
-    private int ApplyNoteSettings(string instrumentId, int noteId)
-    {
-        noteId -= SongSettings.GetEffectiveKeyOffset(Queue.OpenedFile?.Song);
-        return Settings.TransposeNotes && SongSettings.Transpose is not null
-            ? KeyboardPlayer.TransposeNote(instrumentId, ref noteId, SongSettings.Transpose.Value.Key)
-            : noteId;
-    }
-
     private static NoteEvent CreateOutputNoteEvent(NoteEvent source, int note)
     {
-        var outputNote = new SevenBitNumber((byte)note);
+        var outputNote = new SevenBitNumber((byte)Math.Clamp(note, 0, 127));
 
         return source switch
         {
