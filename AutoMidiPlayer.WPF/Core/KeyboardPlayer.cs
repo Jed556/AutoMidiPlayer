@@ -79,9 +79,9 @@ public static class KeyboardPlayer
     /// <see cref="KeyAction.Press"/> in InputSimulator, direct input, and window-message paths.
     /// A non-zero value can improve compatibility with games that require a
     /// slightly longer held press. Delay is handled asynchronously so playback timing
-    /// is not blocked. Default is 0.
+    /// is not blocked. Default is 50.
     /// </summary>
-    public static int DirectInputPressDelayMs { get; set; } = 0;
+    public static int DirectInputPressDelayMs { get; set; } = 50;
 
     /// <summary>
     /// When using <see cref="UseDirectInput"/>, controls whether the key-up event is sent for

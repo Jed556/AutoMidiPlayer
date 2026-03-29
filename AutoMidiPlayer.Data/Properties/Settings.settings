@@ -120,7 +120,7 @@
       <Value Profile="(Default)">False</Value>
     </Setting>
     <Setting Name="DirectInputPressDelayMs" Type="System.Int32" Scope="User">
-      <Value Profile="(Default)">20</Value>
+      <Value Profile="(Default)">50</Value>
     </Setting>
     <Setting Name="EnableKeyUp" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
