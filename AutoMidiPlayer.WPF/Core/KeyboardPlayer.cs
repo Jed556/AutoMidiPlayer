@@ -81,7 +81,7 @@ public static class KeyboardPlayer
     /// slightly longer held press. Delay is handled asynchronously so playback timing
     /// is not blocked. Default is 50.
     /// </summary>
-    public static int DirectInputPressDelayMs { get; set; } = 50;
+    public static int KeyboardPressDelayMs { get; set; } = 50;
 
     /// <summary>
     /// When using <see cref="UseDirectInput"/>, controls whether the key-up event is sent for
@@ -432,7 +432,7 @@ public static class KeyboardPlayer
 
     private static void ScheduleDelayedAction(Action action)
     {
-        var delayMs = Math.Max(0, DirectInputPressDelayMs);
+        var delayMs = Math.Max(0, KeyboardPressDelayMs);
 
         if (delayMs == 0)
         {

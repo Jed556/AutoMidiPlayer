@@ -132,7 +132,7 @@ public class SettingsPageViewModel : Screen
         // Apply current keyboard input settings on startup.
         KeyboardPlayer.UseDirectInput = UseDirectInput;
         KeyboardPlayer.UseWindowMessage = UseWindowMessage;
-        KeyboardPlayer.DirectInputPressDelayMs = Math.Clamp(DirectInputPressDelayMs, 0, 1000);
+        KeyboardPlayer.KeyboardPressDelayMs = Math.Clamp(KeyboardPressDelayMs, 0, 1000);
         KeyboardPlayer.EnableKeyUp = EnableKeyUp;
 
         _selectedKeypressInputMode = ResolveKeypressInputMode(UseDirectInput, UseWindowMessage);
@@ -369,7 +369,7 @@ public class SettingsPageViewModel : Screen
         }
     }
 
-    public int DirectInputPressDelayMs { get; set; } = Settings.DirectInputPressDelayMs;
+    public int KeyboardPressDelayMs { get; set; } = Settings.KeyboardPressDelayMs;
 
     public bool EnableKeyUp { get; set; } = Settings.EnableKeyUp;
 
@@ -382,6 +382,19 @@ public class SettingsPageViewModel : Screen
                 return;
 
             Settings.Modify(s => s.AutoEnableListenMode = value);
+            NotifyOfPropertyChange();
+        }
+    }
+
+    public bool AutoDetectDefaultKeyOnImport
+    {
+        get => Settings.AutoDetectDefaultKeyOnImport;
+        set
+        {
+            if (Settings.AutoDetectDefaultKeyOnImport == value)
+                return;
+
+            Settings.Modify(s => s.AutoDetectDefaultKeyOnImport = value);
             NotifyOfPropertyChange();
         }
     }
@@ -733,15 +746,15 @@ public class SettingsPageViewModel : Screen
     }
 
     [UsedImplicitly]
-    private void OnDirectInputPressDelayMsChanged()
+    private void OnKeyboardPressDelayMsChanged()
     {
-        var clampedDelay = Math.Clamp(DirectInputPressDelayMs, 0, 1000);
-        if (clampedDelay != DirectInputPressDelayMs)
-            DirectInputPressDelayMs = clampedDelay;
+        var clampedDelay = Math.Clamp(KeyboardPressDelayMs, 0, 1000);
+        if (clampedDelay != KeyboardPressDelayMs)
+            KeyboardPressDelayMs = clampedDelay;
 
-        Settings.DirectInputPressDelayMs = clampedDelay;
+        Settings.KeyboardPressDelayMs = clampedDelay;
         Settings.Save();
-        KeyboardPlayer.DirectInputPressDelayMs = clampedDelay;
+        KeyboardPlayer.KeyboardPressDelayMs = clampedDelay;
     }
 
     [UsedImplicitly]

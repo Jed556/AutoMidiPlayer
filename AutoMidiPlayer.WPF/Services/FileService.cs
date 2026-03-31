@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Entities;
+using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Dialogs;
 using AutoMidiPlayer.WPF.ViewModels;
 using Melanchall.DryWetMidi.Core;
@@ -22,6 +23,7 @@ public class FileService(IContainer ioc)
 {
     private readonly IContainer _ioc = ioc;
     private MainWindowViewModel? _main;
+    private static readonly Settings Settings = Settings.Default;
 
     private static readonly double[] MajorKeyProfile =
     [
@@ -373,7 +375,8 @@ public class FileService(IContainer ioc)
         }
     }
 
-    private static bool ShouldAutoDetectSongKey(Song song) => song.Id == Guid.Empty;
+    private static bool ShouldAutoDetectSongKey(Song song) =>
+        song.Id == Guid.Empty && Settings.AutoDetectDefaultKeyOnImport;
 
     private static bool TryDetectSongKeyOffset(Melanchall.DryWetMidi.Core.MidiFile midi, out int keyOffset)
     {
@@ -508,6 +511,9 @@ public class FileService(IContainer ioc)
             Transpose = Transpose.Ignore,
             HoldNotes = false
         };
+
+        if (!Settings.AutoDetectDefaultKeyOnImport)
+            song.DefaultKey = 0;
 
         var added = await AddFile(song);
         if (!added)

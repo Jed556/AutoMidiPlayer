@@ -172,6 +172,21 @@ namespace AutoMidiPlayer.Data.Properties
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool AutoDetectDefaultKeyOnImport
+        {
+            get
+            {
+                return ((bool)(this["AutoDetectDefaultKeyOnImport"]));
+            }
+            set
+            {
+                this["AutoDetectDefaultKeyOnImport"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
         public bool PlayUnplayableOnIgnore
         {
             get
@@ -577,15 +592,15 @@ namespace AutoMidiPlayer.Data.Properties
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("50")]
-        public int DirectInputPressDelayMs
+        public int KeyboardPressDelayMs
         {
             get
             {
-                return ((int)(this["DirectInputPressDelayMs"]));
+                return ((int)(this["KeyboardPressDelayMs"]));
             }
             set
             {
-                this["DirectInputPressDelayMs"] = value;
+                this["KeyboardPressDelayMs"] = value;
             }
         }
 

@@ -8,6 +8,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Entities;
+using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Services;
 using Wpf.Ui.Controls;
 
@@ -15,6 +16,8 @@ namespace AutoMidiPlayer.WPF.Dialogs;
 
 public class EditDialog : ContentDialog
 {
+    private static readonly Settings UserSettings = Settings.Default;
+
     static EditDialog()
     {
         // Ensure the base ContentDialog style is applied to this derived dialog.
@@ -27,6 +30,7 @@ public class EditDialog : ContentDialog
     private readonly Wpf.Ui.Controls.TextBox _titleBox;
     private readonly Wpf.Ui.Controls.TextBox _authorBox;
     private readonly Wpf.Ui.Controls.TextBox _albumBox;
+    private readonly System.Windows.Controls.ComboBox _defaultKeyComboBox;
     private readonly System.Windows.Controls.ComboBox _keyComboBox;
     private readonly System.Windows.Controls.ComboBox _transposeComboBox;
     private readonly System.Windows.Controls.TextBlock _dateText;
@@ -213,11 +217,51 @@ public class EditDialog : ContentDialog
         _authorBox = new Wpf.Ui.Controls.TextBox { Text = defaultAuthor ?? string.Empty, Margin = new Thickness(0, 0, 0, 12) };
         stackPanel.Children.Add(_authorBox);
 
-        // Key + transpose grouped in columns
-        var keyTransposeGrid = new System.Windows.Controls.Grid { Margin = new Thickness(0, 0, 0, 12) };
-        keyTransposeGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        keyTransposeGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(12) });
-        keyTransposeGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        // Default key + key offset grouped in columns
+        var defaultKeyGrid = new System.Windows.Controls.Grid { Margin = new Thickness(0, 0, 0, 12) };
+        defaultKeyGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        defaultKeyGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(12) });
+        defaultKeyGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var defaultKeyPanel = new System.Windows.Controls.StackPanel();
+        defaultKeyPanel.Children.Add(new TextBlock { Text = "Default Key Offset", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
+
+        var defaultKeyInputPanel = new System.Windows.Controls.StackPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+
+        _defaultKeyComboBox = new System.Windows.Controls.ComboBox { Width = 160, HorizontalAlignment = HorizontalAlignment.Left, Cursor = Cursors.Hand };
+        _defaultKeyComboBox.ItemContainerStyle = new Style(typeof(System.Windows.Controls.ComboBoxItem))
+        {
+            Setters =
+            {
+                new Setter(System.Windows.Controls.Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Left)
+            }
+        };
+
+        defaultKeyInputPanel.Children.Add(_defaultKeyComboBox);
+
+        var rescanDefaultKeyButton = new System.Windows.Controls.Button
+        {
+            Margin = new Thickness(6, 0, 0, 0),
+            Width = 32,
+            Height = 32,
+            Cursor = Cursors.Hand,
+            ToolTip = "Auto-scan default key offset from MIDI"
+        };
+        rescanDefaultKeyButton.Content = new SymbolIcon
+        {
+            Symbol = SymbolRegular.ArrowClockwise24,
+            FontSize = 14
+        };
+        rescanDefaultKeyButton.Click += (_, _) => RescanMidiDefaults();
+        defaultKeyInputPanel.Children.Add(rescanDefaultKeyButton);
+
+        defaultKeyPanel.Children.Add(defaultKeyInputPanel);
+        System.Windows.Controls.Grid.SetColumn(defaultKeyPanel, 0);
+        defaultKeyGrid.Children.Add(defaultKeyPanel);
 
         var keyPanel = new System.Windows.Controls.StackPanel();
         keyPanel.Children.Add(new TextBlock { Text = "Key Offset", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
@@ -234,10 +278,35 @@ public class EditDialog : ContentDialog
             if (_keyComboBox.SelectedItem is System.Windows.Controls.ComboBoxItem item && item.Tag is int key)
                 SongKey = key;
         };
-        PopulateKeyOptions(defaultKey);
         keyPanel.Children.Add(_keyComboBox);
-        System.Windows.Controls.Grid.SetColumn(keyPanel, 0);
-        keyTransposeGrid.Children.Add(keyPanel);
+        System.Windows.Controls.Grid.SetColumn(keyPanel, 2);
+        defaultKeyGrid.Children.Add(keyPanel);
+
+        _defaultKeyComboBox.SelectionChanged += (_, _) =>
+        {
+            if (_defaultKeyComboBox.SelectedItem is System.Windows.Controls.ComboBoxItem item && item.Tag is int keyRoot)
+            {
+                _hasDefaultKeyRoot = true;
+                _defaultKeyRoot = keyRoot;
+            }
+            else
+            {
+                _hasDefaultKeyRoot = false;
+                _defaultKeyRoot = 0;
+            }
+
+            PopulateKeyOptions(SongKey);
+        };
+
+        PopulateDefaultKeyOptions(defaultKeyRoot);
+        PopulateKeyOptions(defaultKey);
+        stackPanel.Children.Add(defaultKeyGrid);
+
+        // Transpose + BPM grouped in columns
+        var transposeBpmGrid = new System.Windows.Controls.Grid { Margin = new Thickness(0, 0, 0, 12) };
+        transposeBpmGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        transposeBpmGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(12) });
+        transposeBpmGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var transposePanel = new System.Windows.Controls.StackPanel();
         transposePanel.Children.Add(new TextBlock { Text = "Transpose", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
@@ -257,15 +326,8 @@ public class EditDialog : ContentDialog
         _transposeComboBox.SelectedIndex = MusicConstants.TransposeNames.Keys.ToList().IndexOf(defaultTranspose);
         if (_transposeComboBox.SelectedIndex < 0) _transposeComboBox.SelectedIndex = 0;
         transposePanel.Children.Add(_transposeComboBox);
-        System.Windows.Controls.Grid.SetColumn(transposePanel, 2);
-        keyTransposeGrid.Children.Add(transposePanel);
-        stackPanel.Children.Add(keyTransposeGrid);
-
-        // BPM + speed grouped in columns
-        var tempoGrid = new System.Windows.Controls.Grid { Margin = new Thickness(0, 8, 0, 0) };
-        tempoGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        tempoGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(12) });
-        tempoGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        System.Windows.Controls.Grid.SetColumn(transposePanel, 0);
+        transposeBpmGrid.Children.Add(transposePanel);
 
         var bpmPanel = new System.Windows.Controls.StackPanel();
         bpmPanel.Children.Add(new TextBlock { Text = "BPM", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
@@ -279,8 +341,15 @@ public class EditDialog : ContentDialog
         };
         UpdateNativeBpmText();
         bpmPanel.Children.Add(_bpmBox);
-        System.Windows.Controls.Grid.SetColumn(bpmPanel, 0);
-        tempoGrid.Children.Add(bpmPanel);
+        System.Windows.Controls.Grid.SetColumn(bpmPanel, 2);
+        transposeBpmGrid.Children.Add(bpmPanel);
+        stackPanel.Children.Add(transposeBpmGrid);
+
+        // Speed + merge notes grouped in columns
+        var speedMergeGrid = new System.Windows.Controls.Grid { Margin = new Thickness(0, 8, 0, 0) };
+        speedMergeGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        speedMergeGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(12) });
+        speedMergeGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var speedPanel = new System.Windows.Controls.StackPanel();
         speedPanel.Children.Add(new TextBlock { Text = "Speed", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
@@ -292,15 +361,8 @@ public class EditDialog : ContentDialog
         SetSpeedSelection(speed ?? 1.0);
         speedPanel.Children.Add(_speedComboBox);
 
-        System.Windows.Controls.Grid.SetColumn(speedPanel, 2);
-        tempoGrid.Children.Add(speedPanel);
-        stackPanel.Children.Add(tempoGrid);
-
-        // Merge/Hold grouped in columns
-        var mergeHoldGrid = new System.Windows.Controls.Grid { Margin = new Thickness(0, 12, 0, 0) };
-        mergeHoldGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        mergeHoldGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(12) });
-        mergeHoldGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        System.Windows.Controls.Grid.SetColumn(speedPanel, 0);
+        speedMergeGrid.Children.Add(speedPanel);
 
         var mergeSection = new System.Windows.Controls.StackPanel();
         mergeSection.Children.Add(new TextBlock { Text = "Merge Notes", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
@@ -329,8 +391,15 @@ public class EditDialog : ContentDialog
         _mergeNotesToggle.Unchecked += (_, _) => _mergeMillisecondsBox.IsEnabled = false;
 
         mergeSection.Children.Add(mergeInputPanel);
-        System.Windows.Controls.Grid.SetColumn(mergeSection, 0);
-        mergeHoldGrid.Children.Add(mergeSection);
+        System.Windows.Controls.Grid.SetColumn(mergeSection, 2);
+        speedMergeGrid.Children.Add(mergeSection);
+        stackPanel.Children.Add(speedMergeGrid);
+
+        // Hold notes on its own row after shifting settings order
+        var holdGrid = new System.Windows.Controls.Grid { Margin = new Thickness(0, 12, 0, 0) };
+        holdGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        holdGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(12) });
+        holdGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var holdSection = new System.Windows.Controls.StackPanel();
         holdSection.Children.Add(new TextBlock { Text = "Hold Notes", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
@@ -345,10 +414,10 @@ public class EditDialog : ContentDialog
         };
         holdPanel.Children.Add(_holdNotesToggle);
         holdSection.Children.Add(holdPanel);
-        System.Windows.Controls.Grid.SetColumn(holdSection, 2);
-        mergeHoldGrid.Children.Add(holdSection);
+        System.Windows.Controls.Grid.SetColumn(holdSection, 0);
+        holdGrid.Children.Add(holdSection);
 
-        stackPanel.Children.Add(mergeHoldGrid);
+        stackPanel.Children.Add(holdGrid);
 
         // Reset defaults action above path reference section.
         var resetNormalBrush = new SolidColorBrush(Color.FromRgb(196, 43, 28));
@@ -357,7 +426,7 @@ public class EditDialog : ContentDialog
 
         var resetButton = new System.Windows.Controls.Button
         {
-            ToolTip = "Reset fields and rescan MIDI defaults",
+            ToolTip = "Reset fields to default values",
             Margin = new Thickness(0, 12, 0, 14),
             Padding = new Thickness(12, 6, 12, 6),
             HorizontalAlignment = HorizontalAlignment.Left,
@@ -502,6 +571,39 @@ public class EditDialog : ContentDialog
         SongKey = clampedKey;
     }
 
+    private void PopulateDefaultKeyOptions(int? selectedDefaultKey)
+    {
+        _defaultKeyComboBox.Items.Clear();
+
+        _defaultKeyComboBox.Items.Add(new System.Windows.Controls.ComboBoxItem
+        {
+            Content = "Legacy (None)",
+            Tag = null
+        });
+
+        var clampedDefaultKey = selectedDefaultKey.HasValue
+            ? Math.Clamp(selectedDefaultKey.Value, MusicConstants.MinKeyOffset, MusicConstants.MaxKeyOffset)
+            : (int?)null;
+
+        var selectedIndex = 0;
+        var index = 1;
+        foreach (var option in MusicConstants.GenerateKeyOptions())
+        {
+            _defaultKeyComboBox.Items.Add(new System.Windows.Controls.ComboBoxItem
+            {
+                Content = $"{option.OffsetDisplay} {option.NoteDisplay}",
+                Tag = option.Value
+            });
+
+            if (clampedDefaultKey.HasValue && option.Value == clampedDefaultKey.Value)
+                selectedIndex = index;
+
+            index++;
+        }
+
+        _defaultKeyComboBox.SelectedIndex = selectedIndex;
+    }
+
     private void SetSpeedSelection(double speed)
     {
         var matchIdx = _speedOptions.FindIndex(s => Math.Abs(s.Value - speed) < 0.01);
@@ -529,6 +631,16 @@ public class EditDialog : ContentDialog
     private void ResetAndRescan()
     {
         ResetToInitialValues();
+
+        if (!UserSettings.AutoDetectDefaultKeyOnImport)
+        {
+            _hasDefaultKeyRoot = true;
+            _defaultKeyRoot = 0;
+            PopulateDefaultKeyOptions(_defaultKeyRoot);
+            PopulateKeyOptions(0);
+            return;
+        }
+
         RescanMidiDefaults();
     }
 
@@ -540,6 +652,7 @@ public class EditDialog : ContentDialog
 
         _hasDefaultKeyRoot = _initialDefaultKeyRoot.HasValue;
         _defaultKeyRoot = _initialDefaultKeyRoot ?? 0;
+        PopulateDefaultKeyOptions(_initialDefaultKeyRoot);
         PopulateKeyOptions(_initialKey);
 
         _transposeComboBox.SelectedIndex = Math.Max(0, MusicConstants.TransposeNames.Keys.ToList().IndexOf(_initialTranspose));
@@ -577,6 +690,7 @@ public class EditDialog : ContentDialog
             _defaultKeyRoot = analysis.DetectedDefaultKeyOffset.Value;
         }
 
+        PopulateDefaultKeyOptions(SongDefaultKey);
         PopulateKeyOptions(currentKey);
     }
 
