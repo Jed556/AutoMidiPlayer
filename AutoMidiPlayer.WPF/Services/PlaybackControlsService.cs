@@ -462,9 +462,8 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
             var file = Queue.OpenedFile;
             if (file is not null)
             {
-                var position = $"{file.Position}/{Queue.GetPlaylist().Count}";
                 Display.Title = file.Title;
-                Display.Artist = $"Playing {position} {CurrentTime:mm\\:ss}";
+                Display.Artist = string.IsNullOrWhiteSpace(file.Author) ? "Unknown artist" : file.Author;
             }
 
             Controls.DisplayUpdater.Update();
