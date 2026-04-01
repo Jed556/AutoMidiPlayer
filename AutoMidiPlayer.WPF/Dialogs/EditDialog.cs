@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -41,6 +42,7 @@ public class EditDialog : ContentDialog
     private readonly System.Windows.Controls.ComboBox _speedComboBox;
     private readonly string _midiFilePath;
     private readonly System.Collections.Generic.List<MusicConstants.SpeedOption> _speedOptions;
+    private readonly System.Collections.Generic.List<TransposeOption> _transposeOptions;
 
     private readonly string _initialTitle;
     private readonly string _initialAuthor;
@@ -67,7 +69,7 @@ public class EditDialog : ContentDialog
     public DateTime? SongDateAdded => _songDateAdded;
     public int? SongDefaultKey => _hasDefaultKeyRoot ? _defaultKeyRoot : null;
     public int SongKey { get; private set; }
-    public Transpose SongTranspose => MusicConstants.TransposeNames.Keys.ElementAt(_transposeComboBox.SelectedIndex);
+    public Transpose SongTranspose => _transposeComboBox.SelectedItem is TransposeOption option ? option.Value : Transpose.Ignore;
 
     /// <summary>
     /// Gets the per-song speed override. Returns null for default 1.0x.
@@ -187,6 +189,9 @@ public class EditDialog : ContentDialog
         _initialSpeed = speed ?? 1.0;
 
         _speedOptions = MusicConstants.GenerateSpeedOptions();
+        _transposeOptions = MusicConstants.TransposeNames
+            .Select(kvp => new TransposeOption(kvp.Key, kvp.Value))
+            .ToList();
 
         var stackPanel = new System.Windows.Controls.StackPanel { Margin = new Thickness(0, 0, 12, 0) };
 
@@ -232,14 +237,14 @@ public class EditDialog : ContentDialog
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
-        _defaultKeyComboBox = new System.Windows.Controls.ComboBox { Width = 160, HorizontalAlignment = HorizontalAlignment.Left, Cursor = Cursors.Hand };
-        _defaultKeyComboBox.ItemContainerStyle = new Style(typeof(System.Windows.Controls.ComboBoxItem))
+        _defaultKeyComboBox = new System.Windows.Controls.ComboBox
         {
-            Setters =
-            {
-                new Setter(System.Windows.Controls.Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Left)
-            }
+            Width = 160,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Cursor = Cursors.Hand,
+            ItemTemplate = CreateOffsetNoteSelectorTemplate(nameof(DefaultKeyOption.OffsetDisplay), nameof(DefaultKeyOption.NoteDisplay))
         };
+        _defaultKeyComboBox.SelectionChanged += OnDefaultKeyComboBoxSelectionChanged;
 
         defaultKeyInputPanel.Children.Add(_defaultKeyComboBox);
 
@@ -248,14 +253,36 @@ public class EditDialog : ContentDialog
             Margin = new Thickness(6, 0, 0, 0),
             Width = 32,
             Height = 32,
+            Padding = new Thickness(6),
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
             Cursor = Cursors.Hand,
             ToolTip = "Auto-scan default key offset from MIDI"
         };
-        rescanDefaultKeyButton.Content = new SymbolIcon
+
+        // Apply the same ghost icon button style used in main views.
+        if (Application.Current.TryFindResource("GhostIconButton") is Style ghostStyle)
+            rescanDefaultKeyButton.Style = ghostStyle;
+        else
+            rescanDefaultKeyButton.SetResourceReference(FrameworkElement.StyleProperty, "GhostIconButton");
+
+        rescanDefaultKeyButton.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
+
+        var rescanDefaultKeyIcon = new SymbolIcon
         {
-            Symbol = SymbolRegular.ArrowClockwise24,
-            FontSize = 14
+            Symbol = SymbolRegular.ScanDash12,
+            FontSize = 16,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
+        rescanDefaultKeyIcon.SetBinding(
+            IconElement.ForegroundProperty,
+            new Binding(nameof(System.Windows.Controls.Control.Foreground))
+            {
+                RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(System.Windows.Controls.Button), 1)
+            });
+
+        rescanDefaultKeyButton.Content = rescanDefaultKeyIcon;
         rescanDefaultKeyButton.Click += (_, _) => RescanMidiDefaults();
         defaultKeyInputPanel.Children.Add(rescanDefaultKeyButton);
 
@@ -265,38 +292,18 @@ public class EditDialog : ContentDialog
 
         var keyPanel = new System.Windows.Controls.StackPanel();
         keyPanel.Children.Add(new TextBlock { Text = "Key Offset", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
-        _keyComboBox = new System.Windows.Controls.ComboBox { Width = 160, HorizontalAlignment = HorizontalAlignment.Left, Cursor = Cursors.Hand };
-        _keyComboBox.ItemContainerStyle = new Style(typeof(System.Windows.Controls.ComboBoxItem))
+
+        _keyComboBox = new System.Windows.Controls.ComboBox
         {
-            Setters =
-            {
-                new Setter(System.Windows.Controls.Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Left)
-            }
+            Width = 160,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Cursor = Cursors.Hand,
+            ItemTemplate = CreateOffsetNoteSelectorTemplate(nameof(MusicConstants.KeyOption.OffsetDisplay), nameof(MusicConstants.KeyOption.NoteDisplay))
         };
-        _keyComboBox.SelectionChanged += (_, _) =>
-        {
-            if (_keyComboBox.SelectedItem is System.Windows.Controls.ComboBoxItem item && item.Tag is int key)
-                SongKey = key;
-        };
+        _keyComboBox.SelectionChanged += OnKeyComboBoxSelectionChanged;
         keyPanel.Children.Add(_keyComboBox);
         System.Windows.Controls.Grid.SetColumn(keyPanel, 2);
         defaultKeyGrid.Children.Add(keyPanel);
-
-        _defaultKeyComboBox.SelectionChanged += (_, _) =>
-        {
-            if (_defaultKeyComboBox.SelectedItem is System.Windows.Controls.ComboBoxItem item && item.Tag is int keyRoot)
-            {
-                _hasDefaultKeyRoot = true;
-                _defaultKeyRoot = keyRoot;
-            }
-            else
-            {
-                _hasDefaultKeyRoot = false;
-                _defaultKeyRoot = 0;
-            }
-
-            PopulateKeyOptions(SongKey);
-        };
 
         PopulateDefaultKeyOptions(defaultKeyRoot);
         PopulateKeyOptions(defaultKey);
@@ -310,21 +317,16 @@ public class EditDialog : ContentDialog
 
         var transposePanel = new System.Windows.Controls.StackPanel();
         transposePanel.Children.Add(new TextBlock { Text = "Transpose", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
-        _transposeComboBox = new System.Windows.Controls.ComboBox { MinWidth = 160, HorizontalAlignment = HorizontalAlignment.Left, Cursor = Cursors.Hand };
 
-        foreach (var kvp in MusicConstants.TransposeNames)
+        _transposeComboBox = new System.Windows.Controls.ComboBox
         {
-            var item = new System.Windows.Controls.ComboBoxItem
-            {
-                Content = kvp.Value,
-                ToolTip = MusicConstants.TransposeTooltips[kvp.Key]
-            };
-            _transposeComboBox.Items.Add(item);
-        }
-
-        // Select the default transpose
-        _transposeComboBox.SelectedIndex = MusicConstants.TransposeNames.Keys.ToList().IndexOf(defaultTranspose);
-        if (_transposeComboBox.SelectedIndex < 0) _transposeComboBox.SelectedIndex = 0;
+            Width = 160,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Cursor = Cursors.Hand,
+            ItemTemplate = CreateSelectorDisplayTemplate(nameof(TransposeOption.Display)),
+            ItemsSource = _transposeOptions
+        };
+        SetTransposeSelection(defaultTranspose);
         transposePanel.Children.Add(_transposeComboBox);
         System.Windows.Controls.Grid.SetColumn(transposePanel, 0);
         transposeBpmGrid.Children.Add(transposePanel);
@@ -354,10 +356,14 @@ public class EditDialog : ContentDialog
         var speedPanel = new System.Windows.Controls.StackPanel();
         speedPanel.Children.Add(new TextBlock { Text = "Speed", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
 
-        _speedComboBox = new System.Windows.Controls.ComboBox { MinWidth = 88, HorizontalAlignment = HorizontalAlignment.Left, Cursor = Cursors.Hand };
-        foreach (var opt in _speedOptions)
-            _speedComboBox.Items.Add(opt);
-        _speedComboBox.DisplayMemberPath = "Display";
+        _speedComboBox = new System.Windows.Controls.ComboBox
+        {
+            Width = 88,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Cursor = Cursors.Hand,
+            ItemTemplate = CreateSelectorDisplayTemplate(nameof(MusicConstants.SpeedOption.Display)),
+            ItemsSource = _speedOptions
+        };
         SetSpeedSelection(speed ?? 1.0);
         speedPanel.Children.Add(_speedComboBox);
 
@@ -544,64 +550,118 @@ public class EditDialog : ContentDialog
 
     private void PopulateKeyOptions(int selectedKey)
     {
-        _keyComboBox.Items.Clear();
-
         var keyRoot = _hasDefaultKeyRoot ? _defaultKeyRoot : (int?)null;
         var minKey = MusicConstants.GetRelativeMinKeyOffset(keyRoot);
         var maxKey = MusicConstants.GetRelativeMaxKeyOffset(keyRoot);
         var clampedKey = Math.Clamp(selectedKey, minKey, maxKey);
 
-        var selectedIndex = 0;
-        var index = 0;
-        foreach (var option in MusicConstants.GenerateKeyOptions(keyRoot))
+        var keyOptions = MusicConstants.GenerateKeyOptions(keyRoot);
+        _keyComboBox.ItemsSource = keyOptions;
+
+        var selectedOption = keyOptions.FirstOrDefault(option => option.Value == clampedKey)
+            ?? keyOptions.FirstOrDefault();
+
+        _keyComboBox.SelectedItem = selectedOption;
+
+        if (selectedOption != null)
         {
-            _keyComboBox.Items.Add(new System.Windows.Controls.ComboBoxItem
-            {
-                Content = $"{option.OffsetDisplay} {option.NoteDisplay}",
-                Tag = option.Value
-            });
-
-            if (option.Value == clampedKey)
-                selectedIndex = index;
-
-            index++;
+            SongKey = selectedOption.Value;
         }
-
-        _keyComboBox.SelectedIndex = selectedIndex;
-        SongKey = clampedKey;
+        else
+        {
+            SongKey = clampedKey;
+        }
     }
 
     private void PopulateDefaultKeyOptions(int? selectedDefaultKey)
     {
-        _defaultKeyComboBox.Items.Clear();
-
-        _defaultKeyComboBox.Items.Add(new System.Windows.Controls.ComboBoxItem
-        {
-            Content = "Legacy (None)",
-            Tag = null
-        });
-
         var clampedDefaultKey = selectedDefaultKey.HasValue
             ? Math.Clamp(selectedDefaultKey.Value, MusicConstants.MinKeyOffset, MusicConstants.MaxKeyOffset)
             : (int?)null;
 
-        var selectedIndex = 0;
-        var index = 1;
-        foreach (var option in MusicConstants.GenerateKeyOptions())
+        var options = new System.Collections.Generic.List<DefaultKeyOption>
         {
-            _defaultKeyComboBox.Items.Add(new System.Windows.Controls.ComboBoxItem
+            new(null, "Legacy", "(None)")
+        };
+
+        options.AddRange(
+            MusicConstants.GenerateKeyOptions().Select(option =>
+                new DefaultKeyOption(option.Value, option.OffsetDisplay, option.NoteDisplay))
+        );
+
+        _defaultKeyComboBox.ItemsSource = options;
+
+        var selectedOption = options.FirstOrDefault(option => option.Value == clampedDefaultKey)
+            ?? options.First();
+
+        _defaultKeyComboBox.SelectedItem = selectedOption;
+    }
+
+    private static DataTemplate CreateOffsetNoteSelectorTemplate(string offsetPath, string notePath)
+    {
+        var panelFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.StackPanel));
+        panelFactory.SetValue(System.Windows.Controls.StackPanel.OrientationProperty, System.Windows.Controls.Orientation.Horizontal);
+
+        var offsetTextFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.TextBlock));
+        offsetTextFactory.Name = "KeyOffsetText";
+        offsetTextFactory.SetBinding(System.Windows.Controls.TextBlock.TextProperty, new Binding(offsetPath));
+        offsetTextFactory.SetValue(FrameworkElement.MinWidthProperty, 24d);
+        offsetTextFactory.SetValue(System.Windows.Controls.TextBlock.TextAlignmentProperty, TextAlignment.Right);
+        offsetTextFactory.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Right);
+        offsetTextFactory.SetValue(System.Windows.Controls.TextBlock.FontSizeProperty, 12d);
+        offsetTextFactory.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
+
+        var noteTextFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.TextBlock));
+        noteTextFactory.Name = "KeyNoteText";
+        noteTextFactory.SetBinding(System.Windows.Controls.TextBlock.TextProperty, new Binding(notePath));
+        noteTextFactory.SetValue(System.Windows.Controls.TextBlock.TextAlignmentProperty, TextAlignment.Left);
+        noteTextFactory.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Left);
+        noteTextFactory.SetValue(FrameworkElement.MarginProperty, new Thickness(6, 0, 0, 0));
+        noteTextFactory.SetValue(System.Windows.Controls.TextBlock.FontSizeProperty, 12d);
+        noteTextFactory.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
+
+        panelFactory.AppendChild(offsetTextFactory);
+        panelFactory.AppendChild(noteTextFactory);
+
+        var selectedTrigger = new DataTrigger
+        {
+            Binding = new Binding
             {
-                Content = $"{option.OffsetDisplay} {option.NoteDisplay}",
-                Tag = option.Value
-            });
+                RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(System.Windows.Controls.ComboBoxItem), 1),
+                Path = new PropertyPath(System.Windows.Controls.ComboBoxItem.IsSelectedProperty)
+            },
+            Value = true
+        };
 
-            if (clampedDefaultKey.HasValue && option.Value == clampedDefaultKey.Value)
-                selectedIndex = index;
+        selectedTrigger.Setters.Add(new Setter(System.Windows.Controls.TextBlock.FontWeightProperty, FontWeights.SemiBold, "KeyOffsetText"));
+        selectedTrigger.Setters.Add(new Setter(System.Windows.Controls.TextBlock.FontWeightProperty, FontWeights.SemiBold, "KeyNoteText"));
 
-            index++;
+        var template = new DataTemplate
+        {
+            VisualTree = panelFactory
+        };
+
+        template.Triggers.Add(selectedTrigger);
+        return template;
+    }
+
+    private void OnDefaultKeyComboBoxSelectionChanged(object? sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_defaultKeyComboBox.SelectedItem is not DefaultKeyOption option)
+            return;
+
+        if (option.Value.HasValue)
+        {
+            _hasDefaultKeyRoot = true;
+            _defaultKeyRoot = option.Value.Value;
+        }
+        else
+        {
+            _hasDefaultKeyRoot = false;
+            _defaultKeyRoot = 0;
         }
 
-        _defaultKeyComboBox.SelectedIndex = selectedIndex;
+        PopulateKeyOptions(SongKey);
     }
 
     private void SetSpeedSelection(double speed)
@@ -611,7 +671,52 @@ public class EditDialog : ContentDialog
             matchIdx = _speedOptions.FindIndex(s => Math.Abs(s.Value - 1.0) < 0.01);
 
         if (matchIdx >= 0)
-            _speedComboBox.SelectedIndex = matchIdx;
+            _speedComboBox.SelectedItem = _speedOptions[matchIdx];
+    }
+
+    private void SetTransposeSelection(Transpose transpose)
+    {
+        var selectedOption = _transposeOptions.FirstOrDefault(option => option.Value == transpose)
+            ?? _transposeOptions.First();
+
+        _transposeComboBox.SelectedItem = selectedOption;
+    }
+
+    private static DataTemplate CreateSelectorDisplayTemplate(string bindingPath)
+    {
+        var textBlockFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.TextBlock));
+        textBlockFactory.Name = "DisplayText";
+        textBlockFactory.SetBinding(System.Windows.Controls.TextBlock.TextProperty, new Binding(bindingPath));
+        textBlockFactory.SetValue(System.Windows.Controls.TextBlock.FontSizeProperty, 12d);
+        textBlockFactory.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
+
+        var selectedTrigger = new DataTrigger
+        {
+            Binding = new Binding
+            {
+                RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(System.Windows.Controls.ComboBoxItem), 1),
+                Path = new PropertyPath(System.Windows.Controls.ComboBoxItem.IsSelectedProperty)
+            },
+            Value = true
+        };
+
+        selectedTrigger.Setters.Add(new Setter(System.Windows.Controls.TextBlock.FontWeightProperty, FontWeights.SemiBold, "DisplayText"));
+
+        var template = new DataTemplate
+        {
+            VisualTree = textBlockFactory
+        };
+
+        template.Triggers.Add(selectedTrigger);
+        return template;
+    }
+
+    private void OnKeyComboBoxSelectionChanged(object? sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_keyComboBox.SelectedItem is not MusicConstants.KeyOption option)
+            return;
+
+        SongKey = option.Value;
     }
 
     private void UpdateDateText() =>
@@ -655,7 +760,7 @@ public class EditDialog : ContentDialog
         PopulateDefaultKeyOptions(_initialDefaultKeyRoot);
         PopulateKeyOptions(_initialKey);
 
-        _transposeComboBox.SelectedIndex = Math.Max(0, MusicConstants.TransposeNames.Keys.ToList().IndexOf(_initialTranspose));
+        SetTransposeSelection(_initialTranspose);
 
         _songDateAdded = _initialDateAdded;
         UpdateDateText();
@@ -735,6 +840,20 @@ public class EditDialog : ContentDialog
         {
             // Best effort: opening Explorer should not block saving edits.
         }
+    }
+
+    private sealed class TransposeOption(Transpose value, string display)
+    {
+        public Transpose Value { get; } = value;
+        public string Display { get; } = display;
+    }
+
+    private sealed class DefaultKeyOption(int? value, string offsetDisplay, string noteDisplay)
+    {
+        public int? Value { get; } = value;
+        public string OffsetDisplay { get; } = offsetDisplay;
+        public string NoteDisplay { get; } = noteDisplay;
+        public string Display => $"{OffsetDisplay} {NoteDisplay}";
     }
 
 }
