@@ -34,7 +34,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
     private readonly IEventAggregator _events;
     private static readonly Settings Settings = Settings.Default;
 
-    private static readonly string AppName = $"Auto MIDI Player {SettingsPageViewModel.ProgramVersion}";
+    private static readonly string AppName = $"Auto MIDI Player {SettingsPageViewModel.ProgramVersionDisplay}";
     private static readonly string[] MidiExtensions = [".mid", ".midi"];
     private readonly DispatcherTimer _gameStateTimer;
 

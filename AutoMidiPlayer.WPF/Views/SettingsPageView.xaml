@@ -285,7 +285,7 @@
                     <controls:SimpleStackPanel Orientation="Horizontal"
                                                Spacing="8">
                         <TextBlock VerticalAlignment="Center">
-                        v<Run Text="{Binding ProgramVersion, Mode=OneTime}"/>
+                        v<Run Text="{Binding ProgramVersionDisplay, Mode=OneTime}"/>
                         </TextBlock>
                         <ui:SymbolIcon Symbol="TriangleRight20"
                                        FontSize="8"

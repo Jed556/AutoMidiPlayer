@@ -494,6 +494,22 @@ public class SettingsPageViewModel : Screen
 
     public static Version ProgramVersion => Assembly.GetExecutingAssembly().GetName().Version!;
 
+    public static string ProgramVersionDisplay => GetVersionDisplay(ProgramVersion);
+
+    private static string GetVersionDisplay(Version version)
+    {
+        if (version == null)
+            return "unknown";
+
+        if (version.Revision == 0 && version.Build >= 0)
+            return $"{version.Major}.{version.Minor}.{version.Build}";
+
+        if (version.Build < 0)
+            return $"{version.Major}.{version.Minor}";
+
+        return version.ToString();
+    }
+
     private QueueViewModel Queue => _main.QueueView;
 
     public async Task<bool> TryGetLocationAsync()
