@@ -264,7 +264,8 @@
                          ShowMinimize="False"
                          ShowClose="False">
                 <ui:TitleBar.Header>
-                    <Grid Width="{Binding ActualWidth, ElementName=MainTitleBar}">
+                    <Grid Width="{Binding ActualWidth, ElementName=MainTitleBar}"
+                          shell:WindowChrome.IsHitTestVisibleInChrome="False">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
@@ -274,6 +275,7 @@
                             Grid.Column="0"
                             Orientation="Horizontal"
                             VerticalAlignment="Center"
+                            IsHitTestVisible="False"
                             Margin="14,0,0,0">
                             <Image Width="16"
                                    Height="16"
@@ -289,8 +291,7 @@
                                     Orientation="Horizontal"
                                     HorizontalAlignment="Right"
                                     VerticalAlignment="Center"
-                                    Margin="0,0,8,0"
-                                    shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                                    Margin="0,0,8,0">
                             <Button Command="{s:Action NavigateToSettings}"
                                     Style="{DynamicResource GhostIconButton}"
                                     ToolTip="Update available"
