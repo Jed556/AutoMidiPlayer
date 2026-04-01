@@ -147,7 +147,22 @@ public static class KeyboardPlayer
         if (noteSet.Contains(originalNote))
             return originalNote;
 
-        var (tonic, modeIndex) = DetectBestScale(notes, originalNote);
+        var minNote = notes[0];
+        var maxNote = notes[0];
+        for (var i = 1; i < notes.Count; i++)
+        {
+            if (notes[i] < minNote) minNote = notes[i];
+            if (notes[i] > maxNote) maxNote = notes[i];
+        }
+
+        // Fold extreme out-of-range notes by octaves before quantization so
+        // dense high passages do not collapse to the highest playable note.
+        var targetNote = FoldNoteIntoRangeByOctaves(originalNote, minNote, maxNote);
+
+        if (noteSet.Contains(targetNote))
+            return targetNote;
+
+        var (tonic, modeIndex) = DetectBestScale(notes, targetNote);
         var scalePitchClasses = BuildScalePitchClassSet(tonic, modeIndex);
 
         var scaleCandidates = notes.Where(note => scalePitchClasses.Contains(Mod12(note))).ToList();
@@ -158,11 +173,11 @@ public static class KeyboardPlayer
 
         foreach (var candidate in candidates)
         {
-            var originalDistance = Math.Abs(candidate - originalNote);
-            var octaveDistance = Math.Abs((candidate / 12) - (originalNote / 12));
-            var score = originalDistance + (octaveDistance * 0.15);
+            var targetDistance = Math.Abs(candidate - targetNote);
+            var octaveDistance = Math.Abs((candidate / 12) - (targetNote / 12));
+            var score = targetDistance + (octaveDistance * 0.15);
 
-            if (score < bestScore || (Math.Abs(score - bestScore) < 0.000001 && originalDistance < Math.Abs(best - originalNote)))
+            if (score < bestScore || (Math.Abs(score - bestScore) < 0.000001 && targetDistance < Math.Abs(best - targetNote)))
             {
                 bestScore = score;
                 best = candidate;
@@ -170,6 +185,26 @@ public static class KeyboardPlayer
         }
 
         return best;
+    }
+
+    private static int FoldNoteIntoRangeByOctaves(int note, int minNote, int maxNote)
+    {
+        var folded = note;
+
+        while (folded < minNote)
+            folded += 12;
+
+        while (folded > maxNote)
+            folded -= 12;
+
+        if (folded >= minNote && folded <= maxNote)
+            return folded;
+
+        // If range is narrower than an octave, exact pitch-class folding may
+        // not land inside range. In that case use the nearest boundary.
+        return Math.Abs(folded - minNote) <= Math.Abs(folded - maxNote)
+            ? minNote
+            : maxNote;
     }
 
     private static (int tonic, int modeIndex) DetectBestScale(IList<int> noteNumbers, int centerNote)
