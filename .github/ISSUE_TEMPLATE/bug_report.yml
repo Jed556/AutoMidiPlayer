@@ -25,6 +25,27 @@ body:
         - Windows 11
     validations:
       required: true
+  - type: dropdown
+    id: game
+    attributes:
+      label: "Game"
+      description: "Select the game/s in which you're seeing this issue."
+      multiple: true
+      options:
+        - Genshin Impact
+        - Heartopia
+        - Roblox
+        - Sky
+    validations:
+      required: false
+  - type: input
+    id: instrument
+    attributes:
+      label: "Instrument"
+      description: "Instrument name/s as shown in app."
+      placeholder: "e.g. Cello 𝄐, Piano (37 key), Lyre (2 row)"
+    validations:
+      required: false
   - type: textarea
     id: steps-to-reproduce
     attributes:
@@ -38,5 +59,12 @@ body:
     attributes:
       label: Upload Logs
       description: If applicable, add log files to help explain your problem.
+    validations:
+      required: false
+  - type: upload
+    id: midis
+    attributes:
+      label: Upload MIDI Files
+      description: If applicable, add MIDI files to help understand your problem. To upload MIDI files, you need to change the file extension to `.txt` first (Uploading `.mid`/`.midi` files in issue forms is not supported).
     validations:
       required: false
