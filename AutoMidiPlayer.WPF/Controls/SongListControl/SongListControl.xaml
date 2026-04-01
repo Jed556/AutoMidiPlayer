@@ -483,7 +483,7 @@
                                 </Button>
                             </Grid>
 
-                            <!-- Album Art + Title + Author -->
+                            <!-- Album Art + Title + Artist -->
                             <Grid Grid.Column="1">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -508,7 +508,7 @@
                                                    VerticalAlignment="Center"/>
                                 </Border>
 
-                                <!-- Title + Author stacked -->
+                                <!-- Title + Artist stacked -->
                                 <StackPanel Grid.Column="1"
                                             VerticalAlignment="Center">
                                     <TextBlock Text="{Binding Title}"
@@ -534,7 +534,7 @@
                                     <TextBlock TextTrimming="CharacterEllipsis"
                                                FontSize="12"
                                                Opacity="0.6"
-                                               Text="{Binding Song.Author, TargetNullValue='Unknown Artist', FallbackValue='Unknown Artist'}"/>
+                                               Text="{Binding Song.Artist, TargetNullValue='Unknown Artist', FallbackValue='Unknown Artist'}"/>
                                 </StackPanel>
                             </Grid>
 

@@ -41,7 +41,7 @@ public class MidiFile : Screen
 
     public string Title => Song.Title ?? GetFileNameWithoutExtension(Path);
 
-    public string? Author => Song.Author;
+    public string? Artist => Song.Artist;
 
     public TimeSpan Duration
     {

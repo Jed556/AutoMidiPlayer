@@ -463,7 +463,7 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
             if (file is not null)
             {
                 Display.Title = file.Title;
-                Display.Artist = string.IsNullOrWhiteSpace(file.Author) ? "Unknown artist" : file.Author;
+                Display.Artist = string.IsNullOrWhiteSpace(file.Artist) ? "Unknown artist" : file.Artist;
             }
 
             Controls.DisplayUpdater.Update();

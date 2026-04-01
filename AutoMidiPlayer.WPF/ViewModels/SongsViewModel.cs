@@ -155,10 +155,15 @@ public class SongsViewModel : Screen
 
     public void ApplySort()
     {
+        var searchTerm = SearchText?.Trim() ?? string.Empty;
+
         // First, filter by search text
-        IEnumerable<MidiFile> filtered = string.IsNullOrWhiteSpace(SearchText)
+        IEnumerable<MidiFile> filtered = string.IsNullOrWhiteSpace(searchTerm)
             ? Tracks
-            : Tracks.Where(t => t.Title.Contains(SearchText, StringComparison.OrdinalIgnoreCase));
+            : Tracks.Where(t =>
+                t.Title.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)
+                || (!string.IsNullOrWhiteSpace(t.Song.Album) && t.Song.Album.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+                || (!string.IsNullOrWhiteSpace(t.Song.Artist) && t.Song.Artist.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)));
 
         // Then, apply sorting
         IEnumerable<MidiFile> sorted = CurrentSortMode switch

@@ -147,8 +147,8 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         if (PlaybackControls.IsPlaying && QueueView.OpenedFile is not null)
         {
             var title = QueueView.OpenedFile.Title;
-            var author = QueueView.OpenedFile.Author;
-            Title = string.IsNullOrWhiteSpace(author) ? title : $"{title} • {author}";
+            var artist = QueueView.OpenedFile.Artist;
+            Title = string.IsNullOrWhiteSpace(artist) ? title : $"{title} • {artist}";
         }
         else
         {

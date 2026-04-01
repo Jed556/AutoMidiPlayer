@@ -651,7 +651,7 @@
                                        FontSize="14"
                                        TextTrimming="CharacterEllipsis"
                                        TextWrapping="NoWrap"/>
-                            <TextBlock Text="{Binding TrackView.Queue.OpenedFile.Song.Author, FallbackValue=Unknown artist}"
+                            <TextBlock Text="{Binding TrackView.Queue.OpenedFile.Song.Artist, FallbackValue=Unknown artist}"
                                        Opacity="0.6"
                                        FontSize="12"
                                        TextTrimming="CharacterEllipsis"

@@ -508,9 +508,14 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
     /// </summary>
     public void ApplyFilter()
     {
-        IEnumerable<MidiFile> filtered = string.IsNullOrWhiteSpace(FilterText)
+        var searchTerm = FilterText?.Trim() ?? string.Empty;
+
+        IEnumerable<MidiFile> filtered = string.IsNullOrWhiteSpace(searchTerm)
             ? Tracks
-            : Tracks.Where(t => t.Title.Contains(FilterText, StringComparison.OrdinalIgnoreCase));
+            : Tracks.Where(t =>
+                t.Title.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)
+                || (!string.IsNullOrWhiteSpace(t.Song.Album) && t.Song.Album.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+                || (!string.IsNullOrWhiteSpace(t.Song.Artist) && t.Song.Artist.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)));
 
         FilteredTracks = new BindableCollection<MidiFile>(filtered);
     }

@@ -34,7 +34,7 @@
             <controls:SimpleStackPanel Grid.Column="0"
                                        Orientation="Horizontal"
                                        Spacing="4">
-                <ui:TextBox PlaceholderText="Filter queue..."
+                <ui:TextBox PlaceholderText="Filter title, album, artist..."
                             Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"
                             Width="250"
                             Icon="Search12"

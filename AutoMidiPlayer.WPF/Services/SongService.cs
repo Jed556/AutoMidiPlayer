@@ -341,7 +341,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
             file.Song.Key,
             file.Song.DefaultKey,
             file.Song.Transpose ?? Data.Entities.Transpose.Ignore,
-            file.Song.Author,
+            file.Song.Artist,
             file.Song.Album,
             file.Song.DateAdded,
             nativeBpm,
@@ -357,7 +357,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
         file.Song.Title = string.IsNullOrWhiteSpace(dialog.SongTitle)
             ? Path.GetFileNameWithoutExtension(file.Path)
             : dialog.SongTitle;
-        file.Song.Author = string.IsNullOrWhiteSpace(dialog.SongAuthor) ? null : dialog.SongAuthor;
+        file.Song.Artist = string.IsNullOrWhiteSpace(dialog.SongArtist) ? null : dialog.SongArtist;
         file.Song.Album = string.IsNullOrWhiteSpace(dialog.SongAlbum) ? null : dialog.SongAlbum;
         file.Song.DateAdded = dialog.SongDateAdded;
         // Preserve existing song-specific default key unless dialog provides a detected value.
@@ -394,7 +394,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
     private static void CopyEditableSongFields(Song source, Song target)
     {
         target.Title = source.Title;
-        target.Author = source.Author;
+        target.Artist = source.Artist;
         target.Album = source.Album;
         target.DateAdded = source.DateAdded;
         target.DefaultKey = source.DefaultKey;

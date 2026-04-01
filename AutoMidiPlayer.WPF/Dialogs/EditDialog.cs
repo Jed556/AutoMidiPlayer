@@ -29,7 +29,7 @@ public class EditDialog : ContentDialog
     }
 
     private readonly Wpf.Ui.Controls.TextBox _titleBox;
-    private readonly Wpf.Ui.Controls.TextBox _authorBox;
+    private readonly Wpf.Ui.Controls.TextBox _artistBox;
     private readonly Wpf.Ui.Controls.TextBox _albumBox;
     private readonly System.Windows.Controls.ComboBox _defaultKeyComboBox;
     private readonly System.Windows.Controls.ComboBox _keyComboBox;
@@ -45,7 +45,7 @@ public class EditDialog : ContentDialog
     private readonly System.Collections.Generic.List<TransposeOption> _transposeOptions;
 
     private readonly string _initialTitle;
-    private readonly string _initialAuthor;
+    private readonly string _initialArtist;
     private readonly string _initialAlbum;
     private readonly int _initialKey;
     private readonly int? _initialDefaultKeyRoot;
@@ -64,7 +64,7 @@ public class EditDialog : ContentDialog
     private double _nativeBpm;
 
     public string SongTitle => _titleBox.Text;
-    public string SongAuthor => _authorBox.Text;
+    public string SongArtist => _artistBox.Text;
     public string SongAlbum => _albumBox.Text;
     public DateTime? SongDateAdded => _songDateAdded;
     public int? SongDefaultKey => _hasDefaultKeyRoot ? _defaultKeyRoot : null;
@@ -120,7 +120,7 @@ public class EditDialog : ContentDialog
     /// </summary>
     public bool SongHoldNotes => _holdNotesToggle.IsChecked == true;
 
-    public EditDialog(string defaultTitle, string midiFilePath, int defaultKey = 0, int? defaultKeyRoot = null, Transpose defaultTranspose = Transpose.Ignore, string? defaultAuthor = null, string? defaultAlbum = null, DateTime? defaultDateAdded = null, double nativeBpm = 120, double? customBpm = null, bool? mergeNotes = null, uint? mergeMilliseconds = null, bool? holdNotes = false, double? speed = null)
+    public EditDialog(string defaultTitle, string midiFilePath, int defaultKey = 0, int? defaultKeyRoot = null, Transpose defaultTranspose = Transpose.Ignore, string? defaultArtist = null, string? defaultAlbum = null, DateTime? defaultDateAdded = null, double nativeBpm = 120, double? customBpm = null, bool? mergeNotes = null, uint? mergeMilliseconds = null, bool? holdNotes = false, double? speed = null)
     {
         // Set up the DialogHost for this ContentDialog
         DialogHelper.SetupDialogHost(this);
@@ -175,7 +175,7 @@ public class EditDialog : ContentDialog
         _nativeBpm = nativeBpm;
 
         _initialTitle = defaultTitle;
-        _initialAuthor = defaultAuthor ?? string.Empty;
+        _initialArtist = defaultArtist ?? string.Empty;
         _initialAlbum = defaultAlbum ?? string.Empty;
         _initialKey = defaultKey;
         _initialDefaultKeyRoot = defaultKeyRoot;
@@ -217,10 +217,10 @@ public class EditDialog : ContentDialog
 
         stackPanel.Children.Add(titleAlbumGrid);
 
-        // Author
-        stackPanel.Children.Add(new TextBlock { Text = "Author/s", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
-        _authorBox = new Wpf.Ui.Controls.TextBox { Text = defaultAuthor ?? string.Empty, Margin = new Thickness(0, 0, 0, 12) };
-        stackPanel.Children.Add(_authorBox);
+        // Artist
+        stackPanel.Children.Add(new TextBlock { Text = "Artist", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
+        _artistBox = new Wpf.Ui.Controls.TextBox { Text = defaultArtist ?? string.Empty, Margin = new Thickness(0, 0, 0, 12) };
+        stackPanel.Children.Add(_artistBox);
 
         // Default key + key offset grouped in columns
         var defaultKeyGrid = new System.Windows.Controls.Grid { Margin = new Thickness(0, 0, 0, 12) };
@@ -752,7 +752,7 @@ public class EditDialog : ContentDialog
     private void ResetToInitialValues()
     {
         _titleBox.Text = _initialTitle;
-        _authorBox.Text = _initialAuthor;
+        _artistBox.Text = _initialArtist;
         _albumBox.Text = _initialAlbum;
 
         _hasDefaultKeyRoot = _initialDefaultKeyRoot.HasValue;

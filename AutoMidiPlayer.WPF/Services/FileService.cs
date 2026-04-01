@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Entities;
@@ -24,6 +25,24 @@ public class FileService(IContainer ioc)
     private readonly IContainer _ioc = ioc;
     private MainWindowViewModel? _main;
     private static readonly Settings Settings = Settings.Default;
+    private static readonly string[] NoiseTagKeywords =
+    [
+        "official", "audio", "video", "lyrics", "lyric", "karaoke", "instrumental",
+        "midi", "mid", "mp3", "hq", "hd", "remaster", "remastered", "slowed",
+        "reverb", "nightcore", "sped up", "version", "ver", "full"
+    ];
+
+    private static readonly string[] ArtistIndicators =
+    [
+        "feat", "ft", "featuring", "prod", "producer", "by", "x", "vs", "&", ","
+    ];
+
+    private static readonly string[] TitleIndicators =
+    [
+        "ost", "theme", "soundtrack", "opening", "ending", "op", "ed"
+    ];
+
+    private readonly record struct ParsedSongMetadata(string Title, string? Artist);
 
     private static readonly double[] MajorKeyProfile =
     [
@@ -501,13 +520,14 @@ public class FileService(IContainer ioc)
             }
         }
 
-        var defaultTitle = Path.GetFileNameWithoutExtension(fileName);
+        var metadata = ParseSongMetadataFromFileName(fileName);
 
         // Key offset is stored relative to DefaultKey for new songs.
         // Start at 0 so detected DefaultKey becomes the playback base.
         var song = new Song(fileName, 0)
         {
-            Title = defaultTitle,
+            Title = metadata.Title,
+            Artist = metadata.Artist,
             Transpose = Transpose.Ignore,
             HoldNotes = false
         };
@@ -522,6 +542,182 @@ public class FileService(IContainer ioc)
         await using var db = _ioc.Get<LyreContext>();
         db.Songs.Add(song);
         await db.SaveChangesAsync();
+    }
+
+    private static ParsedSongMetadata ParseSongMetadataFromFileName(string filePath)
+    {
+        var rawName = Path.GetFileNameWithoutExtension(filePath);
+        var normalizedName = NormalizeFileName(rawName);
+        if (string.IsNullOrWhiteSpace(normalizedName))
+            return new ParsedSongMetadata(rawName, null);
+
+        var byMatch = Regex.Match(
+            normalizedName,
+            "^(?<title>.+?)\\s+by\\s+(?<artist>.+)$",
+            RegexOptions.IgnoreCase);
+
+        if (TryBuildMetadata(byMatch.Groups["title"].Value, byMatch.Groups["artist"].Value, out var byMetadata))
+            return byMetadata;
+
+        var splitParts = SplitByCommonSeparators(normalizedName);
+        if (splitParts.Count >= 2)
+        {
+            var first = splitParts[0];
+            var last = splitParts[^1];
+            var firstArtistScore = GetArtistLikelihood(first);
+            var lastArtistScore = GetArtistLikelihood(last);
+
+            // If one side looks clearly more like an artist, treat that side as Artist.
+            if (firstArtistScore >= lastArtistScore + 2)
+            {
+                if (TryBuildMetadata(string.Join(" - ", splitParts.Skip(1)), first, out var reversedMetadata))
+                    return reversedMetadata;
+            }
+            else if (lastArtistScore >= firstArtistScore + 2)
+            {
+                if (TryBuildMetadata(string.Join(" - ", splitParts.Take(splitParts.Count - 1)), last, out var standardMetadata))
+                    return standardMetadata;
+            }
+            else
+            {
+                if (TryBuildMetadata(splitParts[0], string.Join(" - ", splitParts.Skip(1)), out var defaultMetadata))
+                    return defaultMetadata;
+            }
+        }
+
+        var trailingArtistMatch = Regex.Match(
+            normalizedName,
+            "^(?<title>.+?)\\s*[\\(\\[](?<artist>[^\\)\\]]+)[\\)\\]]$",
+            RegexOptions.IgnoreCase);
+
+        if (TryBuildMetadata(
+                trailingArtistMatch.Groups["title"].Value,
+                trailingArtistMatch.Groups["artist"].Value,
+                out var trailingArtistMetadata))
+        {
+            return trailingArtistMetadata;
+        }
+
+        return new ParsedSongMetadata(normalizedName, null);
+    }
+
+    private static List<string> SplitByCommonSeparators(string value)
+    {
+        var spacedSplit = Regex.Split(value, "\\s+(?:-|–|—|~|\\|)\\s+")
+            .Select(part => part.Trim())
+            .Where(part => !string.IsNullOrWhiteSpace(part))
+            .ToList();
+
+        if (spacedSplit.Count >= 2)
+            return spacedSplit;
+
+        // Compact patterns such as Artist-Title are handled only for one delimiter to avoid splitting hyphenated words.
+        var compactMatch = Regex.Match(value, "^(?<left>[^-~|]{2,})[-~|](?<right>[^-~|]{2,})$");
+        if (compactMatch.Success)
+        {
+            var left = compactMatch.Groups["left"].Value.Trim();
+            var right = compactMatch.Groups["right"].Value.Trim();
+
+            if (!string.IsNullOrWhiteSpace(left) && !string.IsNullOrWhiteSpace(right))
+                return [left, right];
+        }
+
+        return [];
+    }
+
+    private static string NormalizeFileName(string value)
+    {
+        var normalized = value.Replace('_', ' ');
+        normalized = Regex.Replace(normalized, "\\s+", " ").Trim();
+        normalized = Regex.Replace(normalized, "^\\d{1,3}[\\)\\].\\-_ ]+", string.Empty).Trim();
+
+        // Remove trailing bracket tags that are usually source/noise markers.
+        while (TryRemoveTrailingBracketTag(normalized, out var cleaned))
+            normalized = cleaned;
+
+        return normalized.Trim('-', ' ', '|', '~');
+    }
+
+    private static bool TryRemoveTrailingBracketTag(string value, out string cleaned)
+    {
+        cleaned = value;
+
+        var tagMatch = Regex.Match(value, "^(?<head>.+?)\\s*[\\(\\[\\{](?<tag>[^\\)\\]\\}]+)[\\)\\]\\}]\\s*$");
+        if (!tagMatch.Success)
+            return false;
+
+        var tag = tagMatch.Groups["tag"].Value;
+        if (!LooksLikeNoiseTag(tag))
+            return false;
+
+        cleaned = tagMatch.Groups["head"].Value.Trim();
+        return !string.IsNullOrWhiteSpace(cleaned);
+    }
+
+    private static bool LooksLikeNoiseTag(string value)
+    {
+        var lowered = value.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(lowered))
+            return false;
+
+        if (Regex.IsMatch(lowered, "^\\d{3,4}p$"))
+            return true;
+
+        return NoiseTagKeywords.Any(keyword => lowered.Contains(keyword, StringComparison.Ordinal));
+    }
+
+    private static int GetArtistLikelihood(string segment)
+    {
+        if (string.IsNullOrWhiteSpace(segment))
+            return 0;
+
+        var lowered = segment.ToLowerInvariant();
+        var score = 0;
+
+        if (ArtistIndicators.Any(indicator => Regex.IsMatch(lowered, $"\\b{Regex.Escape(indicator)}\\b")))
+            score += 2;
+
+        if (segment.Contains(',') || segment.Contains('&') || segment.Contains('/'))
+            score += 1;
+
+        var wordCount = segment.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+        if (wordCount is > 0 and <= 4)
+            score += 1;
+        else if (wordCount >= 8)
+            score -= 1;
+
+        if (Regex.IsMatch(segment, "\\d"))
+            score -= 1;
+
+        if (TitleIndicators.Any(indicator => Regex.IsMatch(lowered, $"\\b{Regex.Escape(indicator)}\\b")))
+            score -= 2;
+
+        return score;
+    }
+
+    private static bool TryBuildMetadata(string titleCandidate, string artistCandidate, out ParsedSongMetadata metadata)
+    {
+        metadata = default;
+
+        var title = CleanMetadataSegment(titleCandidate);
+        var artist = CleanMetadataSegment(artistCandidate);
+
+        if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(artist))
+            return false;
+
+        if (string.Equals(title, artist, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        metadata = new ParsedSongMetadata(title, artist);
+        return true;
+    }
+
+    private static string CleanMetadataSegment(string value)
+    {
+        var cleaned = value.Trim();
+        cleaned = cleaned.Trim('-', ' ', '|', '~');
+        cleaned = Regex.Replace(cleaned, "\\s+", " ");
+        return cleaned;
     }
 
     private async Task RestoreMissingSong(Song missingSong, string newPath, string fileHash)

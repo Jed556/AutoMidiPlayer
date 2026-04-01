@@ -130,6 +130,41 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
             var db = new LyreContext(options);
             db.Database.EnsureCreated();
 
+            // Rename Author column to Artist for existing databases.
+            try
+            {
+                db.Database.ExecuteSqlRaw(@"
+                    ALTER TABLE Songs RENAME COLUMN Author TO Artist;
+                ");
+            }
+            catch
+            {
+                // Fallback for SQLite engines where RENAME COLUMN is not available.
+                try
+                {
+                    db.Database.ExecuteSqlRaw(@"
+                        ALTER TABLE Songs ADD COLUMN Artist TEXT NULL;
+                    ");
+                }
+                catch
+                {
+                    // Column already exists or cannot be added - ignore
+                }
+
+                try
+                {
+                    db.Database.ExecuteSqlRaw(@"
+                        UPDATE Songs
+                        SET Artist = Author
+                        WHERE Artist IS NULL;
+                    ");
+                }
+                catch
+                {
+                    // Source Author column not available - ignore
+                }
+            }
+
             // Add ImagePath column if it doesn't exist (migration for existing databases)
             try
             {
