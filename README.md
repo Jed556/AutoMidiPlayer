@@ -1,7 +1,7 @@
 <div align="center">
   <br>
   <p>
-    <a href="https://github.com/Jed556/AutoMidiPlayer"><img src="https://i.imgur.com/oBU3PBj.png" width="500" alt="Auto MIDI Player【AMP】" /></a> 
+    <a href="https://github.com/Jed556/AutoMidiPlayer"><img src="https://raw.githubusercontent.com/wiki/Jed556/AutoMidiPlayer/Assets/Branding.png" width="500" alt="Auto MIDI Player【AMP】" /></a> 
   </p>
   <p>
     <a href="https://github.com/Jed556/AutoMidiPlayer/releases"><img alt="Beta" src="https://img.shields.io/github/v/release/Jed556/AutoMidiPlayer?include_prereleases&color=35566D&label=Beta&logo=data:image/svg+xml;base64,PCFET0NUWVBFIHN2ZyBQVUJMSUMgIi0vL1czQy8vRFREIFNWRyAxLjEvL0VOIiAiaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTEuZHRkIj4KDTwhLS0gVXBsb2FkZWQgdG86IFNWRyBSZXBvLCB3d3cuc3ZncmVwby5jb20sIFRyYW5zZm9ybWVkIGJ5OiBTVkcgUmVwbyBNaXhlciBUb29scyAtLT4KPHN2ZyB3aWR0aD0iODAwcHgiIGhlaWdodD0iODAwcHgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiBzdHJva2U9IiNmZmZmZmYiPgoNPGcgaWQ9IlNWR1JlcG9fYmdDYXJyaWVyIiBzdHJva2Utd2lkdGg9IjAiLz4KDTxnIGlkPSJTVkdSZXBvX3RyYWNlckNhcnJpZXIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgoNPGcgaWQ9IlNWR1JlcG9faWNvbkNhcnJpZXIiPiA8cGF0aCBkPSJNNyA4TDMgMTEuNjkyM0w3IDE2TTE3IDhMMjEgMTEuNjkyM0wxNyAxNk0xNCA0TDEwIDIwIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+IDwvZz4KDTwvc3ZnPg=="></a>
@@ -15,7 +15,7 @@ A MIDI to key player for in-game instruments made using C# and WPF with Windows 
 <div align="center">
   <i>If you liked this project, consider <a href="CONTRIBUTING.md">contributing</a> or giving a 🌟 star. Thank you~</i>
 </div>
-</br>
+<br/>
 
 https://github.com/user-attachments/assets/8e7d8dec-33c4-4d2b-a268-4abd1dbac405
 
@@ -25,28 +25,26 @@ https://github.com/user-attachments/assets/8e7d8dec-33c4-4d2b-a268-4abd1dbac405
 - **Roblox** - Piano (61-key)
 - **Sky: Children of the Light** - All available Sky instruments as of Feb 2026
 
+See the [Support wiki page][wiki-support] for details on supported games, instruments, and keyboard layouts.
 
-## How to use
+## Quick Start
 
-1. [Download][latest] the program and then run, no need for installation.
-2. Open a .mid file by pressing the open file button at the top left.
+1. [Download][latest] the app and then run, no need for installation.
+2. Open a .mid file by pressing the **+** button at the top left.
 3. Enable the tracks that you want to be played back.
 4. Press play and it will automatically switch to the target game window.
 5. Automatically stops playing if you switch to a different window.
 
+> [!NOTE]
 > If you get a SmartScreen popup, click on "More info" and then "Run anyway"
 > The reason this appears is because the application is not signed. Signing costs money which can get very expensive.
 
 ## Features
 
 ### Core Features
-* **Multi-game support** - Play on Genshin Impact (Lyre, Zither, Vintage Lyre) and Heartopia (Piano Variants)
+* **Multi-game support** - Play on Genshin Impact, Sky, Roblox and Heartopia
 * **Spotify-style UI** - Modern player interface with fixed bottom controls
-* **Per-song Settings** - Key, speed, and transpose settings are saved per song
-  - **Track Management** - Enable/disable individual MIDI tracks with detailed statistics
-  - **Transposition** - Change the key with automatic note transposition
-  - **Speed Control** - Adjust playback speed from 0.1x to 4.0x
-  - **BPM Control** - Set a custom BPM for the song
+* **Per-song Settings** - Key offset, transpose, speed, and BPM settings are saved for each song
 
 ### Instrument Playback
 * Test MIDI files through speakers before playing in-game
@@ -80,7 +78,7 @@ https://github.com/user-attachments/assets/f249be17-566c-4a4f-856b-9b03f55592ef
 ## About
 
 ### What are MIDI files?
-MIDI files (.mid) is a set of instructions that play various instruments on what are called tracks. You can enable specific tracks that you want it to play. It converts the notes on the track into keyboard inputs for the game. Currently it is tuned to C major.
+MIDI files (.mid) are a set of instructions that play various instruments on what are called tracks. You can enable specific tracks that you want it to play. It converts the notes on the track into keyboard inputs for the game. Currently it is tuned to C major.
 
 ### Can this get me banned?
 The short answer is that it's uncertain. Use it at your own risk. Do not play songs that will spam the keyboard, listen to the MIDI file first and make sure to play only one instrument so that the tool doesn't spam keyboard inputs.
@@ -89,114 +87,49 @@ The short answer is that it's uncertain. Use it at your own risk. Do not play so
 * For Sky, see their policy on [third-party apps](https://thatgamecompany.helpshift.com/hc/en/17-sky-children-of-the-light/faq/1250-can-i-use-or-create-third-party-applications-like-mods-or-bots/).
 * For Roblox, refer to their [third-party services Terms of Use](https://en.help.roblox.com/hc/en-us/articles/115004647846-Roblox-Terms-of-Use#third-party-services).
 
-## Pull Request Process
 
-1. Do not include the build itself where the project is cleaned using `dotnet clean`.
-2. Update the README.md with details of changes to the project, new features, and others if applicable.
-3. Increase the version number of the project to the new version that this
-   Pull Request would represent. The versioning scheme we use is [SemVer](http://semver.org).
+## Documentation
 
-## New Notes/Keyboard Mappings
-The process for adding or adjusting notes and keyboard mappings has a few discrete steps.  Below is a friendly checklist along with example snippets to help you get started.
+For setup details, feature walkthroughs, safety notes, and troubleshooting, use the wiki links below.
 
-1. **Create or select a game folder**
-   - Go to `AutoMidiPlayer.WPF/Core/Games/` and either open the existing game directory or create a new one with the game's name.
+- [Wiki Home][wiki-home]
+- [Disclaimer][wiki-disclaimer]
+- [Getting Started][wiki-getting-started]
+- [How To Use][wiki-how-to-use]
+- [How it Works][wiki-how-it-works]
+- [Support (Supported Games, Instruments, and Keyboards)][wiki-support]
+- [FAQ General][wiki-faq]
 
-2. **Prepare layout & instruments subfolders**
-   - In the game folder make sure you have two items:
-     * `KeyboardLayout.cs` – holds any custom key‑assignment maps.
-     * `Instruments` directory – contains one `.cs` file for each instrument.
-   - Look at `Heartopia/` or `Genshin/` for real examples; the structure is identical.
+## Build from Source
 
-3. **Add or edit instrument config files**
-   - Inside `Instruments`, you can copy and paste an existing config (e.g. `Piano.cs`) and then adjust fields such as `game`, `name`, and the `notes` list.
-   - Specify additional `keyboardLayouts` if the instrument uses a different mapping.
-
-   ```csharp
-   public static readonly InstrumentConfig MyNewInstrument = new(
-       game: "MyGame",
-       name: "Special Harp",
-       notes: [ 60, 62, 64, 65, 67 ], // C4,D4,E4,F4,G4
-       keyboardLayouts: [ MyGameLayouts.QWERTY ]
-   );
-   ```
-
-4. **Create a keyboard layout (if necessary)**
-   - Edit `KeyboardLayout.cs` and add a `KeyboardLayoutConfig` with the characters that correspond to each note.
-
-   ```csharp
-   internal static readonly KeyboardLayoutConfig QWERTY = new(
-       name: "QWERTY",
-       keys: ['q','w','e','r','t','y','u']
-   );
-   ```
-
-5. **Register the game in `GameRegistry.cs`**
-   - Add a new `GameDefinition` entry to the `AllGames` list so the app knows about your game.  For example:
-
-   ```csharp
-   new GameDefinition(
-       id: "MyGame",
-       displayName: "My Game Title",
-       instrumentGameName: "MyGame",
-       imageResourcePath: "pack://application:,,,/Resources/MyGame.png",
-       processNames: ["MyGameExe"],
-       defaultExeName: "MyGame.exe",
-       defaultSearchPaths: [
-           @"C:\Program Files\MyGame\MyGame.exe",
-       ],
-       getLocation: () => Settings.MyGameLocation,
-       setLocation: v => Settings.Modify(s => s.MyGameLocation = v),
-       getIsActive: () => Settings.ActiveMyGame,
-       setIsActive: v => Settings.Modify(s => s.ActiveMyGame = v)
-   ),
-   ```
-
-6. **Update user settings for the game**
-   - Open `AutoMidiPlayer.Data/Properties/Settings.settings` and add entries for `MyGameLocation` and `ActiveMyGame` (type string and bool respectively). Use the other games as templates.
-   - Regenerate the designer file or manually add the corresponding properties in `Settings.Designer.cs`.
-
-Once these steps are complete you can rebuild the project and your new instruments should appear in the UI under the new game.
-
-> I'm planning to expose .json‑based mod support in the future which will allow users to add their own instruments and games without needing to modify and rebuild the app.
-
-## Build
-If you just want to run the program, there are precompiled binaries in [releases](https://github.com/Jed556/AutoMidiPlayer/releases).
+If you just want to run the app, download the latest [release][latest].
 
 ### Requirements
-* [Git](https://git-scm.com) for cloning the project
+* [Git](https://git-scm.com)
 * [.NET 8.0](https://dotnet.microsoft.com/download) SDK or later
 
-#### Publish a single binary for Windows
-```bat
-git clone https://github.com/Jed556/AutoMidiPlayer.git
-cd AutoMidiPlayer
-
-dotnet publish AutoMidiPlayer.WPF -r win-x64-c Release --self-contained false -p:PublishSingleFile=true
-```
-> For other runtimes, visit the [RID Catalog](https://docs.microsoft.com/en-us/dotnet/core/rid-catalog) and change the runtime value.
-
-#### Build the project (not necessary if you published)
+### Build and run
 ```bat
 git clone https://github.com/Jed556/AutoMidiPlayer.git
 cd AutoMidiPlayer
 
 dotnet build
+dotnet run --project AutoMidiPlayer.WPF
 ```
 
-#### Publish the project using defaults
-```bat
-git clone https://github.com/Jed556/AutoMidiPlayer.git
-cd AutoMidiPlayer
+For publish options and advanced setup, see [Getting Started][wiki-getting-started].
 
-dotnet publish
-```
+## Contributing
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md).  
+For adding notes, instruments, games, or keyboard mappings, see [Getting Started][wiki-getting-started]
 
 # Special Thanks
-* This project is inspired by and built on top of **[sabihoshi/GenshinLyreMidiPlayer][GenshinLyreMidiPlayer]** [v4.0.5](https://github.com/sabihoshi/GenshinLyreMidiPlayer/releases/tag/v4.0.5). Huge thanks for the original work!
-* **[ianespana/ShawzinBot](https://github.com/ianespana/ShawzinBot)** - Original inspiration for the concept *`~GenshinLyreMidiPlayer`*
-* **[yoroshikun/flutter_genshin_lyre_player](https://github.com/yoroshikun/flutter_genshin_lyre_player)** - Ideas for history and fluent design *`~GenshinLyreMidiPlayer`*
-* **[Lantua](https://github.com/lantua)** - Music theory guidance (octaves, transposition, keys, scales) *`~GenshinLyreMidiPlayer`*
+This project is inspired by and built on top of **[sabihoshi/GenshinLyreMidiPlayer][GenshinLyreMidiPlayer]** [v4.0.5](https://github.com/sabihoshi/GenshinLyreMidiPlayer/releases/tag/v4.0.5). Huge thanks for the original work!
+#### Projects that inspired GenshinLyreMidiPlayer
+* **[ianespana/ShawzinBot](https://github.com/ianespana/ShawzinBot)** - Original inspiration for the concept
+* **[yoroshikun/flutter_genshin_lyre_player](https://github.com/yoroshikun/flutter_genshin_lyre_player)** - Ideas for history and fluent design
+* **[Lantua](https://github.com/lantua)** - Music theory guidance (octaves, transposition, keys, scales)
 
 # License
 * This project is under the [MIT](LICENSE.md) license.
@@ -206,8 +139,17 @@ dotnet publish
 
 <br/>
 
+> Demo videos and screenshots are for illustrative purposes only and may not reflect the latest version of the application. Actual features, UI, and supported games/instruments may vary. Please refer to the [latest release][latest] and Wiki for up-to-date information.
+
 > [!NOTE]
 > I don't have knowledge about music theory, if you find any issues with note mappings or transpositions, please open an issue or PR. Thank you! 💖
 
 [latest]: https://github.com/Jed556/AutoMidiPlayer/releases/latest
 [GenshinLyreMidiPlayer]: https://github.com/sabihoshi/GenshinLyreMidiPlayer
+[wiki-home]: https://github.com/Jed556/AutoMidiPlayer/wiki
+[wiki-getting-started]: https://github.com/Jed556/AutoMidiPlayer/wiki/Getting-Started
+[wiki-how-to-use]: https://github.com/Jed556/AutoMidiPlayer/wiki/How-to-Use
+[wiki-how-it-works]: https://github.com/Jed556/AutoMidiPlayer/wiki/How-it-Works
+[wiki-support]: https://github.com/Jed556/AutoMidiPlayer/wiki/Support
+[wiki-faq]: https://github.com/Jed556/AutoMidiPlayer/wiki/FAQ-General
+[wiki-disclaimer]: https://github.com/Jed556/AutoMidiPlayer/wiki/Disclaimer
