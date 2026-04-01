@@ -35,6 +35,89 @@
         <helpers:BindingProxy x:Key="DataContextProxy"
                               Data="{Binding}"/>
         <converters:GameImageStateConverter x:Key="GameImageStateConverter"/>
+        <Style x:Key="TitleBarCaptionButtonStyle"
+               TargetType="Button">
+            <Setter Property="Width"
+                    Value="44"/>
+            <Setter Property="Height"
+                    Value="30"/>
+            <Setter Property="Padding"
+                    Value="0"/>
+            <Setter Property="Background"
+                    Value="Transparent"/>
+            <Setter Property="BorderBrush"
+                    Value="Transparent"/>
+            <Setter Property="BorderThickness"
+                    Value="0"/>
+            <Setter Property="Foreground"
+                    Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+            <Setter Property="Cursor"
+                    Value="Hand"/>
+            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome"
+                    Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="BackgroundBorder"
+                                CornerRadius="4"
+                                Background="Transparent">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter TargetName="BackgroundBorder"
+                                        Property="Background"
+                                        Value="{DynamicResource SubtleFillColorSecondaryBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed"
+                                     Value="True">
+                                <Setter TargetName="BackgroundBorder"
+                                        Property="Background"
+                                        Value="{DynamicResource SubtleFillColorTertiaryBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="TitleBarCloseButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource TitleBarCaptionButtonStyle}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="BackgroundBorder"
+                                CornerRadius="4"
+                                Background="Transparent">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter TargetName="BackgroundBorder"
+                                        Property="Background"
+                                        Value="#E81123"/>
+                                <Setter Property="Foreground"
+                                        Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed"
+                                     Value="True">
+                                <Setter TargetName="BackgroundBorder"
+                                        Property="Background"
+                                        Value="#C50F1F"/>
+                                <Setter Property="Foreground"
+                                        Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="GameSelectorItemButtonStyle"
                TargetType="Button">
             <Setter Property="Background"
@@ -170,17 +253,18 @@
             </tray:NotifyIcon>
 
             <!-- Title Bar -->
-            <ui:TitleBar Grid.Row="0"
+            <ui:TitleBar x:Name="MainTitleBar"
+                         Grid.Row="0"
                          Title="{Binding Title}"
                          Height="42"
                          Padding="0"
                          Margin="0"
                          VerticalContentAlignment="Stretch"
-                         ShowMaximize="True"
-                         ShowMinimize="True"
-                         ShowClose="True">
+                         ShowMaximize="False"
+                         ShowMinimize="False"
+                         ShowClose="False">
                 <ui:TitleBar.Header>
-                    <Grid>
+                    <Grid Width="{Binding ActualWidth, ElementName=MainTitleBar}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
@@ -205,7 +289,7 @@
                                     Orientation="Horizontal"
                                     HorizontalAlignment="Right"
                                     VerticalAlignment="Center"
-                                    Margin="0,0,104,0"
+                                    Margin="0,0,8,0"
                                     shell:WindowChrome.IsHitTestVisibleInChrome="True">
                             <Button Command="{s:Action NavigateToSettings}"
                                     Style="{DynamicResource GhostIconButton}"
@@ -222,9 +306,55 @@
                                     Style="{DynamicResource GhostIconButton}"
                                     ToolTip="Toggle theme"
                                     Padding="8,4"
+                                    Margin="0,0,8,0"
                                     shell:WindowChrome.IsHitTestVisibleInChrome="True">
                                 <ui:SymbolIcon Symbol="DarkTheme24"
                                                FontSize="18"/>
+                            </Button>
+
+                            <!-- Fullscreen button isn't necessary but keep this feature -->
+                            <!-- <Button x:Name="FullscreenButton"
+                                    Style="{StaticResource TitleBarCaptionButtonStyle}"
+                                    ToolTip="Enter full screen"
+                                    Click="ToggleFullscreen_Click">
+                                <TextBlock x:Name="FullscreenGlyph"
+                                           Text="&#xE740;"
+                                           FontFamily="{StaticResource MdlFontFamily}"
+                                           FontSize="10"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Center"/>
+                            </Button> -->
+
+                            <Button Style="{StaticResource TitleBarCaptionButtonStyle}"
+                                    ToolTip="Minimize"
+                                    Click="MinimizeWindow_Click">
+                                <TextBlock Text="&#xE921;"
+                                           FontFamily="{StaticResource MdlFontFamily}"
+                                           FontSize="10"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Center"/>
+                            </Button>
+
+                            <Button x:Name="MaximizeRestoreButton"
+                                    Style="{StaticResource TitleBarCaptionButtonStyle}"
+                                    ToolTip="Maximize"
+                                    Click="ToggleMaximizeWindow_Click">
+                                <TextBlock x:Name="MaximizeRestoreGlyph"
+                                           Text="&#xE922;"
+                                           FontFamily="{StaticResource MdlFontFamily}"
+                                           FontSize="10"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Center"/>
+                            </Button>
+
+                            <Button Style="{StaticResource TitleBarCloseButtonStyle}"
+                                    ToolTip="Close"
+                                    Click="CloseWindow_Click">
+                                <TextBlock Text="&#xE8BB;"
+                                           FontFamily="{StaticResource MdlFontFamily}"
+                                           FontSize="10"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Center"/>
                             </Button>
                         </StackPanel>
                     </Grid>
