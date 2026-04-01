@@ -386,15 +386,15 @@ public class SettingsPageViewModel : Screen
         }
     }
 
-    public bool AutoDetectDefaultKeyOnImport
+    public bool AutoDetectDefaultKey
     {
-        get => Settings.AutoDetectDefaultKeyOnImport;
+        get => Settings.AutoDetectDefaultKey;
         set
         {
-            if (Settings.AutoDetectDefaultKeyOnImport == value)
+            if (Settings.AutoDetectDefaultKey == value)
                 return;
 
-            Settings.Modify(s => s.AutoDetectDefaultKeyOnImport = value);
+            Settings.Modify(s => s.AutoDetectDefaultKey = value);
             NotifyOfPropertyChange();
         }
     }

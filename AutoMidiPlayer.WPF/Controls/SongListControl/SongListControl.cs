@@ -193,9 +193,12 @@ public partial class SongListControl : UserControl
     /// </summary>
     private void TrackListView_ContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
-        if (TrackListView.ContextMenu != null)
+        if (TrackListView.ContextMenu is ContextMenu menu)
         {
-            TrackListView.ContextMenu.PlacementTarget = this;
+            menu.PlacementTarget = this;
+            menu.Placement = PlacementMode.MousePoint;
+            menu.HorizontalOffset = 0;
+            menu.VerticalOffset = 0;
         }
     }
 
@@ -226,9 +229,9 @@ public partial class SongListControl : UserControl
         }
     }
 
-    private void MenuButton_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    private void MenuButton_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button button && button.Tag is MidiFile file)
+        if (sender is Button { Tag: MidiFile file } button)
         {
             // Select the item in ListView if not already in selection
             if (!TrackListView.SelectedItems.Contains(file))
@@ -240,9 +243,25 @@ public partial class SongListControl : UserControl
             RaiseEvent(new SongListEventArgs(MenuClickEvent, this, file));
 
             // Open context menu if one is set
-            if (TrackListView.ContextMenu != null)
+            if (TrackListView.ContextMenu is ContextMenu menu)
             {
-                TrackListView.ContextMenu.IsOpen = true;
+                var origin = button.TranslatePoint(new Point(0, button.ActualHeight), this);
+                menu.PlacementTarget = this;
+                menu.Placement = PlacementMode.Relative;
+                menu.HorizontalOffset = origin.X;
+                menu.VerticalOffset = origin.Y + 2;
+
+                if (menu.IsOpen)
+                {
+                    menu.IsOpen = false;
+                }
+
+                if (Mouse.Captured != null)
+                {
+                    Mouse.Capture(null);
+                }
+
+                Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() => { menu.IsOpen = true; }));
             }
             e.Handled = true;
         }

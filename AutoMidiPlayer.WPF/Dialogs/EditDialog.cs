@@ -632,7 +632,7 @@ public class EditDialog : ContentDialog
     {
         ResetToInitialValues();
 
-        if (!UserSettings.AutoDetectDefaultKeyOnImport)
+        if (!UserSettings.AutoDetectDefaultKey)
         {
             _hasDefaultKeyRoot = true;
             _defaultKeyRoot = 0;

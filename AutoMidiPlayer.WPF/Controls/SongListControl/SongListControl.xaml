@@ -588,7 +588,7 @@
                                     HorizontalAlignment="Center"
                                     Focusable="False"
                                     ToolTip="More options"
-                                    PreviewMouseLeftButtonDown="MenuButton_PreviewMouseDown"
+                                    Click="MenuButton_Click"
                                     Tag="{Binding}">
                                 <Button.Style>
                                     <Style TargetType="Button">

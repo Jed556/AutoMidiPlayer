@@ -376,7 +376,7 @@ public class FileService(IContainer ioc)
     }
 
     private static bool ShouldAutoDetectSongKey(Song song) =>
-        song.Id == Guid.Empty && Settings.AutoDetectDefaultKeyOnImport;
+        song.Id == Guid.Empty && Settings.AutoDetectDefaultKey;
 
     private static bool TryDetectSongKeyOffset(Melanchall.DryWetMidi.Core.MidiFile midi, out int keyOffset)
     {
@@ -512,7 +512,7 @@ public class FileService(IContainer ioc)
             HoldNotes = false
         };
 
-        if (!Settings.AutoDetectDefaultKeyOnImport)
+        if (!Settings.AutoDetectDefaultKey)
             song.DefaultKey = 0;
 
         var added = await AddFile(song);

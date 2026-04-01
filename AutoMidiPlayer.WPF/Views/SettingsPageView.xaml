@@ -46,7 +46,7 @@
 
                     <ui:ToggleSwitch
                         Content="Auto Detect Default Key"
-                        IsChecked="{Binding AutoDetectDefaultKeyOnImport}"
+                        IsChecked="{Binding AutoDetectDefaultKey}"
                         Margin="0,8,0,0"
                         ToolTip="When enabled, newly imported songs auto-detect Default Key Offset. When disabled, imports default to 0 (C3) and detection is skipped. Also affects resetting a song to defaults"/>
 

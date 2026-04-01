@@ -172,15 +172,15 @@ namespace AutoMidiPlayer.Data.Properties
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("True")]
-        public bool AutoDetectDefaultKeyOnImport
+        public bool AutoDetectDefaultKey
         {
             get
             {
-                return ((bool)(this["AutoDetectDefaultKeyOnImport"]));
+                return ((bool)(this["AutoDetectDefaultKey"]));
             }
             set
             {
-                this["AutoDetectDefaultKeyOnImport"] = value;
+                this["AutoDetectDefaultKey"] = value;
             }
         }
 

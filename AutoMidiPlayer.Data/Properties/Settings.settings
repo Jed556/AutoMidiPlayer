@@ -38,7 +38,7 @@
     <Setting Name="AutoEnableListenMode" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>
-    <Setting Name="AutoDetectDefaultKeyOnImport" Type="System.Boolean" Scope="User">
+    <Setting Name="AutoDetectDefaultKey" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>
     <Setting Name="PlayUnplayableOnIgnore" Type="System.Boolean" Scope="User">
