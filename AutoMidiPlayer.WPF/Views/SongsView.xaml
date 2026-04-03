@@ -62,12 +62,25 @@
                 <Button Command="{s:Action ShowMissingFilesDialog}"
                         Style="{DynamicResource GhostIconButton}"
                         Padding="8"
-                        ToolTip="File errors found"
+                        ToolTip="{Binding FileIssuesButtonToolTip}"
                         Visibility="{Binding HasFileErrors, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                    <ui:SymbolIcon Symbol="Warning24"
-                                   FontSize="24"
-                                   Foreground="#FFB900"
-                                   Filled="True"/>
+                    <ui:SymbolIcon Symbol="{Binding FileIssuesSymbol}"
+                                   FontSize="{Binding FileIssuesIconSize}"
+                                   Filled="{Binding FileIssuesIconFilled}">
+                        <ui:SymbolIcon.Style>
+                            <Style TargetType="ui:SymbolIcon">
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasNonDuplicateFileErrors}"
+                                                 Value="True">
+                                        <Setter Property="Foreground"
+                                                Value="#FFB900"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:SymbolIcon.Style>
+                    </ui:SymbolIcon>
                 </Button>
                 <TextBlock Margin="10,0"
                            VerticalAlignment="Center"

@@ -99,6 +99,7 @@ public class SettingsPageViewModel : Screen
     private KeypressInputModeOption _selectedKeypressInputMode = null!;
     private ThemeOption _selectedTheme = null!;
     private FileSystemWatcher? _midiFolderWatcher;
+    private FileSystemWatcher? _midiFolderParentWatcher;
     private CancellationTokenSource? _midiFolderScanDebounceToken;
     private static readonly TimeSpan MidiFolderWatchDebounceDelay = TimeSpan.FromMilliseconds(750);
 
@@ -477,7 +478,11 @@ public class SettingsPageViewModel : Screen
 
     public bool HasMidiFolder => !string.IsNullOrEmpty(MidiFolder);
 
-    public bool ShowMidiFolderManualRefresh => HasMidiFolder && !AutoScanMidiFolder;
+    public bool IsMidiFolderMissing => HasMidiFolder && !Directory.Exists(MidiFolder);
+
+    public bool HasAccessibleMidiFolder => HasMidiFolder && !IsMidiFolderMissing;
+
+    public bool ShowMidiFolderManualRefresh => HasAccessibleMidiFolder && !AutoScanMidiFolder;
 
     public bool NeedsUpdate => ProgramVersion < LatestVersion.Version;
 
@@ -682,7 +687,7 @@ public class SettingsPageViewModel : Screen
         if (IsScanningMidiFolder)
             return;
 
-        if (string.IsNullOrEmpty(MidiFolder) || !Directory.Exists(MidiFolder))
+        if (string.IsNullOrWhiteSpace(MidiFolder))
             return;
 
         IsScanningMidiFolder = true;
@@ -719,8 +724,7 @@ public class SettingsPageViewModel : Screen
     [UsedImplicitly]
     private void OnMidiFolderChanged()
     {
-        NotifyOfPropertyChange(nameof(HasMidiFolder));
-        NotifyOfPropertyChange(nameof(ShowMidiFolderManualRefresh));
+        NotifyMidiFolderStateChanged();
         ConfigureMidiFolderWatcher();
     }
 
@@ -736,18 +740,53 @@ public class SettingsPageViewModel : Screen
             _ = ScanMidiFolder();
     }
 
+    private void NotifyMidiFolderStateChanged()
+    {
+        NotifyOfPropertyChange(nameof(HasMidiFolder));
+        NotifyOfPropertyChange(nameof(IsMidiFolderMissing));
+        NotifyOfPropertyChange(nameof(HasAccessibleMidiFolder));
+        NotifyOfPropertyChange(nameof(ShowMidiFolderManualRefresh));
+    }
+
     private void ConfigureMidiFolderWatcher()
     {
         DisposeMidiFolderWatcher();
+        NotifyMidiFolderStateChanged();
 
         if (!AutoScanMidiFolder)
             return;
 
-        if (string.IsNullOrWhiteSpace(MidiFolder) || !Directory.Exists(MidiFolder))
+        if (string.IsNullOrWhiteSpace(MidiFolder))
             return;
 
         try
         {
+            var normalizedMidiFolder = NormalizeMidiFolderPath(MidiFolder);
+            var parentFolder = string.IsNullOrWhiteSpace(normalizedMidiFolder)
+                ? null
+                : Path.GetDirectoryName(normalizedMidiFolder);
+
+            if (!string.IsNullOrWhiteSpace(parentFolder) && Directory.Exists(parentFolder))
+            {
+                _midiFolderParentWatcher = new FileSystemWatcher(parentFolder)
+                {
+                    IncludeSubdirectories = false,
+                    NotifyFilter = NotifyFilters.DirectoryName
+                                   | NotifyFilters.FileName
+                                   | NotifyFilters.CreationTime
+                                   | NotifyFilters.LastWrite,
+                    Filter = "*.*",
+                    EnableRaisingEvents = true
+                };
+
+                _midiFolderParentWatcher.Created += HandleMidiFolderParentWatcherChanged;
+                _midiFolderParentWatcher.Deleted += HandleMidiFolderParentWatcherChanged;
+                _midiFolderParentWatcher.Renamed += HandleMidiFolderParentWatcherRenamed;
+            }
+
+            if (!Directory.Exists(MidiFolder))
+                return;
+
             _midiFolderWatcher = new FileSystemWatcher(MidiFolder)
             {
                 IncludeSubdirectories = true,
@@ -760,7 +799,8 @@ public class SettingsPageViewModel : Screen
             };
 
             _midiFolderWatcher.Created += HandleMidiFolderWatcherChanged;
-            _midiFolderWatcher.Renamed += HandleMidiFolderWatcherChanged;
+            _midiFolderWatcher.Deleted += HandleMidiFolderWatcherChanged;
+            _midiFolderWatcher.Renamed += HandleMidiFolderWatcherRenamed;
         }
         catch (Exception error)
         {
@@ -776,9 +816,20 @@ public class SettingsPageViewModel : Screen
         {
             _midiFolderWatcher.EnableRaisingEvents = false;
             _midiFolderWatcher.Created -= HandleMidiFolderWatcherChanged;
-            _midiFolderWatcher.Renamed -= HandleMidiFolderWatcherChanged;
+            _midiFolderWatcher.Deleted -= HandleMidiFolderWatcherChanged;
+            _midiFolderWatcher.Renamed -= HandleMidiFolderWatcherRenamed;
             _midiFolderWatcher.Dispose();
             _midiFolderWatcher = null;
+        }
+
+        if (_midiFolderParentWatcher is not null)
+        {
+            _midiFolderParentWatcher.EnableRaisingEvents = false;
+            _midiFolderParentWatcher.Created -= HandleMidiFolderParentWatcherChanged;
+            _midiFolderParentWatcher.Deleted -= HandleMidiFolderParentWatcherChanged;
+            _midiFolderParentWatcher.Renamed -= HandleMidiFolderParentWatcherRenamed;
+            _midiFolderParentWatcher.Dispose();
+            _midiFolderParentWatcher = null;
         }
 
         _midiFolderScanDebounceToken?.Cancel();
@@ -794,12 +845,72 @@ public class SettingsPageViewModel : Screen
         QueueAutoScanFromWatcher();
     }
 
+    private void HandleMidiFolderParentWatcherChanged(object? sender, FileSystemEventArgs e)
+    {
+        if (!IsWatchedMidiFolderPath(e.FullPath))
+            return;
+
+        ConfigureMidiFolderWatcher();
+        NotifyMidiFolderStateChanged();
+        QueueAutoScanFromWatcher();
+    }
+
+    private void HandleMidiFolderParentWatcherRenamed(object? sender, RenamedEventArgs e)
+    {
+        if (!IsWatchedMidiFolderPath(e.FullPath) && !IsWatchedMidiFolderPath(e.OldFullPath))
+            return;
+
+        ConfigureMidiFolderWatcher();
+        NotifyMidiFolderStateChanged();
+        QueueAutoScanFromWatcher();
+    }
+
+    private void HandleMidiFolderWatcherRenamed(object? sender, RenamedEventArgs e)
+    {
+        if (!ShouldAutoScanFromWatcherEvent(e.FullPath) && !ShouldAutoScanFromWatcherEvent(e.OldFullPath))
+            return;
+
+        QueueAutoScanFromWatcher();
+    }
+
     private static bool ShouldAutoScanFromWatcherEvent(string fullPath)
     {
         if (string.IsNullOrWhiteSpace(fullPath))
             return false;
 
-        return AutoImportExclusionStore.IsMidiFilePath(fullPath) || Directory.Exists(fullPath);
+        if (AutoImportExclusionStore.IsMidiFilePath(fullPath))
+            return true;
+
+        // For directory delete/rename events the path may no longer exist.
+        return !Path.HasExtension(fullPath) || Directory.Exists(fullPath);
+    }
+
+    private bool IsWatchedMidiFolderPath(string? fullPath)
+    {
+        var normalizedPath = NormalizeMidiFolderPath(fullPath);
+        var normalizedMidiFolder = NormalizeMidiFolderPath(MidiFolder);
+
+        if (string.IsNullOrWhiteSpace(normalizedPath) || string.IsNullOrWhiteSpace(normalizedMidiFolder))
+            return false;
+
+        return string.Equals(normalizedPath, normalizedMidiFolder, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? NormalizeMidiFolderPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return null;
+
+        var trimmed = path.Trim();
+
+        try
+        {
+            return Path.GetFullPath(trimmed);
+        }
+        catch
+        {
+            return trimmed;
+        }
     }
 
     private void QueueAutoScanFromWatcher()

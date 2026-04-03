@@ -164,11 +164,19 @@ public class FileService(IContainer ioc)
         await using var db = _ioc.Get<LyreContext>();
 
         var songsToRemove = db.Songs.Where(s => s.Path == song.Path).ToList();
-        if (songsToRemove.Count == 0)
-            songsToRemove.Add(song);
+        if (songsToRemove.Count > 0)
+        {
+            db.Songs.RemoveRange(songsToRemove);
 
-        db.Songs.RemoveRange(songsToRemove);
-        await db.SaveChangesAsync();
+            try
+            {
+                await db.SaveChangesAsync();
+            }
+            catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+            {
+                // Another operation already removed one or more rows.
+            }
+        }
 
         foreach (var missingSong in songs.MissingSongs.Where(s => s.Path == song.Path).ToList())
             songs.MissingSongs.Remove(missingSong);
@@ -304,27 +312,130 @@ public class FileService(IContainer ioc)
     }
 
     /// <summary>
-    /// Scan a folder recursively for MIDI files and add them.
+    /// Scan a folder recursively for MIDI files and reconcile add/remove changes.
     /// </summary>
     public async Task ScanFolder(string folderPath)
     {
-        if (!Directory.Exists(folderPath)) return;
+        var folderExists = Directory.Exists(folderPath);
+        if (folderExists)
+        {
+            var midiFiles = Directory.GetFiles(folderPath, "*.mid", SearchOption.AllDirectories)
+                .Concat(Directory.GetFiles(folderPath, "*.midi", SearchOption.AllDirectories))
+                .Where(path => !AutoImportExclusionStore.IsExcluded(path));
 
-        var midiFiles = Directory.GetFiles(folderPath, "*.mid", SearchOption.AllDirectories)
-            .Concat(Directory.GetFiles(folderPath, "*.midi", SearchOption.AllDirectories))
-            .Where(path => !AutoImportExclusionStore.IsExcluded(path));
+            await AddFiles(midiFiles);
+        }
 
-        await AddFiles(midiFiles);
+        if (_main is null)
+            return;
+
+        var songs = _main.SongsView;
+        var duplicateFallbackApplied = await ResolveDuplicateFallbacksAsync(folderPath);
+        var staleDuplicatesRemoved = RemoveStaleDuplicateMidiFileEntries(notify: false);
+
+        var missingInFolder = songs.Tracks
+            .Select(track => track.Song)
+            .Where(song => AutoImportExclusionStore.IsMidiFilePath(song.Path)
+                           && AutoImportExclusionStore.IsPathWithinFolder(song.Path, folderPath)
+                           && !AutoImportExclusionStore.IsExcluded(song.Path)
+                           && !File.Exists(song.Path))
+            .DistinctBy(song => song.Path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (missingInFolder.Count == 0 && !duplicateFallbackApplied && !staleDuplicatesRemoved)
+            return;
+
+        foreach (var missingSong in missingInFolder)
+        {
+            if (!songs.MissingSongs.Any(existing => string.Equals(existing.Path, missingSong.Path, StringComparison.OrdinalIgnoreCase)))
+                songs.MissingSongs.Add(missingSong);
+
+            RemoveBadMidiFileEntries(missingSong.Path, false);
+            RemoveDuplicateMidiFileEntries(missingSong.Path, false);
+        }
+
+        var removableIds = missingInFolder
+            .Select(song => song.Id)
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
+
+        if (removableIds.Count > 0)
+            _main.SongSettings.RemoveSongsFromCollections(removableIds);
+
+        _main.QueueView.OnQueueModified();
+        songs.NotifyFileErrorsChanged();
+        songs.ApplySort();
     }
 
     public IReadOnlyList<RemovedExistingMidiFileEntry> GetRemovedExistingMidiFiles()
     {
         AutoImportExclusionStore.PruneMissingPaths();
 
-        var existingExcludedFiles = AutoImportExclusionStore.GetExistingExcludedMidiFiles(Settings.MidiFolder);
+        var existingExcludedFiles = AutoImportExclusionStore.GetExistingExcludedMidiFiles(Settings.MidiFolder).ToList();
+
+        if (_main is not null)
+        {
+            var importedHashes = _main.SongsView.Tracks
+                .Select(track => track.Song.FileHash)
+                .Where(hash => !string.IsNullOrWhiteSpace(hash))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            if (importedHashes.Count > 0)
+            {
+                existingExcludedFiles = existingExcludedFiles
+                    .Where(path =>
+                    {
+                        var hash = Song.ComputeFileHash(path);
+                        return string.IsNullOrWhiteSpace(hash) || !importedHashes.Contains(hash);
+                    })
+                    .ToList();
+            }
+        }
+
         return existingExcludedFiles
             .Select(path => new RemovedExistingMidiFileEntry(path, Path.GetFileNameWithoutExtension(path)))
             .ToList();
+    }
+
+    public async Task<bool> RestoreExcludedFileToLibraryAsync(string path)
+    {
+        var normalizedPath = NormalizePath(path);
+        if (string.IsNullOrWhiteSpace(normalizedPath))
+            return false;
+
+        AutoImportExclusionStore.Remove(normalizedPath);
+
+        if (!File.Exists(normalizedPath))
+            return false;
+
+        var importedBefore = _main?.SongsView.Tracks.Any(track =>
+            string.Equals(track.Song.Path, normalizedPath, StringComparison.OrdinalIgnoreCase)) ?? false;
+
+        await AddFiles([normalizedPath]);
+
+        if (_main is not null)
+        {
+            var songs = _main.SongsView;
+
+            foreach (var missingSong in songs.MissingSongs.Where(song =>
+                         string.Equals(song.Path, normalizedPath, StringComparison.OrdinalIgnoreCase)).ToList())
+            {
+                songs.MissingSongs.Remove(missingSong);
+            }
+
+            var importedAfter = songs.Tracks.Any(track =>
+                string.Equals(track.Song.Path, normalizedPath, StringComparison.OrdinalIgnoreCase));
+
+            if (importedAfter)
+                RemoveDuplicateMidiFileEntries(normalizedPath, false);
+
+            songs.NotifyFileErrorsChanged();
+
+            return importedAfter || importedBefore;
+        }
+
+        return true;
     }
 
     public bool DeleteExcludedFileFromDisk(string path)
@@ -348,6 +459,7 @@ public class FileService(IContainer ioc)
                     songs.MissingSongs.Remove(missingSong);
 
                 RemoveBadMidiFileEntries(path, false);
+                RemoveDuplicateMidiFileEntries(path, false);
                 songs.NotifyFileErrorsChanged();
             }
 
@@ -359,6 +471,153 @@ public class FileService(IContainer ioc)
             CrashLogger.LogException(error);
             return false;
         }
+    }
+
+    public bool RemoveStaleDuplicateMidiFileEntries(bool notify = true)
+    {
+        if (_main is null)
+            return false;
+
+        var songs = _main.SongsView;
+        var removed = false;
+
+        foreach (var duplicateEntry in songs.DuplicateMidiFiles
+                     .Where(entry => string.IsNullOrWhiteSpace(entry.DuplicatePath)
+                                     || !File.Exists(entry.DuplicatePath))
+                     .ToList())
+        {
+            songs.DuplicateMidiFiles.Remove(duplicateEntry);
+            removed = true;
+        }
+
+        if (removed && notify)
+            songs.NotifyFileErrorsChanged();
+
+        return removed;
+    }
+
+    public async Task<bool> ResolveDuplicateFallbacksAsync(string? folderPath = null)
+    {
+        if (_main is null)
+            return false;
+
+        var songs = _main.SongsView;
+        var changed = RemoveStaleDuplicateMidiFileEntries(notify: false);
+
+        var duplicateGroups = songs.DuplicateMidiFiles
+            .GroupBy(entry => entry.ExistingPath, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new
+            {
+                ExistingPath = group.Key,
+                ExistingTitle = group
+                    .Select(entry => entry.ExistingTitle)
+                    .FirstOrDefault(title => !string.IsNullOrWhiteSpace(title))
+                               ?? Path.GetFileNameWithoutExtension(group.Key),
+                DuplicatePaths = group
+                    .Select(entry => entry.DuplicatePath)
+                    .Where(path => !string.IsNullOrWhiteSpace(path))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList()
+            })
+            .ToList();
+
+        foreach (var duplicateGroup in duplicateGroups)
+        {
+            if (!string.IsNullOrWhiteSpace(folderPath)
+                && !AutoImportExclusionStore.IsPathWithinFolder(duplicateGroup.ExistingPath, folderPath))
+            {
+                continue;
+            }
+
+            if (File.Exists(duplicateGroup.ExistingPath))
+                continue;
+
+            var availableDuplicatePaths = duplicateGroup.DuplicatePaths
+                .Where(File.Exists)
+                .ToList();
+
+            if (availableDuplicatePaths.Count == 0)
+            {
+                RemoveDuplicateMidiFileEntries(duplicateGroup.ExistingPath, notify: false);
+                changed = true;
+                continue;
+            }
+
+            var fallbackPath = SelectBestDuplicateFallbackPath(duplicateGroup.ExistingPath, availableDuplicatePaths);
+            var fallbackEntry = new SongsViewModel.DuplicateMidiFileEntry(
+                duplicateGroup.ExistingPath,
+                duplicateGroup.ExistingTitle,
+                fallbackPath);
+
+            var promoted = await PromoteDuplicateFileAsync(fallbackEntry, duplicateGroup.DuplicatePaths);
+            if (promoted)
+                changed = true;
+        }
+
+        if (changed)
+            songs.NotifyFileErrorsChanged();
+
+        return changed;
+    }
+
+    public async Task ApplyDuplicateSelectionsAsync(IReadOnlyCollection<SongsViewModel.DuplicateMidiFileEntry> duplicateEntries)
+    {
+        if (_main is null)
+            return;
+
+        var songs = _main.SongsView;
+        var changed = RemoveStaleDuplicateMidiFileEntries(notify: false);
+        var selectedEntries = duplicateEntries
+            .Where(entry => entry.UseDuplicate)
+            .GroupBy(entry => entry.ExistingPath, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
+
+        if (selectedEntries.Count == 0)
+        {
+            if (changed)
+                songs.NotifyFileErrorsChanged();
+
+            return;
+        }
+
+        foreach (var entry in selectedEntries)
+        {
+            var groupDuplicatePaths = duplicateEntries
+                .Where(candidate => string.Equals(candidate.ExistingPath, entry.ExistingPath, StringComparison.OrdinalIgnoreCase))
+                .Select(candidate => candidate.DuplicatePath)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (groupDuplicatePaths.Count == 0)
+                continue;
+
+            var selectedPath = entry.DuplicatePath;
+            if (!File.Exists(selectedPath))
+            {
+                var availableDuplicatePaths = groupDuplicatePaths.Where(File.Exists).ToList();
+                if (availableDuplicatePaths.Count == 0)
+                    continue;
+
+                selectedPath = SelectBestDuplicateFallbackPath(entry.ExistingPath, availableDuplicatePaths);
+            }
+
+            var selection = string.Equals(selectedPath, entry.DuplicatePath, StringComparison.OrdinalIgnoreCase)
+                ? entry
+                : new SongsViewModel.DuplicateMidiFileEntry(entry.ExistingPath, entry.ExistingTitle, selectedPath)
+                {
+                    UseDuplicate = true
+                };
+
+            var promoted = await PromoteDuplicateFileAsync(selection, groupDuplicatePaths);
+            if (!promoted)
+                continue;
+
+            changed = true;
+        }
+
+        if (changed)
+            songs.NotifyFileErrorsChanged();
     }
 
     #endregion
@@ -393,6 +652,7 @@ public class FileService(IContainer ioc)
                 await ApplyDetectedSongKeyAsync(song, loadedFile);
 
             RemoveBadMidiFileEntries(song.Path, false);
+            RemoveDuplicateMidiFileEntries(song.Path, false);
             songs.NotifyFileErrorsChanged();
 
             return true;
@@ -442,6 +702,69 @@ public class FileService(IContainer ioc)
 
     private static bool ShouldAutoDetectSongKey(Song song) =>
         song.Id == Guid.Empty && Settings.AutoDetectDefaultKey;
+
+    private static string? NormalizePath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return null;
+
+        var trimmed = path.Trim();
+
+        try
+        {
+            return Path.GetFullPath(trimmed);
+        }
+        catch
+        {
+            return trimmed;
+        }
+    }
+
+    private static string SelectBestDuplicateFallbackPath(string existingPath, IReadOnlyCollection<string> candidatePaths)
+    {
+        var existingFileName = Path.GetFileNameWithoutExtension(existingPath);
+
+        return candidatePaths
+            .OrderByDescending(path => ScoreDuplicateNameSimilarity(existingFileName, Path.GetFileNameWithoutExtension(path)))
+            .ThenBy(path => Math.Abs(Path.GetFileNameWithoutExtension(path).Length - existingFileName.Length))
+            .ThenBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .First();
+    }
+
+    private static int ScoreDuplicateNameSimilarity(string existingFileName, string candidateFileName)
+    {
+        if (string.IsNullOrWhiteSpace(existingFileName) || string.IsNullOrWhiteSpace(candidateFileName))
+            return 0;
+
+        var normalizedExisting = existingFileName.Trim().ToLowerInvariant();
+        var normalizedCandidate = candidateFileName.Trim().ToLowerInvariant();
+
+        var sharedPrefixLength = GetCommonPrefixLength(normalizedExisting, normalizedCandidate);
+        var sharedTokenCount = normalizedExisting
+            .Split([' ', '-', '_', '.', '(', ')', '[', ']'], StringSplitOptions.RemoveEmptyEntries)
+            .Intersect(
+                normalizedCandidate.Split([' ', '-', '_', '.', '(', ')', '[', ']'], StringSplitOptions.RemoveEmptyEntries),
+                StringComparer.Ordinal)
+            .Count();
+
+        var containsBoost = normalizedExisting.Contains(normalizedCandidate, StringComparison.Ordinal)
+                           || normalizedCandidate.Contains(normalizedExisting, StringComparison.Ordinal)
+            ? 10
+            : 0;
+
+        return (sharedPrefixLength * 4) + (sharedTokenCount * 8) + containsBoost;
+    }
+
+    private static int GetCommonPrefixLength(string left, string right)
+    {
+        var maxLength = Math.Min(left.Length, right.Length);
+        var index = 0;
+
+        while (index < maxLength && left[index] == right[index])
+            index++;
+
+        return index;
+    }
 
     private static bool TryDetectSongKeyOffset(Melanchall.DryWetMidi.Core.MidiFile midi, out int keyOffset)
     {
@@ -555,42 +878,7 @@ public class FileService(IContainer ioc)
             var existingByHash = songs.Tracks.FirstOrDefault(t => t.Song.FileHash == fileHash);
             if (existingByHash != null)
             {
-                var message = $"This MIDI file appears to be a duplicate of:\n\n" +
-                              $"'{existingByHash.Song.Title ?? existingByHash.Song.Path}'\n\n" +
-                              "The existing file will be used and this duplicate will be ignored.";
-
-                var dialog = DialogHelper.CreateDialog();
-                dialog.Title = "Duplicate File Detected";
-                dialog.Content = message;
-                dialog.CloseButtonText = "OK";
-
-                try
-                {
-                    var hostReady = await DialogHelper.EnsureDialogHostAsync(dialog);
-                    if (hostReady)
-                    {
-                        await dialog.ShowAsync();
-                    }
-                    else
-                    {
-                        CrashLogger.Log("DialogHost was not ready while showing duplicate MIDI file dialog. Falling back to MessageBox.");
-                        System.Windows.MessageBox.Show(
-                            message,
-                            "Duplicate File Detected",
-                            System.Windows.MessageBoxButton.OK,
-                            System.Windows.MessageBoxImage.Information);
-                    }
-                }
-                catch (Exception dialogError)
-                {
-                    CrashLogger.Log("Failed to display duplicate MIDI file dialog.");
-                    CrashLogger.LogException(dialogError);
-                    System.Windows.MessageBox.Show(
-                        message,
-                        "Duplicate File Detected",
-                        System.Windows.MessageBoxButton.OK,
-                        System.Windows.MessageBoxImage.Information);
-                }
+                AddDuplicateMidiFile(existingByHash.Song, fileName);
 
                 return;
             }
@@ -821,7 +1109,14 @@ public class FileService(IContainer ioc)
 
         await using var db = _ioc.Get<LyreContext>();
         db.Songs.Update(missingSong);
-        await db.SaveChangesAsync();
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+        {
+            // Another operation already removed or changed this row.
+        }
 
         songs.MissingSongs.Remove(missingSong);
         AutoImportExclusionStore.Remove(newPath);
@@ -845,6 +1140,106 @@ public class FileService(IContainer ioc)
         songs.NotifyFileErrorsChanged();
     }
 
+    private void AddDuplicateMidiFile(Song existingSong, string duplicatePath)
+    {
+        if (_main is null)
+            return;
+
+        var songs = _main.SongsView;
+        var existingPath = existingSong.Path;
+
+        if (string.IsNullOrWhiteSpace(existingPath) || string.IsNullOrWhiteSpace(duplicatePath))
+            return;
+
+        if (string.Equals(existingPath, duplicatePath, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var alreadyTracked = songs.DuplicateMidiFiles.Any(entry =>
+            string.Equals(entry.ExistingPath, existingPath, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(entry.DuplicatePath, duplicatePath, StringComparison.OrdinalIgnoreCase));
+
+        if (alreadyTracked)
+            return;
+
+        songs.DuplicateMidiFiles.Add(new SongsViewModel.DuplicateMidiFileEntry(
+            existingPath,
+            existingSong.Title ?? Path.GetFileName(existingPath),
+            duplicatePath));
+
+        songs.NotifyFileErrorsChanged();
+    }
+
+    private async Task<bool> PromoteDuplicateFileAsync(SongsViewModel.DuplicateMidiFileEntry entry, IReadOnlyCollection<string> duplicatePathsInGroup)
+    {
+        if (_main is null)
+            return false;
+
+        var existingPath = entry.ExistingPath;
+        var selectedPath = entry.DuplicatePath;
+
+        if (!File.Exists(selectedPath))
+            return false;
+
+        var songs = _main.SongsView;
+
+        var existingTrackIds = songs.Tracks
+            .Where(track => string.Equals(track.Song.Path, existingPath, StringComparison.OrdinalIgnoreCase))
+            .Select(track => track.Song.Id)
+            .Distinct()
+            .ToList();
+
+        if (existingTrackIds.Count > 0)
+            _main.SongSettings.RemoveSongsFromCollections(existingTrackIds);
+
+        await using var db = _ioc.Get<LyreContext>();
+        var existingSongs = db.Songs
+            .Where(song => song.Path == existingPath)
+            .ToList();
+
+        if (existingSongs.Count > 0)
+        {
+            db.Songs.RemoveRange(existingSongs);
+            await db.SaveChangesAsync();
+        }
+
+        foreach (var missingSong in songs.MissingSongs
+                     .Where(song => string.Equals(song.Path, existingPath, StringComparison.OrdinalIgnoreCase))
+                     .ToList())
+        {
+            songs.MissingSongs.Remove(missingSong);
+        }
+
+        RemoveBadMidiFileEntries(existingPath, false);
+
+        // Ensure both current and alternate versions remain available for future switching.
+        AutoImportExclusionStore.Remove(existingPath);
+        AutoImportExclusionStore.Remove(selectedPath);
+
+        await AddFiles([selectedPath]);
+
+        RemoveDuplicateMidiFileEntries(existingPath, false);
+        RemoveDuplicateMidiFileEntries(selectedPath, false);
+
+        var selectedTrack = songs.Tracks.FirstOrDefault(track =>
+            string.Equals(track.Song.Path, selectedPath, StringComparison.OrdinalIgnoreCase));
+
+        if (selectedTrack is null)
+            return false;
+
+        var alternatePaths = duplicatePathsInGroup
+            .Append(existingPath)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Where(path => !string.Equals(path, selectedPath, StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(File.Exists)
+            .ToList();
+
+        foreach (var alternatePath in alternatePaths)
+            AddDuplicateMidiFile(selectedTrack.Song, alternatePath);
+
+        return true;
+    }
+
     private void RemoveBadMidiFileEntries(string path, bool notify = true)
     {
         if (_main is null) return;
@@ -854,6 +1249,27 @@ public class FileService(IContainer ioc)
         foreach (var badMidiSong in songs.BadMidiFiles.Where(b => string.Equals(b.Path, path, StringComparison.OrdinalIgnoreCase)).ToList())
         {
             songs.BadMidiFiles.Remove(badMidiSong);
+            removed = true;
+        }
+
+        if (removed && notify)
+            songs.NotifyFileErrorsChanged();
+    }
+
+    private void RemoveDuplicateMidiFileEntries(string path, bool notify = true)
+    {
+        if (_main is null)
+            return;
+
+        var songs = _main.SongsView;
+        var removed = false;
+
+        foreach (var duplicateEntry in songs.DuplicateMidiFiles
+                     .Where(entry => string.Equals(entry.ExistingPath, path, StringComparison.OrdinalIgnoreCase)
+                                     || string.Equals(entry.DuplicatePath, path, StringComparison.OrdinalIgnoreCase))
+                     .ToList())
+        {
+            songs.DuplicateMidiFiles.Remove(duplicateEntry);
             removed = true;
         }
 

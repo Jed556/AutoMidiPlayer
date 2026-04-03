@@ -215,10 +215,18 @@
                                 <Button Command="{s:Action OpenMidiFolder}"
                                         Style="{DynamicResource GhostIconButton}"
                                         ToolTip="Open MIDI folder in Explorer"
-                                        Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                    Visibility="{Binding HasAccessibleMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
                                     <ui:SymbolIcon Symbol="FolderOpen16"
                                                    FontSize="18"/>
                                 </Button>
+                                                                <Border Padding="6"
+                                                                                Background="Transparent"
+                                                                                ToolTip="MIDI folder can&apos;t be found. Select a new folder path."
+                                                                                Visibility="{Binding IsMidiFolderMissing, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                                                        <ui:SymbolIcon Symbol="ErrorCircle12"
+                                                                                                     Foreground="#C42B1C"
+                                                                                                     FontSize="18"/>
+                                                                </Border>
                                 <TextBlock Text="{Binding MidiFolder, TargetNullValue='No folder selected'}"
                                            VerticalAlignment="Center"
                                            TextTrimming="CharacterEllipsis"

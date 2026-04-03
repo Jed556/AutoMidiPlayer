@@ -425,9 +425,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
 
         if (songIdsToDelete.Count == 0) return;
 
-        var autoScanEnabled = _main.SettingsView.AutoScanMidiFolder;
         var midiFolder = _main.SettingsView.MidiFolder;
-        var songsToMarkMissing = new List<Song>();
 
         foreach (var file in files)
         {
@@ -445,9 +443,6 @@ public class SongService(IContainer ioc) : PropertyChangedBase
                 continue;
 
             AutoImportExclusionStore.Add(songPath);
-
-            if (autoScanEnabled)
-                songsToMarkMissing.Add(file.Song);
         }
 
         if (_main.QueueView.OpenedFile is not null &&
@@ -477,17 +472,6 @@ public class SongService(IContainer ioc) : PropertyChangedBase
             catch (DbUpdateConcurrencyException)
             {
                 // Another operation already removed one or more rows.
-            }
-        }
-
-        if (autoScanEnabled)
-        {
-            foreach (var song in songsToMarkMissing
-                         .DistinctBy(song => song.Path, StringComparer.OrdinalIgnoreCase)
-                         .Where(song => !_main.SongsView.MissingSongs.Any(existing =>
-                             string.Equals(existing.Path, song.Path, StringComparison.OrdinalIgnoreCase))))
-            {
-                _main.SongsView.MissingSongs.Add(song);
             }
         }
 

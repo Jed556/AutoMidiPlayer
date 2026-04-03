@@ -30,6 +30,22 @@ public class SongsViewModel : Screen
         public string ErrorMessage { get; } = errorMessage;
     }
 
+    public sealed class DuplicateMidiFileEntry(string existingPath, string existingTitle, string duplicatePath)
+    {
+        public string ExistingPath { get; } = existingPath;
+
+        public string ExistingTitle { get; } = existingTitle;
+
+        public string ExistingFileName => System.IO.Path.GetFileName(ExistingPath);
+
+        public string DuplicatePath { get; } = duplicatePath;
+
+        public string DuplicateFileName => System.IO.Path.GetFileName(DuplicatePath);
+
+        // Default is false = keep currently imported file.
+        public bool UseDuplicate { get; set; }
+    }
+
     public enum SortMode
     {
         CustomOrder,
@@ -103,12 +119,32 @@ public class SongsViewModel : Screen
 
     public BindableCollection<BadMidiFileEntry> BadMidiFiles { get; } = new();
 
+    public BindableCollection<DuplicateMidiFileEntry> DuplicateMidiFiles { get; } = new();
+
     /// <summary>
     /// Whether there are any missing song files
     /// </summary>
     public bool HasMissingSongs => MissingSongs.Count > 0;
 
-    public bool HasFileErrors => MissingSongs.Count > 0 || BadMidiFiles.Count > 0 || _main.FileService.GetRemovedExistingMidiFiles().Count > 0;
+    public bool HasNonDuplicateFileErrors => MissingSongs.Count > 0
+                                             || BadMidiFiles.Count > 0
+                                             || _main.FileService.GetRemovedExistingMidiFiles().Count > 0;
+
+    public bool HasDuplicateFileConflicts => DuplicateMidiFiles.Count > 0;
+
+    public bool HasFileErrors => HasNonDuplicateFileErrors || HasDuplicateFileConflicts;
+
+    public SymbolRegular FileIssuesSymbol => HasNonDuplicateFileErrors
+        ? SymbolRegular.Warning24
+        : SymbolRegular.Info16;
+
+    public double FileIssuesIconSize => HasNonDuplicateFileErrors ? 24d : 16d;
+
+    public bool FileIssuesIconFilled => HasNonDuplicateFileErrors;
+
+    public string FileIssuesButtonToolTip => HasNonDuplicateFileErrors
+        ? "File errors found"
+        : "Duplicate file information";
 
     public bool HasMidiFolder => _main.SettingsView.HasMidiFolder;
 
@@ -244,10 +280,41 @@ public class SongsViewModel : Screen
     /// </summary>
     public async Task ShowMissingFilesDialog()
     {
+        await _main.FileService.ResolveDuplicateFallbacksAsync();
+        _main.FileService.RemoveStaleDuplicateMidiFileEntries(notify: false);
+
+        var duplicateMidiFiles = DuplicateMidiFiles.ToList();
         var removedExistingMidiFiles = _main.FileService.GetRemovedExistingMidiFiles().ToList();
-        if (!HasFileErrors && removedExistingMidiFiles.Count == 0) return;
+
+        bool PruneMissingSongsForRemovedExisting(IReadOnlyCollection<Services.FileService.RemovedExistingMidiFileEntry> removedEntries)
+        {
+            if (removedEntries.Count == 0)
+                return false;
+
+            var removedPaths = removedEntries
+                .Select(entry => entry.Path)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var staleMissingSongs = MissingSongs
+                .Where(song => removedPaths.Contains(song.Path))
+                .ToList();
+
+            if (staleMissingSongs.Count == 0)
+                return false;
+
+            foreach (var staleSong in staleMissingSongs)
+                MissingSongs.Remove(staleSong);
+
+            return true;
+        }
+
+        if (PruneMissingSongsForRemovedExisting(removedExistingMidiFiles))
+            NotifyFileErrorsChanged();
+
+        if (!HasFileErrors && removedExistingMidiFiles.Count == 0 && duplicateMidiFiles.Count == 0) return;
 
         var hasDatabaseFileErrors = MissingSongs.Count > 0 || BadMidiFiles.Count > 0;
+        var hasDuplicateConflicts = duplicateMidiFiles.Count > 0;
 
         var content = new System.Windows.Controls.StackPanel { MinWidth = 460 };
         content.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
@@ -263,16 +330,168 @@ public class SongsViewModel : Screen
 
         System.Windows.Controls.ItemsControl? missingItemsControl = null;
         System.Windows.Controls.ItemsControl? badMidiItemsControl = null;
+        System.Windows.Controls.StackPanel? duplicateGroupsPanel = null;
         System.Windows.Controls.ItemsControl? removedExistingItemsControl = null;
+        var dialogOpen = true;
+        var refreshInProgress = false;
 
-        void RefreshLists()
+        void SelectDuplicateVersion(string existingPath, string? selectedDuplicatePath)
         {
-            if (missingItemsControl != null)
-                missingItemsControl.ItemsSource = MissingSongs.ToList();
-            if (badMidiItemsControl != null)
-                badMidiItemsControl.ItemsSource = BadMidiFiles.ToList();
-            if (removedExistingItemsControl != null)
-                removedExistingItemsControl.ItemsSource = _main.FileService.GetRemovedExistingMidiFiles().ToList();
+            var groupEntries = DuplicateMidiFiles
+                .Where(entry => string.Equals(entry.ExistingPath, existingPath, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            foreach (var entry in groupEntries)
+            {
+                entry.UseDuplicate = !string.IsNullOrWhiteSpace(selectedDuplicatePath)
+                                     && string.Equals(entry.DuplicatePath, selectedDuplicatePath, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        void RebuildDuplicateGroups()
+        {
+            if (duplicateGroupsPanel is null)
+                return;
+
+            duplicateGroupsPanel.Children.Clear();
+
+            var groupedDuplicates = DuplicateMidiFiles
+                .GroupBy(entry => entry.ExistingPath, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            foreach (var duplicateGroup in groupedDuplicates)
+            {
+                var existingPath = duplicateGroup.Key;
+                var groupEntries = duplicateGroup
+                    .OrderBy(entry => entry.DuplicateFileName, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                string? selectedDuplicatePath = null;
+                foreach (var entry in groupEntries)
+                {
+                    if (!entry.UseDuplicate)
+                        continue;
+
+                    if (selectedDuplicatePath is null)
+                    {
+                        selectedDuplicatePath = entry.DuplicatePath;
+                        continue;
+                    }
+
+                    entry.UseDuplicate = false;
+                }
+
+                var groupBorder = new System.Windows.Controls.Border
+                {
+                    Padding = new Thickness(10, 8, 10, 8),
+                    BorderThickness = new Thickness(0, 0, 0, 1)
+                };
+                groupBorder.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
+
+                var groupContent = new System.Windows.Controls.StackPanel
+                {
+                    Orientation = System.Windows.Controls.Orientation.Vertical
+                };
+
+                var groupHeader = new System.Windows.Controls.TextBlock
+                {
+                    Text = System.IO.Path.GetFileName(existingPath),
+                    FontWeight = FontWeights.SemiBold,
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                };
+                groupHeader.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
+                groupContent.Children.Add(groupHeader);
+
+                var groupPath = new System.Windows.Controls.TextBlock
+                {
+                    Text = existingPath,
+                    FontSize = 11,
+                    Opacity = 0.72,
+                    Margin = new Thickness(0, 0, 0, 4),
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                };
+                groupPath.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
+                groupContent.Children.Add(groupPath);
+
+                var currentVersionCheck = new System.Windows.Controls.CheckBox
+                {
+                    Content = "Current in library",
+                    IsChecked = string.IsNullOrWhiteSpace(selectedDuplicatePath),
+                    Margin = new Thickness(0, 4, 0, 0)
+                };
+                currentVersionCheck.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
+                currentVersionCheck.Click += (_, _) =>
+                {
+                    SelectDuplicateVersion(existingPath, null);
+                    RebuildDuplicateGroups();
+                };
+                groupContent.Children.Add(currentVersionCheck);
+
+                foreach (var duplicateEntry in groupEntries)
+                {
+                    var duplicateVersionCheck = new System.Windows.Controls.CheckBox
+                    {
+                        Content = duplicateEntry.DuplicateFileName,
+                        IsChecked = string.Equals(selectedDuplicatePath, duplicateEntry.DuplicatePath, StringComparison.OrdinalIgnoreCase),
+                        Margin = new Thickness(0, 4, 0, 0)
+                    };
+                    duplicateVersionCheck.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
+                    duplicateVersionCheck.Click += (_, _) =>
+                    {
+                        SelectDuplicateVersion(existingPath, duplicateEntry.DuplicatePath);
+                        RebuildDuplicateGroups();
+                    };
+                    groupContent.Children.Add(duplicateVersionCheck);
+
+                    var duplicatePath = new System.Windows.Controls.TextBlock
+                    {
+                        Text = duplicateEntry.DuplicatePath,
+                        FontSize = 11,
+                        Opacity = 0.72,
+                        Margin = new Thickness(24, 0, 0, 0),
+                        TextTrimming = TextTrimming.CharacterEllipsis
+                    };
+                    duplicatePath.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
+                    groupContent.Children.Add(duplicatePath);
+                }
+
+                groupBorder.Child = groupContent;
+                duplicateGroupsPanel.Children.Add(groupBorder);
+            }
+        }
+
+        async Task RefreshListsAsync(bool resolveDuplicateFallbacks = true)
+        {
+            if (!dialogOpen || refreshInProgress)
+                return;
+
+            refreshInProgress = true;
+
+            try
+            {
+                if (resolveDuplicateFallbacks)
+                    await _main.FileService.ResolveDuplicateFallbacksAsync();
+
+                _main.FileService.RemoveStaleDuplicateMidiFileEntries(notify: false);
+
+                var refreshedRemovedExistingMidiFiles = _main.FileService.GetRemovedExistingMidiFiles().ToList();
+                if (PruneMissingSongsForRemovedExisting(refreshedRemovedExistingMidiFiles))
+                    NotifyFileErrorsChanged();
+
+                if (missingItemsControl != null)
+                    missingItemsControl.ItemsSource = MissingSongs.ToList();
+                if (badMidiItemsControl != null)
+                    badMidiItemsControl.ItemsSource = BadMidiFiles.ToList();
+                if (duplicateGroupsPanel != null)
+                    RebuildDuplicateGroups();
+                if (removedExistingItemsControl != null)
+                    removedExistingItemsControl.ItemsSource = refreshedRemovedExistingMidiFiles;
+            }
+            finally
+            {
+                refreshInProgress = false;
+            }
         }
 
         if (MissingSongs.Count > 0)
@@ -329,7 +548,7 @@ public class SongsViewModel : Screen
                     if (s is System.Windows.Controls.Button btn && btn.DataContext is Song song)
                     {
                         await _main.FileService.RemoveMissingSong(song);
-                        RefreshLists();
+                        await RefreshListsAsync(resolveDuplicateFallbacks: false);
                     }
                 }));
             missingGridFactory.AppendChild(missingButtonFactory);
@@ -419,7 +638,7 @@ public class SongsViewModel : Screen
                     if (s is System.Windows.Controls.Button btn && btn.DataContext is BadMidiFileEntry badMidiFile)
                     {
                         await _main.FileService.RemoveBadMidiSong(badMidiFile);
-                        RefreshLists();
+                        await RefreshListsAsync(resolveDuplicateFallbacks: false);
                     }
                 }));
             badMidiGridFactory.AppendChild(badMidiButtonFactory);
@@ -440,6 +659,48 @@ public class SongsViewModel : Screen
             badMidiScrollViewer.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, "ControlFillColorDefaultBrush");
             badMidiScrollViewer.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
             content.Children.Add(badMidiScrollViewer);
+        }
+
+        if (hasDuplicateConflicts)
+        {
+            var duplicateHeader = new System.Windows.Controls.TextBlock
+            {
+                Text = "Duplicate files",
+                FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, MissingSongs.Count > 0 || BadMidiFiles.Count > 0 ? 14 : 0, 0, 8)
+            };
+            duplicateHeader.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
+            content.Children.Add(duplicateHeader);
+
+            var duplicateInfo = new System.Windows.Controls.TextBlock
+            {
+                Text = "Choose exactly one version per duplicate group. These selections stay available when reopening this conflicts menu.",
+                TextWrapping = TextWrapping.Wrap,
+                Opacity = 0.72,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            duplicateInfo.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
+            content.Children.Add(duplicateInfo);
+
+            duplicateGroupsPanel = new System.Windows.Controls.StackPanel
+            {
+                Orientation = System.Windows.Controls.Orientation.Vertical
+            };
+
+            RebuildDuplicateGroups();
+
+            var duplicateScrollViewer = new System.Windows.Controls.ScrollViewer
+            {
+                MaxHeight = 220,
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(0),
+                VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled,
+                Content = duplicateGroupsPanel
+            };
+            duplicateScrollViewer.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, "ControlFillColorDefaultBrush");
+            duplicateScrollViewer.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
+            content.Children.Add(duplicateScrollViewer);
         }
 
         if (removedExistingMidiFiles.Count > 0)
@@ -494,15 +755,45 @@ public class SongsViewModel : Screen
 
             removedGridFactory.AppendChild(removedDetailsPanelFactory);
 
+            var removedActionsFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.StackPanel));
+            removedActionsFactory.SetValue(System.Windows.Controls.StackPanel.OrientationProperty, System.Windows.Controls.Orientation.Horizontal);
+            removedActionsFactory.SetValue(System.Windows.Controls.StackPanel.VerticalAlignmentProperty, VerticalAlignment.Center);
+            removedActionsFactory.SetValue(System.Windows.Controls.Grid.ColumnProperty, 1);
+            removedActionsFactory.SetValue(FrameworkElement.MarginProperty, new Thickness(8, 0, 0, 0));
+
+            var removedRestoreButtonFactory = new FrameworkElementFactory(typeof(Button));
+            removedRestoreButtonFactory.SetResourceReference(FrameworkElement.StyleProperty, "GhostIconButton");
+            removedRestoreButtonFactory.SetValue(System.Windows.Controls.Button.PaddingProperty, new Thickness(4));
+            removedRestoreButtonFactory.SetValue(System.Windows.Controls.Button.ToolTipProperty, "Restore this MIDI file to the song list");
+            removedRestoreButtonFactory.SetValue(System.Windows.Controls.Button.BackgroundProperty, Brushes.Transparent);
+            removedRestoreButtonFactory.SetValue(System.Windows.Controls.Button.BorderThicknessProperty, new Thickness(0));
+            var removedRestoreIconFactory = new FrameworkElementFactory(typeof(SymbolIcon));
+            removedRestoreIconFactory.SetValue(SymbolIcon.SymbolProperty, SymbolRegular.ArrowClockwise24);
+            removedRestoreButtonFactory.AppendChild(removedRestoreIconFactory);
+            removedRestoreButtonFactory.AddHandler(System.Windows.Controls.Button.ClickEvent,
+                new RoutedEventHandler(async (s, _) =>
+                {
+                    if (s is not System.Windows.Controls.Button btn ||
+                        btn.DataContext is not Services.FileService.RemovedExistingMidiFileEntry removedEntry)
+                    {
+                        return;
+                    }
+
+                    await _main.FileService.RestoreExcludedFileToLibraryAsync(removedEntry.Path);
+                    await RefreshListsAsync(resolveDuplicateFallbacks: false);
+                }));
+            removedActionsFactory.AppendChild(removedRestoreButtonFactory);
+
             var removedDeleteButtonFactory = new FrameworkElementFactory(typeof(Button));
-            removedDeleteButtonFactory.SetValue(System.Windows.Controls.Button.ContentProperty, "Delete file");
             removedDeleteButtonFactory.SetResourceReference(FrameworkElement.StyleProperty, "GhostIconButton");
-            removedDeleteButtonFactory.SetValue(System.Windows.Controls.Button.PaddingProperty, new Thickness(8, 3, 8, 3));
-            removedDeleteButtonFactory.SetValue(System.Windows.Controls.Button.MarginProperty, new Thickness(8, 0, 0, 0));
+            removedDeleteButtonFactory.SetValue(System.Windows.Controls.Button.PaddingProperty, new Thickness(4));
+            removedDeleteButtonFactory.SetValue(System.Windows.Controls.Button.MarginProperty, new Thickness(6, 0, 0, 0));
             removedDeleteButtonFactory.SetValue(System.Windows.Controls.Button.ToolTipProperty, "Delete this MIDI file from disk");
             removedDeleteButtonFactory.SetValue(System.Windows.Controls.Button.BackgroundProperty, Brushes.Transparent);
             removedDeleteButtonFactory.SetValue(System.Windows.Controls.Button.BorderThicknessProperty, new Thickness(0));
-            removedDeleteButtonFactory.SetValue(System.Windows.Controls.Grid.ColumnProperty, 1);
+            var removedDeleteIconFactory = new FrameworkElementFactory(typeof(SymbolIcon));
+            removedDeleteIconFactory.SetValue(SymbolIcon.SymbolProperty, SymbolRegular.Delete24);
+            removedDeleteButtonFactory.AppendChild(removedDeleteIconFactory);
             removedDeleteButtonFactory.AddHandler(System.Windows.Controls.Button.ClickEvent,
                 new RoutedEventHandler(async (s, _) =>
                 {
@@ -536,7 +827,7 @@ public class SongsViewModel : Screen
 
                     if (result == DialogActionOutcome.Confirmed)
                     {
-                        RefreshLists();
+                        await RefreshListsAsync(resolveDuplicateFallbacks: false);
 
                         if (!fileDeleted && System.IO.File.Exists(removedEntry.Path))
                         {
@@ -548,7 +839,9 @@ public class SongsViewModel : Screen
                         }
                     }
                 }));
-            removedGridFactory.AppendChild(removedDeleteButtonFactory);
+            removedActionsFactory.AppendChild(removedDeleteButtonFactory);
+
+            removedGridFactory.AppendChild(removedActionsFactory);
 
             removedRowBorderFactory.AppendChild(removedGridFactory);
             removedTemplate.VisualTree = removedRowBorderFactory;
@@ -569,7 +862,7 @@ public class SongsViewModel : Screen
         }
 
         var dialog = DialogHelper.CreateDialog();
-        dialog.Title = "File Errors";
+        dialog.Title = "File Issues";
         dialog.Content = content;
         if (hasDatabaseFileErrors)
         {
@@ -579,10 +872,35 @@ public class SongsViewModel : Screen
 
         dialog.CloseButtonText = "Close";
 
-        var result = await dialog.ShowAsync();
+        var liveRefreshTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(700)
+        };
+
+        liveRefreshTimer.Tick += async (_, _) =>
+        {
+            await RefreshListsAsync();
+        };
+
+        liveRefreshTimer.Start();
+
+        ContentDialogResult result;
+        try
+        {
+            await RefreshListsAsync();
+            result = await dialog.ShowAsync();
+        }
+        finally
+        {
+            dialogOpen = false;
+            liveRefreshTimer.Stop();
+        }
 
         if (hasDatabaseFileErrors && result == ContentDialogResult.Primary)
             await _main.FileService.RemoveAllFileErrors();
+
+        if (hasDuplicateConflicts)
+            await _main.FileService.ApplyDuplicateSelectionsAsync(DuplicateMidiFiles.ToList());
     }
 
     public void NotifyFileErrorsChanged()
@@ -590,7 +908,14 @@ public class SongsViewModel : Screen
         NotifyOfPropertyChange(nameof(HasMissingSongs));
         NotifyOfPropertyChange(nameof(MissingSongs));
         NotifyOfPropertyChange(nameof(BadMidiFiles));
+        NotifyOfPropertyChange(nameof(DuplicateMidiFiles));
+        NotifyOfPropertyChange(nameof(HasNonDuplicateFileErrors));
+        NotifyOfPropertyChange(nameof(HasDuplicateFileConflicts));
         NotifyOfPropertyChange(nameof(HasFileErrors));
+        NotifyOfPropertyChange(nameof(FileIssuesSymbol));
+        NotifyOfPropertyChange(nameof(FileIssuesIconSize));
+        NotifyOfPropertyChange(nameof(FileIssuesIconFilled));
+        NotifyOfPropertyChange(nameof(FileIssuesButtonToolTip));
     }
 
     public void MoveUp()
