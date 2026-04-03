@@ -441,6 +441,36 @@ namespace AutoMidiPlayer.Data.Properties
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool AutoScanMidiFolder
+        {
+            get
+            {
+                return ((bool)(this["AutoScanMidiFolder"]));
+            }
+            set
+            {
+                this["AutoScanMidiFolder"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string ExcludedAutoImportPaths
+        {
+            get
+            {
+                return ((string)(this["ExcludedAutoImportPaths"]));
+            }
+            set
+            {
+                this["ExcludedAutoImportPaths"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("0")]
         public int SongsSortMode
         {

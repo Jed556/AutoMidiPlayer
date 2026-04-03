@@ -203,41 +203,49 @@
                     </ItemsControl>
 
                     <GroupBox Header="MIDI Folder">
-                        <controls:SimpleStackPanel Orientation="Horizontal">
-                            <Button Command="{s:Action BrowseMidiFolder}"
-                                    Style="{DynamicResource GhostIconButton}"
-                                    ToolTip="Browse for MIDI folder"
-                                    Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}">
-                                <ui:SymbolIcon Symbol="FolderAdd16"
-                                               FontSize="18"/>
-                            </Button>
-                            <Button Command="{s:Action OpenMidiFolder}"
-                                    Style="{DynamicResource GhostIconButton}"
-                                    ToolTip="Open MIDI folder in Explorer"
-                                    Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                                <ui:SymbolIcon Symbol="FolderOpen16"
-                                               FontSize="18"/>
-                            </Button>
-                            <TextBlock Text="{Binding MidiFolder, TargetNullValue='No folder selected'}"
-                                       VerticalAlignment="Center"
-                                       TextTrimming="CharacterEllipsis"
-                                       MaxWidth="200"/>
-                            <controls:BusyActionButton Width="32"
-                                                       Height="32"
-                                                       Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
-                                                       IsBusy="{Binding IsScanningMidiFolder}"
-                                                       MinimumVisibleDuration="0:0:1"
-                                                       Command="{s:Action ScanMidiFolder}"
-                                                       ButtonToolTip="Refresh/Scan folder for new MIDI files"
-                                                       IconSymbol="ArrowClockwise24"
-                                                       IconFontSize="18"/>
-                            <Button Command="{s:Action ClearMidiFolder}"
-                                    Style="{DynamicResource GhostIconButton}"
-                                    ToolTip="Clear MIDI folder"
-                                    Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                                <ui:SymbolIcon Symbol="Delete16"
-                                               FontSize="18"/>
-                            </Button>
+                        <controls:SimpleStackPanel>
+                            <controls:SimpleStackPanel Orientation="Horizontal">
+                                <Button Command="{s:Action BrowseMidiFolder}"
+                                        Style="{DynamicResource GhostIconButton}"
+                                        ToolTip="Browse for MIDI folder"
+                                        Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}">
+                                    <ui:SymbolIcon Symbol="FolderAdd16"
+                                                   FontSize="18"/>
+                                </Button>
+                                <Button Command="{s:Action OpenMidiFolder}"
+                                        Style="{DynamicResource GhostIconButton}"
+                                        ToolTip="Open MIDI folder in Explorer"
+                                        Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                    <ui:SymbolIcon Symbol="FolderOpen16"
+                                                   FontSize="18"/>
+                                </Button>
+                                <TextBlock Text="{Binding MidiFolder, TargetNullValue='No folder selected'}"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"
+                                           MaxWidth="200"/>
+                                <controls:BusyActionButton Width="32"
+                                                           Height="32"
+                                                           Visibility="{Binding ShowMidiFolderManualRefresh, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                                           IsBusy="{Binding IsScanningMidiFolder}"
+                                                           MinimumVisibleDuration="0:0:1"
+                                                           Command="{s:Action ScanMidiFolder}"
+                                                           ButtonToolTip="Refresh/Scan folder for new MIDI files"
+                                                           IconSymbol="ArrowClockwise24"
+                                                           IconFontSize="18"/>
+                                <Button Command="{s:Action ClearMidiFolder}"
+                                        Style="{DynamicResource GhostIconButton}"
+                                        ToolTip="Clear MIDI folder"
+                                        Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                    <ui:SymbolIcon Symbol="Delete16"
+                                                   FontSize="18"/>
+                                </Button>
+                            </controls:SimpleStackPanel>
+
+                            <ui:ToggleSwitch Content="Auto-scan folder for new MIDI files"
+                                             IsChecked="{Binding AutoScanMidiFolder}"
+                                             Margin="0,8,0,0"
+                                             ToolTip="When enabled, Auto MIDI Player watches this folder and auto-imports newly added MIDI files."
+                                             Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
                         </controls:SimpleStackPanel>
                     </GroupBox>
 

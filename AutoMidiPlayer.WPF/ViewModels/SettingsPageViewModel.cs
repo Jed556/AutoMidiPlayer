@@ -98,6 +98,9 @@ public class SettingsPageViewModel : Screen
     private MouseStopClickOption _selectedMouseStopClickOption = null!;
     private KeypressInputModeOption _selectedKeypressInputMode = null!;
     private ThemeOption _selectedTheme = null!;
+    private FileSystemWatcher? _midiFolderWatcher;
+    private CancellationTokenSource? _midiFolderScanDebounceToken;
+    private static readonly TimeSpan MidiFolderWatchDebounceDelay = TimeSpan.FromMilliseconds(750);
 
     public SettingsPageViewModel(IContainer ioc, MainWindowViewModel main)
     {
@@ -137,6 +140,8 @@ public class SettingsPageViewModel : Screen
 
         _selectedKeypressInputMode = ResolveKeypressInputMode(UseDirectInput, UseWindowMessage);
         _selectedMouseStopClickOption = ResolveMouseStopClickOption(Settings.MouseStopClickMode);
+
+        ConfigureMidiFolderWatcher();
     }
 
     /// <summary>Observable collection of game location entries for the settings UI</summary>
@@ -333,6 +338,8 @@ public class SettingsPageViewModel : Screen
 
     public bool IsScanningMidiFolder { get; set; }
 
+    public bool AutoScanMidiFolder { get; set; } = Settings.AutoScanMidiFolder;
+
     public bool UseDirectInput { get; set; } = Settings.UseDirectInput;
 
     public bool UseWindowMessage { get; set; } = Settings.UseWindowMessage;
@@ -469,6 +476,8 @@ public class SettingsPageViewModel : Screen
     public string MidiFolder { get; set; } = Settings.MidiFolder;
 
     public bool HasMidiFolder => !string.IsNullOrEmpty(MidiFolder);
+
+    public bool ShowMidiFolderManualRefresh => HasMidiFolder && !AutoScanMidiFolder;
 
     public bool NeedsUpdate => ProgramVersion < LatestVersion.Version;
 
@@ -661,8 +670,7 @@ public class SettingsPageViewModel : Screen
         if (dialog.ShowDialog() == true)
         {
             MidiFolder = dialog.FolderName;
-            Settings.MidiFolder = MidiFolder;
-            Settings.Save();
+            Settings.Modify(settings => settings.MidiFolder = MidiFolder);
 
             // Auto-scan the folder
             await ScanMidiFolder();
@@ -691,8 +699,7 @@ public class SettingsPageViewModel : Screen
     public void ClearMidiFolder()
     {
         MidiFolder = string.Empty;
-        Settings.MidiFolder = string.Empty;
-        Settings.Save();
+        Settings.Modify(settings => settings.MidiFolder = string.Empty);
     }
 
     public void OpenMidiFolder()
@@ -710,7 +717,127 @@ public class SettingsPageViewModel : Screen
     }
 
     [UsedImplicitly]
-    private void OnMidiFolderChanged() => NotifyOfPropertyChange(nameof(HasMidiFolder));
+    private void OnMidiFolderChanged()
+    {
+        NotifyOfPropertyChange(nameof(HasMidiFolder));
+        NotifyOfPropertyChange(nameof(ShowMidiFolderManualRefresh));
+        ConfigureMidiFolderWatcher();
+    }
+
+    [UsedImplicitly]
+    private void OnAutoScanMidiFolderChanged()
+    {
+        Settings.Modify(settings => settings.AutoScanMidiFolder = AutoScanMidiFolder);
+        NotifyOfPropertyChange(nameof(ShowMidiFolderManualRefresh));
+
+        ConfigureMidiFolderWatcher();
+
+        if (AutoScanMidiFolder)
+            _ = ScanMidiFolder();
+    }
+
+    private void ConfigureMidiFolderWatcher()
+    {
+        DisposeMidiFolderWatcher();
+
+        if (!AutoScanMidiFolder)
+            return;
+
+        if (string.IsNullOrWhiteSpace(MidiFolder) || !Directory.Exists(MidiFolder))
+            return;
+
+        try
+        {
+            _midiFolderWatcher = new FileSystemWatcher(MidiFolder)
+            {
+                IncludeSubdirectories = true,
+                NotifyFilter = NotifyFilters.FileName
+                               | NotifyFilters.DirectoryName
+                               | NotifyFilters.CreationTime
+                               | NotifyFilters.LastWrite,
+                Filter = "*.*",
+                EnableRaisingEvents = true
+            };
+
+            _midiFolderWatcher.Created += HandleMidiFolderWatcherChanged;
+            _midiFolderWatcher.Renamed += HandleMidiFolderWatcherChanged;
+        }
+        catch (Exception error)
+        {
+            CrashLogger.Log($"Failed to configure MIDI folder watcher for '{MidiFolder}'.");
+            CrashLogger.LogException(error);
+            DisposeMidiFolderWatcher();
+        }
+    }
+
+    private void DisposeMidiFolderWatcher()
+    {
+        if (_midiFolderWatcher is not null)
+        {
+            _midiFolderWatcher.EnableRaisingEvents = false;
+            _midiFolderWatcher.Created -= HandleMidiFolderWatcherChanged;
+            _midiFolderWatcher.Renamed -= HandleMidiFolderWatcherChanged;
+            _midiFolderWatcher.Dispose();
+            _midiFolderWatcher = null;
+        }
+
+        _midiFolderScanDebounceToken?.Cancel();
+        _midiFolderScanDebounceToken?.Dispose();
+        _midiFolderScanDebounceToken = null;
+    }
+
+    private void HandleMidiFolderWatcherChanged(object? sender, FileSystemEventArgs e)
+    {
+        if (!ShouldAutoScanFromWatcherEvent(e.FullPath))
+            return;
+
+        QueueAutoScanFromWatcher();
+    }
+
+    private static bool ShouldAutoScanFromWatcherEvent(string fullPath)
+    {
+        if (string.IsNullOrWhiteSpace(fullPath))
+            return false;
+
+        return AutoImportExclusionStore.IsMidiFilePath(fullPath) || Directory.Exists(fullPath);
+    }
+
+    private void QueueAutoScanFromWatcher()
+    {
+        if (!AutoScanMidiFolder)
+            return;
+
+        _midiFolderScanDebounceToken?.Cancel();
+        _midiFolderScanDebounceToken?.Dispose();
+        _midiFolderScanDebounceToken = new CancellationTokenSource();
+        var token = _midiFolderScanDebounceToken.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(MidiFolderWatchDebounceDelay, token);
+                if (token.IsCancellationRequested)
+                    return;
+
+                var app = Application.Current;
+                if (app?.Dispatcher is null)
+                    return;
+
+                var scanTask = await app.Dispatcher.InvokeAsync(() => ScanMidiFolder());
+                await scanTask;
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected when a newer file event supersedes this scan.
+            }
+            catch (Exception error)
+            {
+                CrashLogger.Log("MIDI folder auto-scan failed.");
+                CrashLogger.LogException(error);
+            }
+        });
+    }
 
     [UsedImplicitly]
     public async Task StartStopTimer()

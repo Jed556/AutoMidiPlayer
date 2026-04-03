@@ -425,6 +425,31 @@ public class SongService(IContainer ioc) : PropertyChangedBase
 
         if (songIdsToDelete.Count == 0) return;
 
+        var autoScanEnabled = _main.SettingsView.AutoScanMidiFolder;
+        var midiFolder = _main.SettingsView.MidiFolder;
+        var songsToMarkMissing = new List<Song>();
+
+        foreach (var file in files)
+        {
+            var songPath = file.Song.Path;
+            if (string.IsNullOrWhiteSpace(songPath))
+                continue;
+
+            if (!AutoImportExclusionStore.IsMidiFilePath(songPath))
+                continue;
+
+            if (!AutoImportExclusionStore.IsPathWithinFolder(songPath, midiFolder))
+                continue;
+
+            if (!File.Exists(songPath))
+                continue;
+
+            AutoImportExclusionStore.Add(songPath);
+
+            if (autoScanEnabled)
+                songsToMarkMissing.Add(file.Song);
+        }
+
         if (_main.QueueView.OpenedFile is not null &&
             songIdsToDelete.Contains(_main.QueueView.OpenedFile.Song.Id))
         {
@@ -455,8 +480,20 @@ public class SongService(IContainer ioc) : PropertyChangedBase
             }
         }
 
+        if (autoScanEnabled)
+        {
+            foreach (var song in songsToMarkMissing
+                         .DistinctBy(song => song.Path, StringComparer.OrdinalIgnoreCase)
+                         .Where(song => !_main.SongsView.MissingSongs.Any(existing =>
+                             string.Equals(existing.Path, song.Path, StringComparison.OrdinalIgnoreCase))))
+            {
+                _main.SongsView.MissingSongs.Add(song);
+            }
+        }
+
         _main.QueueView.OnQueueModified();
         _main.SongsView.ApplySort();
+        _main.SongsView.NotifyFileErrorsChanged();
     }
 
     /// <summary>

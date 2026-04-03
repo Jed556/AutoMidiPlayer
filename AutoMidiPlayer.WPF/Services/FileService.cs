@@ -57,6 +57,7 @@ public class FileService(IContainer ioc)
     ];
 
     public readonly record struct MidiAnalysisResult(double NativeBpm, int? DetectedDefaultKeyOffset, DateTime FileDate);
+    public readonly record struct RemovedExistingMidiFileEntry(string Path, string Title);
 
     /// <summary>
     /// Best-effort analysis for a MIDI file path used by UI flows that need native metadata refresh.
@@ -310,9 +311,54 @@ public class FileService(IContainer ioc)
         if (!Directory.Exists(folderPath)) return;
 
         var midiFiles = Directory.GetFiles(folderPath, "*.mid", SearchOption.AllDirectories)
-            .Concat(Directory.GetFiles(folderPath, "*.midi", SearchOption.AllDirectories));
+            .Concat(Directory.GetFiles(folderPath, "*.midi", SearchOption.AllDirectories))
+            .Where(path => !AutoImportExclusionStore.IsExcluded(path));
 
         await AddFiles(midiFiles);
+    }
+
+    public IReadOnlyList<RemovedExistingMidiFileEntry> GetRemovedExistingMidiFiles()
+    {
+        AutoImportExclusionStore.PruneMissingPaths();
+
+        var existingExcludedFiles = AutoImportExclusionStore.GetExistingExcludedMidiFiles(Settings.MidiFolder);
+        return existingExcludedFiles
+            .Select(path => new RemovedExistingMidiFileEntry(path, Path.GetFileNameWithoutExtension(path)))
+            .ToList();
+    }
+
+    public bool DeleteExcludedFileFromDisk(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return false;
+
+        var fileExists = File.Exists(path);
+        try
+        {
+            if (fileExists)
+                File.Delete(path);
+
+            AutoImportExclusionStore.Remove(path);
+
+            if (_main is not null)
+            {
+                var songs = _main.SongsView;
+
+                foreach (var missingSong in songs.MissingSongs.Where(song => string.Equals(song.Path, path, StringComparison.OrdinalIgnoreCase)).ToList())
+                    songs.MissingSongs.Remove(missingSong);
+
+                RemoveBadMidiFileEntries(path, false);
+                songs.NotifyFileErrorsChanged();
+            }
+
+            return fileExists;
+        }
+        catch (Exception error)
+        {
+            CrashLogger.Log($"Failed to delete excluded MIDI file from disk: {path}");
+            CrashLogger.LogException(error);
+            return false;
+        }
     }
 
     #endregion
@@ -572,6 +618,10 @@ public class FileService(IContainer ioc)
         await using var db = _ioc.Get<LyreContext>();
         db.Songs.Add(song);
         await db.SaveChangesAsync();
+
+        // Manual imports should immediately become eligible for future auto-imports again.
+        AutoImportExclusionStore.Remove(fileName);
+        songs.NotifyFileErrorsChanged();
     }
 
     private static ParsedSongMetadata ParseSongMetadataFromFileName(string filePath)
@@ -774,6 +824,7 @@ public class FileService(IContainer ioc)
         await db.SaveChangesAsync();
 
         songs.MissingSongs.Remove(missingSong);
+        AutoImportExclusionStore.Remove(newPath);
         RemoveBadMidiFileEntries(missingSong.Path, false);
         songs.NotifyFileErrorsChanged();
     }

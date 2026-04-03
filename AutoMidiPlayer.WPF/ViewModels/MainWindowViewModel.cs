@@ -356,8 +356,8 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         await using var db = Ioc.Get<LyreContext>();
         await FileService.AddFiles(db.Songs);
 
-        // Auto-scan MIDI folder if configured
-        if (!string.IsNullOrEmpty(SettingsView.MidiFolder))
+        // Auto-scan MIDI folder on startup only when the setting is enabled.
+        if (SettingsView.AutoScanMidiFolder && !string.IsNullOrEmpty(SettingsView.MidiFolder))
         {
             await FileService.ScanFolder(SettingsView.MidiFolder);
         }

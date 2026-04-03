@@ -68,6 +68,12 @@ public class SongsViewModel : Screen
         if (e.PropertyName == nameof(SettingsPageViewModel.MidiFolder)
             || e.PropertyName == nameof(SettingsPageViewModel.HasMidiFolder))
             NotifyOfPropertyChange(nameof(HasMidiFolder));
+
+        if (e.PropertyName == nameof(SettingsPageViewModel.MidiFolder)
+            || e.PropertyName == nameof(SettingsPageViewModel.HasMidiFolder)
+            || e.PropertyName == nameof(SettingsPageViewModel.AutoScanMidiFolder)
+            || e.PropertyName == nameof(SettingsPageViewModel.ShowMidiFolderManualRefresh))
+            NotifyOfPropertyChange(nameof(CanManuallyScanMidiFolder));
     }
 
     private void HandlePlaybackStateChanged(object? sender, EventArgs e)
@@ -102,9 +108,11 @@ public class SongsViewModel : Screen
     /// </summary>
     public bool HasMissingSongs => MissingSongs.Count > 0;
 
-    public bool HasFileErrors => MissingSongs.Count > 0 || BadMidiFiles.Count > 0;
+    public bool HasFileErrors => MissingSongs.Count > 0 || BadMidiFiles.Count > 0 || _main.FileService.GetRemovedExistingMidiFiles().Count > 0;
 
     public bool HasMidiFolder => _main.SettingsView.HasMidiFolder;
+
+    public bool CanManuallyScanMidiFolder => _main.SettingsView.ShowMidiFolderManualRefresh;
 
     public bool IsScanningMidiFolder => _main.SettingsView.IsScanningMidiFolder;
 
@@ -236,7 +244,10 @@ public class SongsViewModel : Screen
     /// </summary>
     public async Task ShowMissingFilesDialog()
     {
-        if (!HasFileErrors) return;
+        var removedExistingMidiFiles = _main.FileService.GetRemovedExistingMidiFiles().ToList();
+        if (!HasFileErrors && removedExistingMidiFiles.Count == 0) return;
+
+        var hasDatabaseFileErrors = MissingSongs.Count > 0 || BadMidiFiles.Count > 0;
 
         var content = new System.Windows.Controls.StackPanel { MinWidth = 460 };
         content.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
@@ -252,6 +263,7 @@ public class SongsViewModel : Screen
 
         System.Windows.Controls.ItemsControl? missingItemsControl = null;
         System.Windows.Controls.ItemsControl? badMidiItemsControl = null;
+        System.Windows.Controls.ItemsControl? removedExistingItemsControl = null;
 
         void RefreshLists()
         {
@@ -259,6 +271,8 @@ public class SongsViewModel : Screen
                 missingItemsControl.ItemsSource = MissingSongs.ToList();
             if (badMidiItemsControl != null)
                 badMidiItemsControl.ItemsSource = BadMidiFiles.ToList();
+            if (removedExistingItemsControl != null)
+                removedExistingItemsControl.ItemsSource = _main.FileService.GetRemovedExistingMidiFiles().ToList();
         }
 
         if (MissingSongs.Count > 0)
@@ -428,16 +442,146 @@ public class SongsViewModel : Screen
             content.Children.Add(badMidiScrollViewer);
         }
 
+        if (removedExistingMidiFiles.Count > 0)
+        {
+            var removedHeader = new System.Windows.Controls.TextBlock
+            {
+                Text = "Removed but still in MIDI folder",
+                FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, MissingSongs.Count > 0 || BadMidiFiles.Count > 0 ? 14 : 0, 0, 8)
+            };
+            removedHeader.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
+            content.Children.Add(removedHeader);
+
+            removedExistingItemsControl = new System.Windows.Controls.ItemsControl
+            {
+                ItemsSource = removedExistingMidiFiles
+            };
+
+            var removedTemplate = new DataTemplate();
+            var removedRowBorderFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.Border));
+            removedRowBorderFactory.SetValue(System.Windows.Controls.Border.PaddingProperty, new Thickness(10, 8, 10, 8));
+            removedRowBorderFactory.SetValue(System.Windows.Controls.Border.BorderThicknessProperty, new Thickness(0, 0, 0, 1));
+            removedRowBorderFactory.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
+
+            var removedGridFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.Grid));
+            var removedCol1 = new FrameworkElementFactory(typeof(System.Windows.Controls.ColumnDefinition));
+            removedCol1.SetValue(System.Windows.Controls.ColumnDefinition.WidthProperty, new GridLength(1, GridUnitType.Star));
+            var removedCol2 = new FrameworkElementFactory(typeof(System.Windows.Controls.ColumnDefinition));
+            removedCol2.SetValue(System.Windows.Controls.ColumnDefinition.WidthProperty, GridLength.Auto);
+            removedGridFactory.AppendChild(removedCol1);
+            removedGridFactory.AppendChild(removedCol2);
+
+            var removedDetailsPanelFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.StackPanel));
+            removedDetailsPanelFactory.SetValue(System.Windows.Controls.StackPanel.OrientationProperty, System.Windows.Controls.Orientation.Vertical);
+            removedDetailsPanelFactory.SetValue(System.Windows.Controls.Grid.ColumnProperty, 0);
+
+            var removedTitleFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.TextBlock));
+            removedTitleFactory.SetBinding(System.Windows.Controls.TextBlock.TextProperty,
+                new System.Windows.Data.Binding("Title") { FallbackValue = "Unknown" });
+            removedTitleFactory.SetValue(System.Windows.Controls.TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
+            removedTitleFactory.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
+            removedDetailsPanelFactory.AppendChild(removedTitleFactory);
+
+            var removedPathFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.TextBlock));
+            removedPathFactory.SetBinding(System.Windows.Controls.TextBlock.TextProperty,
+                new System.Windows.Data.Binding("Path") { FallbackValue = string.Empty });
+            removedPathFactory.SetValue(System.Windows.Controls.TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
+            removedPathFactory.SetValue(System.Windows.Controls.TextBlock.FontSizeProperty, 11.0);
+            removedPathFactory.SetValue(System.Windows.Controls.TextBlock.OpacityProperty, 0.72);
+            removedPathFactory.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
+            removedDetailsPanelFactory.AppendChild(removedPathFactory);
+
+            removedGridFactory.AppendChild(removedDetailsPanelFactory);
+
+            var removedDeleteButtonFactory = new FrameworkElementFactory(typeof(Button));
+            removedDeleteButtonFactory.SetValue(System.Windows.Controls.Button.ContentProperty, "Delete file");
+            removedDeleteButtonFactory.SetResourceReference(FrameworkElement.StyleProperty, "GhostIconButton");
+            removedDeleteButtonFactory.SetValue(System.Windows.Controls.Button.PaddingProperty, new Thickness(8, 3, 8, 3));
+            removedDeleteButtonFactory.SetValue(System.Windows.Controls.Button.MarginProperty, new Thickness(8, 0, 0, 0));
+            removedDeleteButtonFactory.SetValue(System.Windows.Controls.Button.ToolTipProperty, "Delete this MIDI file from disk");
+            removedDeleteButtonFactory.SetValue(System.Windows.Controls.Button.BackgroundProperty, Brushes.Transparent);
+            removedDeleteButtonFactory.SetValue(System.Windows.Controls.Button.BorderThicknessProperty, new Thickness(0));
+            removedDeleteButtonFactory.SetValue(System.Windows.Controls.Grid.ColumnProperty, 1);
+            removedDeleteButtonFactory.AddHandler(System.Windows.Controls.Button.ClickEvent,
+                new RoutedEventHandler(async (s, _) =>
+                {
+                    if (s is not System.Windows.Controls.Button btn ||
+                        btn.DataContext is not Services.FileService.RemovedExistingMidiFileEntry removedEntry)
+                    {
+                        return;
+                    }
+
+                    var fileDeleted = false;
+                    var result = await DialogHelper.ShowActionDialogAsync(new DialogActionRequest
+                    {
+                        Title = "Delete MIDI file from folder?",
+                        Icon = SymbolRegular.Delete24,
+                        Body = $"This permanently deletes the file from disk:\n\n{removedEntry.Path}",
+                        ConfirmButton = new DialogActionButton
+                        {
+                            Text = "Delete",
+                            Appearance = ControlAppearance.Danger,
+                            CallbackAsync = () =>
+                            {
+                                fileDeleted = _main.FileService.DeleteExcludedFileFromDisk(removedEntry.Path);
+                                return Task.CompletedTask;
+                            }
+                        },
+                        CancelButton = new DialogActionButton
+                        {
+                            Text = "Cancel"
+                        }
+                    });
+
+                    if (result == DialogActionOutcome.Confirmed)
+                    {
+                        RefreshLists();
+
+                        if (!fileDeleted && System.IO.File.Exists(removedEntry.Path))
+                        {
+                            var errorDialog = DialogHelper.CreateDialog();
+                            errorDialog.Title = "Unable to delete file";
+                            errorDialog.Content = "The file could not be deleted. It may be in use, read-only, or protected by permissions.";
+                            errorDialog.CloseButtonText = "OK";
+                            await errorDialog.ShowAsync();
+                        }
+                    }
+                }));
+            removedGridFactory.AppendChild(removedDeleteButtonFactory);
+
+            removedRowBorderFactory.AppendChild(removedGridFactory);
+            removedTemplate.VisualTree = removedRowBorderFactory;
+            removedExistingItemsControl.ItemTemplate = removedTemplate;
+
+            var removedScrollViewer = new System.Windows.Controls.ScrollViewer
+            {
+                MaxHeight = 200,
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(0),
+                VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled,
+                Content = removedExistingItemsControl
+            };
+            removedScrollViewer.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, "ControlFillColorDefaultBrush");
+            removedScrollViewer.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
+            content.Children.Add(removedScrollViewer);
+        }
+
         var dialog = DialogHelper.CreateDialog();
         dialog.Title = "File Errors";
         dialog.Content = content;
-        dialog.PrimaryButtonText = "Remove All";
-        dialog.PrimaryButtonAppearance = ControlAppearance.Danger;
+        if (hasDatabaseFileErrors)
+        {
+            dialog.PrimaryButtonText = "Remove All";
+            dialog.PrimaryButtonAppearance = ControlAppearance.Danger;
+        }
+
         dialog.CloseButtonText = "Close";
 
         var result = await dialog.ShowAsync();
 
-        if (result == ContentDialogResult.Primary)
+        if (hasDatabaseFileErrors && result == ContentDialogResult.Primary)
             await _main.FileService.RemoveAllFileErrors();
     }
 
