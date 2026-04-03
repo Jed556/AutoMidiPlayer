@@ -331,6 +331,8 @@ public class SettingsPageViewModel : Screen
 
     public bool IsCheckingUpdate { get; set; }
 
+    public bool IsScanningMidiFolder { get; set; }
+
     public bool UseDirectInput { get; set; } = Settings.UseDirectInput;
 
     public bool UseWindowMessage { get; set; } = Settings.UseWindowMessage;
@@ -669,10 +671,21 @@ public class SettingsPageViewModel : Screen
 
     public async Task ScanMidiFolder()
     {
+        if (IsScanningMidiFolder)
+            return;
+
         if (string.IsNullOrEmpty(MidiFolder) || !Directory.Exists(MidiFolder))
             return;
 
-        await _main.FileService.ScanFolder(MidiFolder);
+        IsScanningMidiFolder = true;
+        try
+        {
+            await _main.FileService.ScanFolder(MidiFolder);
+        }
+        finally
+        {
+            IsScanningMidiFolder = false;
+        }
     }
 
     public void ClearMidiFolder()
@@ -695,6 +708,9 @@ public class SettingsPageViewModel : Screen
         AppPaths.EnsureDirectoryExists();
         System.Diagnostics.Process.Start("explorer.exe", AppPaths.AppDataDirectory);
     }
+
+    [UsedImplicitly]
+    private void OnMidiFolderChanged() => NotifyOfPropertyChange(nameof(HasMidiFolder));
 
     [UsedImplicitly]
     public async Task StartStopTimer()

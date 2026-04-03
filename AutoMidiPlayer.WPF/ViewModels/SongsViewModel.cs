@@ -55,6 +55,19 @@ public class SongsViewModel : Screen
 
         // Forward IsPlaying changes from Playback so bindings update
         _main.PlaybackControls.PlaybackStateChanged += HandlePlaybackStateChanged;
+
+        // Keep MIDI folder scan button/spinner in sync with Settings page scan state.
+        _main.SettingsView.PropertyChanged += HandleSettingsPropertyChanged;
+    }
+
+    private void HandleSettingsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SettingsPageViewModel.IsScanningMidiFolder))
+            NotifyOfPropertyChange(nameof(IsScanningMidiFolder));
+
+        if (e.PropertyName == nameof(SettingsPageViewModel.MidiFolder)
+            || e.PropertyName == nameof(SettingsPageViewModel.HasMidiFolder))
+            NotifyOfPropertyChange(nameof(HasMidiFolder));
     }
 
     private void HandlePlaybackStateChanged(object? sender, EventArgs e)
@@ -90,6 +103,10 @@ public class SongsViewModel : Screen
     public bool HasMissingSongs => MissingSongs.Count > 0;
 
     public bool HasFileErrors => MissingSongs.Count > 0 || BadMidiFiles.Count > 0;
+
+    public bool HasMidiFolder => _main.SettingsView.HasMidiFolder;
+
+    public bool IsScanningMidiFolder => _main.SettingsView.IsScanningMidiFolder;
 
     public MidiFile? SelectedFile { get; set; }
 
@@ -207,6 +224,11 @@ public class SongsViewModel : Screen
             return;
 
         await _main.FileService.AddFiles(openFileDialog.FileNames);
+    }
+
+    public async Task ScanMidiFolder()
+    {
+        await _main.SettingsView.ScanMidiFolder();
     }
 
     /// <summary>

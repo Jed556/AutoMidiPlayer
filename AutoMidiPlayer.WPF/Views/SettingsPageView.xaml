@@ -222,13 +222,15 @@
                                        VerticalAlignment="Center"
                                        TextTrimming="CharacterEllipsis"
                                        MaxWidth="200"/>
-                            <Button Command="{s:Action ScanMidiFolder}"
-                                    Style="{DynamicResource GhostIconButton}"
-                                    ToolTip="Refresh/Scan folder for new MIDI files"
-                                    Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                                <ui:SymbolIcon Symbol="ArrowClockwise24"
-                                               FontSize="18"/>
-                            </Button>
+                            <controls:BusyActionButton Width="32"
+                                                       Height="32"
+                                                       Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                                       IsBusy="{Binding IsScanningMidiFolder}"
+                                                       MinimumVisibleDuration="0:0:1"
+                                                       Command="{s:Action ScanMidiFolder}"
+                                                       ButtonToolTip="Refresh/Scan folder for new MIDI files"
+                                                       IconSymbol="ArrowClockwise24"
+                                                       IconFontSize="18"/>
                             <Button Command="{s:Action ClearMidiFolder}"
                                     Style="{DynamicResource GhostIconButton}"
                                     ToolTip="Clear MIDI folder"
@@ -305,20 +307,16 @@
                                            FontSize="16"
                                            Filled="True"/>
                         </ui:HyperlinkButton>
-                        <Button Command="{s:Action CheckForUpdate}"
-                                Style="{DynamicResource GhostIconButton}"
-                                Padding="2"
-                                ToolTip="Check for updates"
-                                Visibility="{Binding IsCheckingUpdate, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}">
-                            <ui:SymbolIcon Symbol="ArrowClockwise24"
-                                           FontSize="16"/>
-                        </Button>
-                        <ui:ProgressRing
-                            IsIndeterminate="True"
-                            Width="16"
-                            Height="16"
-                            IsEnabled="{Binding IsCheckingUpdate}"
-                            Visibility="{Binding IsCheckingUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                        <controls:BusyActionButton Width="24"
+                                                   Height="24"
+                                                   IsBusy="{Binding IsCheckingUpdate}"
+                                                   MinimumVisibleDuration="0:0:1"
+                                                   Command="{s:Action CheckForUpdate}"
+                                                   ButtonPadding="2"
+                                                   ButtonToolTip="Check for updates"
+                                                   IconSymbol="ArrowClockwise24"
+                                                   IconFontSize="16"
+                                                   IndicatorSize="16"/>
                     </controls:SimpleStackPanel>
 
                     <ui:ToggleSwitch Content="Auto-check updates"

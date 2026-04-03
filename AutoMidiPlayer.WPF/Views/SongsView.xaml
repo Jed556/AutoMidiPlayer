@@ -49,6 +49,16 @@
                           Width="16"
                           Height="16"/>
                 </Button>
+                <controls:BusyActionButton Width="36"
+                                           Height="32"
+                                           Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                           IsBusy="{Binding IsScanningMidiFolder}"
+                                           MinimumVisibleDuration="0:0:1"
+                                           Command="{s:Action ScanMidiFolder}"
+                                           ButtonPadding="7"
+                                           ButtonToolTip="Refresh/Scan MIDI folder for new MIDI files"
+                                           IconSymbol="FolderSync20"
+                                           IconFontSize="17"/>
                 <Button Command="{s:Action ShowMissingFilesDialog}"
                         Style="{DynamicResource GhostIconButton}"
                         Padding="8"

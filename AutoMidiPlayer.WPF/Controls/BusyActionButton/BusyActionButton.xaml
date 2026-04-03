@@ -1,0 +1,33 @@
+<UserControl x:Class="AutoMidiPlayer.WPF.Controls.BusyActionButton"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:s="https://github.com/canton7/Stylet"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
+             x:Name="Root">
+    <Grid>
+        <controls:BusyStateController x:Name="BusyState"
+                                      IsBusy="{Binding IsBusy, ElementName=Root}"
+                                      MinimumVisibleDuration="{Binding MinimumVisibleDuration, ElementName=Root}"
+                                      Visibility="Collapsed"/>
+
+        <Button Command="{Binding Command, ElementName=Root}"
+                CommandParameter="{Binding CommandParameter, ElementName=Root}"
+                Padding="{Binding ButtonPadding, ElementName=Root}"
+                ToolTip="{Binding ButtonToolTip, ElementName=Root}"
+                Style="{DynamicResource GhostIconButton}"
+                Visibility="{Binding IsVisibleBusy, ElementName=BusyState, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}">
+            <ui:SymbolIcon Symbol="{Binding IconSymbol, ElementName=Root}"
+                           FontSize="{Binding IconFontSize, ElementName=Root}"
+                           Filled="{Binding IconFilled, ElementName=Root}"/>
+        </Button>
+
+        <ui:ProgressRing IsIndeterminate="True"
+                         Width="{Binding IndicatorSize, ElementName=Root}"
+                         Height="{Binding IndicatorSize, ElementName=Root}"
+                         HorizontalAlignment="Center"
+                         VerticalAlignment="Center"
+                         IsEnabled="{Binding IsVisibleBusy, ElementName=BusyState}"
+                         Visibility="{Binding IsVisibleBusy, ElementName=BusyState, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+    </Grid>
+</UserControl>
