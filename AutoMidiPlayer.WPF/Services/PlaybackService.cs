@@ -422,7 +422,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
     private int ApplyNoteSettings(string instrumentId, int noteId)
     {
-        noteId -= SongSettings.GetEffectiveKeyOffset(Queue.OpenedFile?.Song);
+        noteId += SongSettings.GetEffectiveKeyOffset(Queue.OpenedFile?.Song);
         return Settings.TransposeNotes && SongSettings.Transpose is not null
             ? KeyboardPlayer.TransposeNote(instrumentId, ref noteId, SongSettings.Transpose.Value.Key)
             : noteId;
@@ -436,7 +436,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             ? SongSettings.KeyOffset
             : 0;
 
-        return Math.Clamp(noteId - relativeOffset, 0, 127);
+        return Math.Clamp(noteId + relativeOffset, 0, 127);
     }
 
     private static bool ShouldSkipListenNote(string instrumentId, int note, Transpose? transposeMode)

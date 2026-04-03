@@ -78,7 +78,7 @@ public class TrackViewModel : Screen
                 .SelectMany(t => t.Track.GetNotes())
                 .Count(note =>
                 {
-                    var noteId = note.NoteNumber - keyOffset;
+                    var noteId = note.NoteNumber + keyOffset;
 
                     if (Settings.TransposeNotes && transpose is not null)
                     {

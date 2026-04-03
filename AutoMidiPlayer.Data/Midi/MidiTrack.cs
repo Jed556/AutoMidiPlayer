@@ -217,7 +217,7 @@ public class MidiTrack : INotifyPropertyChanged
         var notes = Track.GetNotes();
         var playable = notes.Count(note =>
         {
-            var noteId = note.NoteNumber - keyOffset;
+            var noteId = note.NoteNumber + keyOffset;
             if (transposeFunc is not null)
             {
                 noteId = transposeFunc(noteId);

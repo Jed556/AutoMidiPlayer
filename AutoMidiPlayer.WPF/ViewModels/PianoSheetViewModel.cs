@@ -83,7 +83,7 @@ public class PianoSheetViewModel(MainWindowViewModel main) : Screen
 
             foreach (var note in notes)
             {
-                var id = note.NoteNumber - SongSettings.EffectiveKeyOffset;
+                var id = note.NoteNumber + SongSettings.EffectiveKeyOffset;
                 var transpose = SongSettings.Transpose?.Key;
                 if (Settings.TransposeNotes && transpose is not null)
                     KeyboardPlayer.TransposeNote(instrument, ref id, transpose.Value);
