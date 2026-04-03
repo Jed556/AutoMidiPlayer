@@ -846,12 +846,15 @@ public class FileService(IContainer ioc)
 
     private static int NormalizeDetectedKeyOffset(int pitchClass)
     {
-        var normalizedPitchClass = Mod12(pitchClass);
+        var tonicPitchClass = Mod12(pitchClass);
 
-        // Prefer the nearest signed offset around C3 so A/B/G detect as A2/B2/G2.
-        return normalizedPitchClass >= 6
-            ? normalizedPitchClass - 12
-            : normalizedPitchClass;
+        // Convert detected tonic into the transposition needed to move the song
+        // center toward C, matching the positive-up key offset convention.
+        var transpositionToC = Mod12(-tonicPitchClass);
+
+        return transpositionToC >= 6
+            ? transpositionToC - 12
+            : transpositionToC;
     }
 
     private static int Mod12(int value) => ((value % 12) + 12) % 12;
