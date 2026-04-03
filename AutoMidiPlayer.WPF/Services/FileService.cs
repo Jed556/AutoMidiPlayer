@@ -509,13 +509,43 @@ public class FileService(IContainer ioc)
             var existingByHash = songs.Tracks.FirstOrDefault(t => t.Song.FileHash == fileHash);
             if (existingByHash != null)
             {
+                var message = $"This MIDI file appears to be a duplicate of:\n\n" +
+                              $"'{existingByHash.Song.Title ?? existingByHash.Song.Path}'\n\n" +
+                              "The existing file will be used and this duplicate will be ignored.";
+
                 var dialog = DialogHelper.CreateDialog();
                 dialog.Title = "Duplicate File Detected";
-                dialog.Content = $"This MIDI file appears to be a duplicate of:\n\n" +
-                                 $"'{existingByHash.Song.Title ?? existingByHash.Song.Path}'\n\n" +
-                                 $"The existing file will be used and this duplicate will be ignored.";
+                dialog.Content = message;
                 dialog.CloseButtonText = "OK";
-                await dialog.ShowAsync();
+
+                try
+                {
+                    var hostReady = await DialogHelper.EnsureDialogHostAsync(dialog);
+                    if (hostReady)
+                    {
+                        await dialog.ShowAsync();
+                    }
+                    else
+                    {
+                        CrashLogger.Log("DialogHost was not ready while showing duplicate MIDI file dialog. Falling back to MessageBox.");
+                        System.Windows.MessageBox.Show(
+                            message,
+                            "Duplicate File Detected",
+                            System.Windows.MessageBoxButton.OK,
+                            System.Windows.MessageBoxImage.Information);
+                    }
+                }
+                catch (Exception dialogError)
+                {
+                    CrashLogger.Log("Failed to display duplicate MIDI file dialog.");
+                    CrashLogger.LogException(dialogError);
+                    System.Windows.MessageBox.Show(
+                        message,
+                        "Duplicate File Detected",
+                        System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Information);
+                }
+
                 return;
             }
         }

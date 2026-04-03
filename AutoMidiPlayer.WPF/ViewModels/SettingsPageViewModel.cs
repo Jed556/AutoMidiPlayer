@@ -565,13 +565,53 @@ public class SettingsPageViewModel : Screen
         if (missingGames.Count == 0) return;
 
         var gameList = string.Join(", ", missingGames);
+        var message = $"Could not find game executable locations for: {gameList}. You can set game paths in Settings.";
         var dialog = DialogHelper.CreateDialog();
         dialog.Title = "Error";
-        dialog.Content = $"Could not find game executable locations for: {gameList}. You can set game paths in Settings.";
+        dialog.Content = message;
         dialog.PrimaryButtonText = "Go to Settings";
         dialog.CloseButtonText = "Ignore";
 
-        var result = await dialog.ShowAsync();
+        ContentDialogResult result;
+
+        try
+        {
+            var hostReady = await DialogHelper.EnsureDialogHostAsync(dialog);
+            if (hostReady)
+            {
+                result = await dialog.ShowAsync();
+            }
+            else
+            {
+                CrashLogger.Log("DialogHost was not ready while showing missing game location dialog. Falling back to MessageBox.");
+                var fallbackResult = System.Windows.MessageBox.Show(
+                    message,
+                    "Error",
+                    System.Windows.MessageBoxButton.OKCancel,
+                    System.Windows.MessageBoxImage.Warning);
+
+                if (fallbackResult == System.Windows.MessageBoxResult.OK)
+                    _main.NavigateToSettings();
+
+                return;
+            }
+        }
+        catch (Exception dialogError)
+        {
+            CrashLogger.Log("Failed to display missing game location dialog.");
+            CrashLogger.LogException(dialogError);
+
+            var fallbackResult = System.Windows.MessageBox.Show(
+                message,
+                "Error",
+                System.Windows.MessageBoxButton.OKCancel,
+                System.Windows.MessageBoxImage.Warning);
+
+            if (fallbackResult == System.Windows.MessageBoxResult.OK)
+                _main.NavigateToSettings();
+
+            return;
+        }
 
         if (result == ContentDialogResult.Primary)
         {
