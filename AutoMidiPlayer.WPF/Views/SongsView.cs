@@ -1,5 +1,8 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using AutoMidiPlayer.Data.Midi;
 using AutoMidiPlayer.WPF.Controls;
 using AutoMidiPlayer.WPF.Helpers;
 using AutoMidiPlayer.WPF.ViewModels;
@@ -9,6 +12,7 @@ namespace AutoMidiPlayer.WPF.Views;
 public partial class SongsView : UserControl
 {
     private ListViewDragDropHelper? _dragDropHelper;
+    private MidiFile? _contextMenuFile;
 
     public SongsView()
     {
@@ -32,6 +36,7 @@ public partial class SongsView : UserControl
     /// </summary>
     private void TrackList_PlayPauseClick(object sender, RoutedEventArgs e)
     {
+        _contextMenuFile = null;
         if (e is SongListEventArgs args && DataContext is SongsViewModel viewModel)
         {
             viewModel.PlayPauseFromSongs(args.File);
@@ -43,7 +48,8 @@ public partial class SongsView : UserControl
     /// </summary>
     private void TrackList_MenuClick(object sender, RoutedEventArgs e)
     {
-        // Menu is automatically opened by SongListControl
+        if (e is SongListEventArgs args)
+            _contextMenuFile = args.File;
     }
 
     /// <summary>
@@ -51,10 +57,19 @@ public partial class SongsView : UserControl
     /// </summary>
     private void TrackList_ItemDoubleClick(object sender, RoutedEventArgs e)
     {
+        _contextMenuFile = null;
         if (e is SongListEventArgs args && DataContext is SongsViewModel viewModel)
         {
             viewModel.PlayPauseFromSongs(args.File);
         }
+    }
+
+    private IEnumerable<MidiFile> GetActionTargetFiles()
+    {
+        if (SongList.SelectedFiles.Count > 0)
+            return SongList.SelectedFiles;
+
+        return _contextMenuFile is null ? Enumerable.Empty<MidiFile>() : new[] { _contextMenuFile };
     }
 
     /// <summary>
@@ -64,8 +79,10 @@ public partial class SongsView : UserControl
     {
         if (DataContext is SongsViewModel viewModel)
         {
-            viewModel.AddSelectedToQueue(SongList.SelectedFiles);
+            viewModel.AddSelectedToQueue(GetActionTargetFiles());
         }
+
+        _contextMenuFile = null;
     }
 
     /// <summary>
@@ -75,8 +92,10 @@ public partial class SongsView : UserControl
     {
         if (DataContext is SongsViewModel viewModel)
         {
-            await viewModel.EditSelected(SongList.SelectedFiles);
+            await viewModel.EditSelected(GetActionTargetFiles());
         }
+
+        _contextMenuFile = null;
     }
 
     /// <summary>
@@ -86,7 +105,9 @@ public partial class SongsView : UserControl
     {
         if (DataContext is SongsViewModel viewModel)
         {
-            await viewModel.DeleteSelected(SongList.SelectedFiles);
+            await viewModel.DeleteSelected(GetActionTargetFiles());
         }
+
+        _contextMenuFile = null;
     }
 }

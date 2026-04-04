@@ -124,7 +124,8 @@ public class SettingsPageViewModel : Screen
         // Initialize accent color from settings
         _selectedAccentColor = AccentColors.FirstOrDefault(c => c.ColorHex == Settings.AccentColor)
             ?? AccentColors[0]; // Default to Green
-        ApplyAccentColor(_selectedAccentColor.ColorHex);
+        // Avoid deferred theme-refresh work during startup initialization.
+        ApplyAccentColor(_selectedAccentColor.ColorHex, scheduleDeferredRefresh: false);
 
         SelectedInstrument = Core.Keyboard.GetInstrumentAtIndex(Settings.SelectedInstrument);
         SelectedLayout = Core.Keyboard.GetLayoutAtIndex(Settings.SelectedLayout);
@@ -162,22 +163,22 @@ public class SettingsPageViewModel : Screen
         }
     }
 
-    private void ApplyAccentColor(string hexColor)
+    private void ApplyAccentColor(string hexColor, bool scheduleDeferredRefresh = true)
     {
         try
         {
             var color = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hexColor);
-            ApplyColorToAllSystems(color);
+            ApplyColorToAllSystems(color, scheduleDeferredRefresh);
         }
         catch
         {
             // Fallback to Green if color parsing fails
             var fallbackColor = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#1DB954");
-            ApplyColorToAllSystems(fallbackColor);
+            ApplyColorToAllSystems(fallbackColor, scheduleDeferredRefresh);
         }
     }
 
-    private void ApplyColorToAllSystems(System.Windows.Media.Color color)
+    private void ApplyColorToAllSystems(System.Windows.Media.Color color, bool scheduleDeferredRefresh)
     {
         // Create brushes from color
         var accentBrush = new System.Windows.Media.SolidColorBrush(color);
@@ -242,27 +243,30 @@ public class SettingsPageViewModel : Screen
         SetOrUpdateResource("SystemAccentColorSecondaryBrush", light1Brush);
         SetOrUpdateResource("SystemAccentColorTertiaryBrush", light2Brush);
 
-        // Then force a delayed refresh to ensure accent sticks after any async theme updates
-        System.Windows.Application.Current.Dispatcher.BeginInvoke(
-            System.Windows.Threading.DispatcherPriority.Background,
-            new System.Action(() =>
-            {
-                // Re-apply custom WPF-UI resources after theme system has finished
-                SetOrUpdateResource("SystemAccentColorPrimary", color);
-                SetOrUpdateResource("SystemAccentColorPrimaryBrush", accentBrush);
-                SetOrUpdateResource("SystemAccentColorSecondaryBrush", light1Brush);
-                SetOrUpdateResource("SystemAccentColorTertiaryBrush", light2Brush);
+        if (scheduleDeferredRefresh)
+        {
+            // Delayed refresh keeps accent color stable after async theme updates.
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(
+                System.Windows.Threading.DispatcherPriority.Background,
+                new System.Action(() =>
+                {
+                    // Re-apply custom WPF-UI resources after theme system has finished
+                    SetOrUpdateResource("SystemAccentColorPrimary", color);
+                    SetOrUpdateResource("SystemAccentColorPrimaryBrush", accentBrush);
+                    SetOrUpdateResource("SystemAccentColorSecondaryBrush", light1Brush);
+                    SetOrUpdateResource("SystemAccentColorTertiaryBrush", light2Brush);
 
-                // Force full theme re-apply so NavigationView, drawers, and all views refresh
-                ApplicationThemeManager.Apply(currentTheme, WindowBackdropType.Mica, false);
+                    // Force full theme re-apply so NavigationView, drawers, and all views refresh
+                    ApplicationThemeManager.Apply(currentTheme, WindowBackdropType.Mica, false);
 
-                // Re-apply accent after theme refresh to ensure our custom colors persist
-                ApplicationAccentColorManager.Apply(color, currentTheme, true);
-                SetOrUpdateResource("SystemAccentColorPrimary", color);
-                SetOrUpdateResource("SystemAccentColorPrimaryBrush", accentBrush);
-                SetOrUpdateResource("SystemAccentColorSecondaryBrush", light1Brush);
-                SetOrUpdateResource("SystemAccentColorTertiaryBrush", light2Brush);
-            }));
+                    // Re-apply accent after theme refresh to ensure our custom colors persist
+                    ApplicationAccentColorManager.Apply(color, currentTheme, true);
+                    SetOrUpdateResource("SystemAccentColorPrimary", color);
+                    SetOrUpdateResource("SystemAccentColorPrimaryBrush", accentBrush);
+                    SetOrUpdateResource("SystemAccentColorSecondaryBrush", light1Brush);
+                    SetOrUpdateResource("SystemAccentColorTertiaryBrush", light2Brush);
+                }));
+        }
 
         // Notify other components that accent color changed
         _events.Publish(new AccentColorChangedNotification());
@@ -690,14 +694,20 @@ public class SettingsPageViewModel : Screen
         if (string.IsNullOrWhiteSpace(MidiFolder))
             return;
 
+        var folderPath = MidiFolder;
+        var startedAt = DateTime.UtcNow;
+        CrashLogger.LogStep("MIDI_SCAN_BEGIN", $"folder='{folderPath}'");
+
         IsScanningMidiFolder = true;
         try
         {
-            await _main.FileService.ScanFolder(MidiFolder);
+            await _main.FileService.ScanFolder(folderPath);
         }
         finally
         {
             IsScanningMidiFolder = false;
+            var elapsedMs = (DateTime.UtcNow - startedAt).TotalMilliseconds;
+            CrashLogger.LogStep("MIDI_SCAN_END", $"folder='{folderPath}' | elapsedMs={elapsedMs:F0}");
         }
     }
 
@@ -732,6 +742,7 @@ public class SettingsPageViewModel : Screen
     private void OnAutoScanMidiFolderChanged()
     {
         Settings.Modify(settings => settings.AutoScanMidiFolder = AutoScanMidiFolder);
+        CrashLogger.LogStep("MIDI_AUTO_SCAN_TOGGLE", $"enabled={AutoScanMidiFolder}");
         NotifyOfPropertyChange(nameof(ShowMidiFolderManualRefresh));
 
         ConfigureMidiFolderWatcher();
@@ -984,15 +995,22 @@ public class SettingsPageViewModel : Screen
             NotifyOfPropertyChange(() => SelectedTheme);
         }
 
-        Settings.Modify(s => s.AppTheme = currentTheme switch
+        var appTheme = currentTheme switch
         {
             WpfUiApplicationTheme.Light => 0,
             WpfUiApplicationTheme.Dark => 1,
             _ => -1
-        });
+        };
 
-        // Reapply accent color after theme change
-        ApplyAccentColor(_selectedAccentColor.ColorHex);
+        var changed = Settings.AppTheme != appTheme;
+        if (changed)
+        {
+            Settings.Modify(s => s.AppTheme = appTheme);
+        }
+
+        // Only re-apply accent when theme state actually changes.
+        if (changed)
+            ApplyAccentColor(_selectedAccentColor.ColorHex);
     }
 
     [UsedImplicitly]
@@ -1000,6 +1018,8 @@ public class SettingsPageViewModel : Screen
 
     protected override void OnActivate()
     {
+        CrashLogger.LogPageVisit("Settings", source: "screen-activate");
+
         if (AutoCheckUpdates)
             _ = CheckForUpdate();
     }

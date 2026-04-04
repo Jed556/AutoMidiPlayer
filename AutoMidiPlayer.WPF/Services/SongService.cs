@@ -329,9 +329,12 @@ public class SongService(IContainer ioc) : PropertyChangedBase
     /// Show the edit dialog for a song and persist changes.
     /// Shared by both Queue and Songs views.
     /// </summary>
-    public async Task EditSongAsync(MidiFile file)
+    public async Task EditSongAsync(MidiFile file, string source = "unknown")
     {
         if (_main is null) return;
+
+        var currentTitle = file.Song.Title ?? Path.GetFileNameWithoutExtension(file.Path);
+        CrashLogger.LogStep("SONG_EDIT_DIALOG_OPEN", $"source={source} | title='{currentTitle}' | path='{file.Path}'");
 
         var nativeBpm = file.GetNativeBpm();
 
@@ -352,11 +355,21 @@ public class SongService(IContainer ioc) : PropertyChangedBase
             file.Song.Speed);
 
         var result = await dialog.ShowAsync();
-        if (result != ContentDialogResult.Primary) return;
+        if (result != ContentDialogResult.Primary)
+        {
+            CrashLogger.LogStep("SONG_EDIT_DIALOG_CANCEL", $"source={source} | result={result} | title='{currentTitle}' | path='{file.Path}'");
+            return;
+        }
 
-        file.Song.Title = string.IsNullOrWhiteSpace(dialog.SongTitle)
+        var updatedTitle = string.IsNullOrWhiteSpace(dialog.SongTitle)
             ? Path.GetFileNameWithoutExtension(file.Path)
             : dialog.SongTitle;
+
+        CrashLogger.LogStep(
+            "SONG_EDIT_DIALOG_SAVE",
+            $"source={source} | oldTitle='{currentTitle}' | newTitle='{updatedTitle}' | path='{file.Path}' | key={dialog.SongKey} | transpose={dialog.SongTranspose} | bpm={dialog.SongBpm:0.###} | speed={dialog.SongSpeed:0.###}");
+
+        file.Song.Title = updatedTitle;
         file.Song.Artist = string.IsNullOrWhiteSpace(dialog.SongArtist) ? null : dialog.SongArtist;
         file.Song.Album = string.IsNullOrWhiteSpace(dialog.SongAlbum) ? null : dialog.SongAlbum;
         file.Song.DateAdded = dialog.SongDateAdded;
@@ -374,6 +387,8 @@ public class SongService(IContainer ioc) : PropertyChangedBase
         db.Songs.Update(file.Song);
         await db.SaveChangesAsync();
 
+        CrashLogger.LogStep("SONG_EDIT_DIALOG_SAVE_COMPLETED", $"source={source} | title='{updatedTitle}' | songId={file.Song.Id}");
+
         if (_main.QueueView.OpenedFile?.Song.Id == file.Song.Id)
         {
             // Queue/Songs entries can point to different MidiFile/Song instances for the same Id.
@@ -389,6 +404,8 @@ public class SongService(IContainer ioc) : PropertyChangedBase
 
         _main.SongsView.ApplySort();
         _main.QueueView.ApplyFilter();
+
+        CrashLogger.LogStep("SONG_EDIT_DIALOG_APPLIED", $"source={source} | title='{updatedTitle}'");
     }
 
     private static void CopyEditableSongFields(Song source, Song target)

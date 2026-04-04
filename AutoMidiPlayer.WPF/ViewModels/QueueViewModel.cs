@@ -312,7 +312,7 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
 
     public async Task EditSong(MidiFile file)
     {
-        await _main.SongSettings.EditSongAsync(file);
+        await _main.SongSettings.EditSongAsync(file, source: "queue-view");
     }
 
     public void MoveUp()

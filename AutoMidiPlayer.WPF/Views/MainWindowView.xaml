@@ -752,8 +752,21 @@
                                         Style="{StaticResource PlayerControlButton}"
                                         ToolTip="{Binding PlaybackControls.ListenModeTooltip}">
                                     <ui:SymbolIcon Symbol="Headphones24"
-                                                   FontSize="16"
-                                                   Foreground="{Binding PlaybackControls.ListenModeStateColor}"/>
+                                                   FontSize="16">
+                                        <ui:SymbolIcon.Style>
+                                            <Style TargetType="ui:SymbolIcon">
+                                                <Setter Property="Foreground"
+                                                        Value="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding PlaybackControls.IsListenModeEnabled}"
+                                                                 Value="True">
+                                                        <Setter Property="Foreground"
+                                                                Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ui:SymbolIcon.Style>
+                                    </ui:SymbolIcon>
                                 </Button>
                             </controls:SimpleStackPanel>
                         </Grid>

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Entities;
@@ -24,7 +25,9 @@ public class FileService(IContainer ioc)
 {
     private readonly IContainer _ioc = ioc;
     private MainWindowViewModel? _main;
+    private readonly SemaphoreSlim _addFilesLock = new(1, 1);
     private static readonly Settings Settings = Settings.Default;
+    private const int StartupSongLoadYieldInterval = 12;
     private static readonly string[] NoiseTagKeywords =
     [
         "official", "audio", "video", "lyrics", "lyric", "karaoke", "instrumental",
@@ -277,38 +280,109 @@ public class FileService(IContainer ioc)
     /// </summary>
     public async Task AddFiles(IEnumerable<string> files)
     {
-        foreach (var file in files)
+        await _addFilesLock.WaitAsync();
+        try
         {
-            await AddFile(file);
-        }
+            if (_main is null) return;
+            var fileList = files as IList<string> ?? files.ToList();
+            CrashLogger.LogStep("ADD_FILES_BEGIN", $"source=paths | requested={fileList.Count}");
 
-        _main?.SongsView.ApplySort();
+            var songs = _main.SongsView;
+            var loadedFileCount = 0;
+            var existingPaths = songs.Tracks
+                .Select(track => track.Song.Path)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var existingHashes = songs.Tracks
+                .Select(track => track.Song.FileHash)
+                .Where(hash => !string.IsNullOrWhiteSpace(hash))
+                .Select(hash => hash!)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var missingSongsByHash = songs.MissingSongs
+                .Where(song => !string.IsNullOrWhiteSpace(song.FileHash))
+                .GroupBy(song => song.FileHash!, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+            foreach (var file in fileList)
+            {
+                await AddFile(
+                    file,
+                    notifyFileErrors: false,
+                    trackedPaths: existingPaths,
+                    trackedHashes: existingHashes,
+                    missingSongsByHash: missingSongsByHash);
+                loadedFileCount++;
+
+                if (loadedFileCount % StartupSongLoadYieldInterval == 0)
+                    await Task.Yield();
+            }
+
+            songs.NotifyFileErrorsChanged();
+            songs.ApplySort();
+            CrashLogger.LogStep("ADD_FILES_END", $"source=paths | processed={loadedFileCount}");
+        }
+        finally
+        {
+            _addFilesLock.Release();
+        }
     }
 
     /// <summary>
     /// Add songs from the database (e.g. on startup).
     /// </summary>
-    public async Task AddFiles(IEnumerable<Song> files)
+    public async Task AddFiles(IEnumerable<Song> songsFromDatabase)
     {
-        if (_main is null) return;
-        var songs = _main.SongsView;
-
-        foreach (var file in files)
+        await _addFilesLock.WaitAsync();
+        try
         {
-            if (!File.Exists(file.Path))
-            {
-                if (!songs.MissingSongs.Any(s => s.Id == file.Id))
-                    songs.MissingSongs.Add(file);
+            if (_main is null) return;
+            var songList = songsFromDatabase as IList<Song> ?? songsFromDatabase.ToList();
+            CrashLogger.LogStep("ADD_FILES_BEGIN", $"source=database | requested={songList.Count}");
 
-                RemoveBadMidiFileEntries(file.Path, false);
-                continue;
+            var songs = _main.SongsView;
+            var loadedSongCount = 0;
+            var existingPaths = songs.Tracks
+                .Select(track => track.Song.Path)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var existingHashes = songs.Tracks
+                .Select(track => track.Song.FileHash)
+                .Where(hash => !string.IsNullOrWhiteSpace(hash))
+                .Select(hash => hash!)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var missingSongIds = songs.MissingSongs
+                .Select(missingSong => missingSong.Id)
+                .ToHashSet();
+
+            foreach (var song in songList)
+            {
+                if (!File.Exists(song.Path))
+                {
+                    if (missingSongIds.Add(song.Id))
+                        songs.MissingSongs.Add(song);
+
+                    RemoveBadMidiFileEntries(song.Path, false);
+                    continue;
+                }
+
+                await AddFile(
+                    song,
+                    notifyFileErrors: false,
+                    trackedPaths: existingPaths,
+                    trackedHashes: existingHashes);
+                loadedSongCount++;
+
+                // Keep startup responsive while loading large libraries.
+                if (loadedSongCount % StartupSongLoadYieldInterval == 0)
+                    await Task.Yield();
             }
 
-            await AddFile(file);
+            songs.NotifyFileErrorsChanged();
+            songs.ApplySort();
+            CrashLogger.LogStep("ADD_FILES_END", $"source=database | processed={loadedSongCount}");
         }
-
-        songs.NotifyFileErrorsChanged();
-        songs.ApplySort();
+        finally
+        {
+            _addFilesLock.Release();
+        }
     }
 
     /// <summary>
@@ -316,14 +390,30 @@ public class FileService(IContainer ioc)
     /// </summary>
     public async Task ScanFolder(string folderPath)
     {
+        var startedAt = DateTime.UtcNow;
         var folderExists = Directory.Exists(folderPath);
+        var midiFileCount = 0;
+        CrashLogger.LogStep("SCAN_FOLDER_BEGIN", $"folder='{folderPath}' | exists={folderExists}");
+
         if (folderExists)
         {
-            var midiFiles = Directory.GetFiles(folderPath, "*.mid", SearchOption.AllDirectories)
-                .Concat(Directory.GetFiles(folderPath, "*.midi", SearchOption.AllDirectories))
-                .Where(path => !AutoImportExclusionStore.IsExcluded(path));
+            List<string> midiFiles;
+            try
+            {
+                // File-system enumeration can be expensive on large libraries.
+                midiFiles = await GetMidiFilesInFolderAsync(folderPath);
+            }
+            catch (Exception error)
+            {
+                CrashLogger.Log($"Failed to enumerate MIDI files in folder '{folderPath}'.");
+                CrashLogger.LogException(error);
+                midiFiles = [];
+            }
 
-            await AddFiles(midiFiles);
+            midiFileCount = midiFiles.Count;
+
+            if (midiFiles.Count > 0)
+                await AddFiles(midiFiles);
         }
 
         if (_main is null)
@@ -343,7 +433,13 @@ public class FileService(IContainer ioc)
             .ToList();
 
         if (missingInFolder.Count == 0 && !duplicateFallbackApplied && !staleDuplicatesRemoved)
+        {
+            var elapsedMsEarly = (DateTime.UtcNow - startedAt).TotalMilliseconds;
+            CrashLogger.LogStep(
+                "SCAN_FOLDER_END",
+                $"folder='{folderPath}' | midiFiles={midiFileCount} | missingInFolder=0 | duplicateFallbackApplied={duplicateFallbackApplied} | staleDuplicatesRemoved={staleDuplicatesRemoved} | elapsedMs={elapsedMsEarly:F0}");
             return;
+        }
 
         foreach (var missingSong in missingInFolder)
         {
@@ -366,6 +462,11 @@ public class FileService(IContainer ioc)
         _main.QueueView.OnQueueModified();
         songs.NotifyFileErrorsChanged();
         songs.ApplySort();
+
+        var elapsedMs = (DateTime.UtcNow - startedAt).TotalMilliseconds;
+        CrashLogger.LogStep(
+            "SCAN_FOLDER_END",
+            $"folder='{folderPath}' | midiFiles={midiFileCount} | missingInFolder={missingInFolder.Count} | duplicateFallbackApplied={duplicateFallbackApplied} | staleDuplicatesRemoved={staleDuplicatesRemoved} | elapsedMs={elapsedMs:F0}");
     }
 
     public IReadOnlyList<RemovedExistingMidiFileEntry> GetRemovedExistingMidiFiles()
@@ -624,36 +725,64 @@ public class FileService(IContainer ioc)
 
     #region Private Helpers
 
-    private async Task<bool> AddFile(Song song, ReadingSettings? settings = null)
+    private static Task<List<string>> GetMidiFilesInFolderAsync(string folderPath) =>
+        Task.Run(() =>
+            Directory.EnumerateFiles(folderPath, "*.mid", SearchOption.AllDirectories)
+                .Concat(Directory.EnumerateFiles(folderPath, "*.midi", SearchOption.AllDirectories))
+                .Where(path => !AutoImportExclusionStore.IsExcluded(path))
+                .ToList());
+
+    private static Task<string?> ComputeFileHashAsync(string filePath) =>
+        Task.Run(() => Song.ComputeFileHash(filePath));
+
+    private static Task<MidiFile> CreateMidiFileAsync(Song song, ReadingSettings? settings) =>
+        Task.Run(() => new MidiFile(song, settings));
+
+    private async Task<bool> AddFile(
+        Song song,
+        ReadingSettings? settings = null,
+        bool notifyFileErrors = true,
+        HashSet<string>? trackedPaths = null,
+        HashSet<string>? trackedHashes = null)
     {
         if (_main is null) return false;
         var songs = _main.SongsView;
 
         try
         {
-            if (songs.Tracks.Any(t => t.Song.Path == song.Path))
+            var pathExists = trackedPaths?.Contains(song.Path)
+                ?? songs.Tracks.Any(track => string.Equals(track.Song.Path, song.Path, StringComparison.OrdinalIgnoreCase));
+            if (pathExists)
                 return false;
 
-            if (song.FileHash != null && songs.Tracks.Any(t => t.Song.FileHash == song.FileHash))
+            if (!string.IsNullOrWhiteSpace(song.FileHash)
+                && (trackedHashes?.Contains(song.FileHash)
+                    ?? songs.Tracks.Any(track => string.Equals(track.Song.FileHash, song.FileHash, StringComparison.OrdinalIgnoreCase))))
                 return false;
 
-            if (song.FileHash == null && File.Exists(song.Path))
+            if (string.IsNullOrWhiteSpace(song.FileHash) && File.Exists(song.Path))
             {
-                song.FileHash = Song.ComputeFileHash(song.Path);
+                song.FileHash = await ComputeFileHashAsync(song.Path);
 
-                if (song.FileHash != null && songs.Tracks.Any(t => t.Song.FileHash == song.FileHash))
+                if (!string.IsNullOrWhiteSpace(song.FileHash)
+                    && (trackedHashes?.Contains(song.FileHash)
+                        ?? songs.Tracks.Any(track => string.Equals(track.Song.FileHash, song.FileHash, StringComparison.OrdinalIgnoreCase))))
                     return false;
             }
 
-            songs.Tracks.Add(new(song, settings));
+            // Parse MIDI away from the UI thread; only collection updates stay on UI.
+            var loadedFile = await CreateMidiFileAsync(song, settings);
+            songs.Tracks.Add(loadedFile);
+            trackedPaths?.Add(song.Path);
+            if (!string.IsNullOrWhiteSpace(song.FileHash))
+                trackedHashes?.Add(song.FileHash);
 
-            var loadedFile = songs.Tracks.FirstOrDefault(track => ReferenceEquals(track.Song, song));
-            if (loadedFile is not null)
-                await ApplyDetectedSongKeyAsync(song, loadedFile);
+            await ApplyDetectedSongKeyAsync(song, loadedFile);
 
             RemoveBadMidiFileEntries(song.Path, false);
             RemoveDuplicateMidiFileEntries(song.Path, false);
-            songs.NotifyFileErrorsChanged();
+            if (notifyFileErrors)
+                songs.NotifyFileErrorsChanged();
 
             return true;
         }
@@ -661,9 +790,9 @@ public class FileService(IContainer ioc)
         {
             settings ??= new();
             if (await MidiReadDialogHandler.TryHandleAsync(e, settings, song.Path))
-                return await AddFile(song, settings);
+                return await AddFile(song, settings, notifyFileErrors, trackedPaths, trackedHashes);
 
-            AddBadMidiFile(song, e);
+            AddBadMidiFile(song, e, notifyFileErrors);
 
             return false;
         }
@@ -859,33 +988,20 @@ public class FileService(IContainer ioc)
 
     private static int Mod12(int value) => ((value % 12) + 12) % 12;
 
-    private async Task AddFile(string fileName)
+    private async Task AddFile(
+        string fileName,
+        bool notifyFileErrors = true,
+        HashSet<string>? trackedPaths = null,
+        HashSet<string>? trackedHashes = null,
+        Dictionary<string, Song>? missingSongsByHash = null)
     {
         if (_main is null) return;
         var songs = _main.SongsView;
 
-        if (songs.Tracks.Any(t => t.Song.Path == fileName))
+        var pathExists = trackedPaths?.Contains(fileName)
+            ?? songs.Tracks.Any(track => string.Equals(track.Song.Path, fileName, StringComparison.OrdinalIgnoreCase));
+        if (pathExists)
             return;
-
-        var fileHash = Song.ComputeFileHash(fileName);
-
-        if (fileHash != null)
-        {
-            var missingByHash = songs.MissingSongs.FirstOrDefault(song => song.FileHash == fileHash);
-            if (missingByHash != null)
-            {
-                await RestoreMissingSong(missingByHash, fileName, fileHash);
-                return;
-            }
-
-            var existingByHash = songs.Tracks.FirstOrDefault(t => t.Song.FileHash == fileHash);
-            if (existingByHash != null)
-            {
-                AddDuplicateMidiFile(existingByHash.Song, fileName);
-
-                return;
-            }
-        }
 
         var metadata = ParseSongMetadataFromFileName(fileName);
 
@@ -902,7 +1018,52 @@ public class FileService(IContainer ioc)
         if (!Settings.AutoDetectDefaultKey)
             song.DefaultKey = 0;
 
-        var added = await AddFile(song);
+        var fileHash = song.FileHash;
+        if (!string.IsNullOrWhiteSpace(fileHash))
+        {
+            Song? missingByHash = null;
+            if (missingSongsByHash is not null)
+                missingSongsByHash.TryGetValue(fileHash, out missingByHash);
+            else
+                missingByHash = songs.MissingSongs.FirstOrDefault(existingSong =>
+                    string.Equals(existingSong.FileHash, fileHash, StringComparison.OrdinalIgnoreCase));
+
+            if (missingByHash != null)
+            {
+                await RestoreMissingSong(
+                    missingByHash,
+                    fileName,
+                    fileHash,
+                    notifyFileErrors,
+                    trackedPaths,
+                    trackedHashes);
+
+                missingSongsByHash?.Remove(fileHash);
+                return;
+            }
+
+            Song? existingByHash = null;
+            var hashExists = trackedHashes?.Contains(fileHash)
+                ?? songs.Tracks.Any(track => string.Equals(track.Song.FileHash, fileHash, StringComparison.OrdinalIgnoreCase));
+
+            if (hashExists)
+            {
+                existingByHash = songs.Tracks.FirstOrDefault(track =>
+                    string.Equals(track.Song.FileHash, fileHash, StringComparison.OrdinalIgnoreCase))?.Song;
+            }
+
+            if (existingByHash != null)
+            {
+                AddDuplicateMidiFile(existingByHash, fileName, notifyFileErrors);
+                return;
+            }
+        }
+
+        var added = await AddFile(
+            song,
+            notifyFileErrors: notifyFileErrors,
+            trackedPaths: trackedPaths,
+            trackedHashes: trackedHashes);
         if (!added)
             return;
 
@@ -912,7 +1073,8 @@ public class FileService(IContainer ioc)
 
         // Manual imports should immediately become eligible for future auto-imports again.
         AutoImportExclusionStore.Remove(fileName);
-        songs.NotifyFileErrorsChanged();
+        if (notifyFileErrors)
+            songs.NotifyFileErrorsChanged();
     }
 
     private static ParsedSongMetadata ParseSongMetadataFromFileName(string filePath)
@@ -1091,7 +1253,13 @@ public class FileService(IContainer ioc)
         return cleaned;
     }
 
-    private async Task RestoreMissingSong(Song missingSong, string newPath, string fileHash)
+    private async Task RestoreMissingSong(
+        Song missingSong,
+        string newPath,
+        string fileHash,
+        bool notifyFileErrors = true,
+        HashSet<string>? trackedPaths = null,
+        HashSet<string>? trackedHashes = null)
     {
         if (_main is null) return;
         var songs = _main.SongsView;
@@ -1102,7 +1270,11 @@ public class FileService(IContainer ioc)
         missingSong.Path = newPath;
         missingSong.FileHash = fileHash;
 
-        var restored = await AddFile(missingSong);
+        var restored = await AddFile(
+            missingSong,
+            notifyFileErrors: notifyFileErrors,
+            trackedPaths: trackedPaths,
+            trackedHashes: trackedHashes);
         if (!restored)
         {
             missingSong.Path = oldPath;
@@ -1124,10 +1296,12 @@ public class FileService(IContainer ioc)
         songs.MissingSongs.Remove(missingSong);
         AutoImportExclusionStore.Remove(newPath);
         RemoveBadMidiFileEntries(missingSong.Path, false);
-        songs.NotifyFileErrorsChanged();
+
+        if (notifyFileErrors)
+            songs.NotifyFileErrorsChanged();
     }
 
-    private void AddBadMidiFile(Song song, Exception exception)
+    private void AddBadMidiFile(Song song, Exception exception, bool notifyFileErrors = true)
     {
         if (_main is null) return;
         var songs = _main.SongsView;
@@ -1140,10 +1314,11 @@ public class FileService(IContainer ioc)
 
         songs.BadMidiFiles.Add(new SongsViewModel.BadMidiFileEntry(song, exception.Message));
 
-        songs.NotifyFileErrorsChanged();
+        if (notifyFileErrors)
+            songs.NotifyFileErrorsChanged();
     }
 
-    private void AddDuplicateMidiFile(Song existingSong, string duplicatePath)
+    private void AddDuplicateMidiFile(Song existingSong, string duplicatePath, bool notifyFileErrors = true)
     {
         if (_main is null)
             return;
@@ -1169,7 +1344,8 @@ public class FileService(IContainer ioc)
             existingSong.Title ?? Path.GetFileName(existingPath),
             duplicatePath));
 
-        songs.NotifyFileErrorsChanged();
+        if (notifyFileErrors)
+            songs.NotifyFileErrorsChanged();
     }
 
     private async Task<bool> PromoteDuplicateFileAsync(SongsViewModel.DuplicateMidiFileEntry entry, IReadOnlyCollection<string> duplicatePathsInGroup)
@@ -1238,7 +1414,7 @@ public class FileService(IContainer ioc)
             .ToList();
 
         foreach (var alternatePath in alternatePaths)
-            AddDuplicateMidiFile(selectedTrack.Song, alternatePath);
+            AddDuplicateMidiFile(selectedTrack.Song, alternatePath, notifyFileErrors: false);
 
         return true;
     }

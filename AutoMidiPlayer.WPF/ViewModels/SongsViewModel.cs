@@ -973,9 +973,9 @@ public class SongsViewModel : Screen
         }
         else
         {
-            // Otherwise, add to queue and play this song
-            PlaySong(file);
-            await _main.PlaybackControls.PlayPause();
+            // Add to queue and then load with auto-play to avoid publish/toggle races.
+            _main.QueueView.AddFile(file);
+            await _main.PlaybackEngine.LoadFileAsync(file, autoPlay: true);
         }
     }
 
@@ -1002,7 +1002,7 @@ public class SongsViewModel : Screen
         var file = filesList.Count == 1 ? filesList[0] : SelectedFile;
         if (file is null) return;
 
-        await _main.SongSettings.EditSongAsync(file);
+        await _main.SongSettings.EditSongAsync(file, source: "songs-view");
     }
 
     private void RefreshPositions()

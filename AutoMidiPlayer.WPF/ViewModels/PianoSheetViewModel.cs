@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Core;
 using AutoMidiPlayer.WPF.Services;
@@ -111,5 +112,9 @@ public class PianoSheetViewModel(MainWindowViewModel main) : Screen
             System.Windows.Clipboard.SetText(Result);
     }
 
-    protected override void OnActivate() => Update();
+    protected override void OnActivate()
+    {
+        CrashLogger.LogPageVisit("Piano Sheet", source: "screen-activate");
+        Update();
+    }
 }

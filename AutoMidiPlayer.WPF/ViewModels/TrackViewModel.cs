@@ -112,12 +112,13 @@ public class TrackViewModel : Screen
 
     protected override void OnActivate()
     {
-        CrashLogger.Log($"OnActivate called, MidiTracks.Count={MidiTracks.Count}");
+        CrashLogger.LogPageVisit("Tracks", source: "screen-activate");
+        CrashLogger.LogStep("TRACKS_ACTIVATE", $"midiTracks={MidiTracks.Count}");
         try
         {
             base.OnActivate();
             _isViewActive = true;
-            CrashLogger.Log("OnActivate completed successfully");
+            // CrashLogger.Log("OnActivate completed successfully");
         }
         catch (Exception ex)
         {
@@ -128,7 +129,6 @@ public class TrackViewModel : Screen
 
     protected override void OnDeactivate()
     {
-        CrashLogger.Log($"OnDeactivate called, MidiTracks.Count={MidiTracks.Count}");
         try
         {
             base.OnDeactivate();
@@ -138,7 +138,6 @@ public class TrackViewModel : Screen
             {
                 track.StopGlow();
             }
-            CrashLogger.Log("OnDeactivate completed successfully");
         }
         catch (Exception ex)
         {

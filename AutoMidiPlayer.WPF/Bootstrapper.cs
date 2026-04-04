@@ -22,6 +22,21 @@ namespace AutoMidiPlayer.WPF;
 
 public class Bootstrapper : Bootstrapper<MainWindowViewModel>
 {
+    private static readonly object DatabaseInitializationLock = new();
+    private static bool _databaseInitialized;
+
+    private static readonly (string ColumnName, string SqlType)[] SongColumnMigrations =
+    [
+        ("ImagePath", "TEXT NULL"),
+        ("FileHash", "TEXT NULL"),
+        ("MergeNotes", "INTEGER NULL"),
+        ("MergeMilliseconds", "INTEGER NULL"),
+        ("HoldNotes", "INTEGER NULL"),
+        ("Speed", "REAL NULL"),
+        ("Bpm", "REAL NULL"),
+        ("DefaultKey", "INTEGER NULL")
+    ];
+
     public Bootstrapper()
     {
         // ensure version retrieval helper is available by referencing Reflection
@@ -79,6 +94,67 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         return attr?.Product ?? "Unknown Product";
     }
 
+    private static void EnsureDatabaseInitialized(LyreContext db)
+    {
+        if (_databaseInitialized)
+            return;
+
+        lock (DatabaseInitializationLock)
+        {
+            if (_databaseInitialized)
+                return;
+
+            db.Database.EnsureCreated();
+            RenameAuthorColumnToArtist(db);
+
+            foreach (var (columnName, sqlType) in SongColumnMigrations)
+                AddSongColumnIfMissing(db, columnName, sqlType);
+
+            _databaseInitialized = true;
+        }
+    }
+
+    private static void RenameAuthorColumnToArtist(LyreContext db)
+    {
+        try
+        {
+            db.Database.ExecuteSqlRaw(@"
+                ALTER TABLE Songs RENAME COLUMN Author TO Artist;
+            ");
+        }
+        catch
+        {
+            ExecuteSqlIgnoringErrors(db, @"
+                ALTER TABLE Songs ADD COLUMN Artist TEXT NULL;
+            ");
+
+            ExecuteSqlIgnoringErrors(db, @"
+                UPDATE Songs
+                SET Artist = Author
+                WHERE Artist IS NULL;
+            ");
+        }
+    }
+
+    private static void AddSongColumnIfMissing(LyreContext db, string columnName, string sqlType)
+    {
+        ExecuteSqlIgnoringErrors(db, $@"
+            ALTER TABLE Songs ADD COLUMN {columnName} {sqlType};
+        ");
+    }
+
+    private static void ExecuteSqlIgnoringErrors(LyreContext db, string sql)
+    {
+        try
+        {
+            db.Database.ExecuteSqlRaw(sql);
+        }
+        catch
+        {
+            // Best-effort migration: schema already updated or not applicable.
+        }
+    }
+
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         CrashLogger.Log("=== DISPATCHER UNHANDLED EXCEPTION ===");
@@ -128,138 +204,7 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
                 .Options;
 
             var db = new LyreContext(options);
-            db.Database.EnsureCreated();
-
-            // Rename Author column to Artist for existing databases.
-            try
-            {
-                db.Database.ExecuteSqlRaw(@"
-                    ALTER TABLE Songs RENAME COLUMN Author TO Artist;
-                ");
-            }
-            catch
-            {
-                // Fallback for SQLite engines where RENAME COLUMN is not available.
-                try
-                {
-                    db.Database.ExecuteSqlRaw(@"
-                        ALTER TABLE Songs ADD COLUMN Artist TEXT NULL;
-                    ");
-                }
-                catch
-                {
-                    // Column already exists or cannot be added - ignore
-                }
-
-                try
-                {
-                    db.Database.ExecuteSqlRaw(@"
-                        UPDATE Songs
-                        SET Artist = Author
-                        WHERE Artist IS NULL;
-                    ");
-                }
-                catch
-                {
-                    // Source Author column not available - ignore
-                }
-            }
-
-            // Add ImagePath column if it doesn't exist (migration for existing databases)
-            try
-            {
-                db.Database.ExecuteSqlRaw(@"
-                    ALTER TABLE Songs ADD COLUMN ImagePath TEXT NULL;
-                ");
-            }
-            catch
-            {
-                // Column already exists or other error - ignore
-            }
-
-            // Add FileHash column if it doesn't exist (migration for duplicate detection)
-            try
-            {
-                db.Database.ExecuteSqlRaw(@"
-                    ALTER TABLE Songs ADD COLUMN FileHash TEXT NULL;
-                ");
-            }
-            catch
-            {
-                // Column already exists or other error - ignore
-            }
-
-            // Add MergeNotes column if it doesn't exist (migration for per-song settings)
-            try
-            {
-                db.Database.ExecuteSqlRaw(@"
-                    ALTER TABLE Songs ADD COLUMN MergeNotes INTEGER NULL;
-                ");
-            }
-            catch
-            {
-                // Column already exists or other error - ignore
-            }
-
-            // Add MergeMilliseconds column if it doesn't exist (migration for per-song settings)
-            try
-            {
-                db.Database.ExecuteSqlRaw(@"
-                    ALTER TABLE Songs ADD COLUMN MergeMilliseconds INTEGER NULL;
-                ");
-            }
-            catch
-            {
-                // Column already exists or other error - ignore
-            }
-
-            // Add HoldNotes column if it doesn't exist (migration for per-song settings)
-            try
-            {
-                db.Database.ExecuteSqlRaw(@"
-                    ALTER TABLE Songs ADD COLUMN HoldNotes INTEGER NULL;
-                ");
-            }
-            catch
-            {
-                // Column already exists or other error - ignore
-            }
-
-            // Add Speed column if it doesn't exist (migration for per-song speed)
-            try
-            {
-                db.Database.ExecuteSqlRaw(@"
-                    ALTER TABLE Songs ADD COLUMN Speed REAL NULL;
-                ");
-            }
-            catch
-            {
-                // Column already exists or other error - ignore
-            }
-
-            // Add Bpm column if it doesn't exist (migration for per-song BPM)
-            try
-            {
-                db.Database.ExecuteSqlRaw(@"
-                    ALTER TABLE Songs ADD COLUMN Bpm REAL NULL;
-                ");
-            }
-            catch
-            {
-                // Column already exists or other error - ignore
-            }
-
-            // Add DefaultKey column if it doesn't exist (migration for song-relative key offsets)
-            try
-            {
-                db.Database.ExecuteSqlRaw(@"
-                    ALTER TABLE Songs ADD COLUMN DefaultKey INTEGER NULL;
-                ");
-            }
-            catch
-            {
-                // Column already exists or other error - ignore
-            }
+            EnsureDatabaseInitialized(db);
 
             return db;
         });

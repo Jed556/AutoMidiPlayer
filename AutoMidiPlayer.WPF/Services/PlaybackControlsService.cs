@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Media;
 using Windows.Media;
 using Windows.Media.Playback;
+using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Notification;
 using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Core;
@@ -132,10 +133,6 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
 
     public bool IsListenModeEnabled => Settings.UseSpeakers;
 
-    public SolidColorBrush ListenModeStateColor => IsListenModeEnabled
-        ? new SolidColorBrush(AccentColorHelper.GetAccentColor())
-        : (SolidColorBrush)Application.Current.FindResource("TextFillColorTertiaryBrush");
-
     public string ListenModeTooltip => IsListenModeEnabled
         ? "Listen Mode (Speakers): On"
         : "Listen Mode (Speakers): Off";
@@ -146,6 +143,10 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
 
     private static string PauseIcon => "\xEDB4";
     private static string PlayIcon => "\xF5B0";
+
+    private string CurrentSongLabel => Queue.OpenedFile is null
+        ? "<none>"
+        : $"{Queue.OpenedFile.Title} ({Queue.OpenedFile.Path})";
 
     private MusicDisplayProperties? Display =>
         _player?.SystemMediaTransportControls.DisplayUpdater.MusicProperties;
@@ -179,12 +180,17 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
         if (playback is null)
             return;
 
+        CrashLogger.LogStep(
+            "PLAY_PAUSE_CLICK",
+            $"isRunning={playback.IsRunning} | song='{CurrentSongLabel}' | position={CurrentTime:mm\\:ss}");
+
         try
         {
             if (playback.IsRunning)
             {
                 playback.Stop();
                 Queue.SaveCurrentSong(CurrentTime.TotalSeconds);
+                CrashLogger.LogStep("PLAYBACK_PAUSED", $"song='{CurrentSongLabel}' | position={CurrentTime:mm\\:ss}");
             }
             else
             {
@@ -192,7 +198,10 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
                 playback.PlaybackStart = time;
                 playback.MoveToTime(time);
 
-                await Engine.StartPlayback(playback);
+                var started = await Engine.StartPlayback(playback);
+                CrashLogger.LogStep(
+                    "PLAYBACK_START_REQUEST",
+                    $"started={started} | song='{CurrentSongLabel}' | position={CurrentTime:mm\\:ss}");
             }
         }
         catch (ObjectDisposedException) { }
@@ -216,6 +225,10 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
     /// <param name="userInitiated">True if user clicked Next button, false if auto-triggered by song finish</param>
     public async Task Next(bool userInitiated = true)
     {
+        CrashLogger.LogStep(
+            "NEXT_CLICK",
+            $"userInitiated={userInitiated} | current='{CurrentSongLabel}'");
+
         var next = Queue.Next(userInitiated);
         if (next is null)
         {
@@ -228,14 +241,18 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
 
             MoveSlider(TimeSpan.Zero);
             UpdateButtons();
+            CrashLogger.LogStep("NEXT_NO_TARGET", "Reached end of queue.");
             return;
         }
 
+        CrashLogger.LogStep("NEXT_TARGET", $"song='{next.Title}' | path='{next.Path}'");
         await Engine.LoadFileAsync(next, autoPlay: true);
     }
 
     public async void Previous()
     {
+        CrashLogger.LogStep("PREVIOUS_CLICK", $"current='{CurrentSongLabel}' | position={CurrentTime:mm\\:ss}");
+
         if (CurrentTime > TimeSpan.FromSeconds(3))
         {
             var pb = Engine.Playback;
@@ -250,6 +267,8 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
             pb = Engine.Playback;
             if (pb is not null)
                 await Engine.StartPlayback(pb);
+
+            CrashLogger.LogStep("PREVIOUS_RESTART_CURRENT", $"song='{CurrentSongLabel}'");
         }
         else
         {
@@ -260,10 +279,13 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
 
                 if (Queue.GetPlaylist().Any(track => track.Song.Id == previous.Song.Id))
                 {
+                    CrashLogger.LogStep("PREVIOUS_TARGET", $"song='{previous.Title}' | path='{previous.Path}'");
                     await Engine.LoadFileAsync(previous, autoPlay: true);
                     return;
                 }
             }
+
+            CrashLogger.LogStep("PREVIOUS_NO_TARGET", "No previous song available in current playlist history.");
         }
     }
 
@@ -334,6 +356,10 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
         if (Settings.UseSpeakers == enabled)
             return false;
 
+        CrashLogger.LogStep(
+            "LISTEN_MODE_SET",
+            $"enabled={enabled} | pausePlaybackOnChange={pausePlaybackOnChange} | song='{CurrentSongLabel}'");
+
         Settings.Modify(s => s.UseSpeakers = enabled);
 
         var pausedPlayback = false;
@@ -355,12 +381,15 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
 
         _events.Publish(new ListenModeChangedNotification(enabled));
         NotifyListenModeProperties();
+
+        CrashLogger.LogStep("LISTEN_MODE_SET_COMPLETED", $"enabled={enabled} | pausedPlayback={pausedPlayback}");
         return pausedPlayback;
     }
 
     public void ToggleListenMode()
     {
         var enableListenMode = !IsListenModeEnabled;
+        CrashLogger.LogStep("LISTEN_MODE_TOGGLE_CLICK", $"targetEnabled={enableListenMode} | song='{CurrentSongLabel}'");
 
         // If user turns Listen Mode off while currently playing and no game is running,
         // pause immediately so auto-enable doesn't flip it back on mid-playback.
@@ -420,7 +449,6 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
     private void NotifyListenModeProperties()
     {
         NotifyOfPropertyChange(nameof(IsListenModeEnabled));
-        NotifyOfPropertyChange(nameof(ListenModeStateColor));
         NotifyOfPropertyChange(nameof(ListenModeTooltip));
     }
 

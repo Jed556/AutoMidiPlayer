@@ -219,11 +219,10 @@ public partial class SongListControl : UserControl
         }
     }
 
-    private void PlayPauseButton_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    private void PlayPauseButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button button && button.Tag is MidiFile file)
         {
-            SelectedItem = file;
             RaiseEvent(new SongListEventArgs(PlayPauseClickEvent, this, file));
             e.Handled = true;
         }
@@ -233,13 +232,6 @@ public partial class SongListControl : UserControl
     {
         if (sender is Button { Tag: MidiFile file } button)
         {
-            // Select the item in ListView if not already in selection
-            if (!TrackListView.SelectedItems.Contains(file))
-            {
-                TrackListView.SelectedItem = file;
-            }
-
-            SelectedItem = file;
             RaiseEvent(new SongListEventArgs(MenuClickEvent, this, file));
 
             // Open context menu if one is set

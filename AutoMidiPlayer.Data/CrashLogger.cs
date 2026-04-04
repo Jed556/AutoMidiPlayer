@@ -38,6 +38,26 @@ public static class CrashLogger
         Log($"EXCEPTION: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}", caller, file, line);
     }
 
+    public static void LogStep(string step, string? details = null, [CallerMemberName] string? caller = null, [CallerFilePath] string? file = null, [CallerLineNumber] int line = 0)
+    {
+        if (string.IsNullOrWhiteSpace(details))
+        {
+            Log($"STEP: {step}", caller, file, line);
+            return;
+        }
+
+        Log($"STEP: {step} | {details}", caller, file, line);
+    }
+
+    public static void LogPageVisit(string pageName, string? source = null, [CallerMemberName] string? caller = null, [CallerFilePath] string? file = null, [CallerLineNumber] int line = 0)
+    {
+        var details = string.IsNullOrWhiteSpace(source)
+            ? $"page={pageName}"
+            : $"page={pageName} | source={source}";
+
+        Log($"PAGE_VISIT: {details}", caller, file, line);
+    }
+
     public static void ClearLog()
     {
         try

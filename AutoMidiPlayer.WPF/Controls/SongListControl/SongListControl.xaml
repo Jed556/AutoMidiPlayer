@@ -427,7 +427,7 @@
                                         VerticalAlignment="Center"
                                         HorizontalAlignment="Center"
                                         Focusable="False"
-                                        PreviewMouseLeftButtonDown="PlayPauseButton_PreviewMouseDown"
+                                        Click="PlayPauseButton_Click"
                                         Tag="{Binding}"
                                         ToolTip="Play">
                                     <Button.Style>

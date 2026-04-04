@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.IO;
 using System.Diagnostics;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -201,25 +202,38 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
                 BreadcrumbItems = [pageName];
                 Settings.LastViewedPage = pageName;
                 Settings.Save();
+                CrashLogger.LogPageVisit(pageName, source: "navigation-click");
             }
         }
 
         NotifyOfPropertyChange(() => ShowUpdate);
     }
 
-    public void NavigateToSettings() => ActivateItem(SettingsView);
+    public void NavigateToSettings()
+    {
+        ActivateItem(SettingsView);
+        CrashLogger.LogPageVisit("Settings", source: "programmatic-navigation");
+    }
 
-    public void ToggleGameSelector() => IsGameSelectorOpen = !IsGameSelectorOpen;
+    public void ToggleGameSelector()
+    {
+        IsGameSelectorOpen = !IsGameSelectorOpen;
+        var selectedGameName = SelectedGame?.Definition.DisplayName ?? "none";
+        CrashLogger.LogStep("GAME_SELECTOR_TOGGLE", $"opened={IsGameSelectorOpen} | selectedGame='{selectedGameName}'");
+    }
 
     /// <summary>
     /// Select a game from the popup. Called via Stylet action binding with CommandParameter.
     /// </summary>
     public void SelectGame(GameInfo game)
     {
+        var previousGameName = SelectedGame?.Definition.DisplayName ?? "none";
+
         // Skip if re-selecting the already-active game
         if (game == SelectedGame)
         {
             IsGameSelectorOpen = false;
+            CrashLogger.LogStep("GAME_SELECTOR_SELECT_SAME", $"game='{previousGameName}'");
             return;
         }
 
@@ -227,6 +241,10 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         game.IsSelected = true;
         SelectedGame = game;
         IsGameSelectorOpen = false;
+
+        CrashLogger.LogStep(
+            "GAME_SELECTOR_SELECT",
+            $"from='{previousGameName}' | to='{game.Definition.DisplayName}' | gameId='{game.Definition.Id}'");
 
         PersistActiveGames();
         NotifyActiveGamesChanged();
@@ -270,6 +288,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
             {
                 SetSelectedNavItem(queue);
                 BreadcrumbItems = ["Queue"];
+                CrashLogger.LogPageVisit("Queue", source: "search-autonavigate");
             }
         }
 
@@ -303,6 +322,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
         if (midiFiles.Length > 0)
         {
+            CrashLogger.LogStep("FILE_DROP", $"midiFiles={midiFiles.Length}");
             await FileService.AddFiles(midiFiles);
 
             // Navigate to songs view
@@ -314,6 +334,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
             {
                 SetSelectedNavItem(songs);
                 BreadcrumbItems = ["Songs"];
+                CrashLogger.LogPageVisit("Songs", source: "file-drop");
             }
         }
     }
@@ -322,7 +343,9 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
     {
         Navigation = ((MainWindowView)View).RootNavigation;
         SnackbarPresenter = ((MainWindowView)View).RootSnackbarPresenter;
-        SettingsView.OnThemeChanged();
+
+        // Let the window finish first paint before heavy startup work.
+        await Task.Yield();
 
         // Restore last viewed page (default to Songs if not set)
         var lastPage = Settings.LastViewedPage;
@@ -343,6 +366,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
             SetSelectedNavItem(targetNavItem);
             // Update breadcrumb with current page name
             BreadcrumbItems = [lastPage];
+            CrashLogger.LogPageVisit(lastPage, source: "startup-restore");
         }
 
         if (!await SettingsView.TryGetLocationAsync()) _ = SettingsView.LocationMissing();
@@ -356,11 +380,8 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         await using var db = Ioc.Get<LyreContext>();
         await FileService.AddFiles(db.Songs);
 
-        // Auto-scan MIDI folder on startup only when the setting is enabled.
-        if (SettingsView.AutoScanMidiFolder && !string.IsNullOrEmpty(SettingsView.MidiFolder))
-        {
-            await FileService.ScanFolder(SettingsView.MidiFolder);
-        }
+        // Schedule auto-scan in the background so startup navigation remains responsive.
+        _ = RunStartupMidiAutoScanAsync();
 
         // Restore queue from saved state
         QueueView.RestoreQueue(SongsView.Tracks);
@@ -374,6 +395,42 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
         _gameStateTimer.Start();
         NotifyActiveGamesChanged();
+    }
+
+    private async Task RunStartupMidiAutoScanAsync()
+    {
+        if (!SettingsView.AutoScanMidiFolder || string.IsNullOrWhiteSpace(SettingsView.MidiFolder))
+            return;
+
+        var midiFolder = SettingsView.MidiFolder;
+        var startedAt = DateTime.UtcNow;
+        CrashLogger.LogStep("STARTUP_AUTO_SCAN_BEGIN", $"folder='{midiFolder}'");
+
+        try
+        {
+            // Allow first-load UI interactions before scanning large libraries.
+            await Task.Delay(500);
+
+            if (string.IsNullOrWhiteSpace(midiFolder))
+                return;
+
+            var appDispatcher = Application.Current?.Dispatcher;
+            if (appDispatcher is null)
+                return;
+
+            var scanTask = await appDispatcher.InvokeAsync(
+                () => SettingsView.ScanMidiFolder(),
+                DispatcherPriority.Background);
+            await scanTask;
+
+            var elapsedMs = (DateTime.UtcNow - startedAt).TotalMilliseconds;
+            CrashLogger.LogStep("STARTUP_AUTO_SCAN_END", $"folder='{midiFolder}' | elapsedMs={elapsedMs:F0}");
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("Startup MIDI auto-scan failed.");
+            CrashLogger.LogException(ex);
+        }
     }
 
     public void ShowGameInactiveToast(string gameName, bool listenModeEnabled)

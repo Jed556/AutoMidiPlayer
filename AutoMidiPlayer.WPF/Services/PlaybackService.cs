@@ -152,6 +152,9 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
     #region Properties
 
+    private static Task InitializeMidiFileAsync(MidiFile file) =>
+        Task.Run(file.InitializeMidi);
+
     public Playback? Playback { get; private set; }
 
     /// <summary>
@@ -165,6 +168,9 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
     private TrackViewModel TrackView => _main.TrackView;
     private InstrumentViewModel InstrumentPage => _main.InstrumentView;
     private SongService SongSettings => _main.SongSettings;
+    private string CurrentSongLabel => Queue.OpenedFile is null
+        ? "<none>"
+        : $"{Queue.OpenedFile.Title} ({Queue.OpenedFile.Path})";
 
     #endregion
 
@@ -470,6 +476,10 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
     private bool HandleGameNotRunning(bool isPlaybackStartAttempt)
     {
+        CrashLogger.LogStep(
+            "GAME_NOT_RUNNING_DETECTED",
+            $"song='{CurrentSongLabel}' | playbackStartAttempt={isPlaybackStartAttempt} | autoEnableListenMode={Settings.AutoEnableListenMode}");
+
         var shouldAutoEnableListenMode = Settings.AutoEnableListenMode;
 
         if (shouldAutoEnableListenMode && !Settings.UseSpeakers)
@@ -485,6 +495,8 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             var pausedPlayback = Controls.SetListenMode(true, pausePlaybackOnChange: true);
             if (pausedPlayback)
                 return false;
+
+            CrashLogger.LogStep("LISTEN_MODE_AUTO_ENABLED", $"song='{CurrentSongLabel}'");
         }
 
         var selectedGameName = _main.SelectedGame?.Definition.DisplayName ?? "Selected game";
@@ -492,6 +504,8 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
         var listenModeEnabled = Settings.UseSpeakers;
         _main.ShowGameInactiveToast(gameLabel, listenModeEnabled);
+
+        CrashLogger.LogStep("GAME_NOT_RUNNING_TOAST", $"song='{CurrentSongLabel}' | listenModeEnabled={listenModeEnabled}");
 
         return listenModeEnabled;
     }
@@ -520,6 +534,8 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
     private void HandleGameFocusLoss()
     {
+        CrashLogger.LogStep("GAME_FOCUS_LOST", $"song='{CurrentSongLabel}'");
+
         var pb = Playback;
         if (pb is not null)
         {
@@ -544,12 +560,17 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         var selectedGame = _main.SelectedGame?.Definition;
         var isGameRunning = selectedGame is not null && GameRegistry.IsGameRunning(selectedGame);
 
+        CrashLogger.LogStep(
+            "PLAYBACK_ENGINE_START_ATTEMPT",
+            $"song='{CurrentSongLabel}' | useSpeakers={Settings.UseSpeakers} | gameRunning={isGameRunning}");
+
         try
         {
             if (Settings.UseSpeakers)
             {
                 playback.PlaybackStart = playback.GetCurrentTime(TimeSpanType.Midi);
                 playback.Start();
+                CrashLogger.LogStep("PLAYBACK_ENGINE_STARTED", $"song='{CurrentSongLabel}' | mode=speakers");
                 return true;
             }
 
@@ -574,11 +595,13 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             {
                 playback.PlaybackStart = playback.GetCurrentTime(TimeSpanType.Midi);
                 playback.Start();
+                CrashLogger.LogStep("PLAYBACK_ENGINE_STARTED", $"song='{CurrentSongLabel}' | mode=game-focused");
                 return true;
             }
         }
         catch (ObjectDisposedException) { }
 
+        CrashLogger.LogStep("PLAYBACK_ENGINE_START_ABORTED", $"song='{CurrentSongLabel}'");
         return false;
     }
 
@@ -592,10 +615,15 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
     /// </summary>
     public async Task LoadFileAsync(MidiFile file, bool autoPlay = false)
     {
+        CrashLogger.LogStep(
+            "PLAYBACK_LOAD_REQUEST",
+            $"title='{file.Title}' | path='{file.Path}' | autoPlay={autoPlay}");
+
         // Ignore duplicate reloads for the currently opened file.
         // This can be triggered by selection-change events while the same song is already loaded.
         if (Queue.OpenedFile == file && Playback is not null)
         {
+            CrashLogger.LogStep("PLAYBACK_LOAD_SKIPPED_DUPLICATE", $"title='{file.Title}' | autoPlay={autoPlay}");
             if (autoPlay && !Playback.IsRunning)
             {
                 var playback = Playback;
@@ -626,16 +654,25 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
         try
         {
-            file.InitializeMidi();
+            await InitializeMidiFileAsync(file);
         }
         catch (FileNotFoundException)
         {
+            CrashLogger.LogStep("PLAYBACK_LOAD_MISSING_FILE", $"path='{file.Path}'");
             await _main.FileService.HandleMissingSongFileAsync(file);
             return;
         }
         catch (DirectoryNotFoundException)
         {
+            CrashLogger.LogStep("PLAYBACK_LOAD_MISSING_DIRECTORY", $"path='{file.Path}'");
             await _main.FileService.HandleMissingSongFileAsync(file);
+            return;
+        }
+
+        // Abandon stale load work if a newer request won while initialization was running.
+        if (epoch != _loadEpoch || !ReferenceEquals(Queue.OpenedFile, file))
+        {
+            CrashLogger.LogStep("PLAYBACK_LOAD_STALE_IGNORED", $"title='{file.Title}' | epoch={epoch} | currentEpoch={_loadEpoch}");
             return;
         }
 
@@ -651,9 +688,16 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         _main.SongsView.RefreshCurrentSong();
         _main.QueueView.RefreshCurrentSong();
 
+        CrashLogger.LogStep(
+            "PLAYBACK_LOAD_COMPLETED",
+            $"title='{file.Title}' | path='{file.Path}' | tracks={TrackView.MidiTracks.Count} | autoPlay={autoPlay}");
+
         // Only auto-play if this is still the most recent load request
         if (autoPlay && epoch == _loadEpoch && Playback is not null)
+        {
+            CrashLogger.LogStep("PLAYBACK_LOAD_AUTOPLAY", $"title='{file.Title}'");
             await Controls.PlayPause();
+        }
     }
 
     /// <summary>
@@ -705,9 +749,14 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         var wasPlaying = Playback?.IsRunning ?? false;
         SavedPosition = Controls.SongPosition;
 
-        if (!message.Merge)
+        if (!message.Merge && Queue.OpenedFile is MidiFile openedFile)
         {
-            Queue.OpenedFile?.InitializeMidi();
+            await InitializeMidiFileAsync(openedFile);
+
+            // Ignore stale merge notifications after a song switch.
+            if (!ReferenceEquals(Queue.OpenedFile, openedFile))
+                return;
+
             TrackView.InitializeTracks();
         }
 
