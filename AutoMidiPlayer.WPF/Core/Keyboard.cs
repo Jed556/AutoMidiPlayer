@@ -333,7 +333,9 @@ public static class Keyboard
     public static IList<int> GetNotes(string? instrumentId)
     {
         var config = GetInstrumentConfig(instrumentId);
-        return config.Notes;
+        // Some instrument definitions can transiently provide null note lists
+        // during static initialization. Always return a non-null sequence.
+        return config.Notes ?? Array.Empty<int>();
     }
 
     #endregion

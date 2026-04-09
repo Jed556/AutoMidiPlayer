@@ -71,7 +71,7 @@ public class TrackViewModel : Screen
             var instrument = InstrumentPage.SelectedInstrument.Key;
             var keyOffset = SongSettings.EffectiveKeyOffset;
             var transpose = SongSettings.Transpose?.Key;
-            var availableNotes = Keyboard.GetNotes(instrument);
+            var availableNotes = Keyboard.GetNotes(instrument) ?? Array.Empty<int>();
 
             return MidiTracks
                 .Where(t => t.IsChecked)
@@ -186,7 +186,7 @@ public class TrackViewModel : Screen
         var instrument = InstrumentPage.SelectedInstrument.Key;
         var keyOffset = SongSettings.EffectiveKeyOffset;
         var transpose = SongSettings.Transpose?.Key;
-        var availableNotes = Keyboard.GetNotes(instrument).ToHashSet();
+        var availableNotes = (Keyboard.GetNotes(instrument) ?? Array.Empty<int>()).ToHashSet();
 
         Func<int, int>? transposeFunc = null;
         if (Settings.TransposeNotes && transpose is not null)

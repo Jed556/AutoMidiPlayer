@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace AutoMidiPlayer.WPF.Core.Instruments;
@@ -24,10 +25,10 @@ public class InstrumentConfig(
     /// <summary>
     /// MIDI note numbers this instrument can play
     /// </summary>
-    public IList<int> Notes { get; } = notes;
+    public IList<int> Notes { get; } = notes ?? Array.Empty<int>();
 
     /// <summary>
     /// Keyboard layouts available for this instrument.
     /// </summary>
-    public IReadOnlyList<KeyboardLayoutConfig> KeyboardLayouts { get; } = keyboardLayouts;
+    public IReadOnlyList<KeyboardLayoutConfig> KeyboardLayouts { get; } = keyboardLayouts ?? Array.Empty<KeyboardLayoutConfig>();
 }
