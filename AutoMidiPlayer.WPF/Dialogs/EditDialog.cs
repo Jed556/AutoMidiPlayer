@@ -623,26 +623,10 @@ public class EditDialog : ContentDialog
         panelFactory.AppendChild(offsetTextFactory);
         panelFactory.AppendChild(noteTextFactory);
 
-        var selectedTrigger = new DataTrigger
-        {
-            Binding = new Binding
-            {
-                RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(System.Windows.Controls.ComboBoxItem), 1),
-                Path = new PropertyPath(System.Windows.Controls.ComboBoxItem.IsSelectedProperty)
-            },
-            Value = true
-        };
-
-        selectedTrigger.Setters.Add(new Setter(System.Windows.Controls.TextBlock.FontWeightProperty, FontWeights.SemiBold, "KeyOffsetText"));
-        selectedTrigger.Setters.Add(new Setter(System.Windows.Controls.TextBlock.FontWeightProperty, FontWeights.SemiBold, "KeyNoteText"));
-
-        var template = new DataTemplate
+        return new DataTemplate
         {
             VisualTree = panelFactory
         };
-
-        template.Triggers.Add(selectedTrigger);
-        return template;
     }
 
     private void OnDefaultKeyComboBoxSelectionChanged(object? sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -690,25 +674,10 @@ public class EditDialog : ContentDialog
         textBlockFactory.SetValue(System.Windows.Controls.TextBlock.FontSizeProperty, 12d);
         textBlockFactory.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
 
-        var selectedTrigger = new DataTrigger
-        {
-            Binding = new Binding
-            {
-                RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(System.Windows.Controls.ComboBoxItem), 1),
-                Path = new PropertyPath(System.Windows.Controls.ComboBoxItem.IsSelectedProperty)
-            },
-            Value = true
-        };
-
-        selectedTrigger.Setters.Add(new Setter(System.Windows.Controls.TextBlock.FontWeightProperty, FontWeights.SemiBold, "DisplayText"));
-
-        var template = new DataTemplate
+        return new DataTemplate
         {
             VisualTree = textBlockFactory
         };
-
-        template.Triggers.Add(selectedTrigger);
-        return template;
     }
 
     private void OnKeyComboBoxSelectionChanged(object? sender, System.Windows.Controls.SelectionChangedEventArgs e)

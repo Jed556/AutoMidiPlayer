@@ -125,7 +125,8 @@ public partial class SongListControl : UserControl
         {
             // Set the context menu on the ListView but ensure PlacementTarget points to the SongListControl
             control.TrackListView.ContextMenu = menu;
-            // Set PlacementTarget to the SongListControl so bindings like PlacementTarget.IsMultiSelect work
+            // ContextMenu.PlacementTarget may be the inner ListView at runtime;
+            // TrackListView.Tag stores SongListControl for bindings like PlacementTarget.Tag.IsMultiSelect.
             menu.PlacementTarget = control;
         }
     }
@@ -178,6 +179,8 @@ public partial class SongListControl : UserControl
     public SongListControl()
     {
         InitializeComponent();
+        // Keep a stable reference to the owning control for ContextMenu bindings.
+        TrackListView.Tag = this;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
         _scrollbarFadeTimer.Tick += (_, _) => FadeOutScrollBar();
@@ -294,6 +297,7 @@ public partial class SongListControl : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        TrackListView.Tag = this;
         EnsureScrollBarReference();
     }
 

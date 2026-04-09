@@ -140,7 +140,7 @@
                     </MenuItem>
                     <MenuItem Header="Edit"
                               Click="EditSong_Click"
-                              Visibility="{Binding PlacementTarget.IsMultiSelect, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                              Visibility="{Binding PlacementTarget.Tag.IsMultiSelect, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource InverseBoolToVisibilityConverter}}">
                         <MenuItem.Icon>
                             <Path Data="{StaticResource EditIconGeometry}"
                                   Fill="{DynamicResource TextFillColorPrimaryBrush}"

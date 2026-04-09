@@ -222,7 +222,7 @@
 
         <!-- Column Headers -->
         <Border Grid.Row="0"
-                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="0,8,16,8"
                 Margin="0,0,0,0">
@@ -646,14 +646,14 @@
                             </DataTrigger.Binding>
                             <Setter TargetName="RowBorder"
                                     Property="Background"
-                                    Value="{DynamicResource SystemControlHighlightListLowBrush}"/>
+                                    Value="{DynamicResource SubtleFillColorSecondaryBrush}"/>
                         </DataTrigger>
                         <!-- Selected row - show buttons, hide position -->
                         <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListViewItem}}"
                                      Value="True">
                             <Setter TargetName="RowBorder"
                                     Property="Background"
-                                    Value="{DynamicResource SystemControlHighlightListLowBrush}"/>
+                                    Value="{DynamicResource SubtleFillColorSecondaryBrush}"/>
                             <Setter TargetName="PositionText"
                                     Property="Visibility"
                                     Value="Collapsed"/>
@@ -673,7 +673,7 @@
                                  Value="True">
                             <Setter TargetName="RowBorder"
                                     Property="Background"
-                                    Value="{DynamicResource SystemControlHighlightListLowBrush}"/>
+                                    Value="{DynamicResource SubtleFillColorSecondaryBrush}"/>
                             <Setter TargetName="PositionText"
                                     Property="Visibility"
                                     Value="Collapsed"/>

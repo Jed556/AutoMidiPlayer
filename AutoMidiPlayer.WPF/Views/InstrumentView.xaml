@@ -55,7 +55,6 @@
 
                 <ui:ToggleSwitch
                     Content="Listen Mode (Speakers)"
-                    IsEnabled="{Binding CanUseSpeakers}"
                     IsChecked="{Binding UseSpeakers, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                     Margin="0,8,0,0"/>
 
