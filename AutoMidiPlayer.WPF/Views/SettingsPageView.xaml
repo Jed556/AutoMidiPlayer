@@ -475,6 +475,9 @@
                             ItemsSource="{x:Static transitions:TransitionCollection.Transitions}"
                             MinWidth="150"/>
                     </GroupBox>
+                    <ui:ToggleSwitch Content="Enable smooth scrolling (Experimental)"
+                                     IsChecked="{Binding SmoothScrollingEnabled}"
+                                     ToolTip="Smooths wheel scrolling in lists and panes. Turn off for default native scrolling."/>
 
                 </controls:SimpleStackPanel>
             </Grid>

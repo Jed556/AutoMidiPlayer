@@ -156,6 +156,7 @@ public class SettingsPageViewModel : Screen
         _selectedKeypressInputMode = ResolveKeypressInputMode(UseDirectInput, UseWindowMessage);
         _selectedMouseStopClickOption = ResolveMouseStopClickOption(Settings.MouseStopClickMode);
         InitializeNewSongDefaults();
+        ApplySmoothScrollingResource();
 
         ConfigureMidiFolderWatcher();
     }
@@ -174,6 +175,20 @@ public class SettingsPageViewModel : Screen
                 Settings.Save();
                 ApplyAccentColor(value.ColorHex);
             }
+        }
+    }
+
+    public bool SmoothScrollingEnabled
+    {
+        get => GetSmoothScrollingEnabled();
+        set
+        {
+            if (GetSmoothScrollingEnabled() == value)
+                return;
+
+            SetSmoothScrollingEnabled(value);
+            ApplySmoothScrollingResource();
+            NotifyOfPropertyChange();
         }
     }
 
@@ -320,6 +335,29 @@ public class SettingsPageViewModel : Screen
             (byte)Math.Clamp(r * 255, 0, 255),
             (byte)Math.Clamp(g * 255, 0, 255),
             (byte)Math.Clamp(b * 255, 0, 255));
+    }
+
+    private static bool GetSmoothScrollingEnabled()
+    {
+        return Settings.SmoothScrollingEnabled;
+    }
+
+    private static void SetSmoothScrollingEnabled(bool value)
+    {
+        Settings.Modify(s => s.SmoothScrollingEnabled = value);
+    }
+
+    private static void ApplySmoothScrollingResource()
+    {
+        var app = Application.Current;
+        if (app is null)
+            return;
+
+        var isEnabled = GetSmoothScrollingEnabled();
+        if (app.Resources.Contains("SmoothScrollingEnabled"))
+            app.Resources["SmoothScrollingEnabled"] = isEnabled;
+        else
+            app.Resources.Add("SmoothScrollingEnabled", isEnabled);
     }
 
     public ThemeOption SelectedTheme

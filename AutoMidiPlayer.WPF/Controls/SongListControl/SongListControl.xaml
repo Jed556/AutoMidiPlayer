@@ -11,208 +11,7 @@
     xmlns:converters="clr-namespace:AutoMidiPlayer.WPF.Converters"
     x:Name="SongListRoot">
 
-    <UserControl.Resources>
-        <Style x:Key="SongListScrollBarThumbStyle"
-               TargetType="Thumb">
-            <Setter Property="MinHeight"
-                    Value="36"/>
-            <Setter Property="Opacity"
-                    Value="0.4"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Thumb">
-                        <Border x:Name="ThumbBorder"
-                                Margin="1"
-                                CornerRadius="4"
-                                Background="{DynamicResource TextFillColorSecondaryBrush}"/>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver"
-                                     Value="True">
-                                <Setter Property="Opacity"
-                                        Value="1"/>
-                            </Trigger>
-                            <Trigger Property="IsDragging"
-                                     Value="True">
-                                <Setter TargetName="ThumbBorder"
-                                        Property="Background"
-                                        Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
-                                <Setter Property="Opacity"
-                                        Value="1"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="SongListScrollLineButtonBase"
-               TargetType="RepeatButton">
-            <Setter Property="Background"
-                    Value="Transparent"/>
-            <Setter Property="BorderBrush"
-                    Value="Transparent"/>
-            <Setter Property="BorderThickness"
-                    Value="0"/>
-            <Setter Property="Width"
-                    Value="10"/>
-            <Setter Property="Height"
-                    Value="12"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="RepeatButton">
-                        <Border x:Name="ArrowHost"
-                                Background="Transparent"
-                                Opacity="0.4"
-                                CornerRadius="3">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver"
-                                     Value="True">
-                                <Setter TargetName="ArrowHost"
-                                        Property="Opacity"
-                                        Value="1"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed"
-                                     Value="True">
-                                <Setter TargetName="ArrowHost"
-                                        Property="Opacity"
-                                        Value="1"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="SongListScrollLineUpButton"
-               TargetType="RepeatButton"
-               BasedOn="{StaticResource SongListScrollLineButtonBase}">
-            <Setter Property="Content">
-                <Setter.Value>
-                    <Path Data="M 1 6 L 5 2 L 9 6"
-                          Stroke="{DynamicResource TextFillColorSecondaryBrush}"
-                          StrokeThickness="1.2"
-                          StrokeStartLineCap="Round"
-                          StrokeEndLineCap="Round"
-                          StrokeLineJoin="Round"/>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="SongListScrollLineDownButton"
-               TargetType="RepeatButton"
-               BasedOn="{StaticResource SongListScrollLineButtonBase}">
-            <Setter Property="Content">
-                <Setter.Value>
-                    <Path Data="M 1 2 L 5 6 L 9 2"
-                          Stroke="{DynamicResource TextFillColorSecondaryBrush}"
-                          StrokeThickness="1.2"
-                          StrokeStartLineCap="Round"
-                          StrokeEndLineCap="Round"
-                          StrokeLineJoin="Round"/>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="ScrollBar">
-            <Setter Property="Background"
-                    Value="Transparent"/>
-            <Setter Property="Width"
-                    Value="10"/>
-            <Setter Property="Margin"
-                    Value="0,0,-8,0"/>
-            <Setter Property="Opacity"
-                    Value="0"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ScrollBar">
-                        <Grid Background="Transparent"
-                              Width="{TemplateBinding Width}">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <RepeatButton x:Name="LineUpButton"
-                                          Grid.Row="0"
-                                          Style="{StaticResource SongListScrollLineUpButton}"
-                                          Command="ScrollBar.LineUpCommand"
-                                          Opacity="0"/>
-                            <Border Grid.Row="1"
-                                    Background="Transparent"
-                                    CornerRadius="5"
-                                    Margin="0,2">
-                                <Track x:Name="PART_Track"
-                                       IsDirectionReversed="True">
-                                    <Track.DecreaseRepeatButton>
-                                        <RepeatButton Command="ScrollBar.PageUpCommand"
-                                                      Background="Transparent"
-                                                      BorderThickness="0"/>
-                                    </Track.DecreaseRepeatButton>
-                                    <Track.Thumb>
-                                        <Thumb Style="{StaticResource SongListScrollBarThumbStyle}"/>
-                                    </Track.Thumb>
-                                    <Track.IncreaseRepeatButton>
-                                        <RepeatButton Command="ScrollBar.PageDownCommand"
-                                                      Background="Transparent"
-                                                      BorderThickness="0"/>
-                                    </Track.IncreaseRepeatButton>
-                                </Track>
-                            </Border>
-                            <RepeatButton x:Name="LineDownButton"
-                                          Grid.Row="2"
-                                          Style="{StaticResource SongListScrollLineDownButton}"
-                                          Command="ScrollBar.LineDownCommand"
-                                          Opacity="0"/>
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver"
-                                     Value="True">
-                                <Setter Property="Opacity"
-                                        Value="1"/>
-                                <Setter TargetName="LineUpButton"
-                                        Property="Opacity"
-                                        Value="1"/>
-                                <Setter TargetName="LineDownButton"
-                                        Property="Opacity"
-                                        Value="1"/>
-                            </Trigger>
-                            <Trigger Property="IsMouseCaptureWithin"
-                                     Value="True">
-                                <Setter Property="Opacity"
-                                        Value="1"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled"
-                                     Value="False">
-                                <Setter Property="Opacity"
-                                        Value="0"/>
-                                <Setter TargetName="LineUpButton"
-                                        Property="Opacity"
-                                        Value="0"/>
-                                <Setter TargetName="LineDownButton"
-                                        Property="Opacity"
-                                        Value="0"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="Orientation"
-                         Value="Horizontal">
-                    <Setter Property="Visibility"
-                            Value="Collapsed"/>
-                </Trigger>
-                <Trigger Property="IsEnabled"
-                         Value="False">
-                    <Setter Property="Opacity"
-                            Value="0"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-    </UserControl.Resources>
+    <UserControl.Resources/>
 
     <Grid Grid.IsSharedSizeScope="True">
         <Grid.RowDefinitions>
@@ -293,12 +92,14 @@
                   Margin="0,0,0,0"
                   Padding="0,0,6,0"
                   ItemsSource="{Binding ItemsSource, ElementName=SongListRoot}"
+                  ScrollViewer.CanContentScroll="True"
+                  VirtualizingPanel.IsVirtualizing="True"
                   VirtualizingPanel.VirtualizationMode="Recycling"
+                  VirtualizingPanel.ScrollUnit="Pixel"
                   SelectedItem="{Binding SelectedItem, ElementName=SongListRoot, Mode=TwoWay}"
                   SelectionMode="Extended"
                   SelectionChanged="TrackListView_SelectionChanged"
                   ContextMenuOpening="TrackListView_ContextMenuOpening"
-                  ScrollViewer.ScrollChanged="TrackListView_ScrollChanged"
                   BorderThickness="0"
                   Background="Transparent"
                   AllowDrop="{Binding AllowReorder, ElementName=SongListRoot}"
@@ -574,7 +375,7 @@
 
                             <!-- Date Added -->
                             <TextBlock Grid.Column="6"
-                                       Text="{Binding Song.DateAdded, StringFormat={}{0:MMM d, yyyy}}"
+                                       Text="{Binding Song.DateAdded, StringFormat='{}{0:MMM d, yyyy}'}"
                                        VerticalAlignment="Center"
                                        Opacity="0.6"/>
 

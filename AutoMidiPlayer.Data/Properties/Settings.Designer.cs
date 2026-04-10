@@ -13,7 +13,7 @@ namespace AutoMidiPlayer.Data.Properties
 
 
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.VisualStudio.Editors.SettingsDesigner.SettingsSingleFileGenerator", "17.3.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.VisualStudio.Editors.SettingsDesigner.SettingsSingleFileGenerator", "18.4.0.0")]
     public sealed partial class Settings : global::System.Configuration.ApplicationSettingsBase
     {
 
@@ -54,8 +54,7 @@ namespace AutoMidiPlayer.Data.Properties
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.SpecialSettingAttribute(global::System.Configuration.SpecialSetting.WebServiceUrl)]
-        [global::System.Configuration.DefaultSettingValueAttribute("https://github.com/Jed556/AutoMidiPlayer/blob/main/THIRD-PARTY-NOTICES." +
-            "md")]
+        [global::System.Configuration.DefaultSettingValueAttribute("https://github.com/Jed556/AutoMidiPlayer/blob/main/THIRD-PARTY-NOTICES.md")]
         public string ThirdPartyLicenseUri
         {
             get
@@ -961,6 +960,21 @@ namespace AutoMidiPlayer.Data.Properties
             set
             {
                 this["SelectedInstrumentByGame"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool SmoothScrollingEnabled
+        {
+            get
+            {
+                return ((bool)(this["SmoothScrollingEnabled"]));
+            }
+            set
+            {
+                this["SmoothScrollingEnabled"] = value;
             }
         }
     }
