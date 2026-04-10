@@ -245,6 +245,35 @@ public class PlayPauseGeometryConverter : IMultiValueConverter
 }
 
 /// <summary>
+/// Multi-value converter that returns Play/Pause tooltip text for a row action button.
+/// Values: [0] = MidiFile (row), [1] = MidiFile (opened), [2] = bool (IsPlaying)
+/// </summary>
+public class PlayPauseToolTipConverter : IMultiValueConverter
+{
+    public static PlayPauseToolTipConverter Instance { get; } = new();
+
+    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (values.Length >= 3
+            && values[0] is MidiFile rowFile
+            && values[1] is MidiFile openedFile
+            && values[2] is bool isPlaying
+            && rowFile == openedFile
+            && isPlaying)
+        {
+            return "Pause";
+        }
+
+        return "Play";
+    }
+
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
 /// Converter to get the 1-based display index of an item in a list.
 /// Values[0]: The MidiFile of the row
 /// Values[1]: The ItemsSource collection

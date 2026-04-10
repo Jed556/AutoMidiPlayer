@@ -428,8 +428,16 @@
                                         HorizontalAlignment="Center"
                                         Focusable="False"
                                         Click="PlayPauseButton_Click"
-                                        Tag="{Binding}"
-                                        ToolTip="Play">
+                                        Tag="{Binding}">
+                                    <Button.ToolTip>
+                                        <MultiBinding Converter="{x:Static converters:PlayPauseToolTipConverter.Instance}">
+                                            <Binding/>
+                                            <Binding Path="OpenedFile"
+                                                     RelativeSource="{RelativeSource AncestorType=controls:SongListControl}"/>
+                                            <Binding Path="IsPlaying"
+                                                     RelativeSource="{RelativeSource AncestorType=controls:SongListControl}"/>
+                                        </MultiBinding>
+                                    </Button.ToolTip>
                                     <Button.Style>
                                         <Style TargetType="Button">
                                             <Setter Property="Background"
