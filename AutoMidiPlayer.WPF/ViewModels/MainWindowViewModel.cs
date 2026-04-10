@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.IO;
 using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -14,6 +15,7 @@ using AutoMidiPlayer.WPF.Core.Games;
 using AutoMidiPlayer.WPF.Services;
 using AutoMidiPlayer.WPF.Views;
 using JetBrains.Annotations;
+using Microsoft.EntityFrameworkCore;
 using Stylet;
 using StyletIoC;
 using Wpf.Ui.Appearance;
@@ -37,10 +39,21 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
     private static readonly string AppName = $"Auto MIDI Player {SettingsPageViewModel.ProgramVersionDisplay}";
     private static readonly string[] MidiExtensions = [".mid", ".midi"];
+    private const int InitialStartupSongBatchSize = 50;
+    private const int DeferredStartupSongLoadDelayMs = 350;
     private readonly DispatcherTimer _gameStateTimer;
+    private readonly TaskCompletionSource _startupLoadCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private bool _isStartupLocked = true;
+    private double _startupLoadProgress;
+    private string _startupLoadStatus = "Starting up...";
 
     // Current page name for breadcrumb display
-    public string[] BreadcrumbItems { get; set; } = ["Tracks"];
+    private string[] _breadcrumbItems = ["Songs"];
+    public string[] BreadcrumbItems
+    {
+        get => _breadcrumbItems;
+        set => SetAndNotify(ref _breadcrumbItems, value);
+    }
     public event Action? ActiveGamesChanged;
 
     // Helper to set selected navigation item safely
@@ -105,12 +118,16 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         InstrumentView = new(ioc, this);
 
         // TrackView only handles track list management
-        ActiveItem = TrackView = new(ioc, this);
+        TrackView = new(ioc, this);
 
         // QueueView and SongsView depend on Playback being initialized
         QueueView = new(ioc, this);
         SongsView = new(ioc, this);
         PianoSheetView = new(this);
+
+        var initialPage = NormalizePageName(Settings.LastViewedPage);
+        BreadcrumbItems = [initialPage];
+        ActiveItem = ResolveViewFromName(initialPage);
 
         // Late-bind back-references so services can access ViewModels
         SongSettings.SetMain(this);
@@ -171,6 +188,27 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
     public InstrumentViewModel InstrumentView { get; }
 
+    private static string NormalizePageName(string? pageName) => pageName switch
+    {
+        "Tracks" => "Tracks",
+        "Sheet" => "Sheet",
+        "Instrument" => "Instrument",
+        "Queue" => "Queue",
+        "Settings" => "Settings",
+        "Songs" => "Songs",
+        _ => "Songs"
+    };
+
+    private IScreen ResolveViewFromName(string? pageName) => NormalizePageName(pageName) switch
+    {
+        "Tracks" => TrackView,
+        "Sheet" => PianoSheetView,
+        "Instrument" => InstrumentView,
+        "Queue" => QueueView,
+        "Settings" => SettingsView,
+        "Songs" or _ => SongsView
+    };
+
     public bool IsGameSelectorOpen { get; set; }
 
     /// <summary>Observable collection of all supported games with runtime state</summary>
@@ -185,6 +223,46 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
     }
 
     public string Title { get; set; }
+
+    public bool IsStartupLocked => _isStartupLocked;
+
+    public bool IsControlPanelEnabled => !_isStartupLocked;
+
+    public bool IsStartupProgressVisible => _isStartupLocked;
+
+    public double StartupLoadProgress
+    {
+        get => _startupLoadProgress;
+        private set => SetAndNotify(ref _startupLoadProgress, value);
+    }
+
+    public string StartupLoadStatus
+    {
+        get => _startupLoadStatus;
+        private set => SetAndNotify(ref _startupLoadStatus, value);
+    }
+
+    public Task WaitForStartupLoadAsync() => _startupLoadCompletion.Task;
+
+    public void CompleteStartupInteractionLock()
+    {
+        if (!_isStartupLocked)
+            return;
+
+        StartupLoadProgress = 100;
+        StartupLoadStatus = string.Empty;
+
+        _isStartupLocked = false;
+        NotifyOfPropertyChange(nameof(IsStartupLocked));
+        NotifyOfPropertyChange(nameof(IsControlPanelEnabled));
+        NotifyOfPropertyChange(nameof(IsStartupProgressVisible));
+    }
+
+    private void ReportStartupProgress(double progress, string status)
+    {
+        StartupLoadProgress = Math.Clamp(progress, 0, 100);
+        StartupLoadStatus = status;
+    }
 
     public void NavigateToItem(object sender, RoutedEventArgs args)
     {
@@ -344,57 +422,121 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         Navigation = ((MainWindowView)View).RootNavigation;
         SnackbarPresenter = ((MainWindowView)View).RootSnackbarPresenter;
 
+        ReportStartupProgress(4, "Preparing startup...");
+
         // Let the window finish first paint before heavy startup work.
         await Task.Yield();
 
-        // Restore last viewed page (default to Songs if not set)
-        var lastPage = Settings.LastViewedPage;
-        if (string.IsNullOrEmpty(lastPage)) lastPage = "Songs";
-
-        // Search in both MenuItems and FooterMenuItems
-        var targetNavItem = Navigation?.MenuItems
-            .OfType<NavigationViewItem>()
-            .FirstOrDefault(nav => nav.Content?.ToString() == lastPage)
-            ?? Navigation?.FooterMenuItems
-            .OfType<NavigationViewItem>()
-            .FirstOrDefault(nav => nav.Content?.ToString() == lastPage);
-
-        if (targetNavItem?.Tag is IScreen viewModel)
+        try
         {
-            ActivateItem(viewModel);
-            // Set selected item for visual indicator
-            SetSelectedNavItem(targetNavItem);
-            // Update breadcrumb with current page name
-            BreadcrumbItems = [lastPage];
-            CrashLogger.LogPageVisit(lastPage, source: "startup-restore");
+            // Restore last viewed page (default to Songs if not set)
+            var lastPage = NormalizePageName(Settings.LastViewedPage);
+
+            // Search in both MenuItems and FooterMenuItems
+            var targetNavItem = Navigation?.MenuItems
+                .OfType<NavigationViewItem>()
+                .FirstOrDefault(nav => nav.Content?.ToString() == lastPage)
+                ?? Navigation?.FooterMenuItems
+                .OfType<NavigationViewItem>()
+                .FirstOrDefault(nav => nav.Content?.ToString() == lastPage);
+
+            if (targetNavItem?.Tag is IScreen viewModel)
+            {
+                ActivateItem(viewModel);
+                // Set selected item for visual indicator
+                SetSelectedNavItem(targetNavItem);
+                // Update breadcrumb with current page name
+                BreadcrumbItems = [lastPage];
+                CrashLogger.LogPageVisit(lastPage, source: "startup-restore");
+            }
+
+            ReportStartupProgress(14, "Checking game locations...");
+
+            if (!await SettingsView.TryGetLocationAsync()) _ = SettingsView.LocationMissing();
+            if (SettingsView.AutoCheckUpdates)
+            {
+                _ = SettingsView.CheckForUpdate()
+                    .ContinueWith(_ => { NotifyOfPropertyChange(() => ShowUpdate); });
+            }
+
+            ReportStartupProgress(30, "Loading song database...");
+
+            // Load songs from database into Songs library
+            await using var db = Ioc.Get<LyreContext>();
+            var startupSongs = await db.Songs
+                .AsNoTracking()
+                .ToListAsync();
+
+            ReportStartupProgress(42, $"Loading {startupSongs.Count} songs...");
+            await LoadStartupSongsStagedAsync(startupSongs);
+
+            ReportStartupProgress(95, "Preparing input hooks...");
+            _gameStateTimer.Start();
+            NotifyActiveGamesChanged();
+        }
+        finally
+        {
+            _startupLoadCompletion.TrySetResult();
+        }
+    }
+
+    private async Task LoadStartupSongsStagedAsync(IReadOnlyList<AutoMidiPlayer.Data.Entities.Song> startupSongs)
+    {
+        if (startupSongs.Count == 0)
+        {
+            ReportStartupProgress(78, "No songs found.");
+            FinalizeStartupSongLoad();
+            return;
         }
 
-        if (!await SettingsView.TryGetLocationAsync()) _ = SettingsView.LocationMissing();
-        if (SettingsView.AutoCheckUpdates)
+        var firstBatchCount = Math.Min(InitialStartupSongBatchSize, startupSongs.Count);
+        var firstBatch = startupSongs.Take(firstBatchCount).ToList();
+        ReportStartupProgress(58, $"Loading songs ({firstBatchCount}/{startupSongs.Count})...");
+        await FileService.AddFiles(firstBatch);
+
+        if (startupSongs.Count <= firstBatchCount)
         {
-            _ = SettingsView.CheckForUpdate()
-                .ContinueWith(_ => { NotifyOfPropertyChange(() => ShowUpdate); });
+            ReportStartupProgress(80, "Song library loaded.");
+            FinalizeStartupSongLoad();
+            return;
         }
 
-        // Load songs from database into Songs library
-        await using var db = Ioc.Get<LyreContext>();
-        await FileService.AddFiles(db.Songs);
+        await LoadDeferredStartupSongsAsync(startupSongs.Skip(firstBatchCount).ToList(), startupSongs.Count, firstBatchCount);
+        ReportStartupProgress(80, "Song library loaded.");
+        FinalizeStartupSongLoad();
+    }
 
+    private async Task LoadDeferredStartupSongsAsync(
+        IReadOnlyList<AutoMidiPlayer.Data.Entities.Song> deferredSongs,
+        int totalCount,
+        int loadedCount)
+    {
+        try
+        {
+            // Let initial UI interaction settle before loading the remaining library.
+            await Task.Delay(DeferredStartupSongLoadDelayMs);
+            ReportStartupProgress(70, $"Loading songs ({loadedCount + deferredSongs.Count}/{totalCount})...");
+            await FileService.AddFiles(deferredSongs);
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("Deferred startup song load failed.");
+            CrashLogger.LogException(ex);
+        }
+    }
+
+    private void FinalizeStartupSongLoad()
+    {
         // Schedule auto-scan in the background so startup navigation remains responsive.
         _ = RunStartupMidiAutoScanAsync();
 
-        // Restore queue from saved state
+        // Restore queue from saved state after song list is fully loaded.
         QueueView.RestoreQueue(SongsView.Tracks);
 
-        // Restore previously playing song and position
+        // Restore previously playing song and position.
         var savedPosition = QueueView.RestoreCurrentSong(SongsView.Tracks);
         if (savedPosition.HasValue)
-        {
             PlaybackControls.SetSavedPosition(savedPosition.Value);
-        }
-
-        _gameStateTimer.Start();
-        NotifyActiveGamesChanged();
     }
 
     private async Task RunStartupMidiAutoScanAsync()

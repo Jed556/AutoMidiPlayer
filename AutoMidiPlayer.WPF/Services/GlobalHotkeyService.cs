@@ -61,8 +61,9 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
     private IntPtr _windowHandle;
     private IntPtr _mouseHookHandle;
     private LowLevelMouseProc? _mouseHookProc;
-    private int _nextHotkeyId = 1;
+    private int _nextHotkeyId = 0x5000;
     private bool _isEnabled = true;
+    private MouseStopClickMode _mouseStopClickMode;
 
     #endregion
 
@@ -129,6 +130,8 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
 
     public GlobalHotkeyService()
     {
+        _mouseStopClickMode = ResolveMouseStopClickMode();
+
         // Load hotkeys from settings or use defaults
         PlayPauseHotkey = LoadOrCreateHotkey("PlayPause", Key.Space, ModifierKeys.Control | ModifierKeys.Alt);
         NextHotkey = LoadOrCreateHotkey("Next", Key.Right, ModifierKeys.Control | ModifierKeys.Alt);
@@ -148,10 +151,17 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
         _hwndSource = HwndSource.FromHwnd(_windowHandle);
         _hwndSource?.AddHook(HwndHook);
 
-        InstallMouseHook();
+        _mouseStopClickMode = ResolveMouseStopClickMode();
+        UpdateMouseHookState();
 
         if (_isEnabled)
             RegisterAllHotkeys();
+    }
+
+    public void RefreshMouseStopClickMode()
+    {
+        _mouseStopClickMode = ResolveMouseStopClickMode();
+        UpdateMouseHookState();
     }
 
     #endregion
@@ -307,7 +317,7 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
 
     private void RegisterHotkey(HotkeyBinding hotkey)
     {
-        if (_windowHandle == IntPtr.Zero || hotkey.Key == Key.None)
+        if (_windowHandle == IntPtr.Zero || hotkey.Key == Key.None || hotkey.Key == Key.PrintScreen)
             return;
 
         var id = _nextHotkeyId++;
@@ -320,6 +330,27 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
             hotkey.IsRegistered = true;
             _registeredHotkeys[id] = hotkey;
         }
+    }
+
+    private void RemoveMouseHook()
+    {
+        if (_mouseHookHandle == IntPtr.Zero)
+            return;
+
+        UnhookWindowsHookEx(_mouseHookHandle);
+        _mouseHookHandle = IntPtr.Zero;
+    }
+
+    private void UpdateMouseHookState()
+    {
+        var shouldHookMouse = _isEnabled
+                              && !_isSuspended
+                              && _mouseStopClickMode != MouseStopClickMode.Off;
+
+        if (shouldHookMouse)
+            InstallMouseHook();
+        else
+            RemoveMouseHook();
     }
 
     private void UnregisterHotkey(HotkeyBinding hotkey)
@@ -362,23 +393,25 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
 
     private IntPtr MouseHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
-        if (nCode >= 0 && _isEnabled)
-        {
-            var configuredMode = ResolveMouseStopClickMode();
-            if (configuredMode != MouseStopClickMode.Off)
-            {
-                var message = wParam.ToInt32();
-                var isMatch = configuredMode switch
-                {
-                    MouseStopClickMode.LeftClick => message == WM_LBUTTONDOWN,
-                    MouseStopClickMode.RightClick => message == WM_RBUTTONDOWN,
-                    MouseStopClickMode.MiddleClick => message == WM_MBUTTONDOWN,
-                    _ => false
-                };
+        if (nCode < 0 || !_isEnabled)
+            return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
 
-                if (isMatch)
-                    MouseStopRequested?.Invoke(this, EventArgs.Empty);
-            }
+        var message = wParam.ToInt32();
+        if (message != WM_LBUTTONDOWN && message != WM_RBUTTONDOWN && message != WM_MBUTTONDOWN)
+            return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+
+        if (_mouseStopClickMode != MouseStopClickMode.Off)
+        {
+            var isMatch = _mouseStopClickMode switch
+            {
+                MouseStopClickMode.LeftClick => message == WM_LBUTTONDOWN,
+                MouseStopClickMode.RightClick => message == WM_RBUTTONDOWN,
+                MouseStopClickMode.MiddleClick => message == WM_MBUTTONDOWN,
+                _ => false
+            };
+
+            if (isMatch)
+                MouseStopRequested?.Invoke(this, EventArgs.Empty);
         }
 
         return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
@@ -401,7 +434,8 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
         if (msg == WM_HOTKEY && _isEnabled)
         {
             var id = wParam.ToInt32();
-            if (_registeredHotkeys.TryGetValue(id, out var hotkey))
+            if (_registeredHotkeys.TryGetValue(id, out var hotkey)
+                && MatchesHotkeyMessage(hotkey, lParam))
             {
                 switch (hotkey.Name)
                 {
@@ -430,6 +464,22 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
         return IntPtr.Zero;
     }
 
+    private static bool MatchesHotkeyMessage(HotkeyBinding hotkey, IntPtr lParam)
+    {
+        if (hotkey.Key == Key.None)
+            return false;
+
+        var messageData = unchecked((long)lParam);
+        var messageModifiers = (uint)(messageData & 0xFFFF);
+        var messageVirtualKey = (uint)((messageData >> 16) & 0xFFFF);
+
+        var expectedModifiers = GetWin32Modifiers(hotkey.Modifiers);
+        var expectedVirtualKey = (uint)KeyInterop.VirtualKeyFromKey(hotkey.Key);
+
+        return messageModifiers == expectedModifiers
+               && messageVirtualKey == expectedVirtualKey;
+    }
+
     #endregion
 
     #region IDisposable
@@ -437,12 +487,7 @@ public class GlobalHotkeyService : PropertyChangedBase, IDisposable
     public void Dispose()
     {
         UnregisterAllHotkeys();
-
-        if (_mouseHookHandle != IntPtr.Zero)
-        {
-            UnhookWindowsHookEx(_mouseHookHandle);
-            _mouseHookHandle = IntPtr.Zero;
-        }
+        RemoveMouseHook();
 
         _hwndSource?.RemoveHook(HwndHook);
         _hwndSource?.Dispose();

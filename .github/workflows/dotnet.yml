@@ -2,7 +2,7 @@ name: Release on tag
 
 on:
   push:
-    tags: [ '*' ]
+    tags: ['*']
   workflow_dispatch:
     inputs:
       version:
@@ -13,97 +13,100 @@ on:
         description: 'Commit-ish to tag'
         required: false
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 0
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
 
-    - name: Resolve version and build ref
-      id: release
-      shell: bash
-      run: |
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          VERSION="${{ github.event.inputs.version }}"
-          INPUT_COMMIT="${{ github.event.inputs.commit }}"
+      - name: Resolve version and build ref
+        id: release
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            INPUT_COMMIT="${{ github.event.inputs.commit }}"
 
-          if [ -n "$INPUT_COMMIT" ]; then
-            BUILD_REF="$INPUT_COMMIT"
-          elif git rev-parse -q --verify "refs/tags/$VERSION^{commit}" >/dev/null; then
-            BUILD_REF="refs/tags/$VERSION"
+            if [ -n "$INPUT_COMMIT" ]; then
+              BUILD_REF="$INPUT_COMMIT"
+            elif git rev-parse -q --verify "refs/tags/$VERSION^{commit}" >/dev/null; then
+              BUILD_REF="refs/tags/$VERSION"
+            else
+              echo "Error: provide 'commit' when version tag '$VERSION' does not exist yet." >&2
+              exit 1
+            fi
           else
-            echo "Error: provide 'commit' when version tag '$VERSION' does not exist yet." >&2
+            VERSION="${GITHUB_REF#refs/tags/}"
+            BUILD_REF="${GITHUB_REF}"
+          fi
+
+          if [ -z "$VERSION" ]; then
+            echo "Error: no tag found in ref or input!" >&2
             exit 1
           fi
-        else
-          VERSION="${GITHUB_REF#refs/tags/}"
-          BUILD_REF="${GITHUB_REF}"
-        fi
 
-        if [ -z "$VERSION" ]; then
-          echo "Error: no tag found in ref or input!" >&2
-          exit 1
-        fi
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "BUILD_REF=$BUILD_REF" >> "$GITHUB_OUTPUT"
+          echo "Building version '$VERSION' from '$BUILD_REF'"
 
-        echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
-        echo "BUILD_REF=$BUILD_REF" >> "$GITHUB_OUTPUT"
-        echo "Building version '$VERSION' from '$BUILD_REF'"
+      - name: Checkout source to build
+        id: source
+        shell: bash
+        run: |
+          git checkout --force "${BUILD_REF}"
+          BUILD_SHA="$(git rev-parse HEAD)"
+          echo "BUILD_SHA=$BUILD_SHA" >> "$GITHUB_OUTPUT"
+          echo "Checked out commit '$BUILD_SHA'"
+        env:
+          BUILD_REF: ${{ steps.release.outputs.BUILD_REF }}
 
-    - name: Checkout source to build
-      id: source
-      shell: bash
-      run: |
-        git checkout --force "${BUILD_REF}"
-        BUILD_SHA="$(git rev-parse HEAD)"
-        echo "BUILD_SHA=$BUILD_SHA" >> "$GITHUB_OUTPUT"
-        echo "Checked out commit '$BUILD_SHA'"
-      env:
-        BUILD_REF: ${{ steps.release.outputs.BUILD_REF }}
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5.2.0
+        with:
+          dotnet-version: 10.x
 
-    - name: Setup .NET Core SDK
-      uses: actions/setup-dotnet@v2
-      with:
-        dotnet-version: 8.0.x
+      - name: Prepare output dirs & remove old zips
+        run: |
+          Remove-Item .\install -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item .\portable -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item AutoMidiPlayer_*_win-x64_*.zip -Force -ErrorAction SilentlyContinue
 
-    - name: Prepare output dirs & remove old zips
-      run: |
-        Remove-Item .\install -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item .\portable -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item AutoMidiPlayer_*_win-x64_*.zip -Force -ErrorAction SilentlyContinue
+      - name: Publish install (framework-dependent)
+        run: |
+          dotnet publish AutoMidiPlayer.WPF -r win-x64 -c Release -o .\install --self-contained false -p:PublishSingleFile=true
 
-    - name: Publish install (framework-dependent)
-      run: |
-        dotnet publish AutoMidiPlayer.WPF -r win-x64 -c Release -o .\install --self-contained false -p:PublishSingleFile=true
+      - name: Inspect install output
+        run: |
+          Get-ChildItem .\install -Recurse | Select Name,Length
 
-    - name: Inspect install output
-      run: |
-        Get-ChildItem .\install -Recurse | Select Name,Length
+      - name: Publish portable (self-contained)
+        run: |
+          dotnet publish AutoMidiPlayer.WPF -r win-x64 -c Release -o .\portable --self-contained true -p:PublishSingleFile=true
 
-    - name: Publish portable (self-contained)
-      run: |
-        dotnet publish AutoMidiPlayer.WPF -r win-x64 -c Release -o .\portable --self-contained true -p:PublishSingleFile=true
+      - name: Inspect portable output
+        run: |
+          Get-ChildItem .\portable -Recurse | Select Name,Length
 
-    - name: Inspect portable output
-      run: |
-        Get-ChildItem .\portable -Recurse | Select Name,Length
+      - name: Zip release
+        run: |
+          if (Test-Path .\install) { Get-ChildItem .\install\*.pdb -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }
+          if (Test-Path .\portable) { Get-ChildItem .\portable\*.pdb -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }
+          7z a AutoMidiPlayer_${{ steps.release.outputs.VERSION }}_win-x64_net-install.zip .\install\* -mx9
+          7z a AutoMidiPlayer_${{ steps.release.outputs.VERSION }}_win-x64_portable.zip .\portable\* -mx9
 
-    - name: Zip release
-      run: |
-        if (Test-Path .\install) { Get-ChildItem .\install\*.pdb -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }
-        if (Test-Path .\portable) { Get-ChildItem .\portable\*.pdb -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }
-        7z a AutoMidiPlayer_${{ steps.release.outputs.VERSION }}_win-x64_net-install.zip .\install\* -mx9
-        7z a AutoMidiPlayer_${{ steps.release.outputs.VERSION }}_win-x64_portable.zip .\portable\* -mx9
-
-    - name: Create or update GitHub Release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ steps.release.outputs.VERSION }}
-        target_commitish: ${{ steps.source.outputs.BUILD_SHA }}
-        files: |
-          AutoMidiPlayer_${{ steps.release.outputs.VERSION }}_win-x64_net-install.zip
-          AutoMidiPlayer_${{ steps.release.outputs.VERSION }}_win-x64_portable.zip
-        overwrite_files: true
-        token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2.6.1
+        with:
+          tag_name: ${{ steps.release.outputs.VERSION }}
+          target_commitish: ${{ steps.source.outputs.BUILD_SHA }}
+          files: |
+            AutoMidiPlayer_${{ steps.release.outputs.VERSION }}_win-x64_net-install.zip
+            AutoMidiPlayer_${{ steps.release.outputs.VERSION }}_win-x64_portable.zip
+          overwrite_files: true
+          token: ${{ secrets.GITHUB_TOKEN }}

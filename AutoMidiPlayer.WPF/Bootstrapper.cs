@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Documents;
@@ -13,6 +14,7 @@ using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Errors;
 using AutoMidiPlayer.WPF.ViewModels;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Stylet;
 using StyletIoC;
 using System.Reflection;
@@ -39,6 +41,9 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
 
     public Bootstrapper()
     {
+        // Suppress benign Storyboard animation warnings from WPF-UI (idk why this happens XD)
+        System.Diagnostics.PresentationTraceSources.AnimationSource.Switch.Level = System.Diagnostics.SourceLevels.Critical;
+
         // ensure version retrieval helper is available by referencing Reflection
         _ = GetAppVersion();
 
@@ -105,17 +110,59 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
                 return;
 
             db.Database.EnsureCreated();
-            RenameAuthorColumnToArtist(db);
 
-            foreach (var (columnName, sqlType) in SongColumnMigrations)
-                AddSongColumnIfMissing(db, columnName, sqlType);
+            var existingSongColumns = GetSongTableColumns(db);
+            if (existingSongColumns.Count > 0)
+            {
+                RenameAuthorColumnToArtist(db, existingSongColumns);
+
+                foreach (var (columnName, sqlType) in SongColumnMigrations)
+                {
+                    if (!existingSongColumns.Contains(columnName))
+                        AddSongColumnIfMissing(db, columnName, sqlType);
+                }
+            }
 
             _databaseInitialized = true;
         }
     }
 
-    private static void RenameAuthorColumnToArtist(LyreContext db)
+    private static HashSet<string> GetSongTableColumns(LyreContext db)
     {
+        var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var connection = db.Database.GetDbConnection();
+        var shouldCloseConnection = connection.State == System.Data.ConnectionState.Closed;
+        if (shouldCloseConnection)
+            connection.Open();
+
+        try
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "PRAGMA table_info(Songs);";
+            using var reader = command.ExecuteReader();
+
+            while (reader.Read())
+            {
+                var name = reader.GetString(1);
+                if (!string.IsNullOrWhiteSpace(name))
+                    columns.Add(name);
+            }
+        }
+        finally
+        {
+            if (shouldCloseConnection)
+                connection.Close();
+        }
+
+        return columns;
+    }
+
+    private static void RenameAuthorColumnToArtist(LyreContext db, HashSet<string> existingSongColumns)
+    {
+        if (!existingSongColumns.Contains("Author") || existingSongColumns.Contains("Artist"))
+            return;
+
         try
         {
             db.Database.ExecuteSqlRaw(@"

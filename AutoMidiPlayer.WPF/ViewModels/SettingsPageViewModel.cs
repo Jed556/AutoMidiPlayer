@@ -391,7 +391,10 @@ public class SettingsPageViewModel : Screen
         set
         {
             if (SetAndNotify(ref _selectedMouseStopClickOption, value) && value is not null)
+            {
                 Settings.Modify(s => s.MouseStopClickMode = (int)value.Mode);
+                _hotkeyService.RefreshMouseStopClickMode();
+            }
         }
     }
 

@@ -610,6 +610,7 @@
                     Background="{ui:ThemeResource ControlFillColorDefaultBrush}"
                     BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                     BorderThickness="0,1,0,0"
+                    IsEnabled="{Binding IsControlPanelEnabled}"
                     Padding="24,16">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -967,6 +968,23 @@
                         </controls:SimpleStackPanel>
                     </Grid>
                 </Grid>
+            </Border>
+
+            <Border x:Name="StartupProgressHost"
+                    Grid.RowSpan="3"
+                    VerticalAlignment="Bottom"
+                    Height="4"
+                    Opacity="1"
+                    Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                    IsHitTestVisible="False"
+                    Panel.ZIndex="20">
+                <ProgressBar x:Name="StartupProgressBar"
+                             Minimum="0"
+                             Maximum="100"
+                             Value="0"
+                             Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                             Background="Transparent"
+                             BorderThickness="0"/>
             </Border>
         </Grid>
 

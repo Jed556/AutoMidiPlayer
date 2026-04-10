@@ -313,7 +313,7 @@ public class FileService(IContainer ioc)
                 loadedFileCount++;
 
                 if (loadedFileCount % StartupSongLoadYieldInterval == 0)
-                    await Task.Yield();
+                    await YieldStartupWorkAsync();
             }
 
             songs.NotifyFileErrorsChanged();
@@ -340,17 +340,9 @@ public class FileService(IContainer ioc)
 
             var songs = _main.SongsView;
             var loadedSongCount = 0;
-            var existingPaths = songs.Tracks
-                .Select(track => track.Song.Path)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var existingHashes = songs.Tracks
-                .Select(track => track.Song.FileHash)
-                .Where(hash => !string.IsNullOrWhiteSpace(hash))
-                .Select(hash => hash!)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var missingSongIds = songs.MissingSongs
-                .Select(missingSong => missingSong.Id)
-                .ToHashSet();
+            var (existingPaths, existingHashes, missingSongIds) = BuildStartupSongLookupSets(
+                songs.Tracks.Select(track => track.Song),
+                songs.MissingSongs);
 
             foreach (var song in songList)
             {
@@ -367,12 +359,13 @@ public class FileService(IContainer ioc)
                     song,
                     notifyFileErrors: false,
                     trackedPaths: existingPaths,
-                    trackedHashes: existingHashes);
+                    trackedHashes: existingHashes,
+                    computeMissingHash: false);
                 loadedSongCount++;
 
                 // Keep startup responsive while loading large libraries.
                 if (loadedSongCount % StartupSongLoadYieldInterval == 0)
-                    await Task.Yield();
+                    await YieldStartupWorkAsync();
             }
 
             songs.NotifyFileErrorsChanged();
@@ -383,6 +376,37 @@ public class FileService(IContainer ioc)
         {
             _addFilesLock.Release();
         }
+    }
+
+    private static (HashSet<string> ExistingPaths, HashSet<string> ExistingHashes, HashSet<Guid> MissingSongIds)
+        BuildStartupSongLookupSets(IEnumerable<Song> existingSongs, IEnumerable<Song> missingSongs)
+    {
+        var hasExistingCount = existingSongs.TryGetNonEnumeratedCount(out var existingCount);
+        var existingPaths = hasExistingCount
+            ? new HashSet<string>(existingCount, StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var existingHashes = hasExistingCount
+            ? new HashSet<string>(existingCount, StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var song in existingSongs)
+        {
+            existingPaths.Add(song.Path);
+
+            var fileHash = song.FileHash;
+            if (!string.IsNullOrWhiteSpace(fileHash))
+                existingHashes.Add(fileHash);
+        }
+
+        var hasMissingCount = missingSongs.TryGetNonEnumeratedCount(out var missingCount);
+        var missingSongIds = hasMissingCount
+            ? new HashSet<Guid>(missingCount)
+            : new HashSet<Guid>();
+
+        foreach (var song in missingSongs)
+            missingSongIds.Add(song.Id);
+
+        return (existingPaths, existingHashes, missingSongIds);
     }
 
     /// <summary>
@@ -738,35 +762,55 @@ public class FileService(IContainer ioc)
     private static Task<MidiFile> CreateMidiFileAsync(Song song, ReadingSettings? settings) =>
         Task.Run(() => new MidiFile(song, settings));
 
+    private static async Task YieldStartupWorkAsync()
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null)
+        {
+            await Task.Yield();
+            return;
+        }
+
+        await dispatcher.InvokeAsync(static () => { }, System.Windows.Threading.DispatcherPriority.Background);
+    }
+
     private async Task<bool> AddFile(
         Song song,
         ReadingSettings? settings = null,
         bool notifyFileErrors = true,
         HashSet<string>? trackedPaths = null,
-        HashSet<string>? trackedHashes = null)
+        HashSet<string>? trackedHashes = null,
+        bool computeMissingHash = true)
     {
         if (_main is null) return false;
         var songs = _main.SongsView;
+        HashSet<string>? effectiveTrackedPaths = trackedPaths;
+        HashSet<string>? effectiveTrackedHashes = trackedHashes;
 
         try
         {
-            var pathExists = trackedPaths?.Contains(song.Path)
-                ?? songs.Tracks.Any(track => string.Equals(track.Song.Path, song.Path, StringComparison.OrdinalIgnoreCase));
-            if (pathExists)
-                return false;
-
-            if (!string.IsNullOrWhiteSpace(song.FileHash)
-                && (trackedHashes?.Contains(song.FileHash)
-                    ?? songs.Tracks.Any(track => string.Equals(track.Song.FileHash, song.FileHash, StringComparison.OrdinalIgnoreCase))))
-                return false;
-
-            if (string.IsNullOrWhiteSpace(song.FileHash) && File.Exists(song.Path))
+            if (effectiveTrackedPaths is null || effectiveTrackedHashes is null)
             {
-                song.FileHash = await ComputeFileHashAsync(song.Path);
+                var (existingPaths, existingHashes) = BuildTrackLookupSets(songs.Tracks);
+                effectiveTrackedPaths ??= existingPaths;
+                effectiveTrackedHashes ??= existingHashes;
+            }
 
-                if (!string.IsNullOrWhiteSpace(song.FileHash)
-                    && (trackedHashes?.Contains(song.FileHash)
-                        ?? songs.Tracks.Any(track => string.Equals(track.Song.FileHash, song.FileHash, StringComparison.OrdinalIgnoreCase))))
+            if (effectiveTrackedPaths.Contains(song.Path))
+                return false;
+
+            var fileHash = song.FileHash;
+            if (!string.IsNullOrWhiteSpace(fileHash)
+                && effectiveTrackedHashes.Contains(fileHash))
+                return false;
+
+            if (computeMissingHash && string.IsNullOrWhiteSpace(fileHash) && File.Exists(song.Path))
+            {
+                fileHash = await ComputeFileHashAsync(song.Path);
+                song.FileHash = fileHash;
+
+                if (!string.IsNullOrWhiteSpace(fileHash)
+                    && effectiveTrackedHashes.Contains(fileHash))
                     return false;
             }
 
@@ -774,8 +818,8 @@ public class FileService(IContainer ioc)
             var loadedFile = await CreateMidiFileAsync(song, settings);
             songs.Tracks.Add(loadedFile);
             trackedPaths?.Add(song.Path);
-            if (!string.IsNullOrWhiteSpace(song.FileHash))
-                trackedHashes?.Add(song.FileHash);
+            if (!string.IsNullOrWhiteSpace(fileHash))
+                trackedHashes?.Add(fileHash);
 
             await ApplyDetectedSongKeyAsync(song, loadedFile);
 
@@ -790,12 +834,36 @@ public class FileService(IContainer ioc)
         {
             settings ??= new();
             if (await MidiReadDialogHandler.TryHandleAsync(e, settings, song.Path))
-                return await AddFile(song, settings, notifyFileErrors, trackedPaths, trackedHashes);
+                return await AddFile(
+                    song,
+                    settings,
+                    notifyFileErrors,
+                    trackedPaths ?? effectiveTrackedPaths,
+                    trackedHashes ?? effectiveTrackedHashes,
+                    computeMissingHash);
 
             AddBadMidiFile(song, e, notifyFileErrors);
 
             return false;
         }
+    }
+
+    private static (HashSet<string> ExistingPaths, HashSet<string> ExistingHashes) BuildTrackLookupSets(IEnumerable<MidiFile> tracks)
+    {
+        var existingPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var existingHashes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var track in tracks)
+        {
+            var song = track.Song;
+            existingPaths.Add(song.Path);
+
+            var fileHash = song.FileHash;
+            if (!string.IsNullOrWhiteSpace(fileHash))
+                existingHashes.Add(fileHash);
+        }
+
+        return (existingPaths, existingHashes);
     }
 
     private async Task ApplyDetectedSongKeyAsync(Song song, MidiFile loadedFile)

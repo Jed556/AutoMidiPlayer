@@ -289,7 +289,7 @@
                     <TextBlock Text="New Song Defaults"
                                FontSize="20"
                                FontWeight="SemiBold"
-                               Margin="0,0,0,8"/>
+                               Margin="0,0,0,0"/>
                     <TextBlock Text="Applied when importing new songs."
                                TextWrapping="Wrap"
                                Opacity="0.6"

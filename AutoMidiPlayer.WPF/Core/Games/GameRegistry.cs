@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -267,31 +268,41 @@ public static class GameRegistry
 
     private static bool IsGameRunningCore(GameDefinition game)
     {
-        var processNames = game.ProcessNames.ToList();
+        var processNames = new HashSet<string>(game.ProcessNames, StringComparer.OrdinalIgnoreCase);
 
         // Also check configured location process name
         var configuredPath = game.GetLocation();
         if (!string.IsNullOrWhiteSpace(configuredPath))
         {
             var configuredName = Path.GetFileNameWithoutExtension(configuredPath);
-            if (!string.IsNullOrWhiteSpace(configuredName) &&
-                !processNames.Contains(configuredName, StringComparer.OrdinalIgnoreCase))
-            {
+            if (!string.IsNullOrWhiteSpace(configuredName))
                 processNames.Add(configuredName);
-            }
         }
 
-        return processNames.Any(processName =>
+        if (processNames.Count == 0)
+            return false;
+
+        try
         {
-            try
+            foreach (var process in Process.GetProcesses())
             {
-                return Process.GetProcessesByName(processName).Length > 0;
+                using (process)
+                {
+                    if (processNames.Contains(process.ProcessName))
+                        return true;
+                }
             }
-            catch
-            {
-                return false;
-            }
-        });
+
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+        catch (Win32Exception)
+        {
+            return false;
+        }
     }
 
     #endregion
