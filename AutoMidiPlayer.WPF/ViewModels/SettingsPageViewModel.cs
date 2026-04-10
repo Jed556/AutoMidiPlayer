@@ -88,6 +88,14 @@ public class SettingsPageViewModel : Screen
         new("Middle Click", MouseStopClickMode.MiddleClick)
     };
 
+    public static List<MusicConstants.KeyOption> NewSongDefaultKeyOptions { get; } = MusicConstants.GenerateKeyOptions();
+
+    public static List<KeyValuePair<Transpose, string>> NewSongTransposeOptions { get; } =
+        MusicConstants.TransposeNames.ToList();
+
+    public static List<MusicConstants.SpeedOption> NewSongSpeedOptions { get; } =
+        MusicConstants.GenerateSpeedOptions();
+
     private static readonly Settings Settings = Settings.Default;
     private readonly IContainer _ioc;
     private readonly IEventAggregator _events;
@@ -98,6 +106,11 @@ public class SettingsPageViewModel : Screen
     private MouseStopClickOption _selectedMouseStopClickOption = null!;
     private KeypressInputModeOption _selectedKeypressInputMode = null!;
     private ThemeOption _selectedTheme = null!;
+    private MusicConstants.KeyOption _selectedNewSongDefaultKeyOption = null!;
+    private MusicConstants.KeyOption _selectedNewSongKeyOption = null!;
+    private KeyValuePair<Transpose, string> _selectedNewSongTransposeOption;
+    private MusicConstants.SpeedOption _selectedNewSongSpeedOption = null!;
+    private bool _isSynchronizingNewSongDefaults;
     private FileSystemWatcher? _midiFolderWatcher;
     private FileSystemWatcher? _midiFolderParentWatcher;
     private CancellationTokenSource? _midiFolderScanDebounceToken;
@@ -142,6 +155,7 @@ public class SettingsPageViewModel : Screen
 
         _selectedKeypressInputMode = ResolveKeypressInputMode(UseDirectInput, UseWindowMessage);
         _selectedMouseStopClickOption = ResolveMouseStopClickOption(Settings.MouseStopClickMode);
+        InitializeNewSongDefaults();
 
         ConfigureMidiFolderWatcher();
     }
@@ -411,6 +425,77 @@ public class SettingsPageViewModel : Screen
         }
     }
 
+    public string DefaultSongArtist { get; set; } = Settings.DefaultSongArtist;
+
+    public string DefaultSongAlbum { get; set; } = Settings.DefaultSongAlbum;
+
+    public double DefaultSongCustomBpm { get; set; } = Settings.DefaultSongCustomBpm;
+
+    public bool DefaultSongMergeNotes { get; set; } = Settings.DefaultSongMergeNotes;
+
+    public int DefaultSongMergeMilliseconds { get; set; } = (int)Math.Clamp((int)Settings.DefaultSongMergeMilliseconds, 1, 1000);
+
+    public bool DefaultSongHoldNotes { get; set; } = Settings.DefaultSongHoldNotes;
+
+    public bool CanEditDefaultSongMergeMilliseconds => DefaultSongMergeNotes;
+
+    public List<MusicConstants.KeyOption> NewSongKeyOptions { get; private set; } = new();
+
+    public MusicConstants.KeyOption SelectedNewSongDefaultKeyOption
+    {
+        get => _selectedNewSongDefaultKeyOption;
+        set
+        {
+            if (!SetAndNotify(ref _selectedNewSongDefaultKeyOption, value) || value is null || _isSynchronizingNewSongDefaults)
+                return;
+
+            _isSynchronizingNewSongDefaults = true;
+            try
+            {
+                var preferredKey = _selectedNewSongKeyOption?.Value ?? Settings.DefaultSongKey;
+                SyncNewSongKeyOptions(value.Value, preferredKey, saveSettings: true);
+            }
+            finally
+            {
+                _isSynchronizingNewSongDefaults = false;
+            }
+        }
+    }
+
+    public MusicConstants.KeyOption SelectedNewSongKeyOption
+    {
+        get => _selectedNewSongKeyOption;
+        set
+        {
+            if (!SetAndNotify(ref _selectedNewSongKeyOption, value) || value is null || _isSynchronizingNewSongDefaults)
+                return;
+
+            Settings.Modify(s => s.DefaultSongKey = value.Value);
+        }
+    }
+
+    public KeyValuePair<Transpose, string> SelectedNewSongTransposeOption
+    {
+        get => _selectedNewSongTransposeOption;
+        set
+        {
+            if (SetAndNotify(ref _selectedNewSongTransposeOption, value) && !_isSynchronizingNewSongDefaults)
+                Settings.Modify(s => s.DefaultSongTranspose = (int)value.Key);
+        }
+    }
+
+    public MusicConstants.SpeedOption SelectedNewSongSpeedOption
+    {
+        get => _selectedNewSongSpeedOption;
+        set
+        {
+            if (!SetAndNotify(ref _selectedNewSongSpeedOption, value) || value is null || _isSynchronizingNewSongDefaults)
+                return;
+
+            Settings.Modify(s => s.DefaultSongSpeed = value.Value);
+        }
+    }
+
     // Hotkey properties - delegating to GlobalHotkeyService
     public bool HotkeysEnabled
     {
@@ -500,6 +585,94 @@ public class SettingsPageViewModel : Screen
     public KeyValuePair<string, string> SelectedInstrument { get; set; }
 
     public KeyValuePair<string, string> SelectedLayout { get; set; }
+
+    private void InitializeNewSongDefaults()
+    {
+        var defaultKey = Math.Clamp(Settings.DefaultSongDefaultKey, MusicConstants.MinKeyOffset, MusicConstants.MaxKeyOffset);
+        var defaultKeyOption = NewSongDefaultKeyOptions.FirstOrDefault(option => option.Value == defaultKey)
+            ?? NewSongDefaultKeyOptions.First();
+
+        var transpose = Enum.IsDefined(typeof(Transpose), Settings.DefaultSongTranspose)
+            ? (Transpose)Settings.DefaultSongTranspose
+            : Ignore;
+
+        var transposeOption = NewSongTransposeOptions.FirstOrDefault(option => option.Key == transpose);
+        if (transposeOption.Equals(default(KeyValuePair<Transpose, string>)))
+            transposeOption = NewSongTransposeOptions.First(option => option.Key == Ignore);
+
+        var requestedSpeed = Settings.DefaultSongSpeed <= 0
+            ? 1.0
+            : Math.Clamp(Settings.DefaultSongSpeed, 0.1, 4.0);
+
+        var speedOption = NewSongSpeedOptions
+            .OrderBy(option => Math.Abs(option.Value - requestedSpeed))
+            .First();
+
+        _isSynchronizingNewSongDefaults = true;
+        try
+        {
+            _selectedNewSongDefaultKeyOption = defaultKeyOption;
+            NotifyOfPropertyChange(nameof(SelectedNewSongDefaultKeyOption));
+
+            SyncNewSongKeyOptions(defaultKeyOption.Value, Settings.DefaultSongKey, saveSettings: false);
+
+            _selectedNewSongTransposeOption = transposeOption;
+            NotifyOfPropertyChange(nameof(SelectedNewSongTransposeOption));
+
+            _selectedNewSongSpeedOption = speedOption;
+            NotifyOfPropertyChange(nameof(SelectedNewSongSpeedOption));
+        }
+        finally
+        {
+            _isSynchronizingNewSongDefaults = false;
+        }
+
+        var sanitizedMergeMs = Math.Clamp((int)Settings.DefaultSongMergeMilliseconds, 1, 1000);
+        if (Settings.DefaultSongDefaultKey != defaultKey
+            || Settings.DefaultSongKey != _selectedNewSongKeyOption.Value
+            || Settings.DefaultSongTranspose != (int)_selectedNewSongTransposeOption.Key
+            || Math.Abs(Settings.DefaultSongSpeed - _selectedNewSongSpeedOption.Value) > 0.001
+            || (int)Settings.DefaultSongMergeMilliseconds != sanitizedMergeMs)
+        {
+            Settings.Modify(s =>
+            {
+                s.DefaultSongDefaultKey = defaultKey;
+                s.DefaultSongKey = _selectedNewSongKeyOption.Value;
+                s.DefaultSongTranspose = (int)_selectedNewSongTransposeOption.Key;
+                s.DefaultSongSpeed = _selectedNewSongSpeedOption.Value;
+                s.DefaultSongMergeMilliseconds = (uint)sanitizedMergeMs;
+            });
+
+            DefaultSongMergeMilliseconds = sanitizedMergeMs;
+        }
+    }
+
+    private void SyncNewSongKeyOptions(int defaultKey, int preferredKey, bool saveSettings)
+    {
+        var keyOptions = MusicConstants.GenerateKeyOptions(defaultKey);
+        var clampedKey = Math.Clamp(
+            preferredKey,
+            MusicConstants.GetRelativeMinKeyOffset(defaultKey),
+            MusicConstants.GetRelativeMaxKeyOffset(defaultKey));
+
+        var selectedKeyOption = keyOptions.FirstOrDefault(option => option.Value == clampedKey)
+            ?? keyOptions.First();
+
+        NewSongKeyOptions = keyOptions;
+        NotifyOfPropertyChange(nameof(NewSongKeyOptions));
+
+        _selectedNewSongKeyOption = selectedKeyOption;
+        NotifyOfPropertyChange(nameof(SelectedNewSongKeyOption));
+
+        if (!saveSettings)
+            return;
+
+        Settings.Modify(s =>
+        {
+            s.DefaultSongDefaultKey = defaultKey;
+            s.DefaultSongKey = selectedKeyOption.Value;
+        });
+    }
 
     /// <summary>
     /// Path where application data (database, logs, etc.) is stored
@@ -1050,6 +1223,62 @@ public class SettingsPageViewModel : Screen
 
     [UsedImplicitly]
     private void OnIncludeBetaUpdatesChanged() => _ = CheckForUpdate();
+
+    [UsedImplicitly]
+    private void OnDefaultSongArtistChanged()
+    {
+        Settings.Modify(s => s.DefaultSongArtist = string.IsNullOrWhiteSpace(DefaultSongArtist)
+            ? string.Empty
+            : DefaultSongArtist.Trim());
+    }
+
+    [UsedImplicitly]
+    private void OnDefaultSongAlbumChanged()
+    {
+        Settings.Modify(s => s.DefaultSongAlbum = string.IsNullOrWhiteSpace(DefaultSongAlbum)
+            ? string.Empty
+            : DefaultSongAlbum.Trim());
+    }
+
+    [UsedImplicitly]
+    private void OnDefaultSongCustomBpmChanged()
+    {
+        var clampedBpm = double.IsNaN(DefaultSongCustomBpm)
+            ? 0
+            : Math.Clamp(DefaultSongCustomBpm, 0, 999);
+
+        if (Math.Abs(clampedBpm - DefaultSongCustomBpm) > 0.001)
+        {
+            DefaultSongCustomBpm = clampedBpm;
+            return;
+        }
+
+        Settings.Modify(s => s.DefaultSongCustomBpm = clampedBpm);
+    }
+
+    [UsedImplicitly]
+    private void OnDefaultSongMergeNotesChanged()
+    {
+        Settings.Modify(s => s.DefaultSongMergeNotes = DefaultSongMergeNotes);
+        NotifyOfPropertyChange(nameof(CanEditDefaultSongMergeMilliseconds));
+    }
+
+    [UsedImplicitly]
+    private void OnDefaultSongMergeMillisecondsChanged()
+    {
+        var clampedMergeMs = Math.Clamp(DefaultSongMergeMilliseconds, 1, 1000);
+        if (clampedMergeMs != DefaultSongMergeMilliseconds)
+        {
+            DefaultSongMergeMilliseconds = clampedMergeMs;
+            return;
+        }
+
+        Settings.Modify(s => s.DefaultSongMergeMilliseconds = (uint)clampedMergeMs);
+    }
+
+    [UsedImplicitly]
+    private void OnDefaultSongHoldNotesChanged() =>
+        Settings.Modify(s => s.DefaultSongHoldNotes = DefaultSongHoldNotes);
 
     [UsedImplicitly]
     private void OnUseDirectInputChanged()

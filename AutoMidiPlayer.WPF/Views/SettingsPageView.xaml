@@ -19,6 +19,19 @@
         <properties:Settings x:Key="Settings"/>
         <helpers:BindingProxy x:Key="SettingsVmProxy"
                               Data="{Binding}"/>
+        <DataTemplate x:Key="OffsetNoteTemplate">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding OffsetDisplay}"
+                           MinWidth="24"
+                           TextAlignment="Right"
+                           FontSize="12"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                <TextBlock Text="{Binding NoteDisplay}"
+                           Margin="6,0,0,0"
+                           FontSize="12"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+            </StackPanel>
+        </DataTemplate>
     </UserControl.Resources>
 
     <ScrollViewer>
@@ -43,12 +56,6 @@
                         IsChecked="{Binding AutoEnableListenMode}"
                         Margin="0,8,0,0"
                         ToolTip="Playing a song will automatically switch to Listen Mode (Speakers) if the selected game isn't running."/>
-
-                    <ui:ToggleSwitch
-                        Content="Auto Detect Default Key"
-                        IsChecked="{Binding AutoDetectDefaultKey}"
-                        Margin="0,8,0,0"
-                        ToolTip="When enabled, newly imported songs auto-detect Default Key Offset. When disabled, imports default to 0 (C3) and detection is skipped. Also affects resetting a song to defaults"/>
 
                     <GroupBox Header="Keypress Method"
                               Margin="0,8,0,0">
@@ -214,18 +221,18 @@
                                 <Button Command="{s:Action OpenMidiFolder}"
                                         Style="{DynamicResource GhostIconButton}"
                                         ToolTip="Open MIDI folder in Explorer"
-                                    Visibility="{Binding HasAccessibleMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                        Visibility="{Binding HasAccessibleMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
                                     <ui:SymbolIcon Symbol="FolderOpen16"
                                                    FontSize="18"/>
                                 </Button>
-                                                                <Border Padding="6"
-                                                                                Background="Transparent"
-                                                                                ToolTip="MIDI folder can&apos;t be found. Select a new folder path."
-                                                                                Visibility="{Binding IsMidiFolderMissing, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                                                                        <ui:SymbolIcon Symbol="ErrorCircle12"
-                                                                                                     Foreground="#C42B1C"
-                                                                                                     FontSize="18"/>
-                                                                </Border>
+                                <Border Padding="6"
+                                        Background="Transparent"
+                                        ToolTip="MIDI folder can&apos;t be found. Select a new folder path."
+                                        Visibility="{Binding IsMidiFolderMissing, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                    <ui:SymbolIcon Symbol="ErrorCircle12"
+                                                   Foreground="#C42B1C"
+                                                   FontSize="18"/>
+                                </Border>
                                 <TextBlock Text="{Binding MidiFolder, TargetNullValue='No folder selected'}"
                                            VerticalAlignment="Center"
                                            TextTrimming="CharacterEllipsis"
@@ -278,10 +285,97 @@
                 <controls:SimpleStackPanel Grid.Column="1"
                                            Margin="10,0,0,0">
 
+                    <!-- New Song Defaults Section -->
+                    <TextBlock Text="New Song Defaults"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,8"/>
+                    <TextBlock Text="Applied when importing new songs."
+                               TextWrapping="Wrap"
+                               Opacity="0.6"
+                               FontSize="12"
+                               Margin="0,0,0,8"/>
+
+                    <GroupBox Header="Key Defaults"
+                              Margin="0,0,0,0">
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <controls:SimpleStackPanel Grid.Column="0"
+                                                       Spacing="4">
+                                <TextBlock Text="Default Key Offset"
+                                           FontWeight="SemiBold"/>
+                                <ComboBox SelectedItem="{Binding SelectedNewSongDefaultKeyOption}"
+                                          ItemsSource="{x:Static viewModels:SettingsPageViewModel.NewSongDefaultKeyOptions}"
+                                          ItemTemplate="{StaticResource OffsetNoteTemplate}"
+                                          MinWidth="150"/>
+                            </controls:SimpleStackPanel>
+
+                            <controls:SimpleStackPanel Grid.Column="2"
+                                                       Spacing="4">
+                                <TextBlock Text="Key Offset"
+                                           FontWeight="SemiBold"/>
+                                <ComboBox SelectedItem="{Binding SelectedNewSongKeyOption}"
+                                          ItemsSource="{Binding NewSongKeyOptions}"
+                                          ItemTemplate="{StaticResource OffsetNoteTemplate}"
+                                          MinWidth="150"/>
+                            </controls:SimpleStackPanel>
+                        </Grid>
+                    </GroupBox>
+
+                    <ui:ToggleSwitch Content="Auto Detect Default Key"
+                                     IsChecked="{Binding AutoDetectDefaultKey}"
+                                     Margin="0,8,0,0"
+                                     ToolTip="When enabled, newly imported songs try to auto-detect default key. If detection fails, the Key Defaults above are used."/>
+
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <GroupBox Grid.Column="0"
+                                  Header="Transpose">
+                            <ComboBox SelectedItem="{Binding SelectedNewSongTransposeOption}"
+                                      ItemsSource="{x:Static viewModels:SettingsPageViewModel.NewSongTransposeOptions}"
+                                      DisplayMemberPath="Value"
+                                      MinWidth="150"/>
+                        </GroupBox>
+
+                        <GroupBox Grid.Column="2"
+                                  Header="Hold Notes">
+                            <ui:ToggleSwitch Content="Enable"
+                                             IsChecked="{Binding DefaultSongHoldNotes}"
+                                             Margin="0,4,0,0"/>
+                        </GroupBox>
+                    </Grid>
+
+                    <GroupBox Header="Merge Notes"
+                              Margin="0,8,0,0">
+                        <controls:SimpleStackPanel Orientation="Horizontal"
+                                                   Spacing="8">
+                            <ui:ToggleSwitch Content="Merge Notes"
+                                             IsChecked="{Binding DefaultSongMergeNotes}"/>
+                            <TextBlock Text="Tolerance (ms)"
+                                       VerticalAlignment="Center"/>
+                            <ui:NumberBox Value="{Binding DefaultSongMergeMilliseconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          Minimum="1"
+                                          Maximum="1000"
+                                          MaxDecimalPlaces="0"
+                                          MinWidth="100"
+                                          IsEnabled="{Binding CanEditDefaultSongMergeMilliseconds}"/>
+                        </controls:SimpleStackPanel>
+                    </GroupBox>
+
                     <!-- Version Section -->
                     <controls:SimpleStackPanel Orientation="Horizontal"
                                                Spacing="8"
-                                               Margin="0,0,0,8">
+                                               Margin="0,16,0,8">
                         <TextBlock Text="Version"
                                    FontSize="20"
                                    FontWeight="SemiBold"

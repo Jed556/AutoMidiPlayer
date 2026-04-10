@@ -186,6 +186,156 @@ namespace AutoMidiPlayer.Data.Properties
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string DefaultSongArtist
+        {
+            get
+            {
+                return ((string)(this["DefaultSongArtist"]));
+            }
+            set
+            {
+                this["DefaultSongArtist"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string DefaultSongAlbum
+        {
+            get
+            {
+                return ((string)(this["DefaultSongAlbum"]));
+            }
+            set
+            {
+                this["DefaultSongAlbum"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int DefaultSongDefaultKey
+        {
+            get
+            {
+                return ((int)(this["DefaultSongDefaultKey"]));
+            }
+            set
+            {
+                this["DefaultSongDefaultKey"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int DefaultSongKey
+        {
+            get
+            {
+                return ((int)(this["DefaultSongKey"]));
+            }
+            set
+            {
+                this["DefaultSongKey"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int DefaultSongTranspose
+        {
+            get
+            {
+                return ((int)(this["DefaultSongTranspose"]));
+            }
+            set
+            {
+                this["DefaultSongTranspose"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public double DefaultSongCustomBpm
+        {
+            get
+            {
+                return ((double)(this["DefaultSongCustomBpm"]));
+            }
+            set
+            {
+                this["DefaultSongCustomBpm"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("1")]
+        public double DefaultSongSpeed
+        {
+            get
+            {
+                return ((double)(this["DefaultSongSpeed"]));
+            }
+            set
+            {
+                this["DefaultSongSpeed"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool DefaultSongMergeNotes
+        {
+            get
+            {
+                return ((bool)(this["DefaultSongMergeNotes"]));
+            }
+            set
+            {
+                this["DefaultSongMergeNotes"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("100")]
+        public uint DefaultSongMergeMilliseconds
+        {
+            get
+            {
+                return ((uint)(this["DefaultSongMergeMilliseconds"]));
+            }
+            set
+            {
+                this["DefaultSongMergeMilliseconds"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool DefaultSongHoldNotes
+        {
+            get
+            {
+                return ((bool)(this["DefaultSongHoldNotes"]));
+            }
+            set
+            {
+                this["DefaultSongHoldNotes"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("True")]
         public bool PlayUnplayableOnIgnore
         {

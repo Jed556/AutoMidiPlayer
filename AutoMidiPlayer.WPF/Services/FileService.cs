@@ -1004,19 +1004,27 @@ public class FileService(IContainer ioc)
             return;
 
         var metadata = ParseSongMetadataFromFileName(fileName);
+        var defaultSongDefaultKey = Math.Clamp(Settings.DefaultSongDefaultKey, MusicConstants.MinKeyOffset, MusicConstants.MaxKeyOffset);
+        var defaultSongKey = Math.Clamp(
+            Settings.DefaultSongKey,
+            MusicConstants.GetRelativeMinKeyOffset(defaultSongDefaultKey),
+            MusicConstants.GetRelativeMaxKeyOffset(defaultSongDefaultKey));
+        var defaultSongTranspose = Enum.IsDefined(typeof(Transpose), Settings.DefaultSongTranspose)
+            ? (Transpose)Settings.DefaultSongTranspose
+            : Transpose.Ignore;
+        var defaultSongMergeMilliseconds = Math.Clamp(Settings.DefaultSongMergeMilliseconds, 1u, 1000u);
 
         // Key offset is stored relative to DefaultKey for new songs.
-        // Start at 0 so detected DefaultKey becomes the playback base.
-        var song = new Song(fileName, 0)
+        var song = new Song(fileName, defaultSongKey)
         {
             Title = metadata.Title,
             Artist = metadata.Artist,
-            Transpose = Transpose.Ignore,
-            HoldNotes = false
+            DefaultKey = defaultSongDefaultKey,
+            Transpose = defaultSongTranspose,
+            MergeNotes = Settings.DefaultSongMergeNotes,
+            MergeMilliseconds = defaultSongMergeMilliseconds,
+            HoldNotes = Settings.DefaultSongHoldNotes
         };
-
-        if (!Settings.AutoDetectDefaultKey)
-            song.DefaultKey = 0;
 
         var fileHash = song.FileHash;
         if (!string.IsNullOrWhiteSpace(fileHash))
