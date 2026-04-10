@@ -84,8 +84,8 @@ public static class KeyboardPlayer
     public static int KeyboardPressDelayMs { get; set; } = 50;
 
     /// <summary>
-    /// When using <see cref="UseDirectInput"/>, controls whether the key-up event is sent for
-    /// <see cref="KeyAction.Press"/>. Default is true.
+    /// Controls whether the key-up event is sent for <see cref="KeyAction.Press"/> across
+    /// InputSimulator, direct input, and window-message paths. Default is true.
     /// </summary>
     public static bool EnableKeyUp { get; set; } = true;
 

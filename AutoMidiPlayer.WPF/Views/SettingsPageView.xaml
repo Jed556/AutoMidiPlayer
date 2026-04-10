@@ -68,9 +68,8 @@
                     <ui:ToggleSwitch
                         Content="Enable Key-up"
                         IsChecked="{Binding EnableKeyUp}"
-                        IsEnabled="{Binding UseDirectInput}"
                         Margin="0,8,0,0"
-                        ToolTip="When enabled, direct input sends key-up after key-down for press actions."/>
+                        ToolTip="When enabled, key-up is sent after key-down for press actions across all keypress methods."/>
 
                     <controls:SimpleStackPanel Orientation="Horizontal"
                                                Spacing="8"
