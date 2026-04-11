@@ -32,6 +32,11 @@ public static class AppPaths
     public static readonly string UserConfigPath = Path.Combine(AppDataDirectory, "user.config");
 
     /// <summary>
+    /// Marker file used to notify the next app launch that a reset just completed.
+    /// </summary>
+    public static readonly string ResetCompletedMarkerPath = Path.Combine(AppDataDirectory, ".reset-complete");
+
+    /// <summary>
     /// Ensures the app data directory exists
     /// </summary>
     public static void EnsureDirectoryExists()

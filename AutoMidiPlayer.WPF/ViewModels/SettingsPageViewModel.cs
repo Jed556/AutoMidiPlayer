@@ -1026,10 +1026,13 @@ public class SettingsPageViewModel : Screen
         var currentProcessId = Environment.ProcessId;
         var escapedAppDataPath = AppPaths.AppDataDirectory.Replace("'", "''");
         var escapedExecutablePath = executablePath.Replace("'", "''");
+        var escapedResetMarkerPath = AppPaths.ResetCompletedMarkerPath.Replace("'", "''");
 
         var resetCommand = $"Start-Sleep -Milliseconds 400; " +
                            $"Wait-Process -Id {currentProcessId}; " +
                            $"Remove-Item -LiteralPath '{escapedAppDataPath}' -Recurse -Force -ErrorAction SilentlyContinue; " +
+                           $"New-Item -ItemType Directory -Path '{escapedAppDataPath}' -Force | Out-Null; " +
+                           $"New-Item -ItemType File -Path '{escapedResetMarkerPath}' -Force | Out-Null; " +
                            $"Start-Process -FilePath '{escapedExecutablePath}'";
 
         var arguments = $"-NoProfile -WindowStyle Hidden -Command \"{resetCommand}\"";

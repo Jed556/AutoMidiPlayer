@@ -12,6 +12,7 @@ using System.Windows.Threading;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Core.Games;
+using AutoMidiPlayer.WPF.Dialogs;
 using AutoMidiPlayer.WPF.Services;
 using AutoMidiPlayer.WPF.Views;
 using JetBrains.Annotations;
@@ -427,6 +428,8 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         // Let the window finish first paint before heavy startup work.
         await Task.Yield();
 
+        await ShowResetSuccessDialogIfNeededAsync();
+
         try
         {
             // Restore last viewed page (default to Songs if not set)
@@ -575,6 +578,30 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         }
     }
 
+    private static async Task ShowResetSuccessDialogIfNeededAsync()
+    {
+        if (!File.Exists(AppPaths.ResetCompletedMarkerPath))
+            return;
+
+        try
+        {
+            File.Delete(AppPaths.ResetCompletedMarkerPath);
+        }
+        catch (IOException ex)
+        {
+            CrashLogger.LogStep("RESET_MARKER_DELETE_IO_ERROR", $"path='{AppPaths.ResetCompletedMarkerPath}' | message='{ex.Message}'");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            CrashLogger.LogStep("RESET_MARKER_DELETE_AUTH_ERROR", $"path='{AppPaths.ResetCompletedMarkerPath}' | message='{ex.Message}'");
+        }
+
+        var dialog = DialogHelper.CreateDialog();
+        dialog.Title = "Reset complete";
+        dialog.Content = "App data reset finished successfully.";
+        dialog.CloseButtonText = "OK";
+        await dialog.ShowAsync();
+    }
     public void ShowGameInactiveToast(string gameName, bool listenModeEnabled)
     {
         // Ensure we run UI operations on the dispatcher so toasts reliably appear
