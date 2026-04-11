@@ -37,7 +37,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
     private readonly IEventAggregator _events;
     private static readonly Settings Settings = Settings.Default;
 
-    private static readonly string AppName = $"Auto MIDI Player {SettingsPageViewModel.ProgramVersionDisplay}";
+    private static readonly string AppName = "Auto MIDI Player";
     private static readonly string[] MidiExtensions = [".mid", ".midi"];
     private const int InitialStartupSongBatchSize = 50;
     private const int DeferredStartupSongLoadDelayMs = 350;

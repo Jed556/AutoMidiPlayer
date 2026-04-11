@@ -40,7 +40,7 @@
             <Setter Property="Width"
                     Value="44"/>
             <Setter Property="Height"
-                    Value="30"/>
+                    Value="42"/>
             <Setter Property="Padding"
                     Value="0"/>
             <Setter Property="Background"
@@ -59,7 +59,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="BackgroundBorder"
-                                CornerRadius="4"
+                                CornerRadius="0"
                                 Background="Transparent">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"/>
@@ -90,7 +90,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="BackgroundBorder"
-                                CornerRadius="4"
+                                CornerRadius="0"
                                 Background="Transparent">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"/>
@@ -291,7 +291,7 @@
                                     Orientation="Horizontal"
                                     HorizontalAlignment="Right"
                                     VerticalAlignment="Center"
-                                    Margin="0,0,8,0">
+                                    Margin="0">
                             <Button Command="{s:Action NavigateToSettings}"
                                     Style="{DynamicResource GhostIconButton}"
                                     ToolTip="Update available"
