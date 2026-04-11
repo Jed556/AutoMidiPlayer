@@ -943,6 +943,142 @@ public class SettingsPageViewModel : Screen
         System.Diagnostics.Process.Start("explorer.exe", AppPaths.AppDataDirectory);
     }
 
+    public void ResetSongDefaults()
+    {
+        var defaultDefaultKeyOption = NewSongDefaultKeyOptions.FirstOrDefault(option => option.Value == 0)
+            ?? NewSongDefaultKeyOptions.First();
+
+        var defaultTransposeOption = NewSongTransposeOptions.FirstOrDefault(option => option.Key == Ignore);
+        if (defaultTransposeOption.Equals(default(KeyValuePair<Transpose, string>)))
+            defaultTransposeOption = NewSongTransposeOptions.First();
+
+        var defaultSpeedOption = NewSongSpeedOptions
+            .OrderBy(option => Math.Abs(option.Value - 1.0))
+            .First();
+
+        _isSynchronizingNewSongDefaults = true;
+        try
+        {
+            _selectedNewSongDefaultKeyOption = defaultDefaultKeyOption;
+            NotifyOfPropertyChange(nameof(SelectedNewSongDefaultKeyOption));
+
+            SyncNewSongKeyOptions(defaultDefaultKeyOption.Value, defaultDefaultKeyOption.Value, saveSettings: false);
+
+            _selectedNewSongTransposeOption = defaultTransposeOption;
+            NotifyOfPropertyChange(nameof(SelectedNewSongTransposeOption));
+
+            _selectedNewSongSpeedOption = defaultSpeedOption;
+            NotifyOfPropertyChange(nameof(SelectedNewSongSpeedOption));
+        }
+        finally
+        {
+            _isSynchronizingNewSongDefaults = false;
+        }
+
+        AutoDetectDefaultKey = true;
+        DefaultSongArtist = string.Empty;
+        DefaultSongAlbum = string.Empty;
+        DefaultSongCustomBpm = 0;
+        DefaultSongHoldNotes = false;
+        DefaultSongMergeNotes = false;
+        DefaultSongMergeMilliseconds = 100;
+
+        Settings.Modify(s =>
+        {
+            s.AutoDetectDefaultKey = true;
+            s.DefaultSongArtist = string.Empty;
+            s.DefaultSongAlbum = string.Empty;
+            s.DefaultSongCustomBpm = 0;
+            s.DefaultSongDefaultKey = defaultDefaultKeyOption.Value;
+            s.DefaultSongKey = defaultDefaultKeyOption.Value;
+            s.DefaultSongTranspose = (int)defaultTransposeOption.Key;
+            s.DefaultSongSpeed = defaultSpeedOption.Value;
+            s.DefaultSongHoldNotes = false;
+            s.DefaultSongMergeNotes = false;
+            s.DefaultSongMergeMilliseconds = 100;
+        });
+    }
+
+    public async Task ResetAppData()
+    {
+        var confirmDialog = DialogHelper.CreateDialog();
+        confirmDialog.Title = "Reset app data?";
+        confirmDialog.Content = "This clears user settings and local app data, then restarts the app automatically.";
+        confirmDialog.PrimaryButtonText = "Reset";
+        confirmDialog.PrimaryButtonAppearance = ControlAppearance.Danger;
+        confirmDialog.CloseButtonText = "Cancel";
+
+        var result = await confirmDialog.ShowAsync();
+        if (result != ContentDialogResult.Primary)
+            return;
+
+        var executablePath = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(executablePath))
+        {
+            var errorDialog = DialogHelper.CreateDialog();
+            errorDialog.Title = "Unable to reset app data";
+            errorDialog.Content = "Could not resolve the current executable path for restart.";
+            errorDialog.CloseButtonText = "OK";
+            await errorDialog.ShowAsync();
+            return;
+        }
+
+        var currentProcessId = Environment.ProcessId;
+        var escapedAppDataPath = AppPaths.AppDataDirectory.Replace("'", "''");
+        var escapedExecutablePath = executablePath.Replace("'", "''");
+
+        var resetCommand = $"Start-Sleep -Milliseconds 400; " +
+                           $"Wait-Process -Id {currentProcessId}; " +
+                           $"Remove-Item -LiteralPath '{escapedAppDataPath}' -Recurse -Force -ErrorAction SilentlyContinue; " +
+                           $"Start-Process -FilePath '{escapedExecutablePath}'";
+
+        var arguments = $"-NoProfile -WindowStyle Hidden -Command \"{resetCommand}\"";
+
+        try
+        {
+            StartResetHelperProcess("pwsh.exe", arguments);
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            try
+            {
+                StartResetHelperProcess("powershell.exe", arguments);
+            }
+            catch (System.ComponentModel.Win32Exception)
+            {
+                var errorDialog = DialogHelper.CreateDialog();
+                errorDialog.Title = "Unable to reset app data";
+                errorDialog.Content = "Could not start PowerShell to complete reset and restart.";
+                errorDialog.CloseButtonText = "OK";
+                await errorDialog.ShowAsync();
+                return;
+            }
+        }
+
+        Application.Current.Shutdown();
+    }
+
+    /// <summary>
+    /// Starts a detached helper process used to clear app data after shutdown and restart the app.
+    /// </summary>
+    private static void StartResetHelperProcess(string shellPath, string arguments)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(shellPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(arguments);
+
+        var startInfo = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = shellPath,
+            Arguments = arguments,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        var process = System.Diagnostics.Process.Start(startInfo);
+        if (process is null)
+            throw new InvalidOperationException("Failed to start reset helper process.");
+    }
+
     [UsedImplicitly]
     private void OnMidiFolderChanged()
     {
