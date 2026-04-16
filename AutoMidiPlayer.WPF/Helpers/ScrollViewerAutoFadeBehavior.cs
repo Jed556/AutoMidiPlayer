@@ -65,11 +65,22 @@ public static class ScrollViewerAutoFadeBehavior
         private const double SmoothingFactor = 0.32d;
         private const double SnapThreshold = 2.0d;
         private const double MaxSmoothStep = 96d;
+        private const double LineButtonStepFactor = 0.18d;
+        private const double MinLineButtonStep = 32d;
+        private const double MaxLineButtonStep = 112d;
 
         private readonly ScrollViewer _viewer;
         private readonly DispatcherTimer _fadeTimer;
         private readonly DispatcherTimer _smoothScrollTimer;
         private ScrollBar? _verticalScrollBar;
+        private RepeatButton? _lineUpButton;
+        private RepeatButton? _lineDownButton;
+        private ICommand? _lineUpOriginalCommand;
+        private ICommand? _lineDownOriginalCommand;
+        private object? _lineUpOriginalCommandParameter;
+        private object? _lineDownOriginalCommandParameter;
+        private IInputElement? _lineUpOriginalCommandTarget;
+        private IInputElement? _lineDownOriginalCommandTarget;
         private double _targetVerticalOffset;
         private bool _isSmoothScrolling;
 
@@ -105,6 +116,7 @@ public static class ScrollViewerAutoFadeBehavior
 
             if (_verticalScrollBar != null)
             {
+                UnwireLineButtons();
                 _verticalScrollBar.MouseEnter -= OnScrollBarMouseEnter;
                 _verticalScrollBar.MouseLeave -= OnScrollBarMouseLeave;
                 _verticalScrollBar.BeginAnimation(UIElement.OpacityProperty, null);
@@ -158,28 +170,7 @@ public static class ScrollViewerAutoFadeBehavior
 
             var step = GetWheelStep();
             var deltaOffset = -(e.Delta / 120d) * step;
-            if (!_smoothScrollTimer.IsEnabled)
-                _targetVerticalOffset = _viewer.VerticalOffset;
-
-            var currentOffset = _viewer.VerticalOffset;
-            var currentDirection = Math.Sign(_targetVerticalOffset - currentOffset);
-            var incomingDirection = Math.Sign(deltaOffset);
-            if (_smoothScrollTimer.IsEnabled && currentDirection != 0 && incomingDirection != 0 && currentDirection != incomingDirection)
-                _targetVerticalOffset = currentOffset;
-
-            var maxLead = Math.Max(step * 10d, _viewer.ViewportHeight * 1.15d);
-            var minTarget = Math.Max(0d, currentOffset - maxLead);
-            var maxTarget = Math.Min(_viewer.ScrollableHeight, currentOffset + maxLead);
-
-            _targetVerticalOffset = Math.Clamp(_targetVerticalOffset + deltaOffset, minTarget, maxTarget);
-            if (!_smoothScrollTimer.IsEnabled)
-            {
-                AdvanceSmoothScroll();
-                _smoothScrollTimer.Start();
-            }
-
-            ShowScrollBar();
-            RestartFadeTimer();
+            ApplySmoothDelta(deltaOffset);
         }
 
         private void OnViewerScrollChanged(object sender, ScrollChangedEventArgs e)
@@ -222,6 +213,18 @@ public static class ScrollViewerAutoFadeBehavior
             RestartFadeTimer();
         }
 
+        private void OnLineUpButtonClick(object sender, RoutedEventArgs e)
+        {
+            e.Handled = true;
+            HandleLineButtonScroll(-1);
+        }
+
+        private void OnLineDownButtonClick(object sender, RoutedEventArgs e)
+        {
+            e.Handled = true;
+            HandleLineButtonScroll(1);
+        }
+
         private void OnFadeTimerTick(object? sender, EventArgs e)
         {
             _fadeTimer.Stop();
@@ -253,9 +256,66 @@ public static class ScrollViewerAutoFadeBehavior
             _viewer.ScrollToVerticalOffset(Math.Clamp(nextOffset, 0d, _viewer.ScrollableHeight));
         }
 
+        private void ApplySmoothDelta(double deltaOffset)
+        {
+            if (_viewer.ScrollableHeight <= 0)
+                return;
+
+            if (!_smoothScrollTimer.IsEnabled)
+                _targetVerticalOffset = _viewer.VerticalOffset;
+
+            var currentOffset = _viewer.VerticalOffset;
+            var currentDirection = Math.Sign(_targetVerticalOffset - currentOffset);
+            var incomingDirection = Math.Sign(deltaOffset);
+            if (_smoothScrollTimer.IsEnabled && currentDirection != 0 && incomingDirection != 0 && currentDirection != incomingDirection)
+                _targetVerticalOffset = currentOffset;
+
+            var step = GetWheelStep();
+            var maxLead = Math.Max(step * 10d, _viewer.ViewportHeight * 1.15d);
+            var minTarget = Math.Max(0d, currentOffset - maxLead);
+            var maxTarget = Math.Min(_viewer.ScrollableHeight, currentOffset + maxLead);
+
+            _targetVerticalOffset = Math.Clamp(_targetVerticalOffset + deltaOffset, minTarget, maxTarget);
+            if (!_smoothScrollTimer.IsEnabled)
+            {
+                AdvanceSmoothScroll();
+                _smoothScrollTimer.Start();
+            }
+
+            ShowScrollBar();
+            RestartFadeTimer();
+        }
+
+        private void HandleLineButtonScroll(int direction)
+        {
+            if (direction == 0)
+                return;
+
+            if (!IsSmoothScrollingEnabled() || IsLogicalScrollMode())
+            {
+                if (direction > 0)
+                    _viewer.LineDown();
+                else
+                    _viewer.LineUp();
+
+                _targetVerticalOffset = _viewer.VerticalOffset;
+                ShowScrollBar();
+                RestartFadeTimer();
+                return;
+            }
+
+            ApplySmoothDelta(direction * GetLineButtonStep());
+        }
+
         private double GetWheelStep()
         {
             return WheelStep;
+        }
+
+        private double GetLineButtonStep()
+        {
+            var basedOnViewport = _viewer.ViewportHeight * LineButtonStepFactor;
+            return Math.Clamp(basedOnViewport, MinLineButtonStep, MaxLineButtonStep);
         }
 
         private bool IsLogicalScrollMode()
@@ -315,9 +375,15 @@ public static class ScrollViewerAutoFadeBehavior
                 _verticalScrollBar = FindDescendant<ScrollBar>(_viewer, bar => bar.Orientation == Orientation.Vertical);
                 if (_verticalScrollBar != null)
                 {
+                    _verticalScrollBar.ApplyTemplate();
                     _verticalScrollBar.MouseEnter += OnScrollBarMouseEnter;
                     _verticalScrollBar.MouseLeave += OnScrollBarMouseLeave;
+                    WireLineButtons();
                 }
+            }
+            else
+            {
+                WireLineButtons();
             }
 
             if (_verticalScrollBar == null)
@@ -333,8 +399,80 @@ public static class ScrollViewerAutoFadeBehavior
 
                     _verticalScrollBar.MouseEnter += OnScrollBarMouseEnter;
                     _verticalScrollBar.MouseLeave += OnScrollBarMouseLeave;
+                    _verticalScrollBar.ApplyTemplate();
+                    WireLineButtons();
                 }));
             }
+        }
+
+        private void WireLineButtons()
+        {
+            if (_verticalScrollBar == null)
+                return;
+
+            var template = _verticalScrollBar.Template;
+            if (template == null)
+                return;
+
+            var lineUp = template.FindName("LineUpButton", _verticalScrollBar) as RepeatButton;
+            var lineDown = template.FindName("LineDownButton", _verticalScrollBar) as RepeatButton;
+
+            if (ReferenceEquals(lineUp, _lineUpButton) && ReferenceEquals(lineDown, _lineDownButton))
+                return;
+
+            UnwireLineButtons();
+
+            if (lineUp != null)
+            {
+                _lineUpButton = lineUp;
+                _lineUpOriginalCommand = lineUp.Command;
+                _lineUpOriginalCommandParameter = lineUp.CommandParameter;
+                _lineUpOriginalCommandTarget = lineUp.CommandTarget;
+                lineUp.Command = null;
+                lineUp.CommandParameter = null;
+                lineUp.CommandTarget = null;
+                lineUp.Click += OnLineUpButtonClick;
+            }
+
+            if (lineDown != null)
+            {
+                _lineDownButton = lineDown;
+                _lineDownOriginalCommand = lineDown.Command;
+                _lineDownOriginalCommandParameter = lineDown.CommandParameter;
+                _lineDownOriginalCommandTarget = lineDown.CommandTarget;
+                lineDown.Command = null;
+                lineDown.CommandParameter = null;
+                lineDown.CommandTarget = null;
+                lineDown.Click += OnLineDownButtonClick;
+            }
+        }
+
+        private void UnwireLineButtons()
+        {
+            if (_lineUpButton != null)
+            {
+                _lineUpButton.Click -= OnLineUpButtonClick;
+                _lineUpButton.Command = _lineUpOriginalCommand;
+                _lineUpButton.CommandParameter = _lineUpOriginalCommandParameter;
+                _lineUpButton.CommandTarget = _lineUpOriginalCommandTarget;
+                _lineUpButton = null;
+            }
+
+            if (_lineDownButton != null)
+            {
+                _lineDownButton.Click -= OnLineDownButtonClick;
+                _lineDownButton.Command = _lineDownOriginalCommand;
+                _lineDownButton.CommandParameter = _lineDownOriginalCommandParameter;
+                _lineDownButton.CommandTarget = _lineDownOriginalCommandTarget;
+                _lineDownButton = null;
+            }
+
+            _lineUpOriginalCommand = null;
+            _lineDownOriginalCommand = null;
+            _lineUpOriginalCommandParameter = null;
+            _lineDownOriginalCommandParameter = null;
+            _lineUpOriginalCommandTarget = null;
+            _lineDownOriginalCommandTarget = null;
         }
 
         private void ShowScrollBar()

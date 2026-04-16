@@ -34,7 +34,7 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <ScrollViewer>
+    <ScrollViewer helpers:ScrollEdgeFadeBehavior.IsEnabled="True">
         <controls:SimpleStackPanel>
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -110,9 +110,9 @@
                                          Content="Enable global hotkeys"
                                          IsChecked="{Binding HotkeysEnabled}"
                                          ToolTip="When enabled, hotkeys work even when the app is not focused"/>
-                        <Button Grid.Column="2"
+                        <Button Style="{DynamicResource IconButton}"
+                                Grid.Column="2"
                                 Command="{s:Action ResetHotkeys}"
-                                Style="{DynamicResource GhostIconButton}"
                                 ToolTip="Reset all hotkeys to defaults"
                                 Visibility="{Binding HotkeysEnabled, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
                             <ui:SymbolIcon Symbol="ArrowClockwise24"
@@ -196,24 +196,23 @@
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Button s:View.ActionTarget="{Binding Data, Source={StaticResource SettingsVmProxy}}"
+                                        <Button Style="{DynamicResource IconButton}"
+                                                s:View.ActionTarget="{Binding Data, Source={StaticResource SettingsVmProxy}}"
                                                 CommandParameter="{Binding}"
                                                 Command="{s:Action BrowseGameLocation}"
-                                                Width="32"
-                                                Height="32"
+                                                Width="28"
+                                                Height="28"
                                                 MinWidth="0"
-                                                Padding="0"
-                                                Style="{DynamicResource GhostIconButton}">
+                                                Padding="0">
                                             <ui:SymbolIcon Symbol="AppsAddIn16"
-                                                           FontSize="18"/>
+                                                           FontSize="16"/>
                                         </Button>
                                         <TextBlock Grid.Column="1"
-                                                   Margin="6,0,0,0"
+                                                   Margin="4,0,0,0"
                                                    Text="{Binding Location}"
                                                    VerticalAlignment="Center"
-                                                    TextTrimming="CharacterEllipsis"
-                                                    MaxWidth="220"
-                                                    ToolTip="{Binding Location}"/>
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding Location}"/>
                                     </Grid>
                                 </GroupBox>
                             </DataTemplate>
@@ -223,23 +222,23 @@
                     <GroupBox Header="MIDI Folder">
                         <controls:SimpleStackPanel>
                             <controls:SimpleStackPanel Orientation="Horizontal">
-                                <Button Command="{s:Action BrowseMidiFolder}"
+                                <Button Style="{DynamicResource IconButton}"
+                                        Command="{s:Action BrowseMidiFolder}"
                                         Width="28"
                                         Height="28"
                                         MinWidth="0"
                                         Padding="0"
-                                        Style="{DynamicResource GhostIconButton}"
                                         ToolTip="Browse for MIDI folder"
                                         Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}">
                                     <ui:SymbolIcon Symbol="FolderAdd16"
                                                    FontSize="16"/>
                                 </Button>
-                                <Button Command="{s:Action OpenMidiFolder}"
+                                <Button Style="{DynamicResource IconButton}"
+                                        Command="{s:Action OpenMidiFolder}"
                                         Width="28"
                                         Height="28"
                                         MinWidth="0"
                                         Padding="0"
-                                        Style="{DynamicResource GhostIconButton}"
                                         ToolTip="Open MIDI folder in Explorer"
                                         Visibility="{Binding HasAccessibleMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
                                     <ui:SymbolIcon Symbol="FolderOpen16"
@@ -267,12 +266,12 @@
                                                            ButtonToolTip="Refresh/Scan folder for new MIDI files"
                                                            IconSymbol="ArrowClockwise24"
                                                            IconFontSize="18"/>
-                                <Button Command="{s:Action ClearMidiFolder}"
+                                <Button Style="{DynamicResource IconButton}"
+                                        Command="{s:Action ClearMidiFolder}"
                                         Width="28"
                                         Height="28"
                                         MinWidth="0"
                                         Padding="0"
-                                        Style="{DynamicResource GhostIconButton}"
                                         ToolTip="Clear MIDI folder"
                                         Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
                                     <ui:SymbolIcon Symbol="Delete16"
@@ -289,49 +288,42 @@
                     </GroupBox>
 
                     <GroupBox Header="Data Location">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <Button Command="{s:Action OpenDataFolder}"
+                        <controls:SimpleStackPanel Orientation="Horizontal"
+                                                   Spacing="6">
+                            <Button Style="{DynamicResource IconButton}"
+                                    Command="{s:Action OpenDataFolder}"
                                     Width="28"
                                     Height="28"
                                     MinWidth="0"
                                     Padding="0"
-                                    Style="{DynamicResource GhostIconButton}"
                                     ToolTip="Open data folder in Explorer">
                                 <ui:SymbolIcon Symbol="FolderOpen16"
                                                FontSize="16"/>
                             </Button>
-                            <TextBlock Grid.Column="1"
-                                       Margin="4,0,0,0"
-                                       Text="{x:Static viewModels:SettingsPageViewModel.DataLocation}"
+                            <TextBlock Text="{x:Static viewModels:SettingsPageViewModel.DataLocation}"
                                        VerticalAlignment="Center"
                                        TextTrimming="CharacterEllipsis"
-                                        MaxWidth="220"
+                                       MaxWidth="220"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                        ToolTip="{x:Static viewModels:SettingsPageViewModel.DataLocation}"/>
-                            <Button Grid.Column="2"
+                            <Button Style="{DynamicResource IconButton}"
                                     Command="{s:Action ResetAppData}"
                                     Width="28"
                                     Height="28"
                                     MinWidth="0"
                                     Padding="0"
-                                    Style="{DynamicResource GhostIconButton}"
-                                    ToolTip="Clear/reset app data"
-                                    Margin="6,0,0,0">
+                                    ToolTip="Clear/reset app data">
                                 <ui:SymbolIcon Symbol="ArrowClockwise24"
                                                FontSize="16"/>
                             </Button>
-                        </Grid>
+                        </controls:SimpleStackPanel>
                     </GroupBox>
 
                 </controls:SimpleStackPanel>
 
                 <!-- Right Column -->
-                <controls:SimpleStackPanel Grid.Column="1"
+                <controls:SimpleStackPanel Grid.Column="
+                                        1"
                                            Margin="10,0,0,0">
 
                     <!-- New Song Defaults Section -->
@@ -345,9 +337,9 @@
                                    FontSize="20"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,0"/>
-                        <Button Grid.Column="1"
+                        <Button Style="{DynamicResource IconButton}"
+                                Grid.Column="1"
                                 Command="{s:Action ResetSongDefaults}"
-                                Style="{DynamicResource GhostIconButton}"
                                 ToolTip="Reset song defaults"
                                 Margin="0,0,0,2">
                             <ui:SymbolIcon Symbol="ArrowClockwise24"
@@ -472,7 +464,7 @@
                             <Run Text="{Binding LatestVersion.TagName}"/>
                         </TextBlock>
                         <ui:HyperlinkButton NavigateUri="{Binding LatestVersion.Url}"
-                                            Style="{DynamicResource GhostIconButton}"
+                                            Style="{DynamicResource IconHyperlinkButton}"
                                             Padding="2"
                                             ToolTip="Open update page"
                                             Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
@@ -577,5 +569,3 @@
         </controls:SimpleStackPanel>
     </ScrollViewer>
 </UserControl>
-
-

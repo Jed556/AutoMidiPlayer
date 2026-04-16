@@ -9,6 +9,7 @@
     xmlns:s="https://github.com/canton7/Stylet"
     xmlns:core="clr-namespace:AutoMidiPlayer.WPF.Core"
     xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
+    xmlns:helpers="clr-namespace:AutoMidiPlayer.WPF.Helpers"
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
     xmlns:properties="clr-namespace:AutoMidiPlayer.Data.Properties;assembly=AutoMidiPlayer.Data"
     d:DataContext="{d:DesignInstance Type=viewModels:InstrumentViewModel}">
@@ -16,7 +17,7 @@
         <properties:Settings x:Key="Settings"/>
     </UserControl.Resources>
 
-    <ScrollViewer>
+    <ScrollViewer helpers:ScrollEdgeFadeBehavior.IsEnabled="True">
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -152,8 +153,8 @@
                                 SelectedItem="{Binding SelectedMidiInput}"
                                 DisplayMemberPath="DeviceName"
                                 MinWidth="200"/>
-                            <Button Command="{s:Action RefreshDevices}"
-                                    Style="{DynamicResource GhostIconButton}"
+                            <Button Style="{DynamicResource IconButton}"
+                                    Command="{s:Action RefreshDevices}"
                                     ToolTip="Refresh MIDI devices">
                                 <ui:SymbolIcon Symbol="ArrowClockwise24"
                                                FontSize="18"/>

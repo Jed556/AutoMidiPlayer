@@ -8,6 +8,7 @@
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
     xmlns:midi="clr-namespace:AutoMidiPlayer.Data.Midi;assembly=AutoMidiPlayer.Data"
     xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
+    xmlns:helpers="clr-namespace:AutoMidiPlayer.WPF.Helpers"
     xmlns:converters="clr-namespace:AutoMidiPlayer.WPF.Converters"
     x:Name="SongListRoot">
 
@@ -104,6 +105,7 @@
                   Background="Transparent"
                   AllowDrop="{Binding AllowReorder, ElementName=SongListRoot}"
                   PreviewMouseDoubleClick="TrackListView_PreviewMouseDoubleClick"
+                  helpers:ScrollEdgeFadeBehavior.IsEnabled="True"
                   ScrollViewer.VerticalScrollBarVisibility="Visible"
                   ScrollViewer.HorizontalScrollBarVisibility="Disabled">
             <ListView.ItemTemplate>

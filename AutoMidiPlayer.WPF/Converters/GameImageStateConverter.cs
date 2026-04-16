@@ -14,14 +14,20 @@ public class GameImageStateConverter : IMultiValueConverter
 
     public object? Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
     {
-        if (values.Length < 2)
+        if (values.Length < 1)
             return Binding.DoNothing;
 
         var sourcePath = values[0] as string;
         if (string.IsNullOrWhiteSpace(sourcePath))
             return Binding.DoNothing;
 
-        var isActive = values[1] is bool active && active;
+        var forceGray = parameter is string mode
+            && mode.Equals("gray", StringComparison.OrdinalIgnoreCase);
+
+        if (forceGray)
+            return GetGrayImage(sourcePath.Trim());
+
+        var isActive = values.Length > 1 && values[1] is bool active && active;
 
         var key = sourcePath.Trim();
         return isActive
@@ -56,7 +62,7 @@ public class GameImageStateConverter : IMultiValueConverter
             var gray = new FormatConvertedBitmap();
             gray.BeginInit();
             gray.Source = color;
-            gray.DestinationFormat = PixelFormats.Gray8;
+            gray.DestinationFormat = PixelFormats.Gray16;
             gray.EndInit();
             gray.Freeze();
             return gray;

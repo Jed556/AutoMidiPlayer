@@ -1,0 +1,227 @@
+<ui:ContentDialog x:Class="AutoMidiPlayer.WPF.Dialogs.EditDialog"
+                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                  xmlns:helpers="clr-namespace:AutoMidiPlayer.WPF.Helpers"
+                  Title="Edit Song"
+                  PrimaryButtonText="Save"
+                  CloseButtonText="Cancel"
+                  PrimaryButtonAppearance="Primary"
+                  CloseButtonAppearance="Secondary"
+                  DefaultButton="Primary"
+                  PreviewMouseWheel="OnDialogPreviewMouseWheel">
+
+    <ScrollViewer x:Name="DialogScrollViewer"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled"
+                  CanContentScroll="False"
+                  helpers:ScrollViewerAutoFadeBehavior.IsEnabled="True"
+                  helpers:ScrollEdgeFadeBehavior.IsEnabled="True"
+                  helpers:ScrollEdgeFadeBehavior.FadeRampDistance="110"
+                  helpers:ScrollEdgeFadeBehavior.EdgeFadeThickness="0.18"
+                  helpers:ScrollEdgeFadeBehavior.MaxFadeOpacity="0.92">
+        <StackPanel x:Name="DialogContentPanel"
+                Margin="0,0,12,0">
+            <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Title"
+                            FontWeight="SemiBold"
+                            Margin="0,0,0,4"/>
+                    <ui:TextBox x:Name="TitleBox"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="Album"
+                            FontWeight="SemiBold"
+                            Margin="0,0,0,4"/>
+                    <ui:TextBox x:Name="AlbumBox"/>
+                </StackPanel>
+            </Grid>
+
+            <TextBlock Text="Artist"
+                    FontWeight="SemiBold"
+                    Margin="0,0,0,4"/>
+            <ui:TextBox x:Name="ArtistBox"
+                    Margin="0,0,0,12"/>
+
+            <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Default Key Offset"
+                            FontWeight="SemiBold"
+                            Margin="0,0,0,4"/>
+                    <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Left">
+                        <ComboBox x:Name="DefaultKeyComboBox"
+                                  Width="160"
+                                  HorizontalAlignment="Left"
+                                  Cursor="Hand"
+                                  SelectionChanged="OnDefaultKeyComboBoxSelectionChanged"/>
+                        <Button x:Name="RescanDefaultKeyButton"
+                                Margin="6,0,0,0"
+                                Width="32"
+                                Height="32"
+                                Padding="6"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                Cursor="Hand"
+                                ToolTip="Auto-scan default key offset from MIDI"
+                                Style="{DynamicResource IconButton}"
+                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                Click="RescanDefaultKeyButton_Click">
+                            <ui:SymbolIcon Symbol="ScanDash12"
+                                           FontSize="16"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="Key Offset"
+                            FontWeight="SemiBold"
+                            Margin="0,0,0,4"/>
+                    <ComboBox x:Name="KeyComboBox"
+                              Width="160"
+                              HorizontalAlignment="Left"
+                              Cursor="Hand"
+                              SelectionChanged="OnKeyComboBoxSelectionChanged"/>
+                </StackPanel>
+            </Grid>
+
+            <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Transpose"
+                            FontWeight="SemiBold"
+                            Margin="0,0,0,4"/>
+                    <ComboBox x:Name="TransposeComboBox"
+                              Width="160"
+                              HorizontalAlignment="Left"
+                              Cursor="Hand"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="BPM"
+                            FontWeight="SemiBold"
+                            Margin="0,0,0,4"/>
+                    <ui:TextBox x:Name="BpmBox"
+                                Width="88"
+                                HorizontalAlignment="Left"/>
+                </StackPanel>
+            </Grid>
+
+            <Grid Margin="0,8,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Speed"
+                            FontWeight="SemiBold"
+                            Margin="0,0,0,4"/>
+                    <ComboBox x:Name="SpeedComboBox"
+                              Width="88"
+                              HorizontalAlignment="Left"
+                              Cursor="Hand"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="Merge Notes"
+                            FontWeight="SemiBold"
+                            Margin="0,0,0,4"/>
+                    <StackPanel Orientation="Horizontal"
+                            Margin="0,2,0,0">
+                        <ui:ToggleSwitch x:Name="MergeNotesToggle"
+                                         Content=""
+                                         VerticalAlignment="Center"
+                                         Margin="0,0,8,0"
+                                         Cursor="Hand"
+                                         Checked="MergeNotesToggle_Checked"
+                                         Unchecked="MergeNotesToggle_Unchecked"/>
+                        <TextBlock Text="Tolerance (ms):"
+                                VerticalAlignment="Center"
+                                Margin="0,0,4,0"/>
+                        <ui:TextBox x:Name="MergeMillisecondsBox"
+                                    Width="60"/>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+
+            <Grid Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Hold Notes"
+                            FontWeight="SemiBold"
+                            Margin="0,0,0,4"/>
+                    <StackPanel Orientation="Horizontal"
+                            Margin="0,2,0,0">
+                        <ui:ToggleSwitch x:Name="HoldNotesToggle"
+                                         Content=""
+                                         VerticalAlignment="Center"
+                                         Cursor="Hand"/>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+
+            <Button x:Name="ResetDefaultsButton"
+                    ToolTip="Reset fields to default values"
+                    Margin="0,12,0,14"
+                    Style="{StaticResource DangerActionButton}"
+                    Click="ResetDefaultsButton_Click">
+                <StackPanel Orientation="Horizontal"
+                        VerticalAlignment="Center">
+                    <ui:SymbolIcon Symbol="ArrowClockwise24"
+                                   FontSize="14"
+                                   Foreground="White"/>
+                    <TextBlock Text="Reset Defaults"
+                               Margin="8,0,0,0"
+                               VerticalAlignment="Center"
+                               Foreground="White"/>
+                </StackPanel>
+            </Button>
+
+            <Separator Margin="0,0,0,10"/>
+
+            <TextBlock TextWrapping="Wrap"
+                    Margin="0,0,0,2">
+                <Hyperlink x:Name="PathHyperlink"
+                           Cursor="Hand"
+                           Click="PathHyperlink_Click">
+                    <Run x:Name="PathRun"
+                            Text="(unknown)"/>
+                </Hyperlink>
+            </TextBlock>
+
+            <TextBlock x:Name="DateText"
+                       Margin="0,2,0,2"
+                       FontSize="11"
+                       Opacity="0.7"
+                       Foreground="#FFD2D2D2"/>
+        </StackPanel>
+    </ScrollViewer>
+</ui:ContentDialog>

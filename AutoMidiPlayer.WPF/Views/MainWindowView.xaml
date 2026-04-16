@@ -35,6 +35,24 @@
         <helpers:BindingProxy x:Key="DataContextProxy"
                               Data="{Binding}"/>
         <converters:GameImageStateConverter x:Key="GameImageStateConverter"/>
+
+        <!-- Disable keyboard focus outlines globally in this window (WPF + WPF-UI). -->
+        <Style x:Key="{x:Static SystemParameters.FocusVisualStyleKey}"
+               TargetType="{x:Type Control}"/>
+        <Style x:Key="DefaultControlFocusVisualStyle"
+               TargetType="{x:Type Control}"/>
+
+        <Style TargetType="{x:Type Image}">
+            <Setter Property="RenderOptions.BitmapScalingMode"
+                    Value="Fant"/>
+            <Setter Property="SnapsToDevicePixels"
+                    Value="False"/>
+            <Setter Property="UseLayoutRounding"
+                    Value="True"/>
+            <Setter Property="RenderOptions.EdgeMode"
+                    Value="Unspecified"/>
+        </Style>
+
         <Style x:Key="TitleBarCaptionButtonStyle"
                TargetType="Button">
             <Setter Property="Width"
@@ -81,6 +99,286 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <ControlTemplate x:Key="SquareLeftFluentNavigationViewItemTemplate"
+                         TargetType="ui:NavigationViewItem">
+            <Border x:Name="MainBorder"
+                    MinWidth="60"
+                    MinHeight="60"
+                    Height="{Binding ActualWidth, RelativeSource={RelativeSource Self}}"
+                    Margin="3,0,3,6"
+                    Padding="4"
+                    HorizontalAlignment="Stretch"
+                    Background="#00FFFFFF"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="10">
+                <Grid>
+                    <Rectangle x:Name="ActiveRectangle"
+                               Width="3"
+                               Height="22"
+                               Margin="-4,0,0,0"
+                               HorizontalAlignment="Left"
+                               VerticalAlignment="Center"
+                               Opacity="0"
+                               Fill="{DynamicResource NavigationViewSelectionIndicatorForeground}"
+                               RadiusX="2"
+                               RadiusY="2"/>
+
+                    <Grid HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <ContentPresenter x:Name="IconContentPresenter"
+                                          Grid.Row="0"
+                                          VerticalAlignment="Center"
+                                          Margin="0"
+                                          Content="{TemplateBinding Icon}"
+                                          TextElement.FontSize="24"
+                                          TextElement.Foreground="{DynamicResource NavigationViewItemForegroundLeftFluent}"/>
+
+                        <!-- Keep this in sync with the ContentGrid Height animations below. -->
+                        <Grid x:Name="ContentGrid"
+                              Grid.Row="1"
+                              Height="14"
+                              Margin="0,0,0,0">
+                            <!-- Negative top margin moves only the label upward. -->
+                            <AccessText x:Name="ElementContentPresenter"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Top"
+                                        Margin="0,-8,0,0"
+                                        Text="{TemplateBinding Content}"
+                                        FontSize="11"
+                                        Foreground="{DynamicResource NavigationViewItemForegroundLeftFluent}"/>
+                        </Grid>
+
+                        <ContentPresenter x:Name="PART_InfoBadge"
+                                          Grid.Row="0"
+                                          Margin="0"
+                                          HorizontalAlignment="Right"
+                                          VerticalAlignment="Top"
+                                          Content="{TemplateBinding InfoBadge}"/>
+                    </Grid>
+                </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsActive"
+                         Value="True">
+                    <Trigger.EnterActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <!-- Collapse label row when active; From should match ContentGrid Height. -->
+                                <DoubleAnimation Storyboard.TargetName="ContentGrid"
+                                                 Storyboard.TargetProperty="Height"
+                                                 From="14"
+                                                 To="0"
+                                                 Duration="0:0:0.16"/>
+                                <DoubleAnimation Storyboard.TargetName="ContentGrid"
+                                                 Storyboard.TargetProperty="Opacity"
+                                                 From="1"
+                                                 To="0"
+                                                 Duration="0:0:0.16"/>
+                                <DoubleAnimation Storyboard.TargetName="MainBorder"
+                                                 Storyboard.TargetProperty="(Border.BorderBrush).(Brush.Opacity)"
+                                                 From="0"
+                                                 To="1"
+                                                 Duration="0:0:0.16"/>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </Trigger.EnterActions>
+                    <Trigger.ExitActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <!-- Expand back to the same baseline label row height. -->
+                                <DoubleAnimation Storyboard.TargetName="ContentGrid"
+                                                 Storyboard.TargetProperty="Height"
+                                                 From="0"
+                                                 To="14"
+                                                 Duration="0:0:0.16"/>
+                                <DoubleAnimation Storyboard.TargetName="ContentGrid"
+                                                 Storyboard.TargetProperty="Opacity"
+                                                 From="0"
+                                                 To="1"
+                                                 Duration="0:0:0.16"/>
+                                <DoubleAnimation Storyboard.TargetName="MainBorder"
+                                                 Storyboard.TargetProperty="(Border.BorderBrush).(Brush.Opacity)"
+                                                 From="1"
+                                                 To="0"
+                                                 Duration="0:0:0.16"/>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </Trigger.ExitActions>
+                    <Setter TargetName="ActiveRectangle"
+                            Property="Opacity"
+                            Value="1"/>
+                    <Setter TargetName="MainBorder"
+                            Property="Background"
+                            Value="{DynamicResource NavigationViewItemBackgroundSelectedLeftFluent}"/>
+                    <Setter TargetName="IconContentPresenter"
+                            Property="TextElement.Foreground"
+                            Value="{DynamicResource NavigationViewSelectionIndicatorForeground}"/>
+                    <!-- Active icon emphasis size (normal is set above on IconContentPresenter). -->
+                    <Setter TargetName="IconContentPresenter"
+                            Property="TextElement.FontSize"
+                            Value="28"/>
+                    <Setter TargetName="ElementContentPresenter"
+                            Property="Margin"
+                            Value="0,-2,0,0"/>
+                </Trigger>
+
+                <Trigger Property="Icon"
+                         Value="{x:Null}">
+                    <Setter TargetName="IconContentPresenter"
+                            Property="Visibility"
+                            Value="Collapsed"/>
+                </Trigger>
+
+                <Trigger Property="InfoBadge"
+                         Value="{x:Null}">
+                    <Setter TargetName="PART_InfoBadge"
+                            Property="Margin"
+                            Value="0"/>
+                    <Setter TargetName="PART_InfoBadge"
+                            Property="Visibility"
+                            Value="Collapsed"/>
+                </Trigger>
+
+                <Trigger Property="IsMouseOver"
+                         Value="True">
+                    <Setter TargetName="MainBorder"
+                            Property="Background"
+                            Value="{DynamicResource NavigationViewItemBackgroundSelectedLeftFluent}"/>
+                </Trigger>
+
+                <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                        <Condition Property="IsMouseOver"
+                                   Value="True"/>
+                        <Condition Property="IsActive"
+                                   Value="False"/>
+                    </MultiTrigger.Conditions>
+                    <Setter TargetName="IconContentPresenter"
+                            Property="TextElement.Foreground"
+                            Value="{DynamicResource NavigationViewItemForegroundPointerOverLeftFluent}"/>
+                    <Setter TargetName="ContentGrid"
+                            Property="TextElement.Foreground"
+                            Value="{DynamicResource NavigationViewItemForegroundPointerOverLeftFluent}"/>
+                </MultiTrigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <ControlTemplate x:Key="GameDrawerNavigationItemTemplate"
+                         TargetType="ui:NavigationViewItem">
+            <Border x:Name="ItemHost"
+                    Background="{TemplateBinding Background}"
+                    CornerRadius="10"
+                    ClipToBounds="True">
+                <Grid ToolTip="{Binding DataContext.SelectedGame.DisplayName, RelativeSource={RelativeSource TemplatedParent}}">
+                    <Border x:Name="GameImageHost"
+                            CornerRadius="10"
+                            RenderOptions.BitmapScalingMode="Fant">
+                        <Border.Background>
+                            <ImageBrush Stretch="UniformToFill"
+                                        RenderOptions.BitmapScalingMode="Fant">
+                                <ImageBrush.RelativeTransform>
+                                    <ScaleTransform ScaleX="1"
+                                                    ScaleY="1"
+                                                    CenterX="0.5"
+                                                    CenterY="0.5"/>
+                                </ImageBrush.RelativeTransform>
+                                <ImageBrush.ImageSource>
+                                    <MultiBinding Converter="{StaticResource GameImageStateConverter}">
+                                        <Binding Path="DataContext.SelectedGame.ImagePath"
+                                                 RelativeSource="{RelativeSource TemplatedParent}"/>
+                                        <Binding Path="DataContext.SelectedGame.IsRunning"
+                                                 RelativeSource="{RelativeSource TemplatedParent}"/>
+                                    </MultiBinding>
+                                </ImageBrush.ImageSource>
+                            </ImageBrush>
+                        </Border.Background>
+                    </Border>
+                </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+                <!-- Hover feedback is zoom-only to avoid tint/opacity artifacts. -->
+                <Trigger Property="IsMouseOver"
+                         Value="True">
+                    <Trigger.EnterActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetName="GameImageHost"
+                                                 Storyboard.TargetProperty="(Border.Background).(ImageBrush.RelativeTransform).(ScaleTransform.ScaleX)"
+                                                 To="1.08"
+                                                 Duration="0:0:0.14">
+                                    <DoubleAnimation.EasingFunction>
+                                        <QuadraticEase EasingMode="EaseOut"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                                <DoubleAnimation Storyboard.TargetName="GameImageHost"
+                                                 Storyboard.TargetProperty="(Border.Background).(ImageBrush.RelativeTransform).(ScaleTransform.ScaleY)"
+                                                 To="1.08"
+                                                 Duration="0:0:0.14">
+                                    <DoubleAnimation.EasingFunction>
+                                        <QuadraticEase EasingMode="EaseOut"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </Trigger.EnterActions>
+                    <Trigger.ExitActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetName="GameImageHost"
+                                                 Storyboard.TargetProperty="(Border.Background).(ImageBrush.RelativeTransform).(ScaleTransform.ScaleX)"
+                                                 To="1"
+                                                 Duration="0:0:0.16">
+                                    <DoubleAnimation.EasingFunction>
+                                        <QuadraticEase EasingMode="EaseOut"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                                <DoubleAnimation Storyboard.TargetName="GameImageHost"
+                                                 Storyboard.TargetProperty="(Border.Background).(ImageBrush.RelativeTransform).(ScaleTransform.ScaleY)"
+                                                 To="1"
+                                                 Duration="0:0:0.16">
+                                    <DoubleAnimation.EasingFunction>
+                                        <QuadraticEase EasingMode="EaseOut"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </Trigger.ExitActions>
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <Style x:Key="GameDrawerNavigationItemStyle"
+               TargetType="ui:NavigationViewItem">
+            <Setter Property="Height"
+                    Value="67"/>
+            <Setter Property="Width"
+                    Value="67"/>
+            <Setter Property="MinHeight"
+                    Value="67"/>
+            <Setter Property="MinWidth"
+                    Value="67"/>
+            <Setter Property="Padding"
+                    Value="0"/>
+            <Setter Property="Margin"
+                    Value="3,6,3,6"/>
+            <Setter Property="Background"
+                    Value="Transparent"/>
+            <Setter Property="Cursor"
+                    Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Center"/>
+            <Setter Property="VerticalContentAlignment"
+                    Value="Center"/>
+            <Setter Property="Template"
+                    Value="{StaticResource GameDrawerNavigationItemTemplate}"/>
         </Style>
 
         <Style x:Key="TitleBarCloseButtonStyle"
@@ -135,6 +433,62 @@
                     <ControlTemplate TargetType="Button">
                         <ContentPresenter HorizontalAlignment="Stretch"
                                           VerticalAlignment="Center"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="NavigationScrollHintButtonStyle"
+               TargetType="Button">
+            <Setter Property="Width"
+                    Value="40"/>
+            <Setter Property="Height"
+                    Value="40"/>
+            <Setter Property="Padding"
+                    Value="0"/>
+            <Setter Property="Cursor"
+                    Value="Hand"/>
+            <Setter Property="Background"
+                    Value="Transparent"/>
+            <Setter Property="BorderBrush"
+                    Value="Transparent"/>
+            <Setter Property="BorderThickness"
+                    Value="0"/>
+            <Setter Property="Foreground"
+                    Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+            <Setter Property="Opacity"
+                    Value="0"/>
+            <Setter Property="RenderTransformOrigin"
+                    Value="0.5,0.5"/>
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <ScaleTransform ScaleX="0.62"
+                                    ScaleY="0.62"/>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="14">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter TargetName="ButtonBorder"
+                                        Property="Background"
+                                        Value="{DynamicResource SubtleFillColorSecondaryBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed"
+                                     Value="True">
+                                <Setter TargetName="ButtonBorder"
+                                        Property="Background"
+                                        Value="{DynamicResource SubtleFillColorTertiaryBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -292,8 +646,8 @@
                                     HorizontalAlignment="Right"
                                     VerticalAlignment="Center"
                                     Margin="0">
-                            <Button Command="{s:Action NavigateToSettings}"
-                                    Style="{DynamicResource GhostIconButton}"
+                            <Button Style="{DynamicResource IconButton}"
+                                    Command="{s:Action NavigateToSettings}"
                                     ToolTip="Update available"
                                     Visibility="{Binding ShowUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
                                     Padding="8,4"
@@ -303,8 +657,8 @@
                                                FontSize="18"/>
                             </Button>
 
-                            <Button Command="{s:Action ToggleTheme}"
-                                    Style="{DynamicResource GhostIconButton}"
+                            <Button Style="{DynamicResource IconButton}"
+                                    Command="{s:Action ToggleTheme}"
                                     ToolTip="Toggle theme"
                                     Padding="8,4"
                                     Margin="0,0,8,0"
@@ -312,6 +666,17 @@
                                 <ui:SymbolIcon Symbol="DarkTheme24"
                                                FontSize="18"/>
                             </Button>
+
+                            <!-- Let's have a pin / always on top button some time here -->
+                            <!-- <Button Style="{DynamicResource IconButton}"
+                                    Command="{s:Action PinWindow}"
+                                    ToolTip="Pin window"
+                                    Padding="8,4"
+                                    Margin="0,0,8,0"
+                                    shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                                <ui:SymbolIcon Symbol="Pin16"
+                                               FontSize="18"/>
+                            </Button> -->
 
                             <!-- Fullscreen button isn't necessary but keep this feature -->
                             <!-- <Button x:Name="FullscreenButton"
@@ -372,18 +737,29 @@
 
                 <!-- Left Navigation -->
                 <Grid Grid.Column="0">
-
                     <!-- OpenPaneLength & PaneDisplayMode is responsible for the width -->
                     <ui:NavigationView
                         x:Name="RootNavigation"
                         Margin="3,0,3,3"
+                        helpers:ScrollEdgeFadeBehavior.IsEnabled="True"
+                        helpers:ScrollEdgeFadeBehavior.FadeRampDistance="70"
+                        helpers:ScrollEdgeFadeBehavior.EdgeFadeThickness="0.26"
+                        helpers:ScrollEdgeFadeBehavior.MaxFadeOpacity="1"
+                        helpers:ScrollEdgeFadeBehavior.TopInset="0"
+                        helpers:ScrollEdgeFadeBehavior.BottomInset="0"
                         UseLayoutRounding="True"
+                        ItemTemplate="{StaticResource SquareLeftFluentNavigationViewItemTemplate}"
                         IsPaneOpen="False"
-                        OpenPaneLength="67"
-                        CompactPaneLength="67"
+                        OpenPaneLength="75"
+                        CompactPaneLength="75"
                         PaneDisplayMode="LeftFluent"
                         IsBackButtonVisible="Collapsed"
                         IsPaneToggleVisible="False">
+                        <ui:NavigationView.Resources>
+                            <Style TargetType="ui:NavigationViewItem"
+                                   BasedOn="{StaticResource {x:Type ui:NavigationViewItem}}">
+                            </Style>
+                        </ui:NavigationView.Resources>
                         <ui:NavigationView.MenuItems>
                             <ui:NavigationViewItem Content="Tracks"
                                                    Icon="{ui:SymbolIcon AppsListDetail24}"
@@ -408,39 +784,43 @@
                         </ui:NavigationView.MenuItems>
                         <ui:NavigationView.FooterMenuItems>
                             <ui:NavigationViewItem x:Name="GameDrawerItem"
-                                                   Padding="0"
-                                                   HorizontalContentAlignment="Center"
-                                                   VerticalContentAlignment="Center"
-                                                   Click="{s:Action ToggleGameSelector}">
-                                <ui:NavigationViewItem.Content>
-                                    <Grid HorizontalAlignment="Center"
-                                          VerticalAlignment="Center">
-                                        <Border Padding="0"
-                                                HorizontalAlignment="Center"
-                                                VerticalAlignment="Center"
-                                                Margin="0,-28,0,0"
-                                                CornerRadius="10"
-                                                ClipToBounds="True"
-                                                ToolTip="{Binding SelectedGame.DisplayName}">
-                                            <Image Stretch="UniformToFill"
-                                                   RenderOptions.BitmapScalingMode="HighQuality">
-                                                <Image.Source>
-                                                    <MultiBinding Converter="{StaticResource GameImageStateConverter}">
-                                                        <Binding Path="SelectedGame.ImagePath"/>
-                                                        <Binding Path="SelectedGame.IsRunning"/>
-                                                    </MultiBinding>
-                                                </Image.Source>
-                                            </Image>
-                                        </Border>
-                                    </Grid>
-                                </ui:NavigationViewItem.Content>
-                            </ui:NavigationViewItem>
+                                                   Loaded="GameDrawerItem_Loaded"
+                                                   Style="{StaticResource GameDrawerNavigationItemStyle}"
+                                                   Click="{s:Action ToggleGameSelector}"/>
                             <ui:NavigationViewItem Content="Settings"
                                                    Icon="{ui:SymbolIcon Settings16}"
                                                    Tag="{Binding SettingsView}"
                                                    Click="{s:Action NavigateToItem}"/>
                         </ui:NavigationView.FooterMenuItems>
                     </ui:NavigationView>
+
+                    <Button x:Name="NavigationScrollUpButton"
+                            Margin="0,0,0,0"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Top"
+                            Panel.ZIndex="4"
+                            Visibility="Collapsed"
+                            Click="NavigationScrollUp_Click"
+                            Style="{StaticResource NavigationScrollHintButtonStyle}">
+                        <ui:SymbolIcon Symbol="ArrowCircleUp12"
+                                       Filled="True"
+                                       FontSize="22"
+                                       Foreground="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"/>
+                    </Button>
+
+                    <Button x:Name="NavigationScrollDownButton"
+                            Margin="0,0,0,170"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Bottom"
+                            Panel.ZIndex="4"
+                            Visibility="Collapsed"
+                            Click="NavigationScrollDown_Click"
+                            Style="{StaticResource NavigationScrollHintButtonStyle}">
+                        <ui:SymbolIcon Symbol="ArrowCircleDown12"
+                                       Filled="True"
+                                       FontSize="22"
+                                       Foreground="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"/>
+                    </Button>
 
                     <!-- Game selector popup -->
                     <Popup PlacementTarget="{Binding ElementName=GameDrawerItem}"
@@ -457,7 +837,7 @@
                             <!-- Inner border: themed surface with stroke -->
                             <Border Padding="10"
                                     Width="260"
-                                    CornerRadius="12"
+                                    CornerRadius="10"
                                     BorderThickness="1"
                                     BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                                     Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
@@ -515,16 +895,19 @@
                                                             <Border Width="44"
                                                                     Height="44"
                                                                     CornerRadius="10"
-                                                                    ClipToBounds="True">
-                                                                <Image Stretch="UniformToFill"
-                                                                       RenderOptions.BitmapScalingMode="HighQuality">
-                                                                    <Image.Source>
-                                                                        <MultiBinding Converter="{StaticResource GameImageStateConverter}">
-                                                                            <Binding Path="ImagePath"/>
-                                                                            <Binding Path="IsRunning"/>
-                                                                        </MultiBinding>
-                                                                    </Image.Source>
-                                                                </Image>
+                                                                    SnapsToDevicePixels="False"
+                                                                    UseLayoutRounding="True">
+                                                                <Border.Background>
+                                                                    <ImageBrush Stretch="UniformToFill"
+                                                                                RenderOptions.BitmapScalingMode="Fant">
+                                                                        <ImageBrush.ImageSource>
+                                                                            <MultiBinding Converter="{StaticResource GameImageStateConverter}">
+                                                                                <Binding Path="ImagePath"/>
+                                                                                <Binding Path="IsRunning"/>
+                                                                            </MultiBinding>
+                                                                        </ImageBrush.ImageSource>
+                                                                    </ImageBrush>
+                                                                </Border.Background>
                                                             </Border>
                                                             <StackPanel Grid.Column="1"
                                                                         Margin="12,0,0,0"
@@ -564,7 +947,8 @@
 
                 <!-- Content Panel -->
                 <Border Grid.Column="1"
-                        CornerRadius="8,0,0,0"
+                        CornerRadius="10,0,0,0"
+                        Padding="18,12,14,0"
                         Background="{ui:ThemeResource ControlFillColorDefaultBrush}">
                     <Grid>
                         <Grid.RowDefinitions>
@@ -573,7 +957,7 @@
                         </Grid.RowDefinitions>
                         <ui:BreadcrumbBar
                             Grid.Row="0"
-                            Margin="18,24,18,8"
+                            Margin="0,0,0,8"
                             HorizontalAlignment="Left"
                             VerticalAlignment="Top"
                             ItemsSource="{Binding BreadcrumbItems}">
@@ -588,7 +972,7 @@
                                x:Name="RootFrame"
                                Visibility="Hidden"/>
                         <controls:AnimatedContentControl Grid.Row="1"
-                                                         Margin="16,4,16,10"
+                                                         Margin="0"
                                                          s:View.Model="{Binding ActiveItem}"/>
                     </Grid>
                 </Border>
@@ -679,9 +1063,11 @@
                                                        Orientation="Horizontal"
                                                        HorizontalAlignment="Right"
                                                        Spacing="12">
-                                <Button s:View.ActionTarget="{Binding TrackView.Queue}"
+                                <Button Style="{DynamicResource IconButton}"
+                                        s:View.ActionTarget="{Binding TrackView.Queue}"
                                         Command="{s:Action ToggleShuffle}"
-                                        Style="{StaticResource PlayerControlButton}"
+                                        controls:IconButtonProperties.IsActive="{Binding TrackView.Queue.Shuffle}"
+                                        Padding="8"
                                         ToolTip="Shuffle">
                                     <Path Data="{StaticResource ShuffleIconGeometry}"
                                           Fill="{Binding TrackView.Queue.ShuffleStateColor}"
@@ -690,10 +1076,10 @@
                                           Height="14"/>
                                 </Button>
 
-                                <Button s:View.ActionTarget="{Binding PlaybackControls}"
+                                <Button Style="{DynamicResource IconButton}"
+                                        s:View.ActionTarget="{Binding PlaybackControls}"
                                         Command="{s:Action Previous}"
                                         IsHitTestVisible="{Binding PlaybackControls.CanHitPrevious}"
-                                        Style="{DynamicResource GhostIconButton}"
                                         Padding="8"
                                         ToolTip="Previous">
                                     <Path Data="{StaticResource PreviousIconGeometry}"
@@ -723,10 +1109,10 @@
                                                        Orientation="Horizontal"
                                                        HorizontalAlignment="Left"
                                                        Spacing="12">
-                                <Button s:View.ActionTarget="{Binding PlaybackControls}"
+                                <Button Style="{DynamicResource IconButton}"
+                                        s:View.ActionTarget="{Binding PlaybackControls}"
                                         Command="{s:Action Next}"
                                         IsHitTestVisible="{Binding PlaybackControls.CanHitNext}"
-                                        Style="{DynamicResource GhostIconButton}"
                                         Padding="8"
                                         ToolTip="Next">
                                     <Path Data="{StaticResource NextIconGeometry}"
@@ -736,9 +1122,11 @@
                                           Height="14"/>
                                 </Button>
 
-                                <Button s:View.ActionTarget="{Binding TrackView.Queue}"
+                                <Button Style="{DynamicResource IconButton}"
+                                        s:View.ActionTarget="{Binding TrackView.Queue}"
                                         Command="{s:Action ToggleLoop}"
-                                        Style="{StaticResource PlayerControlButton}"
+                                        controls:IconButtonProperties.IsActive="{Binding TrackView.Queue.IsLoopActive}"
+                                        Padding="8"
                                         ToolTip="{Binding TrackView.Queue.LoopTooltip}">
                                     <Path Data="{Binding TrackView.Queue.LoopGeometry}"
                                           Fill="{Binding TrackView.Queue.LoopStateColor}"
@@ -748,9 +1136,11 @@
                                           Height="14"/>
                                 </Button>
 
-                                <Button s:View.ActionTarget="{Binding PlaybackControls}"
+                                <Button Style="{DynamicResource IconButton}"
+                                        s:View.ActionTarget="{Binding PlaybackControls}"
                                         Command="{s:Action ToggleListenMode}"
-                                        Style="{StaticResource PlayerControlButton}"
+                                        controls:IconButtonProperties.IsActive="{Binding PlaybackControls.IsListenModeEnabled}"
+                                        Padding="8"
                                         ToolTip="{Binding PlaybackControls.ListenModeTooltip}">
                                     <ui:SymbolIcon Symbol="Headphones24"
                                                    FontSize="16">

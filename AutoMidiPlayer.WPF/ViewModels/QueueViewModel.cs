@@ -134,6 +134,8 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
             _ => "Loop"
         };
 
+    public bool IsLoopActive => Loop != LoopMode.Off;
+
     public string? FilterText { get; set; }
 
     private BindableCollection<MidiFile> ShuffledTracks { get; set; } = new();
@@ -365,6 +367,8 @@ public class QueueViewModel : Screen, IHandle<AccentColorChangedNotification>
         // Save to settings
         Settings.QueueLoopMode = (int)Loop;
         Settings.Save();
+
+        NotifyOfPropertyChange(() => IsLoopActive);
     }
 
     public void ToggleShuffle()

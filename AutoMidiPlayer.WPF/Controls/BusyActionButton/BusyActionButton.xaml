@@ -11,11 +11,11 @@
                                       MinimumVisibleDuration="{Binding MinimumVisibleDuration, ElementName=Root}"
                                       Visibility="Collapsed"/>
 
-        <Button Command="{Binding Command, ElementName=Root}"
+        <Button Style="{DynamicResource IconButton}"
+                Command="{Binding Command, ElementName=Root}"
                 CommandParameter="{Binding CommandParameter, ElementName=Root}"
                 Padding="{Binding ButtonPadding, ElementName=Root}"
                 ToolTip="{Binding ButtonToolTip, ElementName=Root}"
-                Style="{DynamicResource GhostIconButton}"
                 Visibility="{Binding IsVisibleBusy, ElementName=BusyState, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}">
             <ui:SymbolIcon Symbol="{Binding IconSymbol, ElementName=Root}"
                            FontSize="{Binding IconFontSize, ElementName=Root}"

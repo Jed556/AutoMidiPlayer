@@ -39,8 +39,8 @@
                             Width="250"
                             Icon="Search12"
                             VerticalAlignment="Center"/>
-                <Button Command="{s:Action OpenFile}"
-                        Style="{DynamicResource GhostIconButton}"
+                <Button Style="{DynamicResource IconButton}"
+                        Command="{s:Action OpenFile}"
                         Padding="8"
                         ToolTip="Import MIDI files">
                     <Path Data="{StaticResource AddIconGeometry}"
@@ -59,8 +59,8 @@
                                            ButtonToolTip="Refresh/Scan MIDI folder for new MIDI files"
                                            IconSymbol="FolderSync20"
                                            IconFontSize="17"/>
-                <Button Command="{s:Action ShowMissingFilesDialog}"
-                        Style="{DynamicResource GhostIconButton}"
+                <Button Style="{DynamicResource IconButton}"
+                        Command="{s:Action ShowMissingFilesDialog}"
                         Padding="8"
                         ToolTip="{Binding FileIssuesButtonToolTip}"
                         Visibility="{Binding HasFileErrors, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
@@ -104,8 +104,8 @@
                 </ComboBox>
 
                 <!-- Sort Direction Toggle -->
-                <Button Command="{s:Action ToggleSortDirection}"
-                        Style="{DynamicResource GhostIconButton}"
+                <Button Style="{DynamicResource IconButton}"
+                        Command="{s:Action ToggleSortDirection}"
                         Padding="8,6"
                         ToolTip="Toggle sort direction">
                     <ui:FontIcon Glyph="{Binding SortDirectionIcon}"

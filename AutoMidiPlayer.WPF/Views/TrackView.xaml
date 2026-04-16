@@ -8,6 +8,7 @@
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
     xmlns:s="https://github.com/canton7/Stylet"
     xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
+    xmlns:helpers="clr-namespace:AutoMidiPlayer.WPF.Helpers"
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
     d:DataContext="{d:DesignInstance Type=viewModels:TrackViewModel}">
     <Grid>
@@ -26,7 +27,8 @@
                    Visibility="{Binding Queue.OpenedFile, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
 
         <!-- Track Cards -->
-        <ScrollViewer Grid.Row="1">
+        <ScrollViewer Grid.Row="1"
+                      helpers:ScrollEdgeFadeBehavior.IsEnabled="True">
             <ItemsControl ItemsSource="{Binding MidiTracks}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>

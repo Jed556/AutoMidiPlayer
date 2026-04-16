@@ -1,26 +1,18 @@
 <UserControl x:Class="AutoMidiPlayer.WPF.Controls.SelectorPopupButton"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
+             xmlns:helpers="clr-namespace:AutoMidiPlayer.WPF.Helpers"
              x:Name="Root"
              Focusable="False">
     <StackPanel ToolTip="{Binding ToolTip, ElementName=Root}">
-        <Button x:Name="SelectorButton"
+        <Button Style="{DynamicResource IconButton}"
+                x:Name="SelectorButton"
                 Margin="0,1,0,0"
                 Padding="7,3"
                 HorizontalAlignment="Center"
+                controls:IconButtonProperties.IsActive="{Binding IsActive, ElementName=Root}"
                 Click="SelectorButton_Click">
-            <Button.Style>
-                <Style TargetType="Button"
-                       BasedOn="{StaticResource GhostIconButton}">
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsActive, ElementName=Root}"
-                                     Value="True">
-                            <Setter Property="Opacity"
-                                    Value="1"/>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Button.Style>
             <ContentPresenter Content="{Binding ButtonContent, ElementName=Root}"/>
         </Button>
 
@@ -50,6 +42,7 @@
                              ScrollViewer.VerticalScrollBarVisibility="Visible"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              ScrollViewer.CanContentScroll="True"
+                             helpers:ScrollEdgeFadeBehavior.IsEnabled="True"
                              ItemsSource="{Binding ItemsSource, ElementName=Root}"
                              SelectedItem="{Binding SelectedItem, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              SelectionChanged="SelectorListBox_SelectionChanged">

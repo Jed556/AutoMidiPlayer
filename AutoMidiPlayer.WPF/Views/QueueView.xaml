@@ -50,9 +50,9 @@
                                        Orientation="Horizontal"
                                        Spacing="4">
                 <!-- Remove selected items -->
-                <Button Command="{s:Action RemoveSong}"
+                <Button Style="{DynamicResource IconButton}"
+                        Command="{s:Action RemoveSong}"
                         CommandParameter="{Binding ElementName=SongList, Path=SelectedFiles}"
-                        Style="{DynamicResource GhostIconButton}"
                         Padding="8"
                         ToolTip="Remove selected from queue">
                     <Path Data="{StaticResource RemoveCircleIconGeometry}"
@@ -62,8 +62,8 @@
                           Height="16"/>
                 </Button>
                 <!-- Clear entire queue -->
-                <Button Command="{s:Action ClearQueue}"
-                        Style="{DynamicResource GhostIconButton}"
+                <Button Style="{DynamicResource IconButton}"
+                        Command="{s:Action ClearQueue}"
                         Padding="8"
                         ToolTip="Clear queue">
                     <Path Data="{StaticResource DeleteIconGeometry}"

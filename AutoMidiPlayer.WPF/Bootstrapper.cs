@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Navigation;
 using System.Windows.Threading;
 using Windows.Media;
@@ -73,6 +74,81 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
                 });
             })
         );
+
+        EventManager.RegisterClassHandler(
+            typeof(Hyperlink),
+            Mouse.MouseEnterEvent,
+            new MouseEventHandler(OnHyperlinkMouseEnter)
+        );
+
+        EventManager.RegisterClassHandler(
+            typeof(Hyperlink),
+            Mouse.MouseLeaveEvent,
+            new MouseEventHandler(OnHyperlinkMouseLeave)
+        );
+    }
+
+    private static void OnHyperlinkMouseEnter(object sender, MouseEventArgs e)
+    {
+        if (sender is Hyperlink hyperlink)
+            AnimateHyperlinkForeground(hyperlink, isHover: true);
+    }
+
+    private static void OnHyperlinkMouseLeave(object sender, MouseEventArgs e)
+    {
+        if (sender is Hyperlink hyperlink)
+            AnimateHyperlinkForeground(hyperlink, isHover: false);
+    }
+
+    private static void AnimateHyperlinkForeground(Hyperlink hyperlink, bool isHover)
+    {
+        var primaryColor = GetResourceColor("SystemAccentColorPrimary", System.Windows.Media.Colors.DodgerBlue);
+        var secondaryColor = GetResourceColor("SystemAccentColorSecondary", primaryColor);
+        var targetColor = isHover ? secondaryColor : primaryColor;
+
+        if (hyperlink.Foreground is not System.Windows.Media.SolidColorBrush brush || brush.IsFrozen)
+        {
+            var startingColor = hyperlink.Foreground is System.Windows.Media.SolidColorBrush existingBrush
+                ? existingBrush.Color
+                : primaryColor;
+
+            brush = new System.Windows.Media.SolidColorBrush(startingColor);
+            hyperlink.Foreground = brush;
+        }
+
+        brush.BeginAnimation(System.Windows.Media.SolidColorBrush.ColorProperty, null);
+
+        var animation = new System.Windows.Media.Animation.ColorAnimation
+        {
+            To = targetColor,
+            Duration = isHover
+                ? TimeSpan.FromMilliseconds(150)
+                : TimeSpan.FromMilliseconds(240),
+            EasingFunction = new System.Windows.Media.Animation.QuadraticEase
+            {
+                EasingMode = isHover
+                    ? System.Windows.Media.Animation.EasingMode.EaseOut
+                    : System.Windows.Media.Animation.EasingMode.EaseInOut
+            },
+            FillBehavior = System.Windows.Media.Animation.FillBehavior.Stop
+        };
+
+        animation.Completed += (_, _) => brush.Color = targetColor;
+        brush.BeginAnimation(
+            System.Windows.Media.SolidColorBrush.ColorProperty,
+            animation,
+            System.Windows.Media.Animation.HandoffBehavior.SnapshotAndReplace);
+    }
+
+    private static System.Windows.Media.Color GetResourceColor(string key, System.Windows.Media.Color fallback)
+    {
+        var value = Application.Current?.TryFindResource(key);
+        return value switch
+        {
+            System.Windows.Media.Color color => color,
+            System.Windows.Media.SolidColorBrush brush => brush.Color,
+            _ => fallback
+        };
     }
 
     private static void EnsureQueueLoopModeSetting()

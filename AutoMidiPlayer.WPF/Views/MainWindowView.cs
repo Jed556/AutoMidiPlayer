@@ -1,7 +1,11 @@
 using System;
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using AutoMidiPlayer.WPF.Core;
 using AutoMidiPlayer.WPF.Services;
 using AutoMidiPlayer.WPF.ViewModels;
@@ -15,6 +19,26 @@ public partial class MainWindowView : FluentWindow
     private MainWindowViewModel? _boundVm;
     private bool _isFullscreen;
     private WindowState _windowStateBeforeFullscreen = WindowState.Normal;
+    private ScrollViewer? _navigationScrollViewer;
+    private readonly DispatcherTimer _navigationScrollTimer;
+    private double _navigationScrollTargetOffset;
+    private bool _isNavigationScrollInitialized;
+    private bool _isNavigationScrollUpVisible;
+    private bool _isNavigationScrollDownVisible;
+    private DateTime _navigationScrollUpShowBlockedUntilUtc;
+    private DateTime _navigationScrollDownShowBlockedUntilUtc;
+
+    private const double NavigationScrollStepFactor = 0.72;
+    private const double NavigationWheelStep = 40;
+    private const double NavigationScrollSmoothingFactor = 0.34;
+    private const double NavigationScrollSnapThreshold = 1.25;
+    private const double NavigationScrollMaxStep = 92;
+    private const double NavigationScrollDirectionThreshold = 1.5;
+    private const double NavigationScrollButtonHiddenScale = 0.62;
+    private const double NavigationScrollButtonIntroOpacityMs = 220;
+    private const double NavigationScrollButtonIntroScaleMs = 320;
+    private const double NavigationScrollButtonOutroOpacityMs = 210;
+    private const double NavigationScrollButtonOutroScaleMs = 280;
 
     public MainWindowView()
     {
@@ -23,11 +47,19 @@ public partial class MainWindowView : FluentWindow
         Loaded += OnLoaded;
         StateChanged += OnStateChanged;
 
+        _navigationScrollTimer = new DispatcherTimer(DispatcherPriority.Input)
+        {
+            Interval = TimeSpan.FromMilliseconds(16)
+        };
+        _navigationScrollTimer.Tick += OnNavigationSmoothScrollTick;
+
         UpdateWindowButtonState();
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
+        InitializeNavigationScrollUi();
+
         if (DataContext is MainWindowViewModel vm)
         {
             AttachStartupProgress(vm);
@@ -177,9 +209,401 @@ public partial class MainWindowView : FluentWindow
         if (_boundVm is not null)
             _boundVm.PropertyChanged -= OnViewModelPropertyChanged;
 
+        if (_isNavigationScrollInitialized)
+        {
+            RootNavigation.Loaded -= OnRootNavigationLoaded;
+            RootNavigation.SizeChanged -= OnRootNavigationSizeChanged;
+            _isNavigationScrollInitialized = false;
+        }
+
+        DetachNavigationScrollViewer();
+        _navigationScrollTimer.Stop();
+        _navigationScrollTimer.Tick -= OnNavigationSmoothScrollTick;
+
         // Dispose the hotkey service and tray icon when closing
         _hotkeyService?.Dispose();
         TrayIcon?.Dispose();
+    }
+
+    private void InitializeNavigationScrollUi()
+    {
+        if (_isNavigationScrollInitialized)
+            return;
+
+        _isNavigationScrollInitialized = true;
+        RootNavigation.Loaded += OnRootNavigationLoaded;
+        RootNavigation.SizeChanged += OnRootNavigationSizeChanged;
+
+        TryAttachNavigationScrollViewer();
+    }
+
+    private void OnRootNavigationLoaded(object sender, RoutedEventArgs e)
+    {
+        TryAttachNavigationScrollViewer();
+    }
+
+    private void OnRootNavigationSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        TryAttachNavigationScrollViewer();
+        UpdateNavigationScrollButtons();
+    }
+
+    private void TryAttachNavigationScrollViewer(bool allowScheduleRetry = true)
+    {
+        var viewer = FindDescendant<ScrollViewer>(RootNavigation);
+        if (ReferenceEquals(_navigationScrollViewer, viewer))
+        {
+            UpdateNavigationScrollButtons();
+            return;
+        }
+
+        DetachNavigationScrollViewer();
+
+        _navigationScrollViewer = viewer;
+        if (_navigationScrollViewer is null)
+        {
+            if (allowScheduleRetry)
+            {
+                _ = Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+                {
+                    // Avoid an endless loaded-priority retry chain when no internal
+                    // ScrollViewer exists for the current template/state.
+                    TryAttachNavigationScrollViewer(allowScheduleRetry: false);
+                }));
+            }
+
+            UpdateNavigationScrollButtons();
+            return;
+        }
+
+        _navigationScrollViewer.VerticalScrollBarVisibility = ScrollBarVisibility.Hidden;
+        _navigationScrollViewer.ScrollChanged += OnNavigationScrollChanged;
+        _navigationScrollViewer.SizeChanged += OnNavigationScrollViewerSizeChanged;
+        _navigationScrollViewer.PreviewMouseWheel += OnNavigationPreviewMouseWheel;
+        _navigationScrollTargetOffset = _navigationScrollViewer.VerticalOffset;
+
+        UpdateNavigationScrollButtons();
+    }
+
+    private void DetachNavigationScrollViewer()
+    {
+        if (_navigationScrollViewer is null)
+            return;
+
+        _navigationScrollViewer.ScrollChanged -= OnNavigationScrollChanged;
+        _navigationScrollViewer.SizeChanged -= OnNavigationScrollViewerSizeChanged;
+        _navigationScrollViewer.PreviewMouseWheel -= OnNavigationPreviewMouseWheel;
+        _navigationScrollViewer = null;
+    }
+
+    private void OnNavigationScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (!_navigationScrollTimer.IsEnabled && _navigationScrollViewer is not null)
+            _navigationScrollTargetOffset = _navigationScrollViewer.VerticalOffset;
+
+        UpdateNavigationScrollButtons();
+    }
+
+    private void OnNavigationScrollViewerSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateNavigationScrollButtons();
+    }
+
+    private void OnNavigationPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (_navigationScrollViewer is null || _navigationScrollViewer.ScrollableHeight <= 0)
+            return;
+
+        if (System.Windows.Input.Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+            return;
+
+        if (!IsNavigationSmoothScrollingEnabled())
+        {
+            _navigationScrollTimer.Stop();
+            _navigationScrollTargetOffset = _navigationScrollViewer.VerticalOffset;
+            return;
+        }
+
+        e.Handled = true;
+
+        var deltaOffset = -(e.Delta / 120d) * NavigationWheelStep;
+        if (!_navigationScrollTimer.IsEnabled)
+            _navigationScrollTargetOffset = _navigationScrollViewer.VerticalOffset;
+
+        var currentOffset = _navigationScrollViewer.VerticalOffset;
+        var currentDirection = Math.Sign(_navigationScrollTargetOffset - currentOffset);
+        var incomingDirection = Math.Sign(deltaOffset);
+        if (_navigationScrollTimer.IsEnabled && currentDirection != 0 && incomingDirection != 0 && currentDirection != incomingDirection)
+            _navigationScrollTargetOffset = currentOffset;
+
+        var maxLead = Math.Max(NavigationWheelStep * 10d, _navigationScrollViewer.ViewportHeight * 1.15d);
+        var minTarget = Math.Max(0d, currentOffset - maxLead);
+        var maxTarget = Math.Min(_navigationScrollViewer.ScrollableHeight, currentOffset + maxLead);
+        _navigationScrollTargetOffset = Math.Clamp(_navigationScrollTargetOffset + deltaOffset, minTarget, maxTarget);
+
+        if (!_navigationScrollTimer.IsEnabled)
+        {
+            OnNavigationSmoothScrollTick(null, EventArgs.Empty);
+            _navigationScrollTimer.Start();
+        }
+
+        UpdateNavigationScrollButtons();
+    }
+
+    private static bool IsNavigationSmoothScrollingEnabled()
+    {
+        if (Application.Current?.Resources["SmoothScrollingEnabled"] is bool isEnabled)
+            return isEnabled;
+
+        return true;
+    }
+
+    private void NavigationScrollUp_Click(object sender, RoutedEventArgs e)
+    {
+        _navigationScrollUpShowBlockedUntilUtc = DateTime.UtcNow.AddMilliseconds(NavigationScrollButtonOutroScaleMs + 40);
+        SetNavigationScrollButtonVisibility(NavigationScrollUpButton, shouldShow: false, ref _isNavigationScrollUpVisible);
+        ScrollNavigationBy(-GetNavigationScrollStep());
+    }
+
+    private void NavigationScrollDown_Click(object sender, RoutedEventArgs e)
+    {
+        _navigationScrollDownShowBlockedUntilUtc = DateTime.UtcNow.AddMilliseconds(NavigationScrollButtonOutroScaleMs + 40);
+        SetNavigationScrollButtonVisibility(NavigationScrollDownButton, shouldShow: false, ref _isNavigationScrollDownVisible);
+        ScrollNavigationBy(GetNavigationScrollStep());
+    }
+
+    private double GetNavigationScrollStep()
+    {
+        if (_navigationScrollViewer is null)
+            return 96;
+
+        var viewportStep = _navigationScrollViewer.ViewportHeight * NavigationScrollStepFactor;
+        return Math.Clamp(viewportStep, 70, 220);
+    }
+
+    private void ScrollNavigationBy(double delta)
+    {
+        if (_navigationScrollViewer is null || _navigationScrollViewer.ScrollableHeight <= 0)
+            return;
+
+        if (!_navigationScrollTimer.IsEnabled)
+            _navigationScrollTargetOffset = _navigationScrollViewer.VerticalOffset;
+
+        _navigationScrollTargetOffset = Math.Clamp(
+            _navigationScrollTargetOffset + delta,
+            0,
+            _navigationScrollViewer.ScrollableHeight);
+
+        if (!_navigationScrollTimer.IsEnabled)
+            _navigationScrollTimer.Start();
+
+        UpdateNavigationScrollButtons();
+    }
+
+    private void OnNavigationSmoothScrollTick(object? sender, EventArgs e)
+    {
+        if (_navigationScrollViewer is null)
+        {
+            _navigationScrollTimer.Stop();
+            return;
+        }
+
+        var currentOffset = _navigationScrollViewer.VerticalOffset;
+        var delta = _navigationScrollTargetOffset - currentOffset;
+
+        if (Math.Abs(delta) <= NavigationScrollSnapThreshold)
+        {
+            _navigationScrollTimer.Stop();
+            _navigationScrollViewer.ScrollToVerticalOffset(_navigationScrollTargetOffset);
+            UpdateNavigationScrollButtons();
+            return;
+        }
+
+        var smoothStep = Math.Clamp(delta * NavigationScrollSmoothingFactor, -NavigationScrollMaxStep, NavigationScrollMaxStep);
+        var nextOffset = Math.Clamp(currentOffset + smoothStep, 0, _navigationScrollViewer.ScrollableHeight);
+
+        _navigationScrollViewer.ScrollToVerticalOffset(nextOffset);
+        UpdateNavigationScrollButtons();
+    }
+
+    private void UpdateNavigationScrollButtons()
+    {
+        if (NavigationScrollUpButton is null || NavigationScrollDownButton is null)
+            return;
+
+        if (_navigationScrollViewer is null)
+        {
+            SetNavigationScrollButtonVisibility(NavigationScrollUpButton, shouldShow: false, ref _isNavigationScrollUpVisible);
+            SetNavigationScrollButtonVisibility(NavigationScrollDownButton, shouldShow: false, ref _isNavigationScrollDownVisible);
+            return;
+        }
+
+        var canScroll = _navigationScrollViewer.ScrollableHeight > 0.5;
+        if (!canScroll)
+        {
+            SetNavigationScrollButtonVisibility(NavigationScrollUpButton, shouldShow: false, ref _isNavigationScrollUpVisible);
+            SetNavigationScrollButtonVisibility(NavigationScrollDownButton, shouldShow: false, ref _isNavigationScrollDownVisible);
+            return;
+        }
+
+        var nowUtc = DateTime.UtcNow;
+        var canScrollUp = _navigationScrollViewer.VerticalOffset > NavigationScrollDirectionThreshold;
+        var canScrollDown = _navigationScrollViewer.VerticalOffset < _navigationScrollViewer.ScrollableHeight - NavigationScrollDirectionThreshold;
+
+        var showUp = canScrollUp && nowUtc >= _navigationScrollUpShowBlockedUntilUtc;
+        var showDown = canScrollDown && nowUtc >= _navigationScrollDownShowBlockedUntilUtc;
+
+        SetNavigationScrollButtonVisibility(NavigationScrollUpButton, showUp, ref _isNavigationScrollUpVisible);
+        SetNavigationScrollButtonVisibility(NavigationScrollDownButton, showDown, ref _isNavigationScrollDownVisible);
+    }
+
+    private static void SetNavigationScrollButtonVisibility(System.Windows.Controls.Button button, bool shouldShow, ref bool isVisible)
+    {
+        if (isVisible == shouldShow)
+            return;
+
+        isVisible = shouldShow;
+
+        ScaleTransform scale;
+        if (button.RenderTransform is ScaleTransform existingScale)
+        {
+            // Style-created transforms can be frozen shared instances; clone before animating.
+            if (existingScale.IsFrozen)
+            {
+                scale = existingScale.CloneCurrentValue();
+                button.RenderTransform = scale;
+            }
+            else
+            {
+                scale = existingScale;
+            }
+        }
+        else
+        {
+            scale = new ScaleTransform(NavigationScrollButtonHiddenScale, NavigationScrollButtonHiddenScale);
+            button.RenderTransform = scale;
+        }
+
+        button.RenderTransformOrigin = new Point(0.5, 0.5);
+
+        var currentOpacity = Math.Clamp(button.Opacity, 0, 1);
+        var currentScaleX = Math.Clamp(scale.ScaleX, NavigationScrollButtonHiddenScale, 1);
+        var currentScaleY = Math.Clamp(scale.ScaleY, NavigationScrollButtonHiddenScale, 1);
+
+        button.BeginAnimation(UIElement.OpacityProperty, null);
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+
+        if (!shouldShow)
+        {
+            button.IsEnabled = false;
+            button.IsHitTestVisible = false;
+            button.Visibility = Visibility.Visible;
+
+            var hideFromOpacity = currentOpacity > 0.01 ? currentOpacity : 1d;
+            var hideFromScaleX = currentScaleX > NavigationScrollButtonHiddenScale + 0.01 ? currentScaleX : 1d;
+            var hideFromScaleY = currentScaleY > NavigationScrollButtonHiddenScale + 0.01 ? currentScaleY : 1d;
+
+            button.Opacity = hideFromOpacity;
+            scale.ScaleX = hideFromScaleX;
+            scale.ScaleY = hideFromScaleY;
+
+            var hideOpacityAnimation = new DoubleAnimation
+            {
+                From = hideFromOpacity,
+                To = 0,
+                Duration = TimeSpan.FromMilliseconds(NavigationScrollButtonOutroOpacityMs),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut },
+                FillBehavior = FillBehavior.Stop
+            };
+
+            var hideScaleAnimationX = new DoubleAnimation
+            {
+                From = hideFromScaleX,
+                To = NavigationScrollButtonHiddenScale,
+                Duration = TimeSpan.FromMilliseconds(NavigationScrollButtonOutroScaleMs),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn },
+                FillBehavior = FillBehavior.Stop
+            };
+
+            var hideScaleAnimationY = new DoubleAnimation
+            {
+                From = hideFromScaleY,
+                To = NavigationScrollButtonHiddenScale,
+                Duration = TimeSpan.FromMilliseconds(NavigationScrollButtonOutroScaleMs),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn },
+                FillBehavior = FillBehavior.Stop
+            };
+
+            hideOpacityAnimation.Completed += (_, _) =>
+            {
+                button.BeginAnimation(UIElement.OpacityProperty, null);
+                scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+                scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+                button.Opacity = 0;
+                scale.ScaleX = NavigationScrollButtonHiddenScale;
+                scale.ScaleY = NavigationScrollButtonHiddenScale;
+                button.Visibility = Visibility.Collapsed;
+            };
+
+            button.BeginAnimation(UIElement.OpacityProperty, hideOpacityAnimation, HandoffBehavior.SnapshotAndReplace);
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, hideScaleAnimationX, HandoffBehavior.SnapshotAndReplace);
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, hideScaleAnimationY, HandoffBehavior.SnapshotAndReplace);
+            return;
+        }
+
+        button.Visibility = Visibility.Visible;
+        button.IsEnabled = true;
+        button.IsHitTestVisible = true;
+
+        button.Opacity = currentOpacity;
+        scale.ScaleX = currentScaleX;
+        scale.ScaleY = currentScaleY;
+
+        var opacityAnimation = new DoubleAnimation
+        {
+            From = currentOpacity,
+            To = 1,
+            Duration = TimeSpan.FromMilliseconds(NavigationScrollButtonIntroOpacityMs),
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
+            FillBehavior = FillBehavior.Stop
+        };
+
+        var scaleAnimationX = new DoubleAnimation
+        {
+            From = currentScaleX,
+            To = 1,
+            Duration = TimeSpan.FromMilliseconds(NavigationScrollButtonIntroScaleMs),
+            EasingFunction = new BackEase { Amplitude = 0.7, EasingMode = EasingMode.EaseOut },
+            FillBehavior = FillBehavior.Stop
+        };
+
+        var scaleAnimationY = new DoubleAnimation
+        {
+            From = currentScaleY,
+            To = 1,
+            Duration = TimeSpan.FromMilliseconds(NavigationScrollButtonIntroScaleMs),
+            EasingFunction = new BackEase { Amplitude = 0.7, EasingMode = EasingMode.EaseOut },
+            FillBehavior = FillBehavior.Stop
+        };
+
+        opacityAnimation.Completed += (_, _) =>
+        {
+            button.BeginAnimation(UIElement.OpacityProperty, null);
+            button.Opacity = 1;
+        };
+
+        scaleAnimationY.Completed += (_, _) =>
+        {
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            scale.ScaleX = 1;
+            scale.ScaleY = 1;
+        };
+
+        button.BeginAnimation(UIElement.OpacityProperty, opacityAnimation, HandoffBehavior.SnapshotAndReplace);
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnimationX, HandoffBehavior.SnapshotAndReplace);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnimationY, HandoffBehavior.SnapshotAndReplace);
     }
 
     private void OnStateChanged(object? sender, EventArgs e)
@@ -221,6 +645,11 @@ public partial class MainWindowView : FluentWindow
         Close();
     }
 
+    private void AlwaysOnTop_Click(object sender, RoutedEventArgs e)
+    {
+
+    }
+
     private void ToggleFullscreen_Click(object sender, RoutedEventArgs e)
     {
         if (_isFullscreen)
@@ -246,6 +675,20 @@ public partial class MainWindowView : FluentWindow
         }
 
         UpdateWindowButtonState();
+    }
+
+    private void GameDrawerItem_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not NavigationViewItem navigationViewItem)
+            return;
+
+        // LeftFluent NavigationView assigns ItemTemplate internally; set the template locally for the game drawer item.
+        if (TryFindResource("GameDrawerNavigationItemTemplate") is System.Windows.Controls.ControlTemplate template)
+        {
+            navigationViewItem.Template = template;
+        }
+
+        UpdateNavigationScrollButtons();
     }
 
     private void TrayPlayPause_Click(object sender, RoutedEventArgs e)
@@ -281,6 +724,25 @@ public partial class MainWindowView : FluentWindow
     {
         TrayIcon?.Dispose();
         Application.Current.Shutdown();
+    }
+
+    private static T? FindDescendant<T>(DependencyObject parent)
+        where T : DependencyObject
+    {
+        var childCount = VisualTreeHelper.GetChildrenCount(parent);
+        for (var i = 0; i < childCount; i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+
+            if (child is T typedChild)
+                return typedChild;
+
+            var result = FindDescendant<T>(child);
+            if (result != null)
+                return result;
+        }
+
+        return null;
     }
 
 }
