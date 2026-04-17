@@ -17,8 +17,13 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  prepare:
+    name: Prepare
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.release.outputs.VERSION }}
+      build_ref: ${{ steps.release.outputs.BUILD_REF }}
+      build_sha: ${{ steps.resolve_sha.outputs.BUILD_SHA }}
 
     steps:
       - uses: actions/checkout@v6.0.2
@@ -55,35 +60,68 @@ jobs:
           echo "BUILD_REF=$BUILD_REF" >> "$GITHUB_OUTPUT"
           echo "Building version '$VERSION' from '$BUILD_REF'"
 
-      - name: Checkout source to build
-        id: source
+      - name: Resolve source commit
+        id: resolve_sha
         shell: bash
         run: |
-          git checkout --force "${BUILD_REF}"
-          BUILD_SHA="$(git rev-parse HEAD)"
+          BUILD_SHA="$(git rev-parse "${BUILD_REF}^{commit}")"
           echo "BUILD_SHA=$BUILD_SHA" >> "$GITHUB_OUTPUT"
-          echo "Checked out commit '$BUILD_SHA'"
+          echo "Resolved build commit '$BUILD_SHA' from '$BUILD_REF'"
         env:
           BUILD_REF: ${{ steps.release.outputs.BUILD_REF }}
+
+  build_net_install:
+    name: Build net-install package
+    runs-on: windows-latest
+    needs: prepare
+
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.prepare.outputs.build_sha }}
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v5.2.0
         with:
           dotnet-version: 10.x
 
-      - name: Prepare output dirs & remove old zips
-        run: |
-          Remove-Item .\install -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item .\portable -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item AutoMidiPlayer_*_win-x64_*.zip -Force -ErrorAction SilentlyContinue
-
       - name: Publish install (framework-dependent)
         run: |
-          dotnet publish AutoMidiPlayer.WPF -r win-x64 -c Release -o .\install --self-contained false -p:PublishSingleFile=true
+          dotnet publish AutoMidiPlayer.WPF -r win-x64 -c Release -o .\install-fd --self-contained false -p:PublishSingleFile=false
 
       - name: Inspect install output
         run: |
-          Get-ChildItem .\install -Recurse | Select Name,Length
+          Get-ChildItem .\install-fd -Recurse | Select Name,Length
+
+      - name: Zip net-install
+        run: |
+          if (Test-Path .\install-fd) { Get-ChildItem .\install-fd\*.pdb -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }
+          7z a AutoMidiPlayer_${{ needs.prepare.outputs.version }}_win-x64-net-install.zip .\install-fd\* -mx9
+
+      - name: Upload net-install artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: net-install-zip
+          path: AutoMidiPlayer_${{ needs.prepare.outputs.version }}_win-x64-net-install.zip
+          if-no-files-found: error
+          retention-days: 1
+
+  build_portable:
+    name: Build portable package
+    runs-on: windows-latest
+    needs: prepare
+
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.prepare.outputs.build_sha }}
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5.2.0
+        with:
+          dotnet-version: 10.x
 
       - name: Publish portable (self-contained)
         run: |
@@ -93,20 +131,82 @@ jobs:
         run: |
           Get-ChildItem .\portable -Recurse | Select Name,Length
 
-      - name: Zip release
+      - name: Zip portable executable
         run: |
-          if (Test-Path .\install) { Get-ChildItem .\install\*.pdb -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }
-          if (Test-Path .\portable) { Get-ChildItem .\portable\*.pdb -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }
-          7z a AutoMidiPlayer_${{ steps.release.outputs.VERSION }}_win-x64_net-install.zip .\install\* -mx9
-          7z a AutoMidiPlayer_${{ steps.release.outputs.VERSION }}_win-x64_portable.zip .\portable\* -mx9
+          $version = "${{ needs.prepare.outputs.version }}"
+          $portableExe = ".\portable\Auto MIDI Player.exe"
+          $stagedExe = ".\AutoMidiPlayer_${version}_win-x64.exe"
+          $portableArchive = ".\AutoMidiPlayer_${version}_win-x64-portable.zip"
+
+          if (-not (Test-Path $portableExe)) { throw "Missing portable executable: $portableExe" }
+
+          Copy-Item $portableExe $stagedExe -Force
+          if (Test-Path $portableArchive) { Remove-Item $portableArchive -Force }
+          7z a $portableArchive $stagedExe -mx9
+          Remove-Item $stagedExe -Force
+
+      - name: Upload portable artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: portable-zip
+          path: AutoMidiPlayer_${{ needs.prepare.outputs.version }}_win-x64-portable.zip
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    name: Release
+    runs-on: windows-latest
+    needs:
+      - prepare
+      - build_net_install
+      - build_portable
+
+    steps:
+      - name: Download net-install artifact
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: net-install-zip
+          path: artifacts/net-install
+
+      - name: Download portable artifact
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: portable-zip
+          path: artifacts/portable
+
+      - name: Verify assets and stage release files
+        run: |
+          $version = "${{ needs.prepare.outputs.version }}"
+          $netArchive = ".\artifacts\net-install\AutoMidiPlayer_${version}_win-x64-net-install.zip"
+          $portableArchive = ".\artifacts\portable\AutoMidiPlayer_${version}_win-x64-portable.zip"
+
+          if (-not (Test-Path $netArchive)) { throw "Missing net-install archive: $netArchive" }
+          if (-not (Test-Path $portableArchive)) { throw "Missing portable archive: $portableArchive" }
+
+          $netItem = Get-Item $netArchive
+          $portableItem = Get-Item $portableArchive
+          $netHash = (Get-FileHash $netArchive -Algorithm SHA256).Hash
+          $portableHash = (Get-FileHash $portableArchive -Algorithm SHA256).Hash
+
+          "net-install zip size: $($netItem.Length)"
+          "portable exe zip size: $($portableItem.Length)"
+          "net-install zip sha256: $netHash"
+          "portable exe zip sha256: $portableHash"
+
+          Copy-Item $netArchive ".\AutoMidiPlayer_${version}_win-x64-net-install.zip" -Force
+          Copy-Item $portableArchive ".\AutoMidiPlayer_${version}_win-x64-portable.zip" -Force
+
+      - name: Inspect release assets
+        run: |
+          Get-ChildItem .\AutoMidiPlayer_*_win-x64_* | Select Name,Length
 
       - name: Create or update GitHub Release
-        uses: softprops/action-gh-release@v2.6.1
+        uses: softprops/action-gh-release@v3.0.0
         with:
-          tag_name: ${{ steps.release.outputs.VERSION }}
-          target_commitish: ${{ steps.source.outputs.BUILD_SHA }}
+          tag_name: ${{ needs.prepare.outputs.version }}
+          target_commitish: ${{ needs.prepare.outputs.build_sha }}
           files: |
-            AutoMidiPlayer_${{ steps.release.outputs.VERSION }}_win-x64_net-install.zip
-            AutoMidiPlayer_${{ steps.release.outputs.VERSION }}_win-x64_portable.zip
+             AutoMidiPlayer_${{ needs.prepare.outputs.version }}_win-x64-net-install.zip
+             AutoMidiPlayer_${{ needs.prepare.outputs.version }}_win-x64-portable.zip
           overwrite_files: true
           token: ${{ secrets.GITHUB_TOKEN }}
