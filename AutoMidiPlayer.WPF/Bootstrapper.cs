@@ -175,7 +175,7 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         return attr?.Product ?? "Unknown Product";
     }
 
-    private static void EnsureDatabaseInitialized(LyreContext db)
+    private static void EnsureDatabaseInitialized(PlayerContext db)
     {
         if (_databaseInitialized)
             return;
@@ -203,7 +203,7 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         }
     }
 
-    private static HashSet<string> GetSongTableColumns(LyreContext db)
+    private static HashSet<string> GetSongTableColumns(PlayerContext db)
     {
         var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -234,7 +234,7 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         return columns;
     }
 
-    private static void RenameAuthorColumnToArtist(LyreContext db, HashSet<string> existingSongColumns)
+    private static void RenameAuthorColumnToArtist(PlayerContext db, HashSet<string> existingSongColumns)
     {
         if (!existingSongColumns.Contains("Author") || existingSongColumns.Contains("Artist"))
             return;
@@ -259,14 +259,14 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         }
     }
 
-    private static void AddSongColumnIfMissing(LyreContext db, string columnName, string sqlType)
+    private static void AddSongColumnIfMissing(PlayerContext db, string columnName, string sqlType)
     {
         ExecuteSqlIgnoringErrors(db, $@"
             ALTER TABLE Songs ADD COLUMN {columnName} {sqlType};
         ");
     }
 
-    private static void ExecuteSqlIgnoringErrors(LyreContext db, string sql)
+    private static void ExecuteSqlIgnoringErrors(PlayerContext db, string sql)
     {
         try
         {
@@ -318,15 +318,15 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         // Use centralized app data path
         AppPaths.EnsureDirectoryExists();
 
-        builder.Bind<LyreContext>().ToFactory(_ =>
+        builder.Bind<PlayerContext>().ToFactory(_ =>
         {
             var source = AppPaths.DatabasePath;
 
-            var options = new DbContextOptionsBuilder<LyreContext>()
+            var options = new DbContextOptionsBuilder<PlayerContext>()
                 .UseSqlite($"Data Source={source}")
                 .Options;
 
-            var db = new LyreContext(options);
+            var db = new PlayerContext(options);
             EnsureDatabaseInitialized(db);
 
             return db;

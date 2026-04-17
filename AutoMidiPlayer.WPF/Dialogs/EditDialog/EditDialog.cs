@@ -62,7 +62,6 @@ public partial class EditDialog : ContentDialog
     private bool _hasDefaultKeyRoot;
     private DateTime _songDateAdded;
     private double _nativeBpm;
-    private bool _isForwardingWheelEvent;
 
     public string SongTitle => _titleBox.Text;
     public string SongArtist => _artistBox.Text;
@@ -278,55 +277,6 @@ public partial class EditDialog : ContentDialog
     {
         OpenMidiPathInExplorer();
         e.Handled = true;
-    }
-
-    private void OnDialogPreviewMouseWheel(object sender, MouseWheelEventArgs e)
-    {
-        if (_isForwardingWheelEvent || e.Handled)
-            return;
-
-        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
-            return;
-
-        if (DialogScrollViewer.ScrollableHeight <= 0 || DialogScrollViewer.ComputedVerticalScrollBarVisibility != Visibility.Visible)
-            return;
-
-        if (e.OriginalSource is not DependencyObject source)
-            return;
-
-        if (FindAncestor<System.Windows.Controls.Primitives.ScrollBar>(source) is not null)
-            return;
-
-        var sourceComboBox = FindAncestor<System.Windows.Controls.ComboBox>(source);
-        if (sourceComboBox?.IsDropDownOpen == true)
-            return;
-
-        _isForwardingWheelEvent = true;
-        try
-        {
-            e.Handled = true;
-
-            var previewEvent = new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
-            {
-                RoutedEvent = UIElement.PreviewMouseWheelEvent,
-                Source = e.OriginalSource
-            };
-            DialogScrollViewer.RaiseEvent(previewEvent);
-
-            if (!previewEvent.Handled)
-            {
-                var bubbleEvent = new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
-                {
-                    RoutedEvent = UIElement.MouseWheelEvent,
-                    Source = e.OriginalSource
-                };
-                DialogScrollViewer.RaiseEvent(bubbleEvent);
-            }
-        }
-        finally
-        {
-            _isForwardingWheelEvent = false;
-        }
     }
 
     private void ApplyPrimaryButtonAccent()
@@ -604,20 +554,6 @@ public partial class EditDialog : ContentDialog
         {
             // Best effort: opening Explorer should not block saving edits.
         }
-    }
-
-    private static T? FindAncestor<T>(DependencyObject? current)
-        where T : DependencyObject
-    {
-        while (current is not null)
-        {
-            if (current is T typed)
-                return typed;
-
-            current = VisualTreeHelper.GetParent(current);
-        }
-
-        return null;
     }
 
     private sealed class TransposeOption(Transpose value, string display)

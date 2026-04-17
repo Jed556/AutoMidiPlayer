@@ -164,7 +164,7 @@ public class FileService(IContainer ioc)
         if (_main is null) return;
         var songs = _main.SongsView;
 
-        await using var db = _ioc.Get<LyreContext>();
+        await using var db = _ioc.Get<PlayerContext>();
 
         var songsToRemove = db.Songs.Where(s => s.Path == song.Path).ToList();
         if (songsToRemove.Count > 0)
@@ -197,7 +197,7 @@ public class FileService(IContainer ioc)
         if (_main is null) return;
         var songs = _main.SongsView;
 
-        await using var db = _ioc.Get<LyreContext>();
+        await using var db = _ioc.Get<PlayerContext>();
 
         var songsToRemove = db.Songs.Where(s => s.Path == badMidiFile.Path).ToList();
         if (songsToRemove.Count > 0)
@@ -230,7 +230,7 @@ public class FileService(IContainer ioc)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        await using var db = _ioc.Get<LyreContext>();
+        await using var db = _ioc.Get<PlayerContext>();
 
         if (allPaths.Count > 0)
         {
@@ -887,7 +887,7 @@ public class FileService(IContainer ioc)
 
         try
         {
-            await using var db = _ioc.Get<LyreContext>();
+            await using var db = _ioc.Get<PlayerContext>();
             db.Songs.Update(song);
             await db.SaveChangesAsync();
         }
@@ -1143,7 +1143,7 @@ public class FileService(IContainer ioc)
         if (!added)
             return;
 
-        await using var db = _ioc.Get<LyreContext>();
+        await using var db = _ioc.Get<PlayerContext>();
         db.Songs.Add(song);
         await db.SaveChangesAsync();
 
@@ -1358,7 +1358,7 @@ public class FileService(IContainer ioc)
             return;
         }
 
-        await using var db = _ioc.Get<LyreContext>();
+        await using var db = _ioc.Get<PlayerContext>();
         db.Songs.Update(missingSong);
         try
         {
@@ -1446,7 +1446,7 @@ public class FileService(IContainer ioc)
         if (existingTrackIds.Count > 0)
             _main.SongSettings.RemoveSongsFromCollections(existingTrackIds);
 
-        await using var db = _ioc.Get<LyreContext>();
+        await using var db = _ioc.Get<PlayerContext>();
         var existingSongs = db.Songs
             .Where(song => song.Path == existingPath)
             .ToList();

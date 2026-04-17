@@ -627,7 +627,7 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
         var song = _main.QueueView.OpenedFile?.Song;
         if (song == null) return;
 
-        await using var db = _ioc.Get<LyreContext>();
+        await using var db = _ioc.Get<PlayerContext>();
         db.Songs.Update(song);
         await db.SaveChangesAsync();
     }

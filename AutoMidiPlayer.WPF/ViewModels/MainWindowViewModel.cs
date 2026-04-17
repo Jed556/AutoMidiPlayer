@@ -465,7 +465,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
             ReportStartupProgress(30, "Loading song database...");
 
             // Load songs from database into Songs library
-            await using var db = Ioc.Get<LyreContext>();
+            await using var db = Ioc.Get<PlayerContext>();
             var startupSongs = await db.Songs
                 .AsNoTracking()
                 .ToListAsync();

@@ -8,6 +8,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Animation.Transitions;
+using AutoMidiPlayer.WPF.Helpers;
 using Wpf.Ui.Controls;
 
 namespace AutoMidiPlayer.WPF.Dialogs;
@@ -53,6 +54,11 @@ public sealed class DialogActionRequest
     public DialogActionButton? CustomButton { get; init; }
 }
 
+public sealed class DialogHostSetupOptions
+{
+    public bool EnableScrollAutoFade { get; init; } = true;
+}
+
 /// <summary>
 /// Helper class for creating ContentDialogs with proper DialogHost setup.
 /// </summary>
@@ -72,6 +78,20 @@ public static class DialogHelper
             typeof(DialogHelper),
             new PropertyMetadata(false));
 
+    private static readonly DependencyProperty IsScrollBehaviorHookedProperty =
+        DependencyProperty.RegisterAttached(
+            "IsScrollBehaviorHooked",
+            typeof(bool),
+            typeof(DialogHelper),
+            new PropertyMetadata(false));
+
+    private static readonly DependencyProperty EnableScrollAutoFadeProperty =
+        DependencyProperty.RegisterAttached(
+            "EnableScrollAutoFade",
+            typeof(bool),
+            typeof(DialogHelper),
+            new PropertyMetadata(true));
+
     private enum DialogEntranceAnimationMode
     {
         None,
@@ -90,13 +110,21 @@ public static class DialogHelper
 
     private static void SetIsPreOpenStateHooked(DependencyObject obj, bool value) => obj.SetValue(IsPreOpenStateHookedProperty, value);
 
+    private static bool GetIsScrollBehaviorHooked(DependencyObject obj) => (bool)obj.GetValue(IsScrollBehaviorHookedProperty);
+
+    private static void SetIsScrollBehaviorHooked(DependencyObject obj, bool value) => obj.SetValue(IsScrollBehaviorHookedProperty, value);
+
+    private static bool GetEnableScrollAutoFade(DependencyObject obj) => (bool)obj.GetValue(EnableScrollAutoFadeProperty);
+
+    private static void SetEnableScrollAutoFade(DependencyObject obj, bool value) => obj.SetValue(EnableScrollAutoFadeProperty, value);
+
     /// <summary>
     /// Creates a new ContentDialog with the DialogHostEx property already set.
     /// </summary>
-    public static ContentDialog CreateDialog()
+    public static ContentDialog CreateDialog(DialogHostSetupOptions? setupOptions = null)
     {
         var dialog = new ContentDialog();
-        SetupDialogHost(dialog);
+        SetupDialogHost(dialog, setupOptions);
 
         if (Application.Current.TryFindResource(typeof(ContentDialog)) is Style dialogStyle)
             dialog.Style = dialogStyle;
@@ -107,8 +135,13 @@ public static class DialogHelper
     /// <summary>
     /// Sets up the DialogHostEx property for an existing ContentDialog.
     /// </summary>
-    public static bool SetupDialogHost(ContentDialog dialog)
+    public static bool SetupDialogHost(ContentDialog dialog, DialogHostSetupOptions? setupOptions = null)
     {
+        if (setupOptions is not null)
+            SetEnableScrollAutoFade(dialog, setupOptions.EnableScrollAutoFade);
+
+        AttachDialogScrollBehavior(dialog);
+
         if (dialog.DialogHostEx != null)
         {
             AttachOpenAnimation(dialog);
@@ -146,6 +179,68 @@ public static class DialogHelper
         dialog.DialogHostEx = dialogHost;
         AttachOpenAnimation(dialog);
         return true;
+    }
+
+    private static void AttachDialogScrollBehavior(ContentDialog dialog)
+    {
+        if (GetIsScrollBehaviorHooked(dialog))
+        {
+            if (dialog.IsLoaded)
+                ApplyDialogScrollBehavior(dialog);
+
+            return;
+        }
+
+        SetIsScrollBehaviorHooked(dialog, true);
+        dialog.Loaded += OnDialogLoaded;
+
+        if (dialog.IsLoaded)
+            ApplyDialogScrollBehavior(dialog);
+    }
+
+    private static void OnDialogLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ContentDialog dialog)
+            return;
+
+        ApplyDialogScrollBehavior(dialog);
+    }
+
+    private static void ApplyDialogScrollBehavior(ContentDialog dialog)
+    {
+        if (!GetEnableScrollAutoFade(dialog))
+            return;
+
+        var viewer = ResolveDialogScrollViewer(dialog);
+        if (viewer is not null)
+        {
+            ScrollViewerAutoFadeBehavior.SetIsEnabled(viewer, true);
+            return;
+        }
+
+        _ = dialog.Dispatcher.BeginInvoke(
+            DispatcherPriority.Loaded,
+            new Action(() =>
+            {
+                if (!GetEnableScrollAutoFade(dialog))
+                    return;
+
+                var deferredViewer = ResolveDialogScrollViewer(dialog);
+                if (deferredViewer is null)
+                    return;
+
+                ScrollViewerAutoFadeBehavior.SetIsEnabled(deferredViewer, true);
+            }));
+    }
+
+    private static ScrollViewer? ResolveDialogScrollViewer(ContentDialog dialog)
+    {
+        dialog.ApplyTemplate();
+
+        if (dialog.Template?.FindName("PART_ScrollViewer", dialog) is ScrollViewer partScrollViewer)
+            return partScrollViewer;
+
+        return FindDescendant<ScrollViewer>(dialog);
     }
 
     private static void AttachOpenAnimation(ContentDialog dialog)
@@ -473,6 +568,24 @@ public static class DialogHelper
         }
 
         return false;
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root)
+        where T : DependencyObject
+    {
+        var childCount = VisualTreeHelper.GetChildrenCount(root);
+        for (var index = 0; index < childCount; index++)
+        {
+            var child = VisualTreeHelper.GetChild(root, index);
+            if (child is T typed)
+                return typed;
+
+            var nested = FindDescendant<T>(child);
+            if (nested is not null)
+                return nested;
+        }
+
+        return null;
     }
 
     /// <summary>

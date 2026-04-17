@@ -62,9 +62,9 @@ public class GameDefinition(
 /// </summary>
 public class GameInfo(GameDefinition definition) : INotifyPropertyChanged
 {
-// #pragma warning disable CS0067
+#pragma warning disable CS0067
     public event PropertyChangedEventHandler? PropertyChanged;
-// #pragma warning restore CS0067
+#pragma warning restore CS0067
 
     /// <summary>Static game metadata</summary>
     public GameDefinition Definition { get; } = definition;

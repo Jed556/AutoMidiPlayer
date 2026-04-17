@@ -304,7 +304,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
     {
         try
         {
-            await using var db = _ioc.Get<LyreContext>();
+            await using var db = _ioc.Get<PlayerContext>();
             db.Songs.Update(song);
             await db.SaveChangesAsync();
         }
@@ -383,7 +383,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
         file.Song.HoldNotes = dialog.SongHoldNotes;
         file.Song.Speed = dialog.SongSpeed;
 
-        await using var db = _ioc.Get<LyreContext>();
+        await using var db = _ioc.Get<PlayerContext>();
         db.Songs.Update(file.Song);
         await db.SaveChangesAsync();
 
@@ -472,7 +472,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
 
         RemoveSongsFromCollections(songIdsToDelete);
 
-        await using var db = _ioc.Get<LyreContext>();
+        await using var db = _ioc.Get<PlayerContext>();
 
         var existingSongs = await db.Songs
             .Where(song => songIdsToDelete.Contains(song.Id))

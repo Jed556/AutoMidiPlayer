@@ -727,7 +727,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                 .Select(t => t.Index);
             Queue.OpenedFile.Song.DisabledTracks = string.Join(",", disabledIndices);
 
-            await using var db = _ioc.Get<LyreContext>();
+            await using var db = _ioc.Get<PlayerContext>();
             db.Songs.Update(Queue.OpenedFile.Song);
             await db.SaveChangesAsync();
         }
