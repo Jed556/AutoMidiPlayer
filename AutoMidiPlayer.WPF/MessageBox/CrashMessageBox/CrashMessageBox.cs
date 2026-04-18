@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.Windows;
-using System.Windows.Input;
 
 namespace AutoMidiPlayer.WPF.MessageBox;
 
@@ -27,9 +26,6 @@ public partial class CrashMessageBox : Wpf.Ui.Controls.MessageBox
 
         if (Application.Current.TryFindResource("AppHyperlinkStyle") is Style hyperlinkStyle)
             LogPathHyperlink.Style = hyperlinkStyle;
-
-        if (Application.Current.TryFindResource("GhostIconButton") is Style ghostStyle)
-            CopyButton.Style = ghostStyle;
     }
 
     public static void Show(Exception exception, string logPath)
@@ -46,26 +42,5 @@ public partial class CrashMessageBox : Wpf.Ui.Controls.MessageBox
         });
 
         e.Handled = true;
-    }
-
-    private void OnCopyClick(object sender, RoutedEventArgs e)
-    {
-        Clipboard.SetText(ErrorTextBox.Text ?? string.Empty);
-        e.Handled = true;
-    }
-
-    private void OnErrorGridMouseEnter(object sender, MouseEventArgs e)
-    {
-        CopyButton.Opacity = 0.6;
-    }
-
-    private void OnErrorGridMouseLeave(object sender, MouseEventArgs e)
-    {
-        CopyButton.Opacity = 0;
-    }
-
-    private void OnCopyButtonMouseEnter(object sender, MouseEventArgs e)
-    {
-        CopyButton.Opacity = 1;
     }
 }

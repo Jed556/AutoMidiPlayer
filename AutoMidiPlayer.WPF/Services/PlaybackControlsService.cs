@@ -207,7 +207,7 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
         catch (ObjectDisposedException) { }
     }
 
-    public void CloseFile()
+    public void CloseFile(bool notifyOpenedFileChanged = true)
     {
         Engine.ResetPlayback();
 
@@ -217,6 +217,9 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
         Queue.OpenedFile = null;
         SongSettings.ClearSettings();
         _main.InstrumentView.UpdateFromCurrentSong();
+
+        if (notifyOpenedFileChanged)
+            _events.Publish(new OpenedFileChangedNotification(null));
     }
 
     /// <summary>

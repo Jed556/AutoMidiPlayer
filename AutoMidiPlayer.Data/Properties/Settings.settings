@@ -84,7 +84,7 @@
       <Value Profile="(Default)">3</Value>
     </Setting>
     <Setting Name="SelectedTransition" Type="System.Int32" Scope="User">
-      <Value Profile="(Default)">0</Value>
+      <Value Profile="(Default)">1</Value>
     </Setting>
     <Setting Name="MergeMilliseconds" Type="System.UInt32" Scope="User">
       <Value Profile="(Default)">0</Value>

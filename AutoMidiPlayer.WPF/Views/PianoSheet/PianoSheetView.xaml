@@ -6,16 +6,9 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     mc:Ignorable="d"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-    xmlns:s="https://github.com/canton7/Stylet"
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
-    xmlns:core="clr-namespace:AutoMidiPlayer.WPF.Core"
     xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
-    xmlns:properties="clr-namespace:AutoMidiPlayer.Data.Properties;assembly=AutoMidiPlayer.Data"
     d:DataContext="{d:DesignInstance Type=viewModels:PianoSheetViewModel}">
-
-    <UserControl.Resources>
-        <properties:Settings x:Key="Settings"/>
-    </UserControl.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -50,10 +43,12 @@
                                                Spacing="8">
                         <GroupBox Header="Bars">
                             <ui:NumberBox Value="{Binding Bars, UpdateSourceTrigger=PropertyChanged}"
+                                          Minimum="0"
                                           MinWidth="80"/>
                         </GroupBox>
                         <GroupBox Header="Beats">
                             <ui:NumberBox Value="{Binding Beats, UpdateSourceTrigger=PropertyChanged}"
+                                          Minimum="0"
                                           MinWidth="80"/>
                         </GroupBox>
                         <GroupBox Header="Shorten every">
@@ -67,35 +62,12 @@
             </controls:SimpleStackPanel>
         </controls:SimpleStackPanel>
 
-        <Grid Grid.Row="1">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
-            <controls:SimpleStackPanel Grid.Row="0"
-                                       Orientation="Horizontal"
-                                       Spacing="8"
-                                       Margin="0,8,0,4">
-                <Button Command="{s:Action CopyToClipboard}"
-                        ToolTip="Copy to clipboard">
-                    <controls:SimpleStackPanel Orientation="Horizontal"
-                                               Spacing="6">
-                        <Path Data="{StaticResource CopyIconGeometry}"
-                              Fill="{DynamicResource TextFillColorPrimaryBrush}"
-                              Stretch="Uniform"
-                              Width="14"
-                              Height="14"/>
-                        <TextBlock Text="Copy"
-                                   VerticalAlignment="Center"/>
-                    </controls:SimpleStackPanel>
-                </Button>
-                <Button Content="Refresh"
-                        Command="{s:Action Update}"/>
-            </controls:SimpleStackPanel>
-            <TextBox Grid.Row="1"
-                     Text="{Binding Result, Mode=OneWay}"
-                     IsReadOnly="True"
-                     Margin="0,0,0,10"/>
-        </Grid>
+        <controls:CopyableTextBox Grid.Row="1"
+                                  Margin="0,8,0,10"
+                                  Text="{Binding Result, Mode=OneWay}"
+                                  TextWrapping="NoWrap"
+                                  HorizontalScrollBarVisibility="Visible"
+                                  VerticalScrollBarVisibility="Auto"
+                                  CopyToolTip="Copy sheet output"/>
     </Grid>
 </UserControl>

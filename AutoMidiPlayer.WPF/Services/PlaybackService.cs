@@ -608,7 +608,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
         var epoch = ++_loadEpoch;
 
-        Controls.CloseFile();
+        Controls.CloseFile(notifyOpenedFileChanged: false);
         Queue.OpenedFile = file;
         Queue.History.Push(file);
 
@@ -654,6 +654,8 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         CrashLogger.LogStep(
             "PLAYBACK_LOAD_COMPLETED",
             $"title='{file.Title}' | path='{file.Path}' | tracks={TrackView.MidiTracks.Count} | autoPlay={autoPlay}");
+
+        _events.Publish(new OpenedFileChangedNotification(file));
 
         // Only auto-play if this is still the most recent load request
         if (autoPlay && epoch == _loadEpoch && Playback is not null)
