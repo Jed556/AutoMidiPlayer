@@ -47,525 +47,508 @@
                                            Margin="0,0,10,0">
 
                     <!-- Player Section -->
-                    <TextBlock Text="Player"
-                               FontSize="20"
-                               FontWeight="SemiBold"
-                               Margin="0,0,0,8"/>
-                    <ui:ToggleSwitch
-                        Content="Auto Enable Listen Mode"
-                        IsChecked="{Binding AutoEnableListenMode}"
-                        Margin="0,8,0,0"
-                        ToolTip="Playing a song will automatically switch to Listen Mode (Speakers) if the selected game isn't running."/>
+                    <controls:Section Title="Player">
+                        <controls:SimpleStackPanel>
+                            <ui:ToggleSwitch
+                                Content="Auto Enable Listen Mode"
+                                IsChecked="{Binding AutoEnableListenMode}"
+                                ToolTip="Playing a song will automatically switch to Listen Mode (Speakers) if the selected game isn't running."/>
 
-                    <GroupBox Header="Keypress Method"
-                              Margin="0,8,0,0">
-                        <ComboBox
-                            SelectedItem="{Binding SelectedKeypressInputMode}"
-                            ItemsSource="{x:Static viewModels:SettingsPageViewModel.KeypressInputModes}"
-                            DisplayMemberPath="Name"
-                            MinWidth="220"/>
-                    </GroupBox>
+                            <GroupBox Header="Keypress Method"
+                                      Margin="0,8,0,0">
+                                <ComboBox
+                                    SelectedItem="{Binding SelectedKeypressInputMode}"
+                                    ItemsSource="{x:Static viewModels:SettingsPageViewModel.KeypressInputModes}"
+                                    DisplayMemberPath="Name"
+                                    MinWidth="220"/>
+                            </GroupBox>
 
-                    <TextBlock Text="{Binding KeypressInputDescription}"
-                               TextWrapping="Wrap"
-                               Opacity="0.6"
-                               FontSize="12"
-                               Margin="0,-8,0,0"/>
+                            <TextBlock Text="{Binding KeypressInputDescription}"
+                                       TextWrapping="Wrap"
+                                       Opacity="0.6"
+                                       FontSize="12"
+                                       Margin="0,-8,0,0"/>
 
-                    <ui:ToggleSwitch
-                        Content="Enable Key-up"
-                        IsChecked="{Binding EnableKeyUp}"
-                        Margin="0,8,0,0"
-                        ToolTip="When enabled, key-up is sent after key-down for press actions across all keypress methods."/>
+                            <ui:ToggleSwitch
+                                Content="Enable Key-up"
+                                IsChecked="{Binding EnableKeyUp}"
+                                Margin="0,8,0,0"
+                                ToolTip="When enabled, key-up is sent after key-down for press actions across all keypress methods."/>
 
-                    <controls:SimpleStackPanel Orientation="Horizontal"
-                                               Spacing="8"
-                                               Margin="0,8,0,0">
-                        <TextBlock Text="Key Press Delay (ms)"
-                                   VerticalAlignment="Center"/>
-                        <ui:NumberBox
-                            Value="{Binding KeyboardPressDelayMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                            Minimum="0"
-                            Maximum="1000"
-                            MaxDecimalPlaces="0"
-                            MinWidth="100"
-                            ToolTip="Delay between key-down and key-up for press actions."/>
-                    </controls:SimpleStackPanel>
-
-
+                            <controls:SimpleStackPanel Orientation="Horizontal"
+                                                       Spacing="8"
+                                                       Margin="0,8,0,0">
+                                <TextBlock Text="Key Press Delay (ms)"
+                                           VerticalAlignment="Center"/>
+                                <ui:NumberBox
+                                    Value="{Binding KeyboardPressDelayMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    Minimum="0"
+                                    Maximum="1000"
+                                    MaxDecimalPlaces="0"
+                                    MinWidth="100"
+                                    ToolTip="Delay between key-down and key-up for press actions."/>
+                            </controls:SimpleStackPanel>
+                        </controls:SimpleStackPanel>
+                    </controls:Section>
 
                     <!-- Keybinds Section -->
-                    <TextBlock Text="Keybinds"
-                               FontSize="20"
-                               FontWeight="SemiBold"
-                               Margin="0,16,0,8"/>
+                    <controls:Section Title="Keybinds"
+                                      Margin="0,16,0,0">
+                        <controls:SimpleStackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ui:ToggleSwitch Grid.Column="0"
+                                                 Content="Enable global hotkeys"
+                                                 IsChecked="{Binding HotkeysEnabled}"
+                                                 ToolTip="When enabled, hotkeys work even when the app is not focused"/>
+                                <Button Style="{DynamicResource IconButton}"
+                                        Grid.Column="2"
+                                        Command="{s:Action ResetHotkeys}"
+                                        ToolTip="Reset all hotkeys to defaults"
+                                        Visibility="{Binding HotkeysEnabled, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                    <ui:SymbolIcon Symbol="ArrowClockwise24"
+                                                   FontSize="18"/>
+                                </Button>
+                            </Grid>
 
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <ui:ToggleSwitch Grid.Column="0"
-                                         Content="Enable global hotkeys"
-                                         IsChecked="{Binding HotkeysEnabled}"
-                                         ToolTip="When enabled, hotkeys work even when the app is not focused"/>
-                        <Button Style="{DynamicResource IconButton}"
-                                Grid.Column="2"
-                                Command="{s:Action ResetHotkeys}"
-                                ToolTip="Reset all hotkeys to defaults"
-                                Visibility="{Binding HotkeysEnabled, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                            <ui:SymbolIcon Symbol="ArrowClockwise24"
-                                           FontSize="18"/>
-                        </Button>
-                    </Grid>
+                            <TextBlock Text="Global hotkeys work even when the app is not in focus. Requires at least one modifier key (Ctrl, Alt, Shift)."
+                                       TextWrapping="Wrap"
+                                       Opacity="0.6"
+                                       FontSize="12"
+                                       Margin="0,-8,0,0"/>
 
-                    <TextBlock Text="Global hotkeys work even when the app is not in focus. Requires at least one modifier key (Ctrl, Alt, Shift)."
-                               TextWrapping="Wrap"
-                               Opacity="0.6"
-                               FontSize="12"
-                               Margin="0,-8,0,0"/>
+                            <GroupBox Header="Stop Playback on Mouse Click"
+                                      Visibility="{Binding HotkeysEnabled, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                <ComboBox
+                                    SelectedItem="{Binding SelectedMouseStopClickOption}"
+                                    ItemsSource="{x:Static viewModels:SettingsPageViewModel.MouseStopClickOptions}"
+                                    DisplayMemberPath="Name"
+                                    MinWidth="220"/>
+                            </GroupBox>
 
-                    <GroupBox Header="Stop Playback on Mouse Click"
-                              Visibility="{Binding HotkeysEnabled, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                        <ComboBox
-                            SelectedItem="{Binding SelectedMouseStopClickOption}"
-                            ItemsSource="{x:Static viewModels:SettingsPageViewModel.MouseStopClickOptions}"
-                            DisplayMemberPath="Name"
-                            MinWidth="220"/>
-                    </GroupBox>
-
-                    <controls:SimpleStackPanel Spacing="8"
-                                               Grid.IsSharedSizeScope="True"
-                                               Visibility="{Binding HotkeysEnabled, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                        <controls:HotkeyEditControl
-                            HotkeyBinding="{Binding PlayPauseHotkey}"
-                            HotkeyChanged="OnHotkeyChanged"
-                            HotkeyCleared="OnHotkeyCleared"
-                            EditStarted="OnHotkeyEditStarted"
-                            EditEnded="OnHotkeyEditEnded"/>
-                        <controls:HotkeyEditControl
-                            HotkeyBinding="{Binding NextHotkey}"
-                            HotkeyChanged="OnHotkeyChanged"
-                            HotkeyCleared="OnHotkeyCleared"
-                            EditStarted="OnHotkeyEditStarted"
-                            EditEnded="OnHotkeyEditEnded"/>
-                        <controls:HotkeyEditControl
-                            HotkeyBinding="{Binding PreviousHotkey}"
-                            HotkeyChanged="OnHotkeyChanged"
-                            HotkeyCleared="OnHotkeyCleared"
-                            EditStarted="OnHotkeyEditStarted"
-                            EditEnded="OnHotkeyEditEnded"/>
-                        <controls:HotkeyEditControl
-                            HotkeyBinding="{Binding SpeedUpHotkey}"
-                            HotkeyChanged="OnHotkeyChanged"
-                            HotkeyCleared="OnHotkeyCleared"
-                            EditStarted="OnHotkeyEditStarted"
-                            EditEnded="OnHotkeyEditEnded"/>
-                        <controls:HotkeyEditControl
-                            HotkeyBinding="{Binding SpeedDownHotkey}"
-                            HotkeyChanged="OnHotkeyChanged"
-                            HotkeyCleared="OnHotkeyCleared"
-                            EditStarted="OnHotkeyEditStarted"
-                            EditEnded="OnHotkeyEditEnded"/>
-                        <controls:HotkeyEditControl
-                            HotkeyBinding="{Binding PanicHotkey}"
-                            HotkeyChanged="OnHotkeyChanged"
-                            HotkeyCleared="OnHotkeyCleared"
-                            EditStarted="OnHotkeyEditStarted"
-                            EditEnded="OnHotkeyEditEnded"/>
-                    </controls:SimpleStackPanel>
+                            <controls:SimpleStackPanel Spacing="8"
+                                                       Grid.IsSharedSizeScope="True"
+                                                       Visibility="{Binding HotkeysEnabled, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                <controls:HotkeyEditControl
+                                    HotkeyBinding="{Binding PlayPauseHotkey}"
+                                    HotkeyChanged="OnHotkeyChanged"
+                                    HotkeyCleared="OnHotkeyCleared"
+                                    EditStarted="OnHotkeyEditStarted"
+                                    EditEnded="OnHotkeyEditEnded"/>
+                                <controls:HotkeyEditControl
+                                    HotkeyBinding="{Binding NextHotkey}"
+                                    HotkeyChanged="OnHotkeyChanged"
+                                    HotkeyCleared="OnHotkeyCleared"
+                                    EditStarted="OnHotkeyEditStarted"
+                                    EditEnded="OnHotkeyEditEnded"/>
+                                <controls:HotkeyEditControl
+                                    HotkeyBinding="{Binding PreviousHotkey}"
+                                    HotkeyChanged="OnHotkeyChanged"
+                                    HotkeyCleared="OnHotkeyCleared"
+                                    EditStarted="OnHotkeyEditStarted"
+                                    EditEnded="OnHotkeyEditEnded"/>
+                                <controls:HotkeyEditControl
+                                    HotkeyBinding="{Binding SpeedUpHotkey}"
+                                    HotkeyChanged="OnHotkeyChanged"
+                                    HotkeyCleared="OnHotkeyCleared"
+                                    EditStarted="OnHotkeyEditStarted"
+                                    EditEnded="OnHotkeyEditEnded"/>
+                                <controls:HotkeyEditControl
+                                    HotkeyBinding="{Binding SpeedDownHotkey}"
+                                    HotkeyChanged="OnHotkeyChanged"
+                                    HotkeyCleared="OnHotkeyCleared"
+                                    EditStarted="OnHotkeyEditStarted"
+                                    EditEnded="OnHotkeyEditEnded"/>
+                                <controls:HotkeyEditControl
+                                    HotkeyBinding="{Binding PanicHotkey}"
+                                    HotkeyChanged="OnHotkeyChanged"
+                                    HotkeyCleared="OnHotkeyCleared"
+                                    EditStarted="OnHotkeyEditStarted"
+                                    EditEnded="OnHotkeyEditEnded"/>
+                            </controls:SimpleStackPanel>
+                        </controls:SimpleStackPanel>
+                    </controls:Section>
 
                     <!-- Locations Section -->
-                    <TextBlock Text="Locations"
-                               FontSize="20"
-                               FontWeight="SemiBold"
-                               Margin="0,16,0,8"/>
+                    <controls:Section Title="Locations"
+                                      Margin="0,16,0,0">
+                        <controls:SimpleStackPanel>
+                            <ItemsControl ItemsSource="{Binding GameLocations}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type games:GameInfo}">
+                                        <GroupBox Margin="0,0,0,4">
+                                            <GroupBox.Header>
+                                                <TextBlock>
+                                                    <Run Text="{Binding DisplayName, Mode=OneWay}"/><Run Text=" Location"/>
+                                                </TextBlock>
+                                            </GroupBox.Header>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Button Style="{DynamicResource IconButton}"
+                                                        s:View.ActionTarget="{Binding Data, Source={StaticResource SettingsVmProxy}}"
+                                                        CommandParameter="{Binding}"
+                                                        Command="{s:Action BrowseGameLocation}"
+                                                        Width="28"
+                                                        Height="28"
+                                                        MinWidth="0"
+                                                        Padding="0">
+                                                    <ui:SymbolIcon Symbol="AppsAddIn16"
+                                                                   FontSize="16"/>
+                                                </Button>
+                                                <TextBlock Grid.Column="1"
+                                                           Margin="4,0,0,0"
+                                                           Text="{Binding Location}"
+                                                           VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           ToolTip="{Binding Location}"/>
+                                            </Grid>
+                                        </GroupBox>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
 
-                    <ItemsControl ItemsSource="{Binding GameLocations}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="{x:Type games:GameInfo}">
-                                <GroupBox Margin="0,0,0,4">
-                                    <GroupBox.Header>
-                                        <TextBlock>
-                                            <Run Text="{Binding DisplayName, Mode=OneWay}"/><Run Text=" Location"/>
-                                        </TextBlock>
-                                    </GroupBox.Header>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
+                            <GroupBox Header="MIDI Folder">
+                                <controls:SimpleStackPanel>
+                                    <controls:SimpleStackPanel Orientation="Horizontal">
                                         <Button Style="{DynamicResource IconButton}"
-                                                s:View.ActionTarget="{Binding Data, Source={StaticResource SettingsVmProxy}}"
-                                                CommandParameter="{Binding}"
-                                                Command="{s:Action BrowseGameLocation}"
+                                                Command="{s:Action BrowseMidiFolder}"
                                                 Width="28"
                                                 Height="28"
                                                 MinWidth="0"
-                                                Padding="0">
-                                            <ui:SymbolIcon Symbol="AppsAddIn16"
+                                                Padding="0"
+                                                ToolTip="Browse for MIDI folder"
+                                                Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}">
+                                            <ui:SymbolIcon Symbol="FolderAdd16"
                                                            FontSize="16"/>
                                         </Button>
-                                        <TextBlock Grid.Column="1"
-                                                   Margin="4,0,0,0"
-                                                   Text="{Binding Location}"
+                                        <Button Style="{DynamicResource IconButton}"
+                                                Command="{s:Action OpenMidiFolder}"
+                                                Width="28"
+                                                Height="28"
+                                                MinWidth="0"
+                                                Padding="0"
+                                                ToolTip="Open MIDI folder in Explorer"
+                                                Visibility="{Binding HasAccessibleMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                            <ui:SymbolIcon Symbol="FolderOpen16"
+                                                           FontSize="16"/>
+                                        </Button>
+                                        <Border Padding="6"
+                                                Background="Transparent"
+                                                ToolTip="MIDI folder can&apos;t be found. Select a new folder path."
+                                                Visibility="{Binding IsMidiFolderMissing, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                            <ui:SymbolIcon Symbol="ErrorCircle12"
+                                                           Foreground="#C42B1C"
+                                                           FontSize="18"/>
+                                        </Border>
+                                        <TextBlock Text="{Binding MidiFolder, TargetNullValue='No folder selected'}"
                                                    VerticalAlignment="Center"
                                                    TextTrimming="CharacterEllipsis"
-                                                   ToolTip="{Binding Location}"/>
-                                    </Grid>
-                                </GroupBox>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                                                   MaxWidth="200"
+                                                   ToolTip="{Binding MidiFolder, TargetNullValue='No folder selected'}"/>
+                                        <controls:BusyActionButton Width="32"
+                                                                   Height="28"
+                                                                   Visibility="{Binding ShowMidiFolderManualRefresh, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                                                   IsBusy="{Binding IsScanningMidiFolder}"
+                                                                   MinimumVisibleDuration="0:0:1"
+                                                                   Command="{s:Action ScanMidiFolder}"
+                                                                   ButtonToolTip="Refresh/Scan folder for new MIDI files"
+                                                                   IconSymbol="ArrowClockwise24"
+                                                                   IconFontSize="18"/>
+                                        <Button Style="{DynamicResource IconButton}"
+                                                Command="{s:Action ClearMidiFolder}"
+                                                Width="28"
+                                                Height="28"
+                                                MinWidth="0"
+                                                Padding="0"
+                                                ToolTip="Clear MIDI folder"
+                                                Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                            <ui:SymbolIcon Symbol="Delete16"
+                                                           FontSize="16"/>
+                                        </Button>
+                                    </controls:SimpleStackPanel>
 
-                    <GroupBox Header="MIDI Folder">
-                        <controls:SimpleStackPanel>
-                            <controls:SimpleStackPanel Orientation="Horizontal">
-                                <Button Style="{DynamicResource IconButton}"
-                                        Command="{s:Action BrowseMidiFolder}"
-                                        Width="28"
-                                        Height="28"
-                                        MinWidth="0"
-                                        Padding="0"
-                                        ToolTip="Browse for MIDI folder"
-                                        Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}">
-                                    <ui:SymbolIcon Symbol="FolderAdd16"
-                                                   FontSize="16"/>
-                                </Button>
-                                <Button Style="{DynamicResource IconButton}"
-                                        Command="{s:Action OpenMidiFolder}"
-                                        Width="28"
-                                        Height="28"
-                                        MinWidth="0"
-                                        Padding="0"
-                                        ToolTip="Open MIDI folder in Explorer"
-                                        Visibility="{Binding HasAccessibleMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                                    <ui:SymbolIcon Symbol="FolderOpen16"
-                                                   FontSize="16"/>
-                                </Button>
-                                <Border Padding="6"
-                                        Background="Transparent"
-                                        ToolTip="MIDI folder can&apos;t be found. Select a new folder path."
-                                        Visibility="{Binding IsMidiFolderMissing, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                                    <ui:SymbolIcon Symbol="ErrorCircle12"
-                                                   Foreground="#C42B1C"
-                                                   FontSize="18"/>
-                                </Border>
-                                <TextBlock Text="{Binding MidiFolder, TargetNullValue='No folder selected'}"
-                                           VerticalAlignment="Center"
-                                           TextTrimming="CharacterEllipsis"
-                                           MaxWidth="200"
-                                           ToolTip="{Binding MidiFolder, TargetNullValue='No folder selected'}"/>
-                                <controls:BusyActionButton Width="32"
-                                                           Height="28"
-                                                           Visibility="{Binding ShowMidiFolderManualRefresh, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
-                                                           IsBusy="{Binding IsScanningMidiFolder}"
-                                                           MinimumVisibleDuration="0:0:1"
-                                                           Command="{s:Action ScanMidiFolder}"
-                                                           ButtonToolTip="Refresh/Scan folder for new MIDI files"
-                                                           IconSymbol="ArrowClockwise24"
-                                                           IconFontSize="18"/>
-                                <Button Style="{DynamicResource IconButton}"
-                                        Command="{s:Action ClearMidiFolder}"
-                                        Width="28"
-                                        Height="28"
-                                        MinWidth="0"
-                                        Padding="0"
-                                        ToolTip="Clear MIDI folder"
-                                        Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                                    <ui:SymbolIcon Symbol="Delete16"
-                                                   FontSize="16"/>
-                                </Button>
-                            </controls:SimpleStackPanel>
+                                    <ui:ToggleSwitch Content="Auto-scan folder for new MIDI files"
+                                                     IsChecked="{Binding AutoScanMidiFolder}"
+                                                     Margin="0,8,0,0"
+                                                     ToolTip="When enabled, Auto MIDI Player watches this folder and auto-imports newly added MIDI files."
+                                                     Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                                </controls:SimpleStackPanel>
+                            </GroupBox>
 
-                            <ui:ToggleSwitch Content="Auto-scan folder for new MIDI files"
-                                             IsChecked="{Binding AutoScanMidiFolder}"
-                                             Margin="0,8,0,0"
-                                             ToolTip="When enabled, Auto MIDI Player watches this folder and auto-imports newly added MIDI files."
-                                             Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                            <GroupBox Header="Data Location">
+                                <controls:SimpleStackPanel Orientation="Horizontal"
+                                                           Spacing="6">
+                                    <Button Style="{DynamicResource IconButton}"
+                                            Command="{s:Action OpenDataFolder}"
+                                            Width="28"
+                                            Height="28"
+                                            MinWidth="0"
+                                            Padding="0"
+                                            ToolTip="Open data folder in Explorer">
+                                        <ui:SymbolIcon Symbol="FolderOpen16"
+                                                       FontSize="16"/>
+                                    </Button>
+                                    <TextBlock Text="{x:Static viewModels:SettingsPageViewModel.DataLocation}"
+                                               VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis"
+                                               MaxWidth="220"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               ToolTip="{x:Static viewModels:SettingsPageViewModel.DataLocation}"/>
+                                    <Button Style="{DynamicResource IconButton}"
+                                            Command="{s:Action ResetAppData}"
+                                            Width="28"
+                                            Height="28"
+                                            MinWidth="0"
+                                            Padding="0"
+                                            ToolTip="Clear/reset app data">
+                                        <ui:SymbolIcon Symbol="ArrowClockwise24"
+                                                       FontSize="16"/>
+                                    </Button>
+                                </controls:SimpleStackPanel>
+                            </GroupBox>
                         </controls:SimpleStackPanel>
-                    </GroupBox>
-
-                    <GroupBox Header="Data Location">
-                        <controls:SimpleStackPanel Orientation="Horizontal"
-                                                   Spacing="6">
-                            <Button Style="{DynamicResource IconButton}"
-                                    Command="{s:Action OpenDataFolder}"
-                                    Width="28"
-                                    Height="28"
-                                    MinWidth="0"
-                                    Padding="0"
-                                    ToolTip="Open data folder in Explorer">
-                                <ui:SymbolIcon Symbol="FolderOpen16"
-                                               FontSize="16"/>
-                            </Button>
-                            <TextBlock Text="{x:Static viewModels:SettingsPageViewModel.DataLocation}"
-                                       VerticalAlignment="Center"
-                                       TextTrimming="CharacterEllipsis"
-                                       MaxWidth="220"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                       ToolTip="{x:Static viewModels:SettingsPageViewModel.DataLocation}"/>
-                            <Button Style="{DynamicResource IconButton}"
-                                    Command="{s:Action ResetAppData}"
-                                    Width="28"
-                                    Height="28"
-                                    MinWidth="0"
-                                    Padding="0"
-                                    ToolTip="Clear/reset app data">
-                                <ui:SymbolIcon Symbol="ArrowClockwise24"
-                                               FontSize="16"/>
-                            </Button>
-                        </controls:SimpleStackPanel>
-                    </GroupBox>
+                    </controls:Section>
 
                 </controls:SimpleStackPanel>
 
                 <!-- Right Column -->
-                <controls:SimpleStackPanel Grid.Column="
-                                        1"
+                <controls:SimpleStackPanel Grid.Column="1"
                                            Margin="10,0,0,0">
 
                     <!-- New Song Defaults Section -->
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0"
-                                   Text="New Song Defaults"
-                                   FontSize="20"
-                                   FontWeight="SemiBold"
-                                   Margin="0,0,0,0"/>
-                        <Button Style="{DynamicResource IconButton}"
-                                Grid.Column="1"
-                                Command="{s:Action ResetSongDefaults}"
-                                ToolTip="Reset song defaults"
-                                Margin="0,0,0,2">
-                            <ui:SymbolIcon Symbol="ArrowClockwise24"
-                                           FontSize="18"/>
-                        </Button>
-                    </Grid>
-                    <TextBlock Text="Applied when importing new songs."
-                               TextWrapping="Wrap"
-                               Opacity="0.6"
-                               FontSize="12"
-                               Margin="0,0,0,8"/>
+                    <controls:Section Title="New Song Defaults"
+                                      Description="Applied when importing new songs.">
+                        <controls:Section.HeaderContent>
+                            <Button Style="{DynamicResource IconButton}"
+                                    Command="{s:Action ResetSongDefaults}"
+                                    ToolTip="Reset song defaults"
+                                    Margin="0,0,0,2">
+                                <ui:SymbolIcon Symbol="ArrowClockwise24"
+                                               FontSize="18"/>
+                            </Button>
+                        </controls:Section.HeaderContent>
 
-                    <GroupBox Header="Key Defaults"
-                              Margin="0,0,0,0">
-                        <Grid Margin="0,0,0,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="12"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
+                        <controls:SimpleStackPanel>
+                            <GroupBox Header="Key Defaults"
+                                      Margin="0,0,0,0">
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
 
-                            <controls:SimpleStackPanel Grid.Column="0"
-                                                       Spacing="4">
-                                <TextBlock Text="Default Key Offset"
-                                           FontWeight="SemiBold"/>
-                                <ComboBox SelectedItem="{Binding SelectedNewSongDefaultKeyOption}"
-                                          ItemsSource="{x:Static viewModels:SettingsPageViewModel.NewSongDefaultKeyOptions}"
-                                          ItemTemplate="{StaticResource OffsetNoteTemplate}"
-                                          MinWidth="150"/>
-                            </controls:SimpleStackPanel>
+                                    <controls:SimpleStackPanel Grid.Column="0"
+                                                               Spacing="4">
+                                        <TextBlock Text="Default Key Offset"
+                                                   FontWeight="SemiBold"/>
+                                        <ComboBox SelectedItem="{Binding SelectedNewSongDefaultKeyOption}"
+                                                  ItemsSource="{x:Static viewModels:SettingsPageViewModel.NewSongDefaultKeyOptions}"
+                                                  ItemTemplate="{StaticResource OffsetNoteTemplate}"
+                                                  MinWidth="150"/>
+                                    </controls:SimpleStackPanel>
 
-                            <controls:SimpleStackPanel Grid.Column="2"
-                                                       Spacing="4">
-                                <TextBlock Text="Key Offset"
-                                           FontWeight="SemiBold"/>
-                                <ComboBox SelectedItem="{Binding SelectedNewSongKeyOption}"
-                                          ItemsSource="{Binding NewSongKeyOptions}"
-                                          ItemTemplate="{StaticResource OffsetNoteTemplate}"
-                                          MinWidth="150"/>
-                            </controls:SimpleStackPanel>
-                        </Grid>
-                    </GroupBox>
+                                    <controls:SimpleStackPanel Grid.Column="2"
+                                                               Spacing="4">
+                                        <TextBlock Text="Key Offset"
+                                                   FontWeight="SemiBold"/>
+                                        <ComboBox SelectedItem="{Binding SelectedNewSongKeyOption}"
+                                                  ItemsSource="{Binding NewSongKeyOptions}"
+                                                  ItemTemplate="{StaticResource OffsetNoteTemplate}"
+                                                  MinWidth="150"/>
+                                    </controls:SimpleStackPanel>
+                                </Grid>
+                            </GroupBox>
 
-                    <ui:ToggleSwitch Content="Auto Detect Default Key"
-                                     IsChecked="{Binding AutoDetectDefaultKey}"
-                                     Margin="0,8,0,0"
-                                     ToolTip="When enabled, newly imported songs try to auto-detect default key. If detection fails, the Key Defaults above are used."/>
+                            <ui:ToggleSwitch Content="Auto Detect Default Key"
+                                             IsChecked="{Binding AutoDetectDefaultKey}"
+                                             Margin="0,8,0,0"
+                                             ToolTip="When enabled, newly imported songs try to auto-detect default key. If detection fails, the Key Defaults above are used."/>
 
-                    <Grid Margin="0,8,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="12"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
 
-                        <GroupBox Grid.Column="0"
-                                  Header="Transpose">
-                            <ComboBox SelectedItem="{Binding SelectedNewSongTransposeOption}"
-                                      ItemsSource="{x:Static viewModels:SettingsPageViewModel.NewSongTransposeOptions}"
-                                      DisplayMemberPath="Value"
-                                      MinWidth="150"/>
-                        </GroupBox>
+                                <GroupBox Grid.Column="0"
+                                          Header="Transpose">
+                                    <ComboBox SelectedItem="{Binding SelectedNewSongTransposeOption}"
+                                              ItemsSource="{x:Static viewModels:SettingsPageViewModel.NewSongTransposeOptions}"
+                                              DisplayMemberPath="Value"
+                                              MinWidth="150"/>
+                                </GroupBox>
 
-                        <GroupBox Grid.Column="2"
-                                  Header="Hold Notes">
-                            <ui:ToggleSwitch Content="Enable"
-                                             IsChecked="{Binding DefaultSongHoldNotes}"
-                                             Margin="0,4,0,0"/>
-                        </GroupBox>
-                    </Grid>
+                                <GroupBox Grid.Column="2"
+                                          Header="Hold Notes">
+                                    <ui:ToggleSwitch Content="Enable"
+                                                     IsChecked="{Binding DefaultSongHoldNotes}"
+                                                     Margin="0,4,0,0"/>
+                                </GroupBox>
+                            </Grid>
 
-                    <GroupBox Header="Merge Notes"
-                              Margin="0,8,0,0">
-                        <controls:SimpleStackPanel Orientation="Horizontal"
-                                                   Spacing="8">
-                            <ui:ToggleSwitch Content="Merge Notes"
-                                             IsChecked="{Binding DefaultSongMergeNotes}"/>
-                            <TextBlock Text="Tolerance (ms)"
-                                       VerticalAlignment="Center"/>
-                            <ui:NumberBox Value="{Binding DefaultSongMergeMilliseconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          Minimum="1"
-                                          Maximum="1000"
-                                          MaxDecimalPlaces="0"
-                                          MinWidth="100"
-                                          IsEnabled="{Binding CanEditDefaultSongMergeMilliseconds}"/>
+                            <GroupBox Header="Merge Notes"
+                                      Margin="0,8,0,0">
+                                <controls:SimpleStackPanel Orientation="Horizontal"
+                                                           Spacing="8">
+                                    <ui:ToggleSwitch Content="Merge Notes"
+                                                     IsChecked="{Binding DefaultSongMergeNotes}"/>
+                                    <TextBlock Text="Tolerance (ms)"
+                                               VerticalAlignment="Center"/>
+                                    <ui:NumberBox Value="{Binding DefaultSongMergeMilliseconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  Minimum="1"
+                                                  Maximum="1000"
+                                                  MaxDecimalPlaces="0"
+                                                  MinWidth="100"
+                                                  IsEnabled="{Binding CanEditDefaultSongMergeMilliseconds}"/>
+                                </controls:SimpleStackPanel>
+                            </GroupBox>
                         </controls:SimpleStackPanel>
-                    </GroupBox>
+                    </controls:Section>
 
                     <!-- Version Section -->
-                    <controls:SimpleStackPanel Orientation="Horizontal"
-                                               Spacing="8"
-                                               Margin="0,16,0,8">
-                        <TextBlock Text="Version"
-                                   FontSize="20"
-                                   FontWeight="SemiBold"
-                                   VerticalAlignment="Center"/>
-                        <Border Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
-                                Background="{DynamicResource SystemAccentColorPrimaryBrush}"
-                                CornerRadius="10"
-                                Margin="0,4,0,0"
-                                Padding="8,2"
-                                VerticalAlignment="Center">
-                            <TextBlock Text="New Update"
-                                       FontSize="11"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource ApplicationBackgroundBrush}"/>
-                        </Border>
-                    </controls:SimpleStackPanel>
+                    <controls:Section Title="Version"
+                                      Margin="0,16,0,0">
+                        <controls:Section.HeaderContent>
+                            <Border Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                    Background="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                    CornerRadius="10"
+                                    Margin="0,4,0,0"
+                                    Padding="8,2"
+                                    VerticalAlignment="Center">
+                                <TextBlock Text="New Update"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource ApplicationBackgroundBrush}"/>
+                            </Border>
+                        </controls:Section.HeaderContent>
 
-                    <controls:SimpleStackPanel Orientation="Horizontal"
-                                               Spacing="8">
-                        <TextBlock VerticalAlignment="Center">
-                        v<Run Text="{Binding ProgramVersionDisplay, Mode=OneTime}"/>
-                        </TextBlock>
-                        <ui:SymbolIcon Symbol="TriangleRight20"
-                                       FontSize="8"
-                                       Filled="True"
-                                       VerticalAlignment="Center"
-                                       Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
-                        <TextBlock VerticalAlignment="Center"
-                                   Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                            <Run Text="{Binding LatestVersion.TagName}"/>
-                        </TextBlock>
-                        <ui:HyperlinkButton NavigateUri="{Binding LatestVersion.Url}"
-                                            Style="{DynamicResource IconHyperlinkButton}"
-                                            Padding="2"
-                                            ToolTip="Open update page"
-                                            Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                            <ui:SymbolIcon Symbol="ArrowCircleUp12"
-                                           FontSize="16"
-                                           Filled="True"/>
-                        </ui:HyperlinkButton>
-                        <controls:BusyActionButton Width="24"
-                                                   Height="24"
-                                                   IsBusy="{Binding IsCheckingUpdate}"
-                                                   MinimumVisibleDuration="0:0:1"
-                                                   Command="{s:Action CheckForUpdate}"
-                                                   ButtonPadding="2"
-                                                   ButtonToolTip="Check for updates"
-                                                   IconSymbol="ArrowClockwise24"
-                                                   IconFontSize="16"
-                                                   IndicatorSize="16"/>
-                    </controls:SimpleStackPanel>
+                        <controls:SimpleStackPanel>
+                            <controls:SimpleStackPanel Orientation="Horizontal"
+                                                       Spacing="8">
+                                <TextBlock VerticalAlignment="Center">
+                                v<Run Text="{Binding ProgramVersionDisplay, Mode=OneTime}"/>
+                                </TextBlock>
+                                <ui:SymbolIcon Symbol="TriangleRight20"
+                                               FontSize="8"
+                                               Filled="True"
+                                               VerticalAlignment="Center"
+                                               Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                                <TextBlock VerticalAlignment="Center"
+                                           Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                    <Run Text="{Binding LatestVersion.TagName}"/>
+                                </TextBlock>
+                                <ui:HyperlinkButton NavigateUri="{Binding LatestVersion.Url}"
+                                                    Style="{DynamicResource IconHyperlinkButton}"
+                                                    Padding="2"
+                                                    ToolTip="Open update page"
+                                                    Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                    <ui:SymbolIcon Symbol="ArrowCircleUp12"
+                                                   FontSize="16"
+                                                   Filled="True"/>
+                                </ui:HyperlinkButton>
+                                <controls:BusyActionButton Width="24"
+                                                           Height="24"
+                                                           IsBusy="{Binding IsCheckingUpdate}"
+                                                           MinimumVisibleDuration="0:0:1"
+                                                           Command="{s:Action CheckForUpdate}"
+                                                           ButtonPadding="2"
+                                                           ButtonToolTip="Check for updates"
+                                                           IconSymbol="ArrowClockwise24"
+                                                           IconFontSize="16"
+                                                           IndicatorSize="16"/>
+                            </controls:SimpleStackPanel>
 
-                    <ui:ToggleSwitch Content="Auto-check updates"
-                                     IsChecked="{Binding AutoCheckUpdates}"/>
-                    <ui:ToggleSwitch Content="Include beta updates"
-                                     IsChecked="{Binding IncludeBetaUpdates}"/>
+                            <ui:ToggleSwitch Content="Auto-check updates"
+                                             IsChecked="{Binding AutoCheckUpdates}"/>
+                            <ui:ToggleSwitch Content="Include beta updates"
+                                             IsChecked="{Binding IncludeBetaUpdates}"/>
+                        </controls:SimpleStackPanel>
+                    </controls:Section>
 
                     <!-- Style Section -->
-                    <TextBlock Text="Style"
-                               FontSize="20"
-                               FontWeight="SemiBold"
-                               Margin="0,16,0,8"/>
+                    <controls:Section Title="Style"
+                                      Margin="0,16,0,0">
+                        <controls:SimpleStackPanel>
+                            <GroupBox Header="Theme Mode">
+                                <ComboBox
+                                    SelectedItem="{Binding SelectedTheme}"
+                                    ItemsSource="{x:Static viewModels:SettingsPageViewModel.ThemeOptions}"
+                                    DisplayMemberPath="Name"
+                                    MinWidth="150"/>
+                            </GroupBox>
 
-                    <GroupBox Header="Theme Mode">
-                        <ComboBox
-                            SelectedItem="{Binding SelectedTheme}"
-                            ItemsSource="{x:Static viewModels:SettingsPageViewModel.ThemeOptions}"
-                            DisplayMemberPath="Name"
-                            MinWidth="150"/>
-                    </GroupBox>
+                            <GroupBox Header="Accent Color">
+                                <ComboBox
+                                    SelectedItem="{Binding SelectedAccentColor}"
+                                    ItemsSource="{x:Static viewModels:SettingsPageViewModel.AccentColors}"
+                                    MinWidth="150">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border Width="16"
+                                                        Height="16"
+                                                        CornerRadius="8"
+                                                        Background="{Binding ColorBrush}"
+                                                        Margin="0,0,8,0"/>
+                                                <TextBlock Text="{Binding Name}"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </GroupBox>
 
-                    <GroupBox Header="Accent Color">
-                        <ComboBox
-                            SelectedItem="{Binding SelectedAccentColor}"
-                            ItemsSource="{x:Static viewModels:SettingsPageViewModel.AccentColors}"
-                            MinWidth="150">
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate>
-                                    <StackPanel Orientation="Horizontal">
-                                        <Border Width="16"
-                                                Height="16"
-                                                CornerRadius="8"
-                                                Background="{Binding ColorBrush}"
-                                                Margin="0,0,8,0"/>
-                                        <TextBlock Text="{Binding Name}"
-                                                   VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
-                    </GroupBox>
-
-                    <GroupBox Header="Transition Style">
-                        <ComboBox
-                            SelectedItem="{Binding Transition}"
-                            SelectedIndex="{Binding Default.SelectedTransition, Source={StaticResource Settings}}"
-                            ItemsSource="{x:Static transitions:TransitionCollection.Transitions}"
-                            MinWidth="150"/>
-                    </GroupBox>
-                    <ui:ToggleSwitch Content="Enable smooth scrolling (Experimental)"
-                                     IsChecked="{Binding SmoothScrollingEnabled}"
-                                     ToolTip="Smooths wheel scrolling in lists and panes. Turn off for default native scrolling."/>
+                            <GroupBox Header="Transition Style">
+                                <ComboBox
+                                    SelectedItem="{Binding Transition}"
+                                    SelectedIndex="{Binding Default.SelectedTransition, Source={StaticResource Settings}}"
+                                    ItemsSource="{x:Static transitions:TransitionCollection.Transitions}"
+                                    MinWidth="150"/>
+                            </GroupBox>
+                            <ui:ToggleSwitch Content="Enable smooth scrolling (Experimental)"
+                                             IsChecked="{Binding SmoothScrollingEnabled}"
+                                             ToolTip="Smooths wheel scrolling in lists and panes. Turn off for default native scrolling."/>
+                        </controls:SimpleStackPanel>
+                    </controls:Section>
 
                 </controls:SimpleStackPanel>
             </Grid>
 
             <!-- License Section (full width) -->
-            <TextBlock Text="License"
-                       FontSize="20"
-                       FontWeight="SemiBold"
-                       Margin="0,16,0,8"/>
+            <controls:Section Title="License"
+                              Margin="0,16,0,0">
+                <controls:SimpleStackPanel Spacing="4">
+                    <TextBlock TextWrapping="Wrap"
+                               FontSize="12">
+                    Originally created by © 2022 sabihoshi. Modified by © 2026 Jed556 for multi-game support and modernization.
+                    Licensed under the
+                    <Hyperlink NavigateUri="{Binding Default.LicenseUri, Source={StaticResource Settings}}"
+                               Style="{DynamicResource AppHyperlinkStyle}">MIT License</Hyperlink>.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap"
+                               FontSize="12">
+                    This project uses third-party libraries that may be distributed under
+                    <Hyperlink NavigateUri="{Binding Default.ThirdPartyLicenseUri, Source={StaticResource Settings}}"
+                               Style="{DynamicResource AppHyperlinkStyle}">different licenses</Hyperlink>.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap"
+                               FontSize="11"
+                               Opacity="0.7">
 
-            <controls:SimpleStackPanel Spacing="4">
-                <TextBlock TextWrapping="Wrap"
-                           FontSize="12">
-                Originally created by © 2022 sabihoshi. Modified by © 2026 Jed556 for multi-game support and modernization.
-                Licensed under the
-                <Hyperlink NavigateUri="{Binding Default.LicenseUri, Source={StaticResource Settings}}"
-                           Style="{DynamicResource AppHyperlinkStyle}">MIT License</Hyperlink>.
-                </TextBlock>
-                <TextBlock TextWrapping="Wrap"
-                           FontSize="12">
-                This project uses third-party libraries that may be distributed under
-                <Hyperlink NavigateUri="{Binding Default.ThirdPartyLicenseUri, Source={StaticResource Settings}}"
-                           Style="{DynamicResource AppHyperlinkStyle}">different licenses</Hyperlink>.
-                </TextBlock>
-                <TextBlock TextWrapping="Wrap"
-                           FontSize="11"
-                           Opacity="0.7">
-                           
-                All rights reserved by © miHoYo Co., Ltd., © XD Inc., © thatgamecompany, Inc., and © Roblox Corporation.
-                Not affiliated with miHoYo, XD, thatgamecompany, or Roblox.
-                </TextBlock>
-            </controls:SimpleStackPanel>
+                    All rights reserved by © miHoYo Co., Ltd., © XD Inc., © thatgamecompany, Inc., and © Roblox Corporation.
+                    Not affiliated with miHoYo, XD, thatgamecompany, or Roblox.
+                    </TextBlock>
+                </controls:SimpleStackPanel>
+            </controls:Section>
         </controls:SimpleStackPanel>
     </ScrollViewer>
 </UserControl>

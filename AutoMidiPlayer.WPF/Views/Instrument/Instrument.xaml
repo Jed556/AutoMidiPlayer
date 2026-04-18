@@ -29,79 +29,73 @@
                                        Margin="0,0,10,0">
 
                 <!-- Instrument Section -->
-                <TextBlock Text="Game Instrument"
-                           FontSize="20"
-                           FontWeight="SemiBold"
-                           Margin="0,0,0,8"/>
-                <ComboBox
-                    ItemsSource="{Binding AvailableInstruments}"
-                    SelectedItem="{Binding SelectedInstrument}"
-                    DisplayMemberPath="Value"
-                    MinWidth="200"/>
+                <controls:Section Title="Game Instrument">
+                    <ComboBox
+                        ItemsSource="{Binding AvailableInstruments}"
+                        SelectedItem="{Binding SelectedInstrument}"
+                        DisplayMemberPath="Value"
+                        MinWidth="200"/>
+                </controls:Section>
 
-                <TextBlock Text="Keyboard Layout"
-                           FontSize="20"
-                           FontWeight="SemiBold"
-                           Margin="0,16,0,8"/>
-                <ComboBox
-                    ItemsSource="{Binding AvailableLayouts}"
-                    SelectedItem="{Binding SelectedLayout}"
-                    DisplayMemberPath="Value"
-                    MinWidth="200"/>
+                <controls:Section Title="Keyboard Layout"
+                                  Margin="0,16,0,0">
+                    <ComboBox
+                        ItemsSource="{Binding AvailableLayouts}"
+                        SelectedItem="{Binding SelectedLayout}"
+                        DisplayMemberPath="Value"
+                        MinWidth="200"/>
+                </controls:Section>
 
-                <TextBlock Text="Listening"
-                           FontSize="20"
-                           FontWeight="SemiBold"
-                           Margin="0,16,0,8"/>
+                <controls:Section Title="Listening"
+                                  Margin="0,16,0,0">
+                    <controls:SimpleStackPanel>
+                        <ui:ToggleSwitch
+                            Content="Listen Mode (Speakers)"
+                            IsChecked="{Binding UseSpeakers, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
 
-                <ui:ToggleSwitch
-                    Content="Listen Mode (Speakers)"
-                    IsChecked="{Binding UseSpeakers, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                    Margin="0,8,0,0"/>
-
-                <ui:ToggleSwitch
-                    Content="Play unplayable notes (Ignore transpose)"
-                    IsChecked="{Binding PlayUnplayableOnIgnore, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                    Margin="0,0,0,0"/>
+                        <ui:ToggleSwitch
+                            Content="Play unplayable notes (Ignore transpose)"
+                            IsChecked="{Binding PlayUnplayableOnIgnore, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            Margin="0,0,0,0"/>
+                    </controls:SimpleStackPanel>
+                </controls:Section>
 
                 <!-- Scheduled Playback Section -->
-                <TextBlock Text="Scheduled Playback"
-                           FontSize="20"
-                           FontWeight="SemiBold"
-                           Margin="0,16,0,8"/>
-
-                <controls:SimpleStackPanel>
-                    <controls:SimpleStackPanel.Resources>
-                        <Style TargetType="Button"
-                               BasedOn="{StaticResource {x:Type Button}}"/>
-                    </controls:SimpleStackPanel.Resources>
-                    <controls:SimpleStackPanel Orientation="Horizontal"
-                                               Spacing="8">
-                        <ui:NumberBox PlaceholderText="hour"
-                                      Value="{Binding ScheduledHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      Minimum="0"
-                                      Maximum="23"
-                                      MaxDecimalPlaces="0"
-                                      MinWidth="70"
-                                      IsEnabled="{Binding CanChangeTime}"/>
-                        <TextBlock Text=":"
-                                   VerticalAlignment="Center"/>
-                        <ui:NumberBox PlaceholderText="minute"
-                                      Value="{Binding ScheduledMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      Minimum="0"
-                                      Maximum="59"
-                                      MaxDecimalPlaces="0"
-                                      MinWidth="80"
-                                      IsEnabled="{Binding CanChangeTime}"/>
-                        <Button Command="{s:Action SetTimeToNow}"
-                                IsEnabled="{Binding CanChangeTime}">Now</Button>
-                        <Button Command="{s:Action StartStopTimer}"
-                                Content="{Binding TimerText}"/>
+                <controls:Section Title="Scheduled Playback"
+                                  Margin="0,16,0,0">
+                    <controls:SimpleStackPanel>
+                        <controls:SimpleStackPanel.Resources>
+                            <Style TargetType="Button"
+                                   BasedOn="{StaticResource {x:Type Button}}"/>
+                        </controls:SimpleStackPanel.Resources>
+                        <controls:SimpleStackPanel Orientation="Horizontal"
+                                                   Spacing="8">
+                            <ui:NumberBox PlaceholderText="hour"
+                                          Value="{Binding ScheduledHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          Minimum="0"
+                                          Maximum="23"
+                                          MaxDecimalPlaces="0"
+                                          MinWidth="70"
+                                          IsEnabled="{Binding CanChangeTime}"/>
+                            <TextBlock Text=":"
+                                       VerticalAlignment="Center"/>
+                            <ui:NumberBox PlaceholderText="minute"
+                                          Value="{Binding ScheduledMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          Minimum="0"
+                                          Maximum="59"
+                                          MaxDecimalPlaces="0"
+                                          MinWidth="80"
+                                          IsEnabled="{Binding CanChangeTime}"/>
+                            <Button Command="{s:Action SetTimeToNow}"
+                                    IsEnabled="{Binding CanChangeTime}">Now</Button>
+                            <Button Command="{s:Action StartStopTimer}"
+                                    Content="{Binding TimerText}"/>
+                        </controls:SimpleStackPanel>
+                        <TextBlock Text="{Binding ScheduledTimeText}"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Margin="0,-4,0,0"/>
                     </controls:SimpleStackPanel>
-                    <TextBlock Text="{Binding ScheduledTimeText}"
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                               Margin="0,-4,0,0"/>
-                </controls:SimpleStackPanel>
+                </controls:Section>
             </controls:SimpleStackPanel>
 
             <!-- Right Column -->
@@ -109,64 +103,61 @@
                                        Margin="10,0,0,0">
 
                 <!-- Notes Section -->
-                <TextBlock Text="Notes"
-                           FontSize="20"
-                           FontWeight="SemiBold"
-                           Margin="0,0,0,8"/>
+                <controls:Section Title="Notes">
+                    <controls:SimpleStackPanel>
+                        <TextBlock Text="Open a song to configure these settings"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Visibility="{Binding HasSongOpen, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}"
+                                   Margin="0,0,0,8"/>
 
-                <TextBlock Text="Open a song to configure these settings"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                           Visibility="{Binding HasSongOpen, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}"
-                           Margin="0,0,0,8"/>
+                        <controls:SimpleStackPanel Orientation="Horizontal"
+                                                   Spacing="20"
+                                                   IsEnabled="{Binding HasSongOpen}">
+                            <ui:ToggleSwitch
+                                Content="Merge nearby notes"
+                                IsChecked="{Binding MergeNotes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            <ui:NumberBox
+                                PlaceholderText="Tolerance (ms)"
+                                IsEnabled="{Binding MergeNotes}"
+                                Value="{Binding MergeMilliseconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                MinWidth="100"/>
+                        </controls:SimpleStackPanel>
 
-                <controls:SimpleStackPanel Orientation="Horizontal"
-                                           Spacing="20"
-                                           IsEnabled="{Binding HasSongOpen}">
-                    <ui:ToggleSwitch
-                        Content="Merge nearby notes"
-                        IsChecked="{Binding MergeNotes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                    <ui:NumberBox
-                        PlaceholderText="Tolerance (ms)"
-                        IsEnabled="{Binding MergeNotes}"
-                        Value="{Binding MergeMilliseconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                        MinWidth="100"/>
-                </controls:SimpleStackPanel>
-
-                <ui:ToggleSwitch
-                    Content="Hold notes"
-                    IsChecked="{Binding HoldNotes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                    IsEnabled="{Binding HasSongOpen}"
-                    ToolTip="Uses MIDI file note-on/note-off for key down/up, ignoring Enable Key-up and key press delay settings."
-                    Margin="0,0,0,0"/>
+                        <ui:ToggleSwitch
+                            Content="Hold notes"
+                            IsChecked="{Binding HoldNotes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            IsEnabled="{Binding HasSongOpen}"
+                            ToolTip="Uses MIDI file note-on/note-off for key down/up, ignoring Enable Key-up and key press delay settings."
+                            Margin="0,0,0,0"/>
+                    </controls:SimpleStackPanel>
+                </controls:Section>
 
                 <!-- MIDI Input Section -->
-                <TextBlock Text="MIDI Input"
-                           FontSize="20"
-                           FontWeight="SemiBold"
-                           Margin="0,16,0,8"/>
-
-                <GroupBox Header="Physical MIDI Instrument">
-                    <controls:SimpleStackPanel>
-                        <controls:SimpleStackPanel Orientation="Horizontal">
-                            <ComboBox
-                                ItemsSource="{Binding MidiInputs}"
-                                SelectedItem="{Binding SelectedMidiInput}"
-                                DisplayMemberPath="DeviceName"
-                                MinWidth="200"/>
-                            <Button Style="{DynamicResource IconButton}"
-                                    Command="{s:Action RefreshDevices}"
-                                    ToolTip="Refresh MIDI devices">
-                                <ui:SymbolIcon Symbol="ArrowClockwise24"
-                                               FontSize="18"/>
-                            </Button>
+                <controls:Section Title="MIDI Input"
+                                  Margin="0,16,0,0">
+                    <GroupBox Header="Physical MIDI Instrument">
+                        <controls:SimpleStackPanel>
+                            <controls:SimpleStackPanel Orientation="Horizontal">
+                                <ComboBox
+                                    ItemsSource="{Binding MidiInputs}"
+                                    SelectedItem="{Binding SelectedMidiInput}"
+                                    DisplayMemberPath="DeviceName"
+                                    MinWidth="200"/>
+                                <Button Style="{DynamicResource IconButton}"
+                                        Command="{s:Action RefreshDevices}"
+                                        ToolTip="Refresh MIDI devices">
+                                    <ui:SymbolIcon Symbol="ArrowClockwise24"
+                                                   FontSize="18"/>
+                                </Button>
+                            </controls:SimpleStackPanel>
+                            <TextBlock Text="Connect a physical MIDI keyboard or controller to use it as input."
+                                       TextWrapping="Wrap"
+                                       Opacity="0.6"
+                                       FontSize="12"
+                                       Margin="0,-4,0,0"/>
                         </controls:SimpleStackPanel>
-                        <TextBlock Text="Connect a physical MIDI keyboard or controller to use it as input."
-                                   TextWrapping="Wrap"
-                                   Opacity="0.6"
-                                   FontSize="12"
-                                   Margin="0,-4,0,0"/>
-                    </controls:SimpleStackPanel>
-                </GroupBox>
+                    </GroupBox>
+                </controls:Section>
             </controls:SimpleStackPanel>
 
 
