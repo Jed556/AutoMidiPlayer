@@ -48,21 +48,13 @@ public partial class MissingSongFileDialog : ContentDialog
             }
 
             CrashLogger.Log("DialogHost was not ready while showing missing MIDI file dialog. Falling back to MessageBox.");
-            System.Windows.MessageBox.Show(
-                message,
-                "Missing MIDI file",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Warning);
+            MessageBoxHelper.ShowWarning(message, "Missing MIDI file");
         }
         catch (Exception dialogError)
         {
             CrashLogger.Log("Failed to display missing MIDI file dialog.");
             CrashLogger.LogException(dialogError);
-            System.Windows.MessageBox.Show(
-                message,
-                "Missing MIDI file",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Warning);
+            MessageBoxHelper.ShowWarning(message, "Missing MIDI file");
         }
     }
 }

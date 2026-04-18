@@ -45,21 +45,13 @@ public partial class UnableToResetAppDataDialog : ContentDialog
             }
 
             CrashLogger.Log("DialogHost was not ready while showing unable-to-reset dialog. Falling back to MessageBox.");
-            System.Windows.MessageBox.Show(
-                message,
-                FallbackTitle,
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Error);
+            MessageBoxHelper.ShowError(message, FallbackTitle);
         }
         catch (Exception dialogError)
         {
             CrashLogger.Log("Failed to display unable-to-reset dialog.");
             CrashLogger.LogException(dialogError);
-            System.Windows.MessageBox.Show(
-                message,
-                FallbackTitle,
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Error);
+            MessageBoxHelper.ShowError(message, FallbackTitle);
         }
     }
 }

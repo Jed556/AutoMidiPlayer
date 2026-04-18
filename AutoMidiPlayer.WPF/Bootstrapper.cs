@@ -12,7 +12,8 @@ using Windows.Media.Playback;
 using Windows.Storage.Streams;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Properties;
-using AutoMidiPlayer.WPF.Errors;
+using AutoMidiPlayer.WPF.Helpers;
+using AutoMidiPlayer.WPF.MessageBox;
 using AutoMidiPlayer.WPF.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -290,11 +291,9 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         catch
         {
             // Fallback if the themed dialog itself fails
-            System.Windows.MessageBox.Show(
+            MessageBoxHelper.ShowError(
                 $"An error occurred. Log saved to:\n{CrashLogger.GetLogPath()}\n\nError: {e.Exception.Message}",
-                "AutoMidiPlayer Error",
-                System.Windows.MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                "AutoMidiPlayer Error");
         }
     }
 

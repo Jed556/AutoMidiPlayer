@@ -60,13 +60,10 @@ public partial class MissingGameLocationsDialog : ContentDialog
             CrashLogger.LogException(dialogError);
         }
 
-        var fallbackResult = System.Windows.MessageBox.Show(
+        return MessageBoxHelper.ConfirmOkCancel(
             message,
             "Error",
-            System.Windows.MessageBoxButton.OKCancel,
             System.Windows.MessageBoxImage.Warning);
-
-        return fallbackResult == System.Windows.MessageBoxResult.OK;
     }
 
     private static List<string> NormalizeMissingGames(IEnumerable<string> missingGames)

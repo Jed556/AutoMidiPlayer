@@ -48,12 +48,9 @@ public partial class ResetAppDataConfirmationDialog : ContentDialog
             CrashLogger.LogException(dialogError);
         }
 
-        var fallbackResult = System.Windows.MessageBox.Show(
+        return MessageBoxHelper.ConfirmOkCancel(
             FallbackMessage,
             FallbackTitle,
-            System.Windows.MessageBoxButton.OKCancel,
             System.Windows.MessageBoxImage.Warning);
-
-        return fallbackResult == System.Windows.MessageBoxResult.OK;
     }
 }

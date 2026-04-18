@@ -44,21 +44,13 @@ public partial class IncorrectGameLocationDialog : ContentDialog
             }
 
             CrashLogger.Log("DialogHost was not ready while showing incorrect game location dialog. Falling back to MessageBox.");
-            System.Windows.MessageBox.Show(
-                FallbackMessage,
-                FallbackTitle,
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Warning);
+            MessageBoxHelper.ShowWarning(FallbackMessage, FallbackTitle);
         }
         catch (Exception dialogError)
         {
             CrashLogger.Log("Failed to display incorrect game location dialog.");
             CrashLogger.LogException(dialogError);
-            System.Windows.MessageBox.Show(
-                FallbackMessage,
-                FallbackTitle,
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Warning);
+            MessageBoxHelper.ShowWarning(FallbackMessage, FallbackTitle);
         }
     }
 }

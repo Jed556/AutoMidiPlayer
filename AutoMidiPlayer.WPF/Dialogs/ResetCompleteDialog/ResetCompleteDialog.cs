@@ -61,21 +61,13 @@ public partial class ResetCompleteDialog : ContentDialog
             }
 
             CrashLogger.Log("DialogHost was not ready while showing reset-complete dialog. Falling back to MessageBox.");
-            System.Windows.MessageBox.Show(
-                FallbackMessage,
-                FallbackTitle,
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Information);
+            MessageBoxHelper.ShowInformation(FallbackMessage, FallbackTitle);
         }
         catch (Exception dialogError)
         {
             CrashLogger.Log("Failed to display reset-complete dialog.");
             CrashLogger.LogException(dialogError);
-            System.Windows.MessageBox.Show(
-                FallbackMessage,
-                FallbackTitle,
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Information);
+            MessageBoxHelper.ShowInformation(FallbackMessage, FallbackTitle);
         }
     }
 }
