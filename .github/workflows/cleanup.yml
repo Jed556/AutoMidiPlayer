@@ -1,0 +1,137 @@
+name: Cleanup
+on:
+  workflow_dispatch:
+    inputs:
+      cleanup_artifacts:
+        description: Delete repository artifacts
+        required: true
+        type: boolean
+        default: true
+      cleanup_workflow_runs:
+        description: Delete completed runs of the selected workflow name
+        required: true
+        type: boolean
+        default: true
+      workflow_name:
+        description: Workflow name used for run cleanup
+        required: true
+        type: string
+        default: Dependabot Auto-Merge
+
+permissions:
+  actions: write
+
+jobs:
+  validate_selection:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate selected cleanup targets
+        shell: bash
+        env:
+          CLEANUP_ARTIFACTS: ${{ github.event.inputs.cleanup_artifacts }}
+          CLEANUP_WORKFLOW_RUNS: ${{ github.event.inputs.cleanup_workflow_runs }}
+          WORKFLOW_NAME: ${{ github.event.inputs.workflow_name }}
+        run: |
+          set -euo pipefail
+
+          if [ "$CLEANUP_ARTIFACTS" != "true" ] && [ "$CLEANUP_WORKFLOW_RUNS" != "true" ]; then
+            echo "No cleanup target selected. Enable at least one option."
+            exit 1
+          fi
+
+          if [ "$CLEANUP_WORKFLOW_RUNS" = "true" ] && [ -z "${WORKFLOW_NAME// }" ]; then
+            echo "workflow_name cannot be empty when run cleanup is enabled."
+            exit 1
+          fi
+
+  cleanup_artifacts:
+    needs: [validate_selection]
+    if: ${{ github.event.inputs.cleanup_artifacts == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            const artifacts = await github.paginate(
+              github.rest.actions.listArtifactsForRepo,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                per_page: 100
+              }
+            );
+
+            let deletedCount = 0;
+            for (const artifact of artifacts) {
+              await github.rest.actions.deleteArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: artifact.id
+              });
+              deletedCount += 1;
+            }
+
+            console.log(`Deleted ${deletedCount} artifact(s).`);
+
+  cleanup_workflow_runs:
+    needs: [validate_selection]
+    if: ${{ github.event.inputs.cleanup_workflow_runs == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v9
+        env:
+          TARGET_WORKFLOW_NAME: ${{ github.event.inputs.workflow_name }}
+        with:
+          script: |
+            const workflowName = (process.env.TARGET_WORKFLOW_NAME || 'Dependabot Auto-Merge').trim();
+            if (!workflowName) {
+              core.setFailed('workflow_name cannot be empty.');
+              return;
+            }
+
+            const workflows = await github.paginate(
+              github.rest.actions.listRepoWorkflows,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                per_page: 100
+              }
+            );
+
+            const targetWorkflow = workflows.find((wf) => wf.name === workflowName);
+            if (!targetWorkflow) {
+              core.setFailed(`Workflow "${workflowName}" was not found.`);
+              return;
+            }
+
+            const runs = await github.paginate(
+              github.rest.actions.listWorkflowRuns,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: targetWorkflow.id,
+                per_page: 100
+              }
+            );
+
+            let deletedRuns = 0;
+            let skippedRuns = 0;
+
+            for (const run of runs) {
+              if (run.status !== 'completed') {
+                skippedRuns += 1;
+                continue;
+              }
+
+              await github.rest.actions.deleteWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: run.id
+              });
+              deletedRuns += 1;
+            }
+
+            console.log(`Deleted ${deletedRuns} completed run(s) from workflow "${workflowName}".`);
+            if (skippedRuns > 0) {
+              console.log(`Skipped ${skippedRuns} run(s) because they are not completed yet.`);
+            }
