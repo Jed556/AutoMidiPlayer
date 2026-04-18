@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using AutoMidiPlayer.WPF.Core;
+using AutoMidiPlayer.WPF.Helpers;
 using AutoMidiPlayer.WPF.Services;
 using AutoMidiPlayer.WPF.ViewModels;
 using Wpf.Ui.Controls;
@@ -20,8 +21,7 @@ public partial class MainWindowView : FluentWindow
     private bool _isFullscreen;
     private WindowState _windowStateBeforeFullscreen = WindowState.Normal;
     private ScrollViewer? _navigationScrollViewer;
-    private readonly DispatcherTimer _navigationScrollTimer;
-    private double _navigationScrollTargetOffset;
+    private SmoothScrollAnimator? _navigationSmoothAnimator;
     private bool _isNavigationScrollInitialized;
     private bool _isNavigationScrollUpVisible;
     private bool _isNavigationScrollDownVisible;
@@ -30,15 +30,24 @@ public partial class MainWindowView : FluentWindow
 
     private const double NavigationScrollStepFactor = 0.72;
     private const double NavigationWheelStep = 40;
-    private const double NavigationScrollSmoothingFactor = 0.34;
+    private const double NavigationScrollSmoothingFactor = 0.24;
     private const double NavigationScrollSnapThreshold = 1.25;
-    private const double NavigationScrollMaxStep = 92;
+    private const double NavigationScrollMaxStep = 72;
     private const double NavigationScrollDirectionThreshold = 1.5;
     private const double NavigationScrollButtonHiddenScale = 0.62;
     private const double NavigationScrollButtonIntroOpacityMs = 220;
     private const double NavigationScrollButtonIntroScaleMs = 320;
     private const double NavigationScrollButtonOutroOpacityMs = 210;
     private const double NavigationScrollButtonOutroScaleMs = 280;
+    private static readonly SmoothScrollAnimatorOptions NavigationSmoothScrollOptions = new()
+    {
+        SmoothingFactor = NavigationScrollSmoothingFactor,
+        SnapThreshold = NavigationScrollSnapThreshold,
+        MaxStep = NavigationScrollMaxStep,
+        ReferenceFrameRate = 60d,
+        MinFrameSeconds = 1d / 240d,
+        MaxFrameSeconds = 1d / 24d
+    };
 
     public MainWindowView()
     {
@@ -46,12 +55,6 @@ public partial class MainWindowView : FluentWindow
         Closing += OnClosing;
         Loaded += OnLoaded;
         StateChanged += OnStateChanged;
-
-        _navigationScrollTimer = new DispatcherTimer(DispatcherPriority.Input)
-        {
-            Interval = TimeSpan.FromMilliseconds(16)
-        };
-        _navigationScrollTimer.Tick += OnNavigationSmoothScrollTick;
 
         UpdateWindowButtonState();
     }
@@ -217,8 +220,7 @@ public partial class MainWindowView : FluentWindow
         }
 
         DetachNavigationScrollViewer();
-        _navigationScrollTimer.Stop();
-        _navigationScrollTimer.Tick -= OnNavigationSmoothScrollTick;
+        StopNavigationSmoothScroll();
 
         // Dispose the hotkey service and tray icon when closing
         _hotkeyService?.Dispose();
@@ -277,10 +279,12 @@ public partial class MainWindowView : FluentWindow
         }
 
         _navigationScrollViewer.VerticalScrollBarVisibility = ScrollBarVisibility.Hidden;
+        ScrollViewerAutoFadeBehavior.SetIsEnabled(_navigationScrollViewer, false);
         _navigationScrollViewer.ScrollChanged += OnNavigationScrollChanged;
         _navigationScrollViewer.SizeChanged += OnNavigationScrollViewerSizeChanged;
         _navigationScrollViewer.PreviewMouseWheel += OnNavigationPreviewMouseWheel;
-        _navigationScrollTargetOffset = _navigationScrollViewer.VerticalOffset;
+        _navigationSmoothAnimator = new SmoothScrollAnimator(_navigationScrollViewer, NavigationSmoothScrollOptions, UpdateNavigationScrollButtons);
+        _navigationSmoothAnimator.SyncTargetToCurrentOffset();
 
         UpdateNavigationScrollButtons();
     }
@@ -290,6 +294,9 @@ public partial class MainWindowView : FluentWindow
         if (_navigationScrollViewer is null)
             return;
 
+        StopNavigationSmoothScroll();
+        _navigationSmoothAnimator?.Dispose();
+        _navigationSmoothAnimator = null;
         _navigationScrollViewer.ScrollChanged -= OnNavigationScrollChanged;
         _navigationScrollViewer.SizeChanged -= OnNavigationScrollViewerSizeChanged;
         _navigationScrollViewer.PreviewMouseWheel -= OnNavigationPreviewMouseWheel;
@@ -298,8 +305,8 @@ public partial class MainWindowView : FluentWindow
 
     private void OnNavigationScrollChanged(object sender, ScrollChangedEventArgs e)
     {
-        if (!_navigationScrollTimer.IsEnabled && _navigationScrollViewer is not null)
-            _navigationScrollTargetOffset = _navigationScrollViewer.VerticalOffset;
+        if (_navigationSmoothAnimator is { IsRunning: false })
+            _navigationSmoothAnimator.SyncTargetToCurrentOffset();
 
         UpdateNavigationScrollButtons();
     }
@@ -314,38 +321,31 @@ public partial class MainWindowView : FluentWindow
         if (_navigationScrollViewer is null || _navigationScrollViewer.ScrollableHeight <= 0)
             return;
 
+        var animator = _navigationSmoothAnimator;
+        if (animator is null)
+            return;
+
         if (System.Windows.Input.Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
             return;
 
         if (!IsNavigationSmoothScrollingEnabled())
         {
-            _navigationScrollTimer.Stop();
-            _navigationScrollTargetOffset = _navigationScrollViewer.VerticalOffset;
+            StopNavigationSmoothScroll();
+            animator.SyncTargetToCurrentOffset();
             return;
         }
 
         e.Handled = true;
 
         var deltaOffset = -(e.Delta / 120d) * NavigationWheelStep;
-        if (!_navigationScrollTimer.IsEnabled)
-            _navigationScrollTargetOffset = _navigationScrollViewer.VerticalOffset;
+        if (!animator.IsRunning)
+            animator.SyncTargetToCurrentOffset();
 
         var currentOffset = _navigationScrollViewer.VerticalOffset;
-        var currentDirection = Math.Sign(_navigationScrollTargetOffset - currentOffset);
-        var incomingDirection = Math.Sign(deltaOffset);
-        if (_navigationScrollTimer.IsEnabled && currentDirection != 0 && incomingDirection != 0 && currentDirection != incomingDirection)
-            _navigationScrollTargetOffset = currentOffset;
-
         var maxLead = Math.Max(NavigationWheelStep * 10d, _navigationScrollViewer.ViewportHeight * 1.15d);
         var minTarget = Math.Max(0d, currentOffset - maxLead);
         var maxTarget = Math.Min(_navigationScrollViewer.ScrollableHeight, currentOffset + maxLead);
-        _navigationScrollTargetOffset = Math.Clamp(_navigationScrollTargetOffset + deltaOffset, minTarget, maxTarget);
-
-        if (!_navigationScrollTimer.IsEnabled)
-        {
-            OnNavigationSmoothScrollTick(null, EventArgs.Empty);
-            _navigationScrollTimer.Start();
-        }
+        animator.ApplyDelta(deltaOffset, minTarget, maxTarget, resetOnDirectionChange: true);
 
         UpdateNavigationScrollButtons();
     }
@@ -386,44 +386,26 @@ public partial class MainWindowView : FluentWindow
         if (_navigationScrollViewer is null || _navigationScrollViewer.ScrollableHeight <= 0)
             return;
 
-        if (!_navigationScrollTimer.IsEnabled)
-            _navigationScrollTargetOffset = _navigationScrollViewer.VerticalOffset;
+        var animator = _navigationSmoothAnimator;
+        if (animator is null)
+            return;
 
-        _navigationScrollTargetOffset = Math.Clamp(
-            _navigationScrollTargetOffset + delta,
+        if (!animator.IsRunning)
+            animator.SyncTargetToCurrentOffset();
+
+        var targetOffset = Math.Clamp(
+            animator.TargetOffset + delta,
             0,
             _navigationScrollViewer.ScrollableHeight);
 
-        if (!_navigationScrollTimer.IsEnabled)
-            _navigationScrollTimer.Start();
+        animator.SetTargetOffset(targetOffset, startIfNeeded: true, immediateStep: true);
 
         UpdateNavigationScrollButtons();
     }
 
-    private void OnNavigationSmoothScrollTick(object? sender, EventArgs e)
+    private void StopNavigationSmoothScroll()
     {
-        if (_navigationScrollViewer is null)
-        {
-            _navigationScrollTimer.Stop();
-            return;
-        }
-
-        var currentOffset = _navigationScrollViewer.VerticalOffset;
-        var delta = _navigationScrollTargetOffset - currentOffset;
-
-        if (Math.Abs(delta) <= NavigationScrollSnapThreshold)
-        {
-            _navigationScrollTimer.Stop();
-            _navigationScrollViewer.ScrollToVerticalOffset(_navigationScrollTargetOffset);
-            UpdateNavigationScrollButtons();
-            return;
-        }
-
-        var smoothStep = Math.Clamp(delta * NavigationScrollSmoothingFactor, -NavigationScrollMaxStep, NavigationScrollMaxStep);
-        var nextOffset = Math.Clamp(currentOffset + smoothStep, 0, _navigationScrollViewer.ScrollableHeight);
-
-        _navigationScrollViewer.ScrollToVerticalOffset(nextOffset);
-        UpdateNavigationScrollButtons();
+        _navigationSmoothAnimator?.Stop();
     }
 
     private void UpdateNavigationScrollButtons()

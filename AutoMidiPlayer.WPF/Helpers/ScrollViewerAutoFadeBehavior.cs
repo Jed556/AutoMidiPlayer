@@ -60,18 +60,14 @@ public static class ScrollViewerAutoFadeBehavior
         private static readonly TimeSpan FadeInDuration = TimeSpan.FromMilliseconds(140);
         private static readonly TimeSpan FadeOutDuration = TimeSpan.FromMilliseconds(260);
         private static readonly TimeSpan InactivityDelay = TimeSpan.FromMilliseconds(1500);
-        private static readonly TimeSpan SmoothScrollFrameInterval = TimeSpan.FromMilliseconds(16);
         private const double WheelStep = 40d;
-        private const double SmoothingFactor = 0.32d;
-        private const double SnapThreshold = 2.0d;
-        private const double MaxSmoothStep = 96d;
         private const double LineButtonStepFactor = 0.18d;
         private const double MinLineButtonStep = 32d;
         private const double MaxLineButtonStep = 112d;
 
         private readonly ScrollViewer _viewer;
         private readonly DispatcherTimer _fadeTimer;
-        private readonly DispatcherTimer _smoothScrollTimer;
+        private readonly SmoothScrollAnimator _smoothScrollAnimator;
         private ScrollBar? _verticalScrollBar;
         private RepeatButton? _lineUpButton;
         private RepeatButton? _lineDownButton;
@@ -81,17 +77,13 @@ public static class ScrollViewerAutoFadeBehavior
         private object? _lineDownOriginalCommandParameter;
         private IInputElement? _lineUpOriginalCommandTarget;
         private IInputElement? _lineDownOriginalCommandTarget;
-        private double _targetVerticalOffset;
-        private bool _isSmoothScrolling;
 
         public AutoFadeController(ScrollViewer viewer)
         {
             _viewer = viewer;
             _fadeTimer = new DispatcherTimer { Interval = InactivityDelay };
             _fadeTimer.Tick += OnFadeTimerTick;
-            _smoothScrollTimer = new DispatcherTimer(DispatcherPriority.Input) { Interval = SmoothScrollFrameInterval };
-            _smoothScrollTimer.Tick += OnSmoothScrollTick;
-            _targetVerticalOffset = _viewer.VerticalOffset;
+            _smoothScrollAnimator = new SmoothScrollAnimator(_viewer, SmoothScrollAnimatorOptions.Default);
 
             _viewer.Loaded += OnViewerLoaded;
             _viewer.Unloaded += OnViewerUnloaded;
@@ -106,8 +98,7 @@ public static class ScrollViewerAutoFadeBehavior
         {
             _fadeTimer.Stop();
             _fadeTimer.Tick -= OnFadeTimerTick;
-            _smoothScrollTimer.Stop();
-            _smoothScrollTimer.Tick -= OnSmoothScrollTick;
+            _smoothScrollAnimator.Dispose();
 
             _viewer.Loaded -= OnViewerLoaded;
             _viewer.Unloaded -= OnViewerUnloaded;
@@ -132,7 +123,7 @@ public static class ScrollViewerAutoFadeBehavior
         private void OnViewerUnloaded(object sender, RoutedEventArgs e)
         {
             _fadeTimer.Stop();
-            _smoothScrollTimer.Stop();
+            _smoothScrollAnimator.Stop();
         }
 
         private void OnViewerPreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -145,9 +136,8 @@ public static class ScrollViewerAutoFadeBehavior
 
             if (!IsSmoothScrollingEnabled())
             {
-                _smoothScrollTimer.Stop();
-                _isSmoothScrolling = false;
-                _targetVerticalOffset = _viewer.VerticalOffset;
+                _smoothScrollAnimator.Stop();
+                _smoothScrollAnimator.SyncTargetToCurrentOffset();
                 ShowScrollBar();
                 RestartFadeTimer();
                 return;
@@ -157,11 +147,10 @@ public static class ScrollViewerAutoFadeBehavior
 
             if (IsLogicalScrollMode())
             {
-                _smoothScrollTimer.Stop();
-                _isSmoothScrolling = false;
+                _smoothScrollAnimator.Stop();
 
                 ApplyLogicalWheelScroll(e.Delta);
-                _targetVerticalOffset = _viewer.VerticalOffset;
+                _smoothScrollAnimator.SyncTargetToCurrentOffset();
 
                 ShowScrollBar();
                 RestartFadeTimer();
@@ -185,18 +174,17 @@ public static class ScrollViewerAutoFadeBehavior
             if (_viewer.ExtentHeight <= _viewer.ViewportHeight)
             {
                 _fadeTimer.Stop();
-                _smoothScrollTimer.Stop();
-                _isSmoothScrolling = false;
-                _targetVerticalOffset = 0;
+                _smoothScrollAnimator.Stop();
+                _smoothScrollAnimator.SetTargetOffset(0d, startIfNeeded: false);
                 _verticalScrollBar.BeginAnimation(UIElement.OpacityProperty, null);
                 _verticalScrollBar.Opacity = 0;
                 return;
             }
 
-            if (_isSmoothScrolling)
+            if (_smoothScrollAnimator.IsRunning)
                 return;
 
-            _targetVerticalOffset = _viewer.VerticalOffset;
+            _smoothScrollAnimator.SyncTargetToCurrentOffset();
 
             ShowScrollBar();
             RestartFadeTimer();
@@ -231,56 +219,21 @@ public static class ScrollViewerAutoFadeBehavior
             FadeOutScrollBar();
         }
 
-        private void OnSmoothScrollTick(object? sender, EventArgs e)
-        {
-            AdvanceSmoothScroll();
-        }
-
-        private void AdvanceSmoothScroll()
-        {
-            var currentOffset = _viewer.VerticalOffset;
-            var delta = _targetVerticalOffset - currentOffset;
-
-            if (Math.Abs(delta) <= SnapThreshold)
-            {
-                _smoothScrollTimer.Stop();
-                _isSmoothScrolling = false;
-                _viewer.ScrollToVerticalOffset(_targetVerticalOffset);
-                return;
-            }
-
-            _isSmoothScrolling = true;
-            var smoothStep = Math.Clamp(delta * SmoothingFactor, -MaxSmoothStep, MaxSmoothStep);
-
-            var nextOffset = currentOffset + smoothStep;
-            _viewer.ScrollToVerticalOffset(Math.Clamp(nextOffset, 0d, _viewer.ScrollableHeight));
-        }
-
         private void ApplySmoothDelta(double deltaOffset)
         {
             if (_viewer.ScrollableHeight <= 0)
                 return;
 
-            if (!_smoothScrollTimer.IsEnabled)
-                _targetVerticalOffset = _viewer.VerticalOffset;
+            if (!_smoothScrollAnimator.IsRunning)
+                _smoothScrollAnimator.SyncTargetToCurrentOffset();
 
             var currentOffset = _viewer.VerticalOffset;
-            var currentDirection = Math.Sign(_targetVerticalOffset - currentOffset);
-            var incomingDirection = Math.Sign(deltaOffset);
-            if (_smoothScrollTimer.IsEnabled && currentDirection != 0 && incomingDirection != 0 && currentDirection != incomingDirection)
-                _targetVerticalOffset = currentOffset;
-
             var step = GetWheelStep();
             var maxLead = Math.Max(step * 10d, _viewer.ViewportHeight * 1.15d);
             var minTarget = Math.Max(0d, currentOffset - maxLead);
             var maxTarget = Math.Min(_viewer.ScrollableHeight, currentOffset + maxLead);
 
-            _targetVerticalOffset = Math.Clamp(_targetVerticalOffset + deltaOffset, minTarget, maxTarget);
-            if (!_smoothScrollTimer.IsEnabled)
-            {
-                AdvanceSmoothScroll();
-                _smoothScrollTimer.Start();
-            }
+            _smoothScrollAnimator.ApplyDelta(deltaOffset, minTarget, maxTarget, resetOnDirectionChange: true);
 
             ShowScrollBar();
             RestartFadeTimer();
@@ -298,7 +251,7 @@ public static class ScrollViewerAutoFadeBehavior
                 else
                     _viewer.LineUp();
 
-                _targetVerticalOffset = _viewer.VerticalOffset;
+                _smoothScrollAnimator.SyncTargetToCurrentOffset();
                 ShowScrollBar();
                 RestartFadeTimer();
                 return;
@@ -323,6 +276,11 @@ public static class ScrollViewerAutoFadeBehavior
             if (!ScrollViewer.GetCanContentScroll(_viewer))
                 return false;
 
+            // For templated controls (e.g. ListView), the ScrollViewer usually has
+            // the owning ItemsControl as its TemplatedParent.
+            if (_viewer.TemplatedParent is ItemsControl templatedItemsControl)
+                return VirtualizingPanel.GetScrollUnit(templatedItemsControl) != ScrollUnit.Pixel;
+
             // Prefer the owning ItemsControl setting (e.g. ListView) because the
             // realized panel can still report item scrolling while template values
             // are being applied.
@@ -332,7 +290,15 @@ public static class ScrollViewerAutoFadeBehavior
 
             var virtualizingPanel = FindDescendant<VirtualizingPanel>(_viewer);
             if (virtualizingPanel != null)
-                return VirtualizingPanel.GetScrollUnit(virtualizingPanel) != ScrollUnit.Pixel;
+            {
+                var owner = ItemsControl.GetItemsOwner(virtualizingPanel);
+                if (owner != null)
+                    return VirtualizingPanel.GetScrollUnit(owner) != ScrollUnit.Pixel;
+
+                // When owner resolution fails, prefer pixel smoothing to avoid
+                // falling back to item-based line scrolling in virtualized lists.
+                return false;
+            }
 
             return false;
         }
