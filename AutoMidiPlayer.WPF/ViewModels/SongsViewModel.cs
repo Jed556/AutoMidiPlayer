@@ -7,6 +7,7 @@ using System.Windows.Media;
 using AutoMidiPlayer.Data.Entities;
 using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Dialogs;
+using AutoMidiPlayer.WPF.Helpers;
 using Microsoft.Win32;
 using Wpf.Ui.Controls;
 using Stylet;
@@ -283,9 +284,6 @@ public class SongsViewModel : Screen
         await _main.FileService.ResolveDuplicateFallbacksAsync();
         _main.FileService.RemoveStaleDuplicateMidiFileEntries(notify: false);
 
-        var duplicateMidiFiles = DuplicateMidiFiles.ToList();
-        var removedExistingMidiFiles = _main.FileService.GetRemovedExistingMidiFiles().ToList();
-
         bool PruneMissingSongsForRemovedExisting(IReadOnlyCollection<Services.FileService.RemovedExistingMidiFileEntry> removedEntries)
         {
             if (removedEntries.Count == 0)
@@ -308,185 +306,46 @@ public class SongsViewModel : Screen
             return true;
         }
 
-        if (PruneMissingSongsForRemovedExisting(removedExistingMidiFiles))
-            NotifyFileErrorsChanged();
+        async Task<IReadOnlyList<Services.FileService.RemovedExistingMidiFileEntry>> RefreshSourceListsAsync(bool resolveDuplicateFallbacks = true)
+        {
+            if (resolveDuplicateFallbacks)
+                await _main.FileService.ResolveDuplicateFallbacksAsync();
 
-        if (!HasFileErrors && removedExistingMidiFiles.Count == 0 && duplicateMidiFiles.Count == 0) return;
+            _main.FileService.RemoveStaleDuplicateMidiFileEntries(notify: false);
+
+            var refreshedRemovedExistingMidiFiles = _main.FileService.GetRemovedExistingMidiFiles().ToList();
+            if (PruneMissingSongsForRemovedExisting(refreshedRemovedExistingMidiFiles))
+                NotifyFileErrorsChanged();
+
+            return refreshedRemovedExistingMidiFiles;
+        }
+
+        var initialRemovedExistingMidiFiles = await RefreshSourceListsAsync(resolveDuplicateFallbacks: false);
+
+        if (!HasFileErrors && initialRemovedExistingMidiFiles.Count == 0)
+            return;
 
         var hasDatabaseFileErrors = MissingSongs.Count > 0 || BadMidiFiles.Count > 0;
-        var hasDuplicateConflicts = duplicateMidiFiles.Count > 0;
-
-        var content = new System.Windows.Controls.StackPanel { MinWidth = 460 };
-        content.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-
-        var headerText = new System.Windows.Controls.TextBlock
-        {
-            Text = "File errors were found:",
-            TextWrapping = System.Windows.TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 0, 12)
-        };
-        headerText.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-        content.Children.Add(headerText);
-
-        System.Windows.Controls.ItemsControl? missingItemsControl = null;
-        System.Windows.Controls.ItemsControl? badMidiItemsControl = null;
-        System.Windows.Controls.StackPanel? duplicateGroupsPanel = null;
-        System.Windows.Controls.ItemsControl? removedExistingItemsControl = null;
         var dialogOpen = true;
         var refreshInProgress = false;
-
-        void SelectDuplicateVersion(string existingPath, string? selectedDuplicatePath)
-        {
-            var groupEntries = DuplicateMidiFiles
-                .Where(entry => string.Equals(entry.ExistingPath, existingPath, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            foreach (var entry in groupEntries)
-            {
-                entry.UseDuplicate = !string.IsNullOrWhiteSpace(selectedDuplicatePath)
-                                     && string.Equals(entry.DuplicatePath, selectedDuplicatePath, StringComparison.OrdinalIgnoreCase);
-            }
-        }
-
-        void RebuildDuplicateGroups()
-        {
-            if (duplicateGroupsPanel is null)
-                return;
-
-            duplicateGroupsPanel.Children.Clear();
-
-            var groupedDuplicates = DuplicateMidiFiles
-                .GroupBy(entry => entry.ExistingPath, StringComparer.OrdinalIgnoreCase)
-                .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            foreach (var duplicateGroup in groupedDuplicates)
-            {
-                var existingPath = duplicateGroup.Key;
-                var groupEntries = duplicateGroup
-                    .OrderBy(entry => entry.DuplicateFileName, StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-
-                string? selectedDuplicatePath = null;
-                foreach (var entry in groupEntries)
-                {
-                    if (!entry.UseDuplicate)
-                        continue;
-
-                    if (selectedDuplicatePath is null)
-                    {
-                        selectedDuplicatePath = entry.DuplicatePath;
-                        continue;
-                    }
-
-                    entry.UseDuplicate = false;
-                }
-
-                var groupBorder = new System.Windows.Controls.Border
-                {
-                    Padding = new Thickness(10, 8, 10, 8),
-                    BorderThickness = new Thickness(0, 0, 0, 1)
-                };
-                groupBorder.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
-
-                var groupContent = new System.Windows.Controls.StackPanel
-                {
-                    Orientation = System.Windows.Controls.Orientation.Vertical
-                };
-
-                var groupHeader = new System.Windows.Controls.TextBlock
-                {
-                    Text = System.IO.Path.GetFileName(existingPath),
-                    FontWeight = FontWeights.SemiBold,
-                    TextTrimming = TextTrimming.CharacterEllipsis
-                };
-                groupHeader.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-                groupContent.Children.Add(groupHeader);
-
-                var groupPath = new System.Windows.Controls.TextBlock
-                {
-                    Text = existingPath,
-                    FontSize = 11,
-                    Opacity = 0.72,
-                    Margin = new Thickness(0, 0, 0, 4),
-                    TextTrimming = TextTrimming.CharacterEllipsis
-                };
-                groupPath.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-                groupContent.Children.Add(groupPath);
-
-                var currentVersionCheck = new System.Windows.Controls.CheckBox
-                {
-                    Content = "Current in library",
-                    IsChecked = string.IsNullOrWhiteSpace(selectedDuplicatePath),
-                    Margin = new Thickness(0, 4, 0, 0)
-                };
-                currentVersionCheck.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-                currentVersionCheck.Click += (_, _) =>
-                {
-                    SelectDuplicateVersion(existingPath, null);
-                    RebuildDuplicateGroups();
-                };
-                groupContent.Children.Add(currentVersionCheck);
-
-                foreach (var duplicateEntry in groupEntries)
-                {
-                    var duplicateVersionCheck = new System.Windows.Controls.CheckBox
-                    {
-                        Content = duplicateEntry.DuplicateFileName,
-                        IsChecked = string.Equals(selectedDuplicatePath, duplicateEntry.DuplicatePath, StringComparison.OrdinalIgnoreCase),
-                        Margin = new Thickness(0, 4, 0, 0)
-                    };
-                    duplicateVersionCheck.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-                    duplicateVersionCheck.Click += (_, _) =>
-                    {
-                        SelectDuplicateVersion(existingPath, duplicateEntry.DuplicatePath);
-                        RebuildDuplicateGroups();
-                    };
-                    groupContent.Children.Add(duplicateVersionCheck);
-
-                    var duplicatePath = new System.Windows.Controls.TextBlock
-                    {
-                        Text = duplicateEntry.DuplicatePath,
-                        FontSize = 11,
-                        Opacity = 0.72,
-                        Margin = new Thickness(24, 0, 0, 0),
-                        TextTrimming = TextTrimming.CharacterEllipsis
-                    };
-                    duplicatePath.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-                    groupContent.Children.Add(duplicatePath);
-                }
-
-                groupBorder.Child = groupContent;
-                duplicateGroupsPanel.Children.Add(groupBorder);
-            }
-        }
+        FileIssuesDialog? dialog = null;
 
         async Task RefreshListsAsync(bool resolveDuplicateFallbacks = true)
         {
-            if (!dialogOpen || refreshInProgress)
+            if (!dialogOpen || refreshInProgress || dialog is null)
                 return;
 
             refreshInProgress = true;
 
             try
             {
-                if (resolveDuplicateFallbacks)
-                    await _main.FileService.ResolveDuplicateFallbacksAsync();
+                var refreshedRemovedExistingMidiFiles = await RefreshSourceListsAsync(resolveDuplicateFallbacks);
 
-                _main.FileService.RemoveStaleDuplicateMidiFileEntries(notify: false);
-
-                var refreshedRemovedExistingMidiFiles = _main.FileService.GetRemovedExistingMidiFiles().ToList();
-                if (PruneMissingSongsForRemovedExisting(refreshedRemovedExistingMidiFiles))
-                    NotifyFileErrorsChanged();
-
-                if (missingItemsControl != null)
-                    missingItemsControl.ItemsSource = MissingSongs.ToList();
-                if (badMidiItemsControl != null)
-                    badMidiItemsControl.ItemsSource = BadMidiFiles.ToList();
-                if (duplicateGroupsPanel != null)
-                    RebuildDuplicateGroups();
-                if (removedExistingItemsControl != null)
-                    removedExistingItemsControl.ItemsSource = refreshedRemovedExistingMidiFiles;
+                dialog.SetData(
+                    MissingSongs.ToList(),
+                    BadMidiFiles.ToList(),
+                    DuplicateMidiFiles.ToList(),
+                    refreshedRemovedExistingMidiFiles);
             }
             finally
             {
@@ -494,383 +353,61 @@ public class SongsViewModel : Screen
             }
         }
 
-        if (MissingSongs.Count > 0)
-        {
-            var missingHeader = new System.Windows.Controls.TextBlock
+        dialog = new FileIssuesDialog(
+            hasDatabaseFileErrors,
+            async song =>
             {
-                Text = "Missing files",
-                FontWeight = FontWeights.SemiBold,
-                Margin = new Thickness(0, 0, 0, 8)
-            };
-            missingHeader.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-            content.Children.Add(missingHeader);
-
-            missingItemsControl = new System.Windows.Controls.ItemsControl
+                await _main.FileService.RemoveMissingSong(song);
+                await RefreshListsAsync(resolveDuplicateFallbacks: false);
+            },
+            async badMidiFile =>
             {
-                ItemsSource = MissingSongs.ToList()
-            };
-
-            var missingTemplate = new DataTemplate();
-            var missingRowBorderFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.Border));
-            missingRowBorderFactory.SetValue(System.Windows.Controls.Border.PaddingProperty, new Thickness(10, 8, 10, 8));
-            missingRowBorderFactory.SetValue(System.Windows.Controls.Border.BorderThicknessProperty, new Thickness(0, 0, 0, 1));
-            missingRowBorderFactory.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
-
-            var missingGridFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.Grid));
-            var missingCol1 = new FrameworkElementFactory(typeof(System.Windows.Controls.ColumnDefinition));
-            missingCol1.SetValue(System.Windows.Controls.ColumnDefinition.WidthProperty, new GridLength(1, GridUnitType.Star));
-            var missingCol2 = new FrameworkElementFactory(typeof(System.Windows.Controls.ColumnDefinition));
-            missingCol2.SetValue(System.Windows.Controls.ColumnDefinition.WidthProperty, GridLength.Auto);
-            missingGridFactory.AppendChild(missingCol1);
-            missingGridFactory.AppendChild(missingCol2);
-
-            var missingTextFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.TextBlock));
-            missingTextFactory.SetBinding(System.Windows.Controls.TextBlock.TextProperty,
-                new System.Windows.Data.Binding("Title") { FallbackValue = "Unknown" });
-            missingTextFactory.SetValue(System.Windows.Controls.TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
-            missingTextFactory.SetValue(System.Windows.Controls.TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
-            missingTextFactory.SetValue(System.Windows.Controls.Grid.ColumnProperty, 0);
-            missingTextFactory.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-            missingGridFactory.AppendChild(missingTextFactory);
-
-            var missingButtonFactory = new FrameworkElementFactory(typeof(Button));
-            missingButtonFactory.SetValue(System.Windows.Controls.Button.ContentProperty, "✕");
-            missingButtonFactory.SetResourceReference(FrameworkElement.StyleProperty, "GhostIconButton");
-            missingButtonFactory.SetValue(System.Windows.Controls.Button.PaddingProperty, new Thickness(6, 2, 6, 2));
-            missingButtonFactory.SetValue(System.Windows.Controls.Button.MarginProperty, new Thickness(8, 0, 0, 0));
-            missingButtonFactory.SetValue(System.Windows.Controls.Button.ToolTipProperty, "Remove from database");
-            missingButtonFactory.SetValue(System.Windows.Controls.Button.BackgroundProperty, Brushes.Transparent);
-            missingButtonFactory.SetValue(System.Windows.Controls.Button.BorderThicknessProperty, new Thickness(0));
-            missingButtonFactory.SetValue(System.Windows.Controls.Grid.ColumnProperty, 1);
-            missingButtonFactory.AddHandler(System.Windows.Controls.Button.ClickEvent,
-                new RoutedEventHandler(async (s, _) =>
+                await _main.FileService.RemoveBadMidiSong(badMidiFile);
+                await RefreshListsAsync(resolveDuplicateFallbacks: false);
+            },
+            async removedEntry =>
+            {
+                await _main.FileService.RestoreExcludedFileToLibraryAsync(removedEntry.Path);
+                await RefreshListsAsync(resolveDuplicateFallbacks: false);
+            },
+            async removedEntry =>
+            {
+                var fileDeleted = false;
+                var result = await DialogHelper.ShowActionDialogAsync(new DialogActionRequest
                 {
-                    if (s is System.Windows.Controls.Button btn && btn.DataContext is Song song)
+                    Title = "Delete MIDI file from folder?",
+                    Icon = SymbolRegular.Delete24,
+                    Body = $"This permanently deletes the file from disk:\n\n{removedEntry.Path}",
+                    ConfirmButton = new DialogActionButton
                     {
-                        await _main.FileService.RemoveMissingSong(song);
-                        await RefreshListsAsync(resolveDuplicateFallbacks: false);
-                    }
-                }));
-            missingGridFactory.AppendChild(missingButtonFactory);
-
-            missingRowBorderFactory.AppendChild(missingGridFactory);
-            missingTemplate.VisualTree = missingRowBorderFactory;
-            missingItemsControl.ItemTemplate = missingTemplate;
-
-            var missingScrollViewer = new System.Windows.Controls.ScrollViewer
-            {
-                MaxHeight = 200,
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(0),
-                VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
-                HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled,
-                Content = missingItemsControl
-            };
-            missingScrollViewer.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, "ControlFillColorDefaultBrush");
-            missingScrollViewer.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
-            content.Children.Add(missingScrollViewer);
-        }
-
-        if (BadMidiFiles.Count > 0)
-        {
-            var badMidiHeader = new System.Windows.Controls.TextBlock
-            {
-                Text = "Bad MIDI files",
-                FontWeight = FontWeights.SemiBold,
-                Margin = new Thickness(0, MissingSongs.Count > 0 ? 14 : 0, 0, 8)
-            };
-            badMidiHeader.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-            content.Children.Add(badMidiHeader);
-
-            badMidiItemsControl = new System.Windows.Controls.ItemsControl
-            {
-                ItemsSource = BadMidiFiles.ToList()
-            };
-
-            var badMidiTemplate = new DataTemplate();
-            var badMidiRowBorderFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.Border));
-            badMidiRowBorderFactory.SetValue(System.Windows.Controls.Border.PaddingProperty, new Thickness(10, 8, 10, 8));
-            badMidiRowBorderFactory.SetValue(System.Windows.Controls.Border.BorderThicknessProperty, new Thickness(0, 0, 0, 1));
-            badMidiRowBorderFactory.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
-
-            var badMidiGridFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.Grid));
-            var badMidiCol1 = new FrameworkElementFactory(typeof(System.Windows.Controls.ColumnDefinition));
-            badMidiCol1.SetValue(System.Windows.Controls.ColumnDefinition.WidthProperty, new GridLength(1, GridUnitType.Star));
-            var badMidiCol2 = new FrameworkElementFactory(typeof(System.Windows.Controls.ColumnDefinition));
-            badMidiCol2.SetValue(System.Windows.Controls.ColumnDefinition.WidthProperty, GridLength.Auto);
-            badMidiGridFactory.AppendChild(badMidiCol1);
-            badMidiGridFactory.AppendChild(badMidiCol2);
-
-            var detailsPanelFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.StackPanel));
-            detailsPanelFactory.SetValue(System.Windows.Controls.StackPanel.OrientationProperty, System.Windows.Controls.Orientation.Vertical);
-            detailsPanelFactory.SetValue(System.Windows.Controls.Grid.ColumnProperty, 0);
-
-            var badMidiTitleFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.TextBlock));
-            badMidiTitleFactory.SetBinding(System.Windows.Controls.TextBlock.TextProperty,
-                new System.Windows.Data.Binding("Title") { FallbackValue = "Unknown" });
-            badMidiTitleFactory.SetValue(System.Windows.Controls.TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
-            badMidiTitleFactory.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-            detailsPanelFactory.AppendChild(badMidiTitleFactory);
-
-            var badMidiPathFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.TextBlock));
-            badMidiPathFactory.SetBinding(System.Windows.Controls.TextBlock.TextProperty,
-                new System.Windows.Data.Binding("Path") { FallbackValue = string.Empty });
-            badMidiPathFactory.SetValue(System.Windows.Controls.TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
-            badMidiPathFactory.SetValue(System.Windows.Controls.TextBlock.FontSizeProperty, 11.0);
-            badMidiPathFactory.SetValue(System.Windows.Controls.TextBlock.OpacityProperty, 0.72);
-            badMidiPathFactory.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-            detailsPanelFactory.AppendChild(badMidiPathFactory);
-
-            badMidiGridFactory.AppendChild(detailsPanelFactory);
-
-            var badMidiButtonFactory = new FrameworkElementFactory(typeof(Button));
-            badMidiButtonFactory.SetValue(System.Windows.Controls.Button.ContentProperty, "✕");
-            badMidiButtonFactory.SetResourceReference(FrameworkElement.StyleProperty, "GhostIconButton");
-            badMidiButtonFactory.SetValue(System.Windows.Controls.Button.PaddingProperty, new Thickness(6, 2, 6, 2));
-            badMidiButtonFactory.SetValue(System.Windows.Controls.Button.MarginProperty, new Thickness(8, 0, 0, 0));
-            badMidiButtonFactory.SetValue(System.Windows.Controls.Button.ToolTipProperty, "Remove from database");
-            badMidiButtonFactory.SetValue(System.Windows.Controls.Button.BackgroundProperty, Brushes.Transparent);
-            badMidiButtonFactory.SetValue(System.Windows.Controls.Button.BorderThicknessProperty, new Thickness(0));
-            badMidiButtonFactory.SetValue(System.Windows.Controls.Grid.ColumnProperty, 1);
-            badMidiButtonFactory.AddHandler(System.Windows.Controls.Button.ClickEvent,
-                new RoutedEventHandler(async (s, _) =>
-                {
-                    if (s is System.Windows.Controls.Button btn && btn.DataContext is BadMidiFileEntry badMidiFile)
-                    {
-                        await _main.FileService.RemoveBadMidiSong(badMidiFile);
-                        await RefreshListsAsync(resolveDuplicateFallbacks: false);
-                    }
-                }));
-            badMidiGridFactory.AppendChild(badMidiButtonFactory);
-
-            badMidiRowBorderFactory.AppendChild(badMidiGridFactory);
-            badMidiTemplate.VisualTree = badMidiRowBorderFactory;
-            badMidiItemsControl.ItemTemplate = badMidiTemplate;
-
-            var badMidiScrollViewer = new System.Windows.Controls.ScrollViewer
-            {
-                MaxHeight = 220,
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(0),
-                VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
-                HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled,
-                Content = badMidiItemsControl
-            };
-            badMidiScrollViewer.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, "ControlFillColorDefaultBrush");
-            badMidiScrollViewer.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
-            content.Children.Add(badMidiScrollViewer);
-        }
-
-        if (hasDuplicateConflicts)
-        {
-            var duplicateHeader = new System.Windows.Controls.TextBlock
-            {
-                Text = "Duplicate files",
-                FontWeight = FontWeights.SemiBold,
-                Margin = new Thickness(0, MissingSongs.Count > 0 || BadMidiFiles.Count > 0 ? 14 : 0, 0, 8)
-            };
-            duplicateHeader.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-            content.Children.Add(duplicateHeader);
-
-            var duplicateInfo = new System.Windows.Controls.TextBlock
-            {
-                Text = "Choose exactly one version per duplicate group. These selections stay available when reopening this conflicts menu.",
-                TextWrapping = TextWrapping.Wrap,
-                Opacity = 0.72,
-                Margin = new Thickness(0, 0, 0, 8)
-            };
-            duplicateInfo.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-            content.Children.Add(duplicateInfo);
-
-            duplicateGroupsPanel = new System.Windows.Controls.StackPanel
-            {
-                Orientation = System.Windows.Controls.Orientation.Vertical
-            };
-
-            RebuildDuplicateGroups();
-
-            var duplicateScrollViewer = new System.Windows.Controls.ScrollViewer
-            {
-                MaxHeight = 220,
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(0),
-                VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
-                HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled,
-                Content = duplicateGroupsPanel
-            };
-            duplicateScrollViewer.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, "ControlFillColorDefaultBrush");
-            duplicateScrollViewer.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
-            content.Children.Add(duplicateScrollViewer);
-        }
-
-        if (removedExistingMidiFiles.Count > 0)
-        {
-            var removedHeader = new System.Windows.Controls.TextBlock
-            {
-                Text = "Removed but still in MIDI folder",
-                FontWeight = FontWeights.SemiBold,
-                Margin = new Thickness(0, MissingSongs.Count > 0 || BadMidiFiles.Count > 0 ? 14 : 0, 0, 8)
-            };
-            removedHeader.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-            content.Children.Add(removedHeader);
-
-            removedExistingItemsControl = new System.Windows.Controls.ItemsControl
-            {
-                ItemsSource = removedExistingMidiFiles
-            };
-
-            var removedTemplate = new DataTemplate();
-            var removedRowBorderFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.Border));
-            removedRowBorderFactory.SetValue(System.Windows.Controls.Border.PaddingProperty, new Thickness(10, 8, 10, 8));
-            removedRowBorderFactory.SetValue(System.Windows.Controls.Border.BorderThicknessProperty, new Thickness(0, 0, 0, 1));
-            removedRowBorderFactory.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
-
-            var removedGridFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.Grid));
-            var removedCol1 = new FrameworkElementFactory(typeof(System.Windows.Controls.ColumnDefinition));
-            removedCol1.SetValue(System.Windows.Controls.ColumnDefinition.WidthProperty, new GridLength(1, GridUnitType.Star));
-            var removedCol2 = new FrameworkElementFactory(typeof(System.Windows.Controls.ColumnDefinition));
-            removedCol2.SetValue(System.Windows.Controls.ColumnDefinition.WidthProperty, GridLength.Auto);
-            removedGridFactory.AppendChild(removedCol1);
-            removedGridFactory.AppendChild(removedCol2);
-
-            var removedDetailsPanelFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.StackPanel));
-            removedDetailsPanelFactory.SetValue(System.Windows.Controls.StackPanel.OrientationProperty, System.Windows.Controls.Orientation.Vertical);
-            removedDetailsPanelFactory.SetValue(System.Windows.Controls.Grid.ColumnProperty, 0);
-
-            var removedTitleFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.TextBlock));
-            removedTitleFactory.SetBinding(System.Windows.Controls.TextBlock.TextProperty,
-                new System.Windows.Data.Binding("Title") { FallbackValue = "Unknown" });
-            removedTitleFactory.SetValue(System.Windows.Controls.TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
-            removedTitleFactory.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-            removedDetailsPanelFactory.AppendChild(removedTitleFactory);
-
-            var removedPathFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.TextBlock));
-            removedPathFactory.SetBinding(System.Windows.Controls.TextBlock.TextProperty,
-                new System.Windows.Data.Binding("Path") { FallbackValue = string.Empty });
-            removedPathFactory.SetValue(System.Windows.Controls.TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
-            removedPathFactory.SetValue(System.Windows.Controls.TextBlock.FontSizeProperty, 11.0);
-            removedPathFactory.SetValue(System.Windows.Controls.TextBlock.OpacityProperty, 0.72);
-            removedPathFactory.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-            removedDetailsPanelFactory.AppendChild(removedPathFactory);
-
-            removedGridFactory.AppendChild(removedDetailsPanelFactory);
-
-            var removedActionsFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.StackPanel));
-            removedActionsFactory.SetValue(System.Windows.Controls.StackPanel.OrientationProperty, System.Windows.Controls.Orientation.Horizontal);
-            removedActionsFactory.SetValue(System.Windows.Controls.StackPanel.VerticalAlignmentProperty, VerticalAlignment.Center);
-            removedActionsFactory.SetValue(System.Windows.Controls.Grid.ColumnProperty, 1);
-            removedActionsFactory.SetValue(FrameworkElement.MarginProperty, new Thickness(8, 0, 0, 0));
-
-            var removedRestoreButtonFactory = new FrameworkElementFactory(typeof(Button));
-            removedRestoreButtonFactory.SetResourceReference(FrameworkElement.StyleProperty, "GhostIconButton");
-            removedRestoreButtonFactory.SetValue(System.Windows.Controls.Button.PaddingProperty, new Thickness(4));
-            removedRestoreButtonFactory.SetValue(System.Windows.Controls.Button.ToolTipProperty, "Restore this MIDI file to the song list");
-            removedRestoreButtonFactory.SetValue(System.Windows.Controls.Button.BackgroundProperty, Brushes.Transparent);
-            removedRestoreButtonFactory.SetValue(System.Windows.Controls.Button.BorderThicknessProperty, new Thickness(0));
-            var removedRestoreIconFactory = new FrameworkElementFactory(typeof(SymbolIcon));
-            removedRestoreIconFactory.SetValue(SymbolIcon.SymbolProperty, SymbolRegular.ArrowClockwise24);
-            removedRestoreButtonFactory.AppendChild(removedRestoreIconFactory);
-            removedRestoreButtonFactory.AddHandler(System.Windows.Controls.Button.ClickEvent,
-                new RoutedEventHandler(async (s, _) =>
-                {
-                    if (s is not System.Windows.Controls.Button btn ||
-                        btn.DataContext is not Services.FileService.RemovedExistingMidiFileEntry removedEntry)
-                    {
-                        return;
-                    }
-
-                    await _main.FileService.RestoreExcludedFileToLibraryAsync(removedEntry.Path);
-                    await RefreshListsAsync(resolveDuplicateFallbacks: false);
-                }));
-            removedActionsFactory.AppendChild(removedRestoreButtonFactory);
-
-            var removedDeleteButtonFactory = new FrameworkElementFactory(typeof(Button));
-            removedDeleteButtonFactory.SetResourceReference(FrameworkElement.StyleProperty, "GhostIconButton");
-            removedDeleteButtonFactory.SetValue(System.Windows.Controls.Button.PaddingProperty, new Thickness(4));
-            removedDeleteButtonFactory.SetValue(System.Windows.Controls.Button.MarginProperty, new Thickness(6, 0, 0, 0));
-            removedDeleteButtonFactory.SetValue(System.Windows.Controls.Button.ToolTipProperty, "Delete this MIDI file from disk");
-            removedDeleteButtonFactory.SetValue(System.Windows.Controls.Button.BackgroundProperty, Brushes.Transparent);
-            removedDeleteButtonFactory.SetValue(System.Windows.Controls.Button.BorderThicknessProperty, new Thickness(0));
-            var removedDeleteIconFactory = new FrameworkElementFactory(typeof(SymbolIcon));
-            removedDeleteIconFactory.SetValue(SymbolIcon.SymbolProperty, SymbolRegular.Delete24);
-            removedDeleteButtonFactory.AppendChild(removedDeleteIconFactory);
-            removedDeleteButtonFactory.AddHandler(System.Windows.Controls.Button.ClickEvent,
-                new RoutedEventHandler(async (s, _) =>
-                {
-                    if (s is not System.Windows.Controls.Button btn ||
-                        btn.DataContext is not Services.FileService.RemovedExistingMidiFileEntry removedEntry)
-                    {
-                        return;
-                    }
-
-                    var fileDeleted = false;
-                    var result = await DialogHelper.ShowActionDialogAsync(new DialogActionRequest
-                    {
-                        Title = "Delete MIDI file from folder?",
-                        Icon = SymbolRegular.Delete24,
-                        Body = $"This permanently deletes the file from disk:\n\n{removedEntry.Path}",
-                        ConfirmButton = new DialogActionButton
+                        Text = "Delete",
+                        Appearance = ControlAppearance.Danger,
+                        CallbackAsync = () =>
                         {
-                            Text = "Delete",
-                            Appearance = ControlAppearance.Danger,
-                            CallbackAsync = () =>
-                            {
-                                fileDeleted = _main.FileService.DeleteExcludedFileFromDisk(removedEntry.Path);
-                                return Task.CompletedTask;
-                            }
-                        },
-                        CancelButton = new DialogActionButton
-                        {
-                            Text = "Cancel"
+                            fileDeleted = _main.FileService.DeleteExcludedFileFromDisk(removedEntry.Path);
+                            return Task.CompletedTask;
                         }
-                    });
-
-                    if (result == DialogActionOutcome.Confirmed)
+                    },
+                    CancelButton = new DialogActionButton
                     {
-                        await RefreshListsAsync(resolveDuplicateFallbacks: false);
-
-                        if (!fileDeleted && System.IO.File.Exists(removedEntry.Path))
-                        {
-                            var errorDialog = DialogHelper.CreateDialog();
-                            errorDialog.Title = "Unable to delete file";
-                            errorDialog.Content = "The file could not be deleted. It may be in use, read-only, or protected by permissions.";
-                            errorDialog.CloseButtonText = "OK";
-                            await errorDialog.ShowAsync();
-                        }
+                        Text = "Cancel"
                     }
-                }));
-            removedActionsFactory.AppendChild(removedDeleteButtonFactory);
+                });
 
-            removedGridFactory.AppendChild(removedActionsFactory);
+                if (result != DialogActionOutcome.Confirmed)
+                    return;
 
-            removedRowBorderFactory.AppendChild(removedGridFactory);
-            removedTemplate.VisualTree = removedRowBorderFactory;
-            removedExistingItemsControl.ItemTemplate = removedTemplate;
+                await RefreshListsAsync(resolveDuplicateFallbacks: false);
 
-            var removedScrollViewer = new System.Windows.Controls.ScrollViewer
-            {
-                MaxHeight = 200,
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(0),
-                VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
-                HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled,
-                Content = removedExistingItemsControl
-            };
-            removedScrollViewer.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, "ControlFillColorDefaultBrush");
-            removedScrollViewer.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
-            content.Children.Add(removedScrollViewer);
-        }
+                if (!fileDeleted && System.IO.File.Exists(removedEntry.Path))
+                    await UnableToDeleteFileDialog.ShowDeleteFailedAsync();
+            });
 
-        var dialog = DialogHelper.CreateDialog();
-        dialog.Title = "File Issues";
-        dialog.Content = content;
-        if (hasDatabaseFileErrors)
-        {
-            dialog.PrimaryButtonText = "Remove All";
-            dialog.PrimaryButtonAppearance = ControlAppearance.Danger;
-        }
-
-        dialog.CloseButtonText = "Close";
+        dialog.SetData(
+            MissingSongs.ToList(),
+            BadMidiFiles.ToList(),
+            DuplicateMidiFiles.ToList(),
+            initialRemovedExistingMidiFiles);
 
         var liveRefreshTimer = new System.Windows.Threading.DispatcherTimer
         {
@@ -899,7 +436,7 @@ public class SongsViewModel : Screen
         if (hasDatabaseFileErrors && result == ContentDialogResult.Primary)
             await _main.FileService.RemoveAllFileErrors();
 
-        if (hasDuplicateConflicts)
+        if (DuplicateMidiFiles.Count > 0)
             await _main.FileService.ApplyDuplicateSelectionsAsync(DuplicateMidiFiles.ToList());
     }
 

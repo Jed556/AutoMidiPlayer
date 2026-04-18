@@ -1,0 +1,67 @@
+using System;
+using System.Windows;
+using System.Threading.Tasks;
+using AutoMidiPlayer.Data;
+using AutoMidiPlayer.WPF.Helpers;
+using Wpf.Ui.Controls;
+
+namespace AutoMidiPlayer.WPF.Dialogs;
+
+public partial class AudioDeviceUnavailableDialog : ContentDialog
+{
+    static AudioDeviceUnavailableDialog()
+    {
+        DefaultStyleKeyProperty.OverrideMetadata(
+            typeof(AudioDeviceUnavailableDialog),
+            new FrameworkPropertyMetadata(typeof(ContentDialog))
+        );
+    }
+
+    public AudioDeviceUnavailableDialog(string message)
+    {
+        InitializeComponent();
+
+        DialogHelper.SetupDialogHost(this);
+
+        if (Application.Current.TryFindResource(typeof(ContentDialog)) is Style dialogStyle)
+            Style = dialogStyle;
+
+        MessageTextBlock.Text = message;
+    }
+
+    public static async Task ShowInitializationErrorAsync(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        var message = $"Audio output device initialization failed.\n\nError:\n{exception.Message}";
+
+        try
+        {
+            var dialog = new AudioDeviceUnavailableDialog(message);
+
+            var hostReady = await DialogHelper.EnsureDialogHostAsync(dialog);
+            if (hostReady)
+            {
+                await dialog.ShowAsync();
+                return;
+            }
+
+            CrashLogger.Log("DialogHost was not ready while showing audio initialization error. Falling back to MessageBox.");
+            System.Windows.MessageBox.Show(
+                message,
+                "Audio device unavailable",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+        }
+        catch (Exception dialogError)
+        {
+            CrashLogger.Log("Failed to display audio initialization error dialog.");
+            CrashLogger.LogException(dialogError);
+            System.Windows.MessageBox.Show(
+                message,
+                "Audio device unavailable",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+        }
+    }
+}

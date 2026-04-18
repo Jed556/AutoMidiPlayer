@@ -8,10 +8,10 @@ using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Animation.Transitions;
-using AutoMidiPlayer.WPF.Helpers;
+using AutoMidiPlayer.WPF.Dialogs;
 using Wpf.Ui.Controls;
 
-namespace AutoMidiPlayer.WPF.Dialogs;
+namespace AutoMidiPlayer.WPF.Helpers;
 
 public enum DialogActionOutcome
 {
@@ -616,10 +616,7 @@ public static class DialogHelper
     /// </summary>
     public static async Task<DialogActionOutcome> ShowActionDialogAsync(DialogActionRequest request)
     {
-        var dialog = CreateDialog();
-
-        dialog.Title = BuildTitleContent(request.Title, request.Icon);
-        dialog.Content = BuildDialogContent(request.Body, request.Content);
+        var dialog = new ActionDialog(request);
 
         if (request.ConfirmButton is not null)
         {
@@ -667,64 +664,5 @@ public static class DialogHelper
             await request.CancelButton.CallbackAsync();
 
         return DialogActionOutcome.Cancelled;
-    }
-
-    private static object BuildDialogContent(string? body, object? content)
-    {
-        if (string.IsNullOrWhiteSpace(body))
-            return content ?? string.Empty;
-
-        if (content is null)
-            return body;
-
-        var panel = new StackPanel();
-
-        panel.Children.Add(new System.Windows.Controls.TextBlock
-        {
-            Text = body,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 0, 12)
-        });
-
-        if (content is UIElement element)
-        {
-            panel.Children.Add(element);
-        }
-        else
-        {
-            panel.Children.Add(new System.Windows.Controls.TextBlock
-            {
-                Text = content.ToString() ?? string.Empty,
-                TextWrapping = TextWrapping.Wrap
-            });
-        }
-
-        return panel;
-    }
-
-    private static object BuildTitleContent(string title, SymbolRegular? icon)
-    {
-        if (icon is null)
-            return title;
-
-        var panel = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-
-        panel.Children.Add(new SymbolIcon
-        {
-            Symbol = icon.Value,
-            Margin = new Thickness(0, 0, 8, 0)
-        });
-
-        panel.Children.Add(new System.Windows.Controls.TextBlock
-        {
-            Text = title,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-
-        return panel;
     }
 }

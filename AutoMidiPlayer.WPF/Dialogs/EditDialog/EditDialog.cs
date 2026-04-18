@@ -3,12 +3,12 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Windows;
-using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Entities;
 using AutoMidiPlayer.Data.Properties;
+using AutoMidiPlayer.WPF.Helpers;
 using AutoMidiPlayer.WPF.Services;
 using Wpf.Ui.Controls;
 
@@ -226,11 +226,6 @@ public partial class EditDialog : ContentDialog
         _artistBox.Text = defaultArtist ?? string.Empty;
         _albumBox.Text = defaultAlbum ?? string.Empty;
 
-        _defaultKeyComboBox.ItemTemplate = CreateOffsetNoteSelectorTemplate(nameof(DefaultKeyOption.OffsetDisplay), nameof(DefaultKeyOption.NoteDisplay));
-        _keyComboBox.ItemTemplate = CreateOffsetNoteSelectorTemplate(nameof(MusicConstants.KeyOption.OffsetDisplay), nameof(MusicConstants.KeyOption.NoteDisplay));
-        _transposeComboBox.ItemTemplate = CreateSelectorDisplayTemplate(nameof(TransposeOption.Display));
-        _speedComboBox.ItemTemplate = CreateSelectorDisplayTemplate(nameof(MusicConstants.SpeedOption.Display));
-
         _transposeComboBox.ItemsSource = _transposeOptions;
         _speedComboBox.ItemsSource = _speedOptions;
 
@@ -367,38 +362,6 @@ public partial class EditDialog : ContentDialog
         _defaultKeyComboBox.SelectedItem = selectedOption;
     }
 
-    private static DataTemplate CreateOffsetNoteSelectorTemplate(string offsetPath, string notePath)
-    {
-        var panelFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.StackPanel));
-        panelFactory.SetValue(System.Windows.Controls.StackPanel.OrientationProperty, System.Windows.Controls.Orientation.Horizontal);
-
-        var offsetTextFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.TextBlock));
-        offsetTextFactory.Name = "KeyOffsetText";
-        offsetTextFactory.SetBinding(System.Windows.Controls.TextBlock.TextProperty, new Binding(offsetPath));
-        offsetTextFactory.SetValue(FrameworkElement.MinWidthProperty, 24d);
-        offsetTextFactory.SetValue(System.Windows.Controls.TextBlock.TextAlignmentProperty, TextAlignment.Right);
-        offsetTextFactory.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Right);
-        offsetTextFactory.SetValue(System.Windows.Controls.TextBlock.FontSizeProperty, 12d);
-        offsetTextFactory.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
-
-        var noteTextFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.TextBlock));
-        noteTextFactory.Name = "KeyNoteText";
-        noteTextFactory.SetBinding(System.Windows.Controls.TextBlock.TextProperty, new Binding(notePath));
-        noteTextFactory.SetValue(System.Windows.Controls.TextBlock.TextAlignmentProperty, TextAlignment.Left);
-        noteTextFactory.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Left);
-        noteTextFactory.SetValue(FrameworkElement.MarginProperty, new Thickness(6, 0, 0, 0));
-        noteTextFactory.SetValue(System.Windows.Controls.TextBlock.FontSizeProperty, 12d);
-        noteTextFactory.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
-
-        panelFactory.AppendChild(offsetTextFactory);
-        panelFactory.AppendChild(noteTextFactory);
-
-        return new DataTemplate
-        {
-            VisualTree = panelFactory
-        };
-    }
-
     private void OnDefaultKeyComboBoxSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         if (_defaultKeyComboBox.SelectedItem is not DefaultKeyOption option)
@@ -434,20 +397,6 @@ public partial class EditDialog : ContentDialog
             ?? _transposeOptions.First();
 
         _transposeComboBox.SelectedItem = selectedOption;
-    }
-
-    private static DataTemplate CreateSelectorDisplayTemplate(string bindingPath)
-    {
-        var textBlockFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.TextBlock));
-        textBlockFactory.Name = "DisplayText";
-        textBlockFactory.SetBinding(System.Windows.Controls.TextBlock.TextProperty, new Binding(bindingPath));
-        textBlockFactory.SetValue(System.Windows.Controls.TextBlock.FontSizeProperty, 12d);
-        textBlockFactory.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
-
-        return new DataTemplate
-        {
-            VisualTree = textBlockFactory
-        };
     }
 
     private void OnKeyComboBoxSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)

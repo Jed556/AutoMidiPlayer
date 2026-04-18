@@ -1,0 +1,15 @@
+<ui:ContentDialog x:Class="AutoMidiPlayer.WPF.Dialogs.BadMidiReadDialog"
+                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                  Title="Bad MIDI file"
+                  CloseButtonText="Skip"
+                  DefaultButton="Close">
+
+    <StackPanel Background="Transparent"
+                Margin="0,0,12,0">
+        <TextBlock x:Name="MessageTextBlock"
+                   MaxWidth="640"
+                   TextWrapping="Wrap"/>
+    </StackPanel>
+</ui:ContentDialog>

@@ -1,0 +1,17 @@
+<ui:ContentDialog x:Class="AutoMidiPlayer.WPF.Dialogs.ResetAppDataConfirmationDialog"
+                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                  Title="Reset app data?"
+                  PrimaryButtonText="Reset"
+                  PrimaryButtonAppearance="Danger"
+                  CloseButtonText="Cancel"
+                  DefaultButton="Primary">
+
+    <StackPanel Background="Transparent"
+                Margin="0,0,12,0">
+        <TextBlock Text="This clears user settings and local app data, then restarts the app automatically."
+                   MaxWidth="640"
+                   TextWrapping="Wrap"/>
+    </StackPanel>
+</ui:ContentDialog>

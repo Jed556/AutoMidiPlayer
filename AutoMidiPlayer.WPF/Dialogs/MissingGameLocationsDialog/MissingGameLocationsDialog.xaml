@@ -1,0 +1,26 @@
+<ui:ContentDialog x:Class="AutoMidiPlayer.WPF.Dialogs.MissingGameLocationsDialog"
+                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                  Title="Error"
+                  PrimaryButtonText="Go to Settings"
+                  CloseButtonText="Ignore"
+                  PrimaryButtonAppearance="Primary"
+                  CloseButtonAppearance="Secondary"
+                  DefaultButton="Primary">
+
+    <StackPanel Background="Transparent"
+                Margin="0,0,12,0">
+        <TextBlock Text="Could not find game executable locations for:"
+                   TextWrapping="Wrap"/>
+
+        <TextBlock x:Name="MissingGamesTextBlock"
+                   Margin="0,8,0,0"
+                   FontWeight="SemiBold"
+                   TextWrapping="Wrap"/>
+
+        <TextBlock Margin="0,10,0,0"
+                   Text="You can set game paths in Settings."
+                   TextWrapping="Wrap"/>
+    </StackPanel>
+</ui:ContentDialog>

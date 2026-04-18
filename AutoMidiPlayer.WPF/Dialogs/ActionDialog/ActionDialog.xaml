@@ -1,0 +1,35 @@
+<ui:ContentDialog x:Class="AutoMidiPlayer.WPF.Dialogs.ActionDialog"
+                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                  Title="">
+
+    <ui:ContentDialog.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+    </ui:ContentDialog.Resources>
+
+    <StackPanel Background="Transparent"
+                Margin="0,0,12,0"
+                TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+        <StackPanel Orientation="Horizontal"
+                    Margin="0,0,0,10"
+                    Visibility="{Binding HasHeader, Converter={StaticResource BoolToVisibilityConverter}}">
+            <ui:SymbolIcon x:Name="HeaderIcon"
+                           Margin="0,0,8,0"
+                           Visibility="{Binding HasIcon, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+            <TextBlock Text="{Binding HeaderText}"
+                       VerticalAlignment="Center"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <TextBlock Text="{Binding DialogBody}"
+                   Margin="0,0,0,12"
+                   TextWrapping="Wrap"
+                   Visibility="{Binding HasBody, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+        <ContentPresenter Content="{Binding AdditionalContent}"
+                          Visibility="{Binding HasAdditionalContent, Converter={StaticResource BoolToVisibilityConverter}}"/>
+    </StackPanel>
+</ui:ContentDialog>

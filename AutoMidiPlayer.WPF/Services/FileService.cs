@@ -97,54 +97,11 @@ public class FileService(IContainer ioc)
     #region Missing File Handling
 
     /// <summary>
-    /// Show a dialog informing the user that a MIDI file is missing.
-    /// </summary>
-    public static async Task ShowMissingSongFileDialogAsync(string filePath)
-    {
-        var message =
-            "The selected MIDI file could not be found:\n\n" +
-            filePath +
-            "\n\nIt will be moved to the Missing files list.";
-
-        try
-        {
-            var dialog = DialogHelper.CreateDialog();
-            dialog.Title = "Missing MIDI file";
-            dialog.Content = message;
-            dialog.CloseButtonText = "OK";
-
-            var hostReady = await DialogHelper.EnsureDialogHostAsync(dialog);
-            if (hostReady)
-            {
-                await dialog.ShowAsync();
-                return;
-            }
-
-            CrashLogger.Log("DialogHost was not ready while showing missing MIDI file dialog. Falling back to MessageBox.");
-            System.Windows.MessageBox.Show(
-                message,
-                "Missing MIDI file",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Warning);
-        }
-        catch (Exception dialogError)
-        {
-            CrashLogger.Log("Failed to display missing MIDI file dialog.");
-            CrashLogger.LogException(dialogError);
-            System.Windows.MessageBox.Show(
-                message,
-                "Missing MIDI file",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Warning);
-        }
-    }
-
-    /// <summary>
     /// Handle a song whose file is missing during playback: show dialog, mark as missing, remove from queue.
     /// </summary>
     public async Task HandleMissingSongFileAsync(MidiFile file)
     {
-        await ShowMissingSongFileDialogAsync(file.Path);
+        await MissingSongFileDialog.ShowMissingFileAsync(file.Path);
 
         if (_main is null) return;
 
@@ -833,7 +790,7 @@ public class FileService(IContainer ioc)
         catch (Exception e)
         {
             settings ??= new();
-            if (await MidiReadDialogHandler.TryHandleAsync(e, settings, song.Path))
+            if (await BadMidiReadDialog.TryHandleAsync(e, settings, song.Path))
                 return await AddFile(
                     song,
                     settings,

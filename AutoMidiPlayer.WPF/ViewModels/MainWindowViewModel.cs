@@ -13,6 +13,7 @@ using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Core.Games;
 using AutoMidiPlayer.WPF.Dialogs;
+using AutoMidiPlayer.WPF.Helpers;
 using AutoMidiPlayer.WPF.Services;
 using AutoMidiPlayer.WPF.Views;
 using JetBrains.Annotations;
@@ -580,27 +581,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
     private static async Task ShowResetSuccessDialogIfNeededAsync()
     {
-        if (!File.Exists(AppPaths.ResetCompletedMarkerPath))
-            return;
-
-        try
-        {
-            File.Delete(AppPaths.ResetCompletedMarkerPath);
-        }
-        catch (IOException ex)
-        {
-            CrashLogger.LogStep("RESET_MARKER_DELETE_IO_ERROR", $"path='{AppPaths.ResetCompletedMarkerPath}' | message='{ex.Message}'");
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            CrashLogger.LogStep("RESET_MARKER_DELETE_AUTH_ERROR", $"path='{AppPaths.ResetCompletedMarkerPath}' | message='{ex.Message}'");
-        }
-
-        var dialog = DialogHelper.CreateDialog();
-        dialog.Title = "Reset complete";
-        dialog.Content = "App data reset finished successfully.";
-        dialog.CloseButtonText = "OK";
-        await dialog.ShowAsync();
+        await ResetCompleteDialog.ShowIfResetMarkerExistsAsync();
     }
     public void ShowGameInactiveToast(string gameName, bool listenModeEnabled)
     {

@@ -796,59 +796,9 @@ public class SettingsPageViewModel : Screen
 
         if (missingGames.Count == 0) return;
 
-        var gameList = string.Join(", ", missingGames);
-        var message = $"Could not find game executable locations for: {gameList}. You can set game paths in Settings.";
-        var dialog = DialogHelper.CreateDialog();
-        dialog.Title = "Error";
-        dialog.Content = message;
-        dialog.PrimaryButtonText = "Go to Settings";
-        dialog.CloseButtonText = "Ignore";
-
-        ContentDialogResult result;
-
-        try
-        {
-            var hostReady = await DialogHelper.EnsureDialogHostAsync(dialog);
-            if (hostReady)
-            {
-                result = await dialog.ShowAsync();
-            }
-            else
-            {
-                CrashLogger.Log("DialogHost was not ready while showing missing game location dialog. Falling back to MessageBox.");
-                var fallbackResult = System.Windows.MessageBox.Show(
-                    message,
-                    "Error",
-                    System.Windows.MessageBoxButton.OKCancel,
-                    System.Windows.MessageBoxImage.Warning);
-
-                if (fallbackResult == System.Windows.MessageBoxResult.OK)
-                    _main.NavigateToSettings();
-
-                return;
-            }
-        }
-        catch (Exception dialogError)
-        {
-            CrashLogger.Log("Failed to display missing game location dialog.");
-            CrashLogger.LogException(dialogError);
-
-            var fallbackResult = System.Windows.MessageBox.Show(
-                message,
-                "Error",
-                System.Windows.MessageBoxButton.OKCancel,
-                System.Windows.MessageBoxImage.Warning);
-
-            if (fallbackResult == System.Windows.MessageBoxResult.OK)
-                _main.NavigateToSettings();
-
-            return;
-        }
-
-        if (result == ContentDialogResult.Primary)
-        {
+        var navigateToSettings = await MissingGameLocationsDialog.ShowForMissingGamesAsync(missingGames);
+        if (navigateToSettings)
             _main.NavigateToSettings();
-        }
     }
 
     /// <summary>
@@ -869,11 +819,7 @@ public class SettingsPageViewModel : Screen
         var fileName = openFileDialog.FileName;
         if (Path.GetFileName(fileName).Equals("launcher.exe", StringComparison.OrdinalIgnoreCase))
         {
-            var dialog = DialogHelper.CreateDialog();
-            dialog.Title = "Incorrect Location";
-            dialog.Content = "launcher.exe is not the game executable. Please select the actual game executable.";
-            dialog.CloseButtonText = "Ok";
-            await dialog.ShowAsync();
+            await IncorrectGameLocationDialog.ShowLauncherWarningAsync();
             return;
         }
 
@@ -1001,25 +947,14 @@ public class SettingsPageViewModel : Screen
 
     public async Task ResetAppData()
     {
-        var confirmDialog = DialogHelper.CreateDialog();
-        confirmDialog.Title = "Reset app data?";
-        confirmDialog.Content = "This clears user settings and local app data, then restarts the app automatically.";
-        confirmDialog.PrimaryButtonText = "Reset";
-        confirmDialog.PrimaryButtonAppearance = ControlAppearance.Danger;
-        confirmDialog.CloseButtonText = "Cancel";
-
-        var result = await confirmDialog.ShowAsync();
-        if (result != ContentDialogResult.Primary)
+        var shouldReset = await ResetAppDataConfirmationDialog.ConfirmAsync();
+        if (!shouldReset)
             return;
 
         var executablePath = Environment.ProcessPath;
         if (string.IsNullOrWhiteSpace(executablePath))
         {
-            var errorDialog = DialogHelper.CreateDialog();
-            errorDialog.Title = "Unable to reset app data";
-            errorDialog.Content = "Could not resolve the current executable path for restart.";
-            errorDialog.CloseButtonText = "OK";
-            await errorDialog.ShowAsync();
+            await UnableToResetAppDataDialog.ShowErrorAsync("Could not resolve the current executable path for restart.");
             return;
         }
 
@@ -1049,11 +984,7 @@ public class SettingsPageViewModel : Screen
             }
             catch (System.ComponentModel.Win32Exception)
             {
-                var errorDialog = DialogHelper.CreateDialog();
-                errorDialog.Title = "Unable to reset app data";
-                errorDialog.Content = "Could not start PowerShell to complete reset and restart.";
-                errorDialog.CloseButtonText = "OK";
-                await errorDialog.ShowAsync();
+                await UnableToResetAppDataDialog.ShowErrorAsync("Could not start PowerShell to complete reset and restart.");
                 return;
             }
         }

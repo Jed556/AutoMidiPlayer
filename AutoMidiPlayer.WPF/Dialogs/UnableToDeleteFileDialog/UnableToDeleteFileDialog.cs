@@ -1,0 +1,64 @@
+using System;
+using System.Threading.Tasks;
+using System.Windows;
+using AutoMidiPlayer.Data;
+using AutoMidiPlayer.WPF.Helpers;
+using Wpf.Ui.Controls;
+
+namespace AutoMidiPlayer.WPF.Dialogs;
+
+public partial class UnableToDeleteFileDialog : ContentDialog
+{
+    private const string FallbackTitle = "Unable to delete file";
+    private const string FallbackMessage = "The file could not be deleted. It may be in use, read-only, or protected by permissions.";
+
+    static UnableToDeleteFileDialog()
+    {
+        DefaultStyleKeyProperty.OverrideMetadata(
+            typeof(UnableToDeleteFileDialog),
+            new FrameworkPropertyMetadata(typeof(ContentDialog))
+        );
+    }
+
+    public UnableToDeleteFileDialog()
+    {
+        InitializeComponent();
+
+        DialogHelper.SetupDialogHost(this);
+
+        if (Application.Current.TryFindResource(typeof(ContentDialog)) is Style dialogStyle)
+            Style = dialogStyle;
+    }
+
+    public static async Task ShowDeleteFailedAsync()
+    {
+        try
+        {
+            var dialog = new UnableToDeleteFileDialog();
+
+            var hostReady = await DialogHelper.EnsureDialogHostAsync(dialog);
+            if (hostReady)
+            {
+                await dialog.ShowAsync();
+                return;
+            }
+
+            CrashLogger.Log("DialogHost was not ready while showing unable-to-delete dialog. Falling back to MessageBox.");
+            System.Windows.MessageBox.Show(
+                FallbackMessage,
+                FallbackTitle,
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+        }
+        catch (Exception dialogError)
+        {
+            CrashLogger.Log("Failed to display unable-to-delete dialog.");
+            CrashLogger.LogException(dialogError);
+            System.Windows.MessageBox.Show(
+                FallbackMessage,
+                FallbackTitle,
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+        }
+    }
+}

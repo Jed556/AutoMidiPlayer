@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows;
 using AutoMidiPlayer.Data;
+using AutoMidiPlayer.WPF.Helpers;
 using Humanizer;
 using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
@@ -10,69 +12,91 @@ using Wpf.Ui.Controls;
 
 namespace AutoMidiPlayer.WPF.Dialogs;
 
-internal static class MidiReadDialogHandler
+public partial class BadMidiReadDialog : ContentDialog
 {
     private static readonly object DialogDedupLock = new();
     private static readonly HashSet<string> ShownErrorKeys = new(StringComparer.Ordinal);
 
     private static readonly Dictionary<Type, List<Enum>> ExceptionOptions = new()
     {
-        [typeof(InvalidChannelEventParameterValueException)] = new()
-        {
+        [typeof(InvalidChannelEventParameterValueException)] =
+        [
             InvalidChannelEventParameterValuePolicy.SnapToLimits,
             InvalidChannelEventParameterValuePolicy.ReadValid
-        },
-        [typeof(InvalidMetaEventParameterValueException)] = new()
-        {
+        ],
+        [typeof(InvalidMetaEventParameterValueException)] =
+        [
             InvalidMetaEventParameterValuePolicy.SnapToLimits
-        },
-        [typeof(InvalidSystemCommonEventParameterValueException)] = new()
-        {
+        ],
+        [typeof(InvalidSystemCommonEventParameterValueException)] =
+        [
             InvalidSystemCommonEventParameterValuePolicy.SnapToLimits
-        },
-        [typeof(UnknownChunkException)] = new()
-        {
+        ],
+        [typeof(UnknownChunkException)] =
+        [
             UnknownChunkIdPolicy.ReadAsUnknownChunk,
             UnknownChunkIdPolicy.Skip
-        },
-        [typeof(InvalidChunkSizeException)] = new()
-        {
+        ],
+        [typeof(InvalidChunkSizeException)] =
+        [
             InvalidChunkSizePolicy.Ignore
-        },
-        [typeof(MissedEndOfTrackEventException)] = new()
-        {
+        ],
+        [typeof(MissedEndOfTrackEventException)] =
+        [
             MissedEndOfTrackPolicy.Ignore
-        },
-        [typeof(NoHeaderChunkException)] = new()
-        {
+        ],
+        [typeof(NoHeaderChunkException)] =
+        [
             NoHeaderChunkPolicy.Ignore
-        },
-        [typeof(NotEnoughBytesException)] = new()
-        {
+        ],
+        [typeof(NotEnoughBytesException)] =
+        [
             NotEnoughBytesPolicy.Ignore
-        },
-        [typeof(UnexpectedTrackChunksCountException)] = new()
-        {
+        ],
+        [typeof(UnexpectedTrackChunksCountException)] =
+        [
             UnexpectedTrackChunksCountPolicy.Ignore
-        },
-        [typeof(UnknownChannelEventException)] = new()
-        {
+        ],
+        [typeof(UnknownChannelEventException)] =
+        [
             UnknownChannelEventPolicy.SkipStatusByte
-        },
-        [typeof(UnknownFileFormatException)] = new()
-        {
+        ],
+        [typeof(UnknownFileFormatException)] =
+        [
             UnknownFileFormatPolicy.Ignore
-        }
+        ]
     };
 
-    private static readonly IReadOnlyList<Type> FatalExceptions = new List<Type>
-    {
+    private static readonly IReadOnlyList<Type> FatalExceptions =
+    [
         typeof(InvalidMidiTimeCodeComponentException),
         typeof(TooManyTrackChunksException),
         typeof(UnexpectedRunningStatusException)
-    };
+    ];
 
-    public static async Task<bool> TryHandleAsync(Exception e, ReadingSettings settings, string? filePath = null)
+    static BadMidiReadDialog()
+    {
+        DefaultStyleKeyProperty.OverrideMetadata(
+            typeof(BadMidiReadDialog),
+            new FrameworkPropertyMetadata(typeof(ContentDialog))
+        );
+    }
+
+    public BadMidiReadDialog(string message, string primaryButtonText, string secondaryButtonText)
+    {
+        InitializeComponent();
+
+        DialogHelper.SetupDialogHost(this);
+
+        if (Application.Current.TryFindResource(typeof(ContentDialog)) is Style dialogStyle)
+            Style = dialogStyle;
+
+        MessageTextBlock.Text = message;
+        PrimaryButtonText = primaryButtonText;
+        SecondaryButtonText = secondaryButtonText;
+    }
+
+    internal static async Task<bool> TryHandleAsync(Exception e, ReadingSettings settings, string? filePath = null)
     {
         CrashLogger.Log($"Bad MIDI read error{(string.IsNullOrWhiteSpace(filePath) ? string.Empty : $" for '{filePath}'")}");
         CrashLogger.LogException(e);
@@ -87,12 +111,10 @@ internal static class MidiReadDialogHandler
         var command = ExceptionOptions
             .FirstOrDefault(type => type.Key.Equals(e.GetType())).Value;
 
-        var dialog = DialogHelper.CreateDialog();
-        dialog.Title = "Bad MIDI file";
-        dialog.Content = BuildContent(e, filePath);
-        dialog.CloseButtonText = "Skip";
-        dialog.PrimaryButtonText = command?.ElementAtOrDefault(0)?.ToString()?.Humanize() ?? string.Empty;
-        dialog.SecondaryButtonText = command?.ElementAtOrDefault(1)?.ToString()?.Humanize() ?? string.Empty;
+        var dialog = new BadMidiReadDialog(
+            BuildContent(e, filePath),
+            command?.ElementAtOrDefault(0)?.ToString()?.Humanize() ?? string.Empty,
+            command?.ElementAtOrDefault(1)?.ToString()?.Humanize() ?? string.Empty);
 
         ContentDialogResult result;
 

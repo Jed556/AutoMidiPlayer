@@ -14,6 +14,31 @@
                   helpers:ScrollEdgeFadeBehavior.EdgeFadeThickness="0.18"
                   helpers:ScrollEdgeFadeBehavior.MaxFadeOpacity="0.92">
 
+    <ui:ContentDialog.Resources>
+        <DataTemplate x:Key="OffsetNoteTemplate">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock MinWidth="24"
+                           HorizontalAlignment="Right"
+                           FontSize="12"
+                           Text="{Binding OffsetDisplay}"
+                           TextAlignment="Right"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                <TextBlock Margin="6,0,0,0"
+                           HorizontalAlignment="Left"
+                           FontSize="12"
+                           Text="{Binding NoteDisplay}"
+                           TextAlignment="Left"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate x:Key="DisplayTemplate">
+            <TextBlock FontSize="12"
+                       Text="{Binding Display}"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </DataTemplate>
+    </ui:ContentDialog.Resources>
+
     <StackPanel x:Name="DialogContentPanel"
                 Background="Transparent"
                 Margin="0,0,12,0">
@@ -61,26 +86,27 @@
                     <ComboBox x:Name="DefaultKeyComboBox"
                               Width="160"
                               HorizontalAlignment="Left"
+                              ItemTemplate="{StaticResource OffsetNoteTemplate}"
                               Cursor="Hand"
                               SelectionChanged="OnDefaultKeyComboBoxSelectionChanged"/>
-                    <Button x:Name="RescanDefaultKeyButton"
-                            Margin="6,0,0,0"
-                            Width="32"
-                            Height="32"
-                            Padding="6"
-                            HorizontalContentAlignment="Center"
-                            VerticalContentAlignment="Center"
-                            Cursor="Hand"
-                            ToolTip="Auto-scan default key offset from MIDI"
-                            Style="{DynamicResource IconButton}"
-                            Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                            Click="RescanDefaultKeyButton_Click">
+                    <ui:Button x:Name="RescanDefaultKeyButton"
+                               Margin="6,0,0,0"
+                               Width="32"
+                               Height="32"
+                               Padding="6"
+                               HorizontalContentAlignment="Center"
+                               VerticalContentAlignment="Center"
+                               Cursor="Hand"
+                               ToolTip="Auto-scan default key offset from MIDI"
+                               Style="{DynamicResource IconButton}"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                               Click="RescanDefaultKeyButton_Click">
                         <ui:SymbolIcon Symbol="ScanDash12"
                                        FontSize="16"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center"
-                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
-                    </Button>
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ui:Button}}"/>
+                    </ui:Button>
                 </StackPanel>
             </StackPanel>
 
@@ -91,6 +117,7 @@
                 <ComboBox x:Name="KeyComboBox"
                           Width="160"
                           HorizontalAlignment="Left"
+                          ItemTemplate="{StaticResource OffsetNoteTemplate}"
                           Cursor="Hand"
                           SelectionChanged="OnKeyComboBoxSelectionChanged"/>
             </StackPanel>
@@ -110,6 +137,7 @@
                 <ComboBox x:Name="TransposeComboBox"
                           Width="160"
                           HorizontalAlignment="Left"
+                          ItemTemplate="{StaticResource DisplayTemplate}"
                           Cursor="Hand"/>
             </StackPanel>
 
@@ -137,6 +165,7 @@
                 <ComboBox x:Name="SpeedComboBox"
                           Width="88"
                           HorizontalAlignment="Left"
+                          ItemTemplate="{StaticResource DisplayTemplate}"
                           Cursor="Hand"/>
             </StackPanel>
 
@@ -183,11 +212,11 @@
             </StackPanel>
         </Grid>
 
-        <Button x:Name="ResetDefaultsButton"
-                ToolTip="Reset fields to default values"
-                Margin="0,12,0,14"
-                Style="{StaticResource DangerActionButton}"
-                Click="ResetDefaultsButton_Click">
+        <ui:Button x:Name="ResetDefaultsButton"
+                   ToolTip="Reset fields to default values"
+                   Margin="0,12,0,14"
+                   Style="{StaticResource DangerActionButton}"
+                   Click="ResetDefaultsButton_Click">
             <StackPanel Orientation="Horizontal"
                         VerticalAlignment="Center">
                 <ui:SymbolIcon Symbol="ArrowClockwise24"
@@ -198,7 +227,7 @@
                            VerticalAlignment="Center"
                            Foreground="White"/>
             </StackPanel>
-        </Button>
+        </ui:Button>
 
         <Separator Margin="0,0,0,10"/>
 

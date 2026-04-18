@@ -70,7 +70,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         {
             CrashLogger.Log("Failed to initialize Microsoft GS Wavetable Synth.");
             CrashLogger.LogException(e);
-            _ = ShowAudioInitializationErrorAsync(e);
+            _ = AudioDeviceUnavailableDialog.ShowInitializationErrorAsync(e);
             Settings.Modify(s => s.UseSpeakers = false);
             _events.Publish(new ListenModeChangedNotification(false));
         }
@@ -110,43 +110,6 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         {
             CrashLogger.Log("Unhandled exception while rebuilding playback after song settings change.");
             CrashLogger.LogException(ex);
-        }
-    }
-
-    private static async Task ShowAudioInitializationErrorAsync(Exception e)
-    {
-        var message = $"Audio output device initialization failed.\n\nError:\n{e.Message}";
-
-        try
-        {
-            var dialog = DialogHelper.CreateDialog();
-            dialog.Title = "Audio device unavailable";
-            dialog.Content = message;
-            dialog.CloseButtonText = "Ignore";
-
-            var hostReady = await DialogHelper.EnsureDialogHostAsync(dialog);
-            if (hostReady)
-            {
-                await dialog.ShowAsync();
-                return;
-            }
-
-            CrashLogger.Log("DialogHost was not ready while showing audio initialization error. Falling back to MessageBox.");
-            System.Windows.MessageBox.Show(
-                message,
-                "Audio device unavailable",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Warning);
-        }
-        catch (Exception dialogError)
-        {
-            CrashLogger.Log("Failed to display audio initialization error dialog.");
-            CrashLogger.LogException(dialogError);
-            System.Windows.MessageBox.Show(
-                message,
-                "Audio device unavailable",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Warning);
         }
     }
 
