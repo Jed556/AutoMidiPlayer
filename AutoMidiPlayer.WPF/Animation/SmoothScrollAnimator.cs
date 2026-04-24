@@ -5,6 +5,12 @@ using System.Windows.Media;
 
 namespace AutoMidiPlayer.WPF.Helpers;
 
+public enum SmoothScrollAxis
+{
+    Vertical,
+    Horizontal
+}
+
 public readonly struct SmoothScrollAnimatorOptions
 {
     public double SmoothingFactor { get; init; }
@@ -34,6 +40,7 @@ public sealed class SmoothScrollAnimator : IDisposable
 {
     private readonly ScrollViewer _viewer;
     private readonly Action? _onFrameApplied;
+    private readonly SmoothScrollAxis _axis;
     private readonly Stopwatch _stopwatch = new();
     private readonly double _smoothingRatePerSecond;
     private readonly double _snapThreshold;
@@ -45,10 +52,11 @@ public sealed class SmoothScrollAnimator : IDisposable
     private double _lastFrameSeconds;
     private bool _isRunning;
 
-    public SmoothScrollAnimator(ScrollViewer viewer, SmoothScrollAnimatorOptions options, Action? onFrameApplied = null)
+    public SmoothScrollAnimator(ScrollViewer viewer, SmoothScrollAnimatorOptions options, Action? onFrameApplied = null, SmoothScrollAxis axis = SmoothScrollAxis.Vertical)
     {
         _viewer = viewer;
         _onFrameApplied = onFrameApplied;
+        _axis = axis;
 
         var smoothingFactor = Math.Clamp(options.SmoothingFactor, 0.01d, 0.95d);
         _snapThreshold = Math.Max(0.01d, options.SnapThreshold);
@@ -58,7 +66,7 @@ public sealed class SmoothScrollAnimator : IDisposable
         _maxFrameSeconds = Math.Clamp(options.MaxFrameSeconds, _minFrameSeconds, 1d / 5d);
 
         _smoothingRatePerSecond = -Math.Log(1d - smoothingFactor) * _referenceFrameRate;
-        TargetOffset = _viewer.VerticalOffset;
+        TargetOffset = GetCurrentOffset();
     }
 
     public bool IsRunning => _isRunning;
@@ -67,12 +75,12 @@ public sealed class SmoothScrollAnimator : IDisposable
 
     public void SyncTargetToCurrentOffset()
     {
-        TargetOffset = _viewer.VerticalOffset;
+        TargetOffset = GetCurrentOffset();
     }
 
     public void SetTargetOffset(double targetOffset, bool startIfNeeded = true, bool immediateStep = false)
     {
-        var maxOffset = Math.Max(0d, _viewer.ScrollableHeight);
+        var maxOffset = GetScrollableExtent();
         TargetOffset = Math.Clamp(targetOffset, 0d, maxOffset);
 
         if (!startIfNeeded)
@@ -85,13 +93,13 @@ public sealed class SmoothScrollAnimator : IDisposable
 
     public void ApplyDelta(double deltaOffset, double minTarget, double maxTarget, bool resetOnDirectionChange)
     {
-        if (_viewer.ScrollableHeight <= 0)
+        if (GetScrollableExtent() <= 0)
             return;
 
         if (!_isRunning)
-            TargetOffset = _viewer.VerticalOffset;
+            TargetOffset = GetCurrentOffset();
 
-        var currentOffset = _viewer.VerticalOffset;
+        var currentOffset = GetCurrentOffset();
         if (resetOnDirectionChange)
         {
             var currentDirection = Math.Sign(TargetOffset - currentOffset);
@@ -117,9 +125,10 @@ public sealed class SmoothScrollAnimator : IDisposable
             _isRunning = false;
         }
 
-        if (snapToTarget && _viewer.ScrollableHeight > 0)
+        var scrollableExtent = GetScrollableExtent();
+        if (snapToTarget && scrollableExtent > 0)
         {
-            _viewer.ScrollToVerticalOffset(Math.Clamp(TargetOffset, 0d, _viewer.ScrollableHeight));
+            ScrollToOffset(Math.Clamp(TargetOffset, 0d, scrollableExtent));
             _onFrameApplied?.Invoke();
         }
 
@@ -148,7 +157,7 @@ public sealed class SmoothScrollAnimator : IDisposable
         if (!_isRunning)
             return;
 
-        if (_viewer.ScrollableHeight <= 0)
+        if (GetScrollableExtent() <= 0)
         {
             TargetOffset = 0d;
             Stop();
@@ -169,16 +178,16 @@ public sealed class SmoothScrollAnimator : IDisposable
 
     private void AdvanceFrame(double deltaSeconds)
     {
-        var scrollableHeight = Math.Max(0d, _viewer.ScrollableHeight);
-        TargetOffset = Math.Clamp(TargetOffset, 0d, scrollableHeight);
+        var scrollableExtent = GetScrollableExtent();
+        TargetOffset = Math.Clamp(TargetOffset, 0d, scrollableExtent);
 
-        var currentOffset = _viewer.VerticalOffset;
+        var currentOffset = GetCurrentOffset();
         var delta = TargetOffset - currentOffset;
 
         if (Math.Abs(delta) <= _snapThreshold)
         {
             Stop();
-            _viewer.ScrollToVerticalOffset(TargetOffset);
+            ScrollToOffset(TargetOffset);
             _onFrameApplied?.Invoke();
             return;
         }
@@ -188,9 +197,27 @@ public sealed class SmoothScrollAnimator : IDisposable
 
         var maxStepForFrame = _maxStep * deltaSeconds * _referenceFrameRate;
         var smoothStep = Math.Clamp(delta * frameBlend, -maxStepForFrame, maxStepForFrame);
-        var nextOffset = Math.Clamp(currentOffset + smoothStep, 0d, scrollableHeight);
+        var nextOffset = Math.Clamp(currentOffset + smoothStep, 0d, scrollableExtent);
 
-        _viewer.ScrollToVerticalOffset(nextOffset);
+        ScrollToOffset(nextOffset);
         _onFrameApplied?.Invoke();
+    }
+
+    private double GetCurrentOffset()
+    {
+        return _axis == SmoothScrollAxis.Horizontal ? _viewer.HorizontalOffset : _viewer.VerticalOffset;
+    }
+
+    private double GetScrollableExtent()
+    {
+        return _axis == SmoothScrollAxis.Horizontal ? _viewer.ScrollableWidth : _viewer.ScrollableHeight;
+    }
+
+    private void ScrollToOffset(double offset)
+    {
+        if (_axis == SmoothScrollAxis.Horizontal)
+            _viewer.ScrollToHorizontalOffset(offset);
+        else
+            _viewer.ScrollToVerticalOffset(offset);
     }
 }

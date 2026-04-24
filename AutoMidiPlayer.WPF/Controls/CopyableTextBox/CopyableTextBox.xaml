@@ -31,11 +31,11 @@
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="4"
                                 Padding="{TemplateBinding Padding}">
-                            <!-- Local padding override keeps the scrollbar overlaid instead of reserving right-side text space. -->
                             <ScrollViewer x:Name="PART_ContentHost"
                                           Padding="0"
                                           HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
-                                          VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}"/>
+                                          VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}">
+                            </ScrollViewer>
                         </Border>
                     </ControlTemplate>
                 </Setter.Value>
@@ -94,7 +94,6 @@
     <Grid x:Name="RootGrid"
           MouseEnter="OnRootGridMouseEnter"
           MouseLeave="OnRootGridMouseLeave">
-
         <TextBox Text="{Binding Text, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                  Style="{StaticResource PassiveSelectableTextBoxStyle}"
                  IsReadOnly="{Binding IsReadOnly, ElementName=Root}"

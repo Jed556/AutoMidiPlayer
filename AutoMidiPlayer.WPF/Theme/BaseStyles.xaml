@@ -248,6 +248,36 @@
         </Setter>
     </Style>
 
+    <Style x:Key="AutoFadeScrollLineLeftButton"
+           TargetType="RepeatButton"
+           BasedOn="{StaticResource AppScrollLineUpButton}">
+        <Setter Property="Content">
+            <Setter.Value>
+                <Path Data="M 6 1 L 2 5 L 6 9"
+                      Stroke="{DynamicResource TextFillColorSecondaryBrush}"
+                      StrokeThickness="1.2"
+                      StrokeStartLineCap="Round"
+                      StrokeEndLineCap="Round"
+                      StrokeLineJoin="Round"/>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AutoFadeScrollLineRightButton"
+           TargetType="RepeatButton"
+           BasedOn="{StaticResource AppScrollLineDownButton}">
+        <Setter Property="Content">
+            <Setter.Value>
+                <Path Data="M 2 1 L 6 5 L 2 9"
+                      Stroke="{DynamicResource TextFillColorSecondaryBrush}"
+                      StrokeThickness="1.2"
+                      StrokeStartLineCap="Round"
+                      StrokeEndLineCap="Round"
+                      StrokeLineJoin="Round"/>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style TargetType="ScrollBar">
         <Setter Property="Background"
                 Value="Transparent"/>
@@ -381,15 +411,148 @@
             </Setter.Value>
         </Setter>
         <Style.Triggers>
-            <Trigger Property="Orientation"
-                     Value="Horizontal">
-                <Setter Property="Visibility"
-                        Value="Collapsed"/>
-            </Trigger>
             <Trigger Property="IsEnabled"
                      Value="False">
                 <Setter Property="Opacity"
                         Value="0"/>
+            </Trigger>
+            <Trigger Property="Orientation"
+                     Value="Horizontal">
+                <Setter Property="Visibility"
+                        Value="Visible"/>
+                <Setter Property="Width"
+                        Value="Auto"/>
+                <Setter Property="Height"
+                        Value="10"/>
+                <Setter Property="Margin"
+                        Value="0,-8,0,0"/>
+                <Setter Property="Opacity"
+                        Value="0"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ScrollBar">
+                            <Grid Background="Transparent"
+                                  Height="{TemplateBinding Height}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <RepeatButton x:Name="LineLeftButton"
+                                              Grid.Column="0"
+                                              Style="{StaticResource AutoFadeScrollLineLeftButton}"
+                                              Command="ScrollBar.LineLeftCommand"
+                                              Opacity="0"/>
+
+                                <Border Grid.Column="1"
+                                        Background="Transparent"
+                                        CornerRadius="5"
+                                        Margin="2,0">
+                                    <Track x:Name="PART_Track"
+                                           Orientation="Horizontal"
+                                           Minimum="{TemplateBinding Minimum}"
+                                           Maximum="{TemplateBinding Maximum}"
+                                           Value="{TemplateBinding Value}"
+                                           ViewportSize="{TemplateBinding ViewportSize}">
+                                        <Track.DecreaseRepeatButton>
+                                            <RepeatButton Command="ScrollBar.PageLeftCommand"
+                                                          Background="Transparent"
+                                                          BorderThickness="0"/>
+                                        </Track.DecreaseRepeatButton>
+                                        <Track.Thumb>
+                                            <Thumb Style="{StaticResource AppScrollBarThumbStyle}"/>
+                                        </Track.Thumb>
+                                        <Track.IncreaseRepeatButton>
+                                            <RepeatButton Command="ScrollBar.PageRightCommand"
+                                                          Background="Transparent"
+                                                          BorderThickness="0"/>
+                                        </Track.IncreaseRepeatButton>
+                                    </Track>
+                                </Border>
+
+                                <RepeatButton x:Name="LineRightButton"
+                                              Grid.Column="2"
+                                              Style="{StaticResource AutoFadeScrollLineRightButton}"
+                                              Command="ScrollBar.LineRightCommand"
+                                              Opacity="0"/>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver"
+                                         Value="True">
+                                    <Setter Property="Opacity"
+                                            Value="1"/>
+                                    <Trigger.EnterActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="LineLeftButton"
+                                                                 Storyboard.TargetProperty="Opacity"
+                                                                 To="1"
+                                                                 Duration="0:0:0.15">
+                                                    <DoubleAnimation.EasingFunction>
+                                                        <QuadraticEase EasingMode="EaseOut"/>
+                                                    </DoubleAnimation.EasingFunction>
+                                                </DoubleAnimation>
+                                                <DoubleAnimation Storyboard.TargetName="LineRightButton"
+                                                                 Storyboard.TargetProperty="Opacity"
+                                                                 To="1"
+                                                                 Duration="0:0:0.15">
+                                                    <DoubleAnimation.EasingFunction>
+                                                        <QuadraticEase EasingMode="EaseOut"/>
+                                                    </DoubleAnimation.EasingFunction>
+                                                </DoubleAnimation>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.EnterActions>
+                                    <Trigger.ExitActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="LineLeftButton"
+                                                                 Storyboard.TargetProperty="Opacity"
+                                                                 To="0"
+                                                                 Duration="0:0:0.22">
+                                                    <DoubleAnimation.EasingFunction>
+                                                        <QuadraticEase EasingMode="EaseInOut"/>
+                                                    </DoubleAnimation.EasingFunction>
+                                                </DoubleAnimation>
+                                                <DoubleAnimation Storyboard.TargetName="LineRightButton"
+                                                                 Storyboard.TargetProperty="Opacity"
+                                                                 To="0"
+                                                                 Duration="0:0:0.22">
+                                                    <DoubleAnimation.EasingFunction>
+                                                        <QuadraticEase EasingMode="EaseInOut"/>
+                                                    </DoubleAnimation.EasingFunction>
+                                                </DoubleAnimation>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.ExitActions>
+                                </Trigger>
+                                <Trigger Property="IsMouseCaptureWithin"
+                                         Value="True">
+                                    <Setter Property="Opacity"
+                                            Value="1"/>
+                                    <Setter TargetName="LineLeftButton"
+                                            Property="Opacity"
+                                            Value="1"/>
+                                    <Setter TargetName="LineRightButton"
+                                            Property="Opacity"
+                                            Value="1"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled"
+                                         Value="False">
+                                    <Setter Property="Opacity"
+                                            Value="0"/>
+                                    <Setter TargetName="LineLeftButton"
+                                            Property="Opacity"
+                                            Value="0"/>
+                                    <Setter TargetName="LineRightButton"
+                                            Property="Opacity"
+                                            Value="0"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
             </Trigger>
         </Style.Triggers>
     </Style>
