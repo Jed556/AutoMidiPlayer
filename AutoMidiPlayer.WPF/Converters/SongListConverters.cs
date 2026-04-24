@@ -60,7 +60,7 @@ public class KeyToNoteConverter : IValueConverter
     {
         if (value is Song song)
         {
-            var effectiveOffset = MusicConstants.GetEffectiveKeyOffset(song.Key, song.DefaultKey);
+            var effectiveOffset = MusicConstants.GetEffectiveKeyOffset(song.Key, song.BaseKey);
             return MusicConstants.GetNoteName(effectiveOffset);
         }
 

@@ -64,8 +64,8 @@ public class SongService(IContainer ioc) : PropertyChangedBase
         get => _keyOffset;
         set
         {
-            var minKeyOffset = MusicConstants.GetRelativeMinKeyOffset(CurrentFile?.Song.DefaultKey);
-            var maxKeyOffset = MusicConstants.GetRelativeMaxKeyOffset(CurrentFile?.Song.DefaultKey);
+            var minKeyOffset = MusicConstants.GetRelativeMinKeyOffset(CurrentFile?.Song.BaseKey);
+            var maxKeyOffset = MusicConstants.GetRelativeMaxKeyOffset(CurrentFile?.Song.BaseKey);
 
             if (SetAndNotify(ref _keyOffset, Math.Clamp(value, minKeyOffset, maxKeyOffset)))
             {
@@ -214,7 +214,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
         try
         {
             if (CurrentFile is not null)
-                CurrentFile.Song.DefaultKey = song.DefaultKey;
+                CurrentFile.Song.BaseKey = song.BaseKey;
 
             UpdateKeyOptionsForCurrentSong();
             Speed = song.Speed ?? 1.0;
@@ -244,15 +244,15 @@ public class SongService(IContainer ioc) : PropertyChangedBase
     public int GetEffectiveKeyOffset(Song? song = null)
     {
         if (song is not null)
-            return MusicConstants.GetEffectiveKeyOffset(song.Key, song.DefaultKey);
+            return MusicConstants.GetEffectiveKeyOffset(song.Key, song.BaseKey);
 
-        return MusicConstants.GetEffectiveKeyOffset(KeyOffset, CurrentFile?.Song.DefaultKey);
+        return MusicConstants.GetEffectiveKeyOffset(KeyOffset, CurrentFile?.Song.BaseKey);
     }
 
     private void UpdateKeyOptionsForCurrentSong()
     {
-        var defaultKeyOffset = CurrentFile?.Song.DefaultKey;
-        KeyOptions = MusicConstants.GenerateKeyOptions(defaultKeyOffset);
+        var baseKeyOffset = CurrentFile?.Song.BaseKey;
+        KeyOptions = MusicConstants.GenerateKeyOptions(baseKeyOffset);
 
         _selectedKeyOption = KeyOptions.FirstOrDefault(k => k.Value == _keyOffset)
                              ?? KeyOptions.FirstOrDefault();
@@ -342,7 +342,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
             file.Song.Title ?? Path.GetFileNameWithoutExtension(file.Path),
             file.Path,
             file.Song.Key,
-            file.Song.DefaultKey,
+            file.Song.BaseKey,
             file.Song.Transpose ?? Data.Entities.Transpose.Ignore,
             file.Song.Artist,
             file.Song.Album,
@@ -373,8 +373,8 @@ public class SongService(IContainer ioc) : PropertyChangedBase
         file.Song.Artist = string.IsNullOrWhiteSpace(dialog.SongArtist) ? null : dialog.SongArtist;
         file.Song.Album = string.IsNullOrWhiteSpace(dialog.SongAlbum) ? null : dialog.SongAlbum;
         file.Song.DateAdded = dialog.SongDateAdded;
-        // Preserve existing song-specific default key unless dialog provides a detected value.
-        file.Song.DefaultKey = dialog.SongDefaultKey ?? file.Song.DefaultKey;
+        // Preserve the existing song-specific base key unless the dialog provides a detected value.
+        file.Song.BaseKey = dialog.SongBaseKey ?? file.Song.BaseKey;
         file.Song.Key = dialog.SongKey;
         file.Song.Transpose = dialog.SongTranspose;
         file.Song.Bpm = dialog.SongBpm;
@@ -414,7 +414,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
         target.Artist = source.Artist;
         target.Album = source.Album;
         target.DateAdded = source.DateAdded;
-        target.DefaultKey = source.DefaultKey;
+        target.BaseKey = source.BaseKey;
         target.Key = source.Key;
         target.Transpose = source.Transpose;
         target.Bpm = source.Bpm;

@@ -59,7 +59,7 @@ public class FileService(IContainer ioc)
         2.54, 4.75, 3.98, 2.69, 3.34, 3.17
     ];
 
-    public readonly record struct MidiAnalysisResult(double NativeBpm, int? DetectedDefaultKeyOffset, DateTime FileDate);
+    public readonly record struct MidiAnalysisResult(double NativeBpm, int? DetectedBaseKeyOffset, DateTime FileDate);
     public readonly record struct RemovedExistingMidiFileEntry(string Path, string Title);
 
     /// <summary>
@@ -78,9 +78,9 @@ public class FileService(IContainer ioc)
             var tempo = midi.GetTempoMap().GetTempoAtTime(new MetricTimeSpan(0));
             var nativeBpm = tempo.BeatsPerMinute;
             var fileDate = File.GetLastWriteTime(filePath);
-            var hasDetectedKey = TryDetectSongKeyOffset(midi, out var detectedDefaultKeyOffset);
+            var hasDetectedKey = TryDetectSongKeyOffset(midi, out var detectedBaseKeyOffset);
 
-            result = new MidiAnalysisResult(nativeBpm, hasDetectedKey ? detectedDefaultKeyOffset : null, fileDate);
+            result = new MidiAnalysisResult(nativeBpm, hasDetectedKey ? detectedBaseKeyOffset : null, fileDate);
             return true;
         }
         catch
@@ -831,11 +831,11 @@ public class FileService(IContainer ioc)
         if (!TryDetectSongKeyOffset(loadedFile.Midi, out var detectedKey))
             return;
 
-        if (song.DefaultKey == detectedKey && song.Key == 0)
+        if (song.BaseKey == detectedKey && song.Key == 0)
             return;
 
         // Keep key offset relative to the detected song center.
-        song.DefaultKey = detectedKey;
+        song.BaseKey = detectedKey;
         song.Key = 0;
 
         // For songs already in the DB, persist once so future loads use the detected key.
@@ -855,7 +855,7 @@ public class FileService(IContainer ioc)
     }
 
     private static bool ShouldAutoDetectSongKey(Song song) =>
-        song.Id == Guid.Empty && Settings.AutoDetectDefaultKey;
+        song.Id == Guid.Empty && Settings.AutoDetectBaseKey;
 
     private static string? NormalizePath(string? path)
     {
@@ -1029,22 +1029,22 @@ public class FileService(IContainer ioc)
             return;
 
         var metadata = ParseSongMetadataFromFileName(fileName);
-        var defaultSongDefaultKey = Math.Clamp(Settings.DefaultSongDefaultKey, MusicConstants.MinKeyOffset, MusicConstants.MaxKeyOffset);
+        var defaultSongBaseKey = Math.Clamp(Settings.DefaultSongBaseKey, MusicConstants.MinKeyOffset, MusicConstants.MaxKeyOffset);
         var defaultSongKey = Math.Clamp(
             Settings.DefaultSongKey,
-            MusicConstants.GetRelativeMinKeyOffset(defaultSongDefaultKey),
-            MusicConstants.GetRelativeMaxKeyOffset(defaultSongDefaultKey));
+            MusicConstants.GetRelativeMinKeyOffset(defaultSongBaseKey),
+            MusicConstants.GetRelativeMaxKeyOffset(defaultSongBaseKey));
         var defaultSongTranspose = Enum.IsDefined(typeof(Transpose), Settings.DefaultSongTranspose)
             ? (Transpose)Settings.DefaultSongTranspose
             : Transpose.Ignore;
         var defaultSongMergeMilliseconds = Math.Clamp(Settings.DefaultSongMergeMilliseconds, 1u, 1000u);
 
-        // Key offset is stored relative to DefaultKey for new songs.
+        // Key offset is stored relative to BaseKey for new songs.
         var song = new Song(fileName, defaultSongKey)
         {
             Title = metadata.Title,
             Artist = metadata.Artist,
-            DefaultKey = defaultSongDefaultKey,
+            BaseKey = defaultSongBaseKey,
             Transpose = defaultSongTranspose,
             MergeNotes = Settings.DefaultSongMergeNotes,
             MergeMilliseconds = defaultSongMergeMilliseconds,

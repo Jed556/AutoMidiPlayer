@@ -88,7 +88,7 @@ public class SettingsPageViewModel : Screen
         new("Middle Click", MouseStopClickMode.MiddleClick)
     };
 
-    public static List<MusicConstants.KeyOption> NewSongDefaultKeyOptions { get; } = MusicConstants.GenerateKeyOptions();
+    public static List<MusicConstants.KeyOption> NewSongBaseKeyOptions { get; } = MusicConstants.GenerateKeyOptions();
 
     public static List<KeyValuePair<Transpose, string>> NewSongTransposeOptions { get; } =
         MusicConstants.TransposeNames.ToList();
@@ -106,7 +106,7 @@ public class SettingsPageViewModel : Screen
     private MouseStopClickOption _selectedMouseStopClickOption = null!;
     private KeypressInputModeOption _selectedKeypressInputMode = null!;
     private ThemeOption _selectedTheme = null!;
-    private MusicConstants.KeyOption _selectedNewSongDefaultKeyOption = null!;
+    private MusicConstants.KeyOption _selectedNewSongBaseKeyOption = null!;
     private MusicConstants.KeyOption _selectedNewSongKeyOption = null!;
     private KeyValuePair<Transpose, string> _selectedNewSongTransposeOption;
     private MusicConstants.SpeedOption _selectedNewSongSpeedOption = null!;
@@ -453,15 +453,15 @@ public class SettingsPageViewModel : Screen
         }
     }
 
-    public bool AutoDetectDefaultKey
+    public bool AutoDetectBaseKey
     {
-        get => Settings.AutoDetectDefaultKey;
+        get => Settings.AutoDetectBaseKey;
         set
         {
-            if (Settings.AutoDetectDefaultKey == value)
+            if (Settings.AutoDetectBaseKey == value)
                 return;
 
-            Settings.Modify(s => s.AutoDetectDefaultKey = value);
+            Settings.Modify(s => s.AutoDetectBaseKey = value);
             NotifyOfPropertyChange();
         }
     }
@@ -482,12 +482,12 @@ public class SettingsPageViewModel : Screen
 
     public List<MusicConstants.KeyOption> NewSongKeyOptions { get; private set; } = new();
 
-    public MusicConstants.KeyOption SelectedNewSongDefaultKeyOption
+    public MusicConstants.KeyOption SelectedNewSongBaseKeyOption
     {
-        get => _selectedNewSongDefaultKeyOption;
+        get => _selectedNewSongBaseKeyOption;
         set
         {
-            if (!SetAndNotify(ref _selectedNewSongDefaultKeyOption, value) || value is null || _isSynchronizingNewSongDefaults)
+            if (!SetAndNotify(ref _selectedNewSongBaseKeyOption, value) || value is null || _isSynchronizingNewSongDefaults)
                 return;
 
             _isSynchronizingNewSongDefaults = true;
@@ -629,9 +629,9 @@ public class SettingsPageViewModel : Screen
 
     private void InitializeNewSongDefaults()
     {
-        var defaultKey = Math.Clamp(Settings.DefaultSongDefaultKey, MusicConstants.MinKeyOffset, MusicConstants.MaxKeyOffset);
-        var defaultKeyOption = NewSongDefaultKeyOptions.FirstOrDefault(option => option.Value == defaultKey)
-            ?? NewSongDefaultKeyOptions.First();
+        var baseKey = Math.Clamp(Settings.DefaultSongBaseKey, MusicConstants.MinKeyOffset, MusicConstants.MaxKeyOffset);
+        var baseKeyOption = NewSongBaseKeyOptions.FirstOrDefault(option => option.Value == baseKey)
+            ?? NewSongBaseKeyOptions.First();
 
         var transpose = Enum.IsDefined(typeof(Transpose), Settings.DefaultSongTranspose)
             ? (Transpose)Settings.DefaultSongTranspose
@@ -652,10 +652,10 @@ public class SettingsPageViewModel : Screen
         _isSynchronizingNewSongDefaults = true;
         try
         {
-            _selectedNewSongDefaultKeyOption = defaultKeyOption;
-            NotifyOfPropertyChange(nameof(SelectedNewSongDefaultKeyOption));
+            _selectedNewSongBaseKeyOption = baseKeyOption;
+            NotifyOfPropertyChange(nameof(SelectedNewSongBaseKeyOption));
 
-            SyncNewSongKeyOptions(defaultKeyOption.Value, Settings.DefaultSongKey, saveSettings: false);
+            SyncNewSongKeyOptions(baseKeyOption.Value, Settings.DefaultSongKey, saveSettings: false);
 
             _selectedNewSongTransposeOption = transposeOption;
             NotifyOfPropertyChange(nameof(SelectedNewSongTransposeOption));
@@ -669,7 +669,7 @@ public class SettingsPageViewModel : Screen
         }
 
         var sanitizedMergeMs = Math.Clamp((int)Settings.DefaultSongMergeMilliseconds, 1, 1000);
-        if (Settings.DefaultSongDefaultKey != defaultKey
+        if (Settings.DefaultSongBaseKey != baseKey
             || Settings.DefaultSongKey != _selectedNewSongKeyOption.Value
             || Settings.DefaultSongTranspose != (int)_selectedNewSongTransposeOption.Key
             || Math.Abs(Settings.DefaultSongSpeed - _selectedNewSongSpeedOption.Value) > 0.001
@@ -677,7 +677,7 @@ public class SettingsPageViewModel : Screen
         {
             Settings.Modify(s =>
             {
-                s.DefaultSongDefaultKey = defaultKey;
+                s.DefaultSongBaseKey = baseKey;
                 s.DefaultSongKey = _selectedNewSongKeyOption.Value;
                 s.DefaultSongTranspose = (int)_selectedNewSongTransposeOption.Key;
                 s.DefaultSongSpeed = _selectedNewSongSpeedOption.Value;
@@ -688,13 +688,13 @@ public class SettingsPageViewModel : Screen
         }
     }
 
-    private void SyncNewSongKeyOptions(int defaultKey, int preferredKey, bool saveSettings)
+    private void SyncNewSongKeyOptions(int baseKey, int preferredKey, bool saveSettings)
     {
-        var keyOptions = MusicConstants.GenerateKeyOptions(defaultKey);
+        var keyOptions = MusicConstants.GenerateKeyOptions(baseKey);
         var clampedKey = Math.Clamp(
             preferredKey,
-            MusicConstants.GetRelativeMinKeyOffset(defaultKey),
-            MusicConstants.GetRelativeMaxKeyOffset(defaultKey));
+            MusicConstants.GetRelativeMinKeyOffset(baseKey),
+            MusicConstants.GetRelativeMaxKeyOffset(baseKey));
 
         var selectedKeyOption = keyOptions.FirstOrDefault(option => option.Value == clampedKey)
             ?? keyOptions.First();
@@ -710,7 +710,7 @@ public class SettingsPageViewModel : Screen
 
         Settings.Modify(s =>
         {
-            s.DefaultSongDefaultKey = defaultKey;
+            s.DefaultSongBaseKey = baseKey;
             s.DefaultSongKey = selectedKeyOption.Value;
         });
     }
@@ -891,8 +891,8 @@ public class SettingsPageViewModel : Screen
 
     public void ResetSongDefaults()
     {
-        var defaultDefaultKeyOption = NewSongDefaultKeyOptions.FirstOrDefault(option => option.Value == 0)
-            ?? NewSongDefaultKeyOptions.First();
+        var defaultBaseKeyOption = NewSongBaseKeyOptions.FirstOrDefault(option => option.Value == 0)
+            ?? NewSongBaseKeyOptions.First();
 
         var defaultTransposeOption = NewSongTransposeOptions.FirstOrDefault(option => option.Key == Ignore);
         if (defaultTransposeOption.Equals(default(KeyValuePair<Transpose, string>)))
@@ -905,10 +905,10 @@ public class SettingsPageViewModel : Screen
         _isSynchronizingNewSongDefaults = true;
         try
         {
-            _selectedNewSongDefaultKeyOption = defaultDefaultKeyOption;
-            NotifyOfPropertyChange(nameof(SelectedNewSongDefaultKeyOption));
+            _selectedNewSongBaseKeyOption = defaultBaseKeyOption;
+            NotifyOfPropertyChange(nameof(SelectedNewSongBaseKeyOption));
 
-            SyncNewSongKeyOptions(defaultDefaultKeyOption.Value, defaultDefaultKeyOption.Value, saveSettings: false);
+            SyncNewSongKeyOptions(defaultBaseKeyOption.Value, defaultBaseKeyOption.Value, saveSettings: false);
 
             _selectedNewSongTransposeOption = defaultTransposeOption;
             NotifyOfPropertyChange(nameof(SelectedNewSongTransposeOption));
@@ -921,7 +921,7 @@ public class SettingsPageViewModel : Screen
             _isSynchronizingNewSongDefaults = false;
         }
 
-        AutoDetectDefaultKey = true;
+        AutoDetectBaseKey = true;
         DefaultSongArtist = string.Empty;
         DefaultSongAlbum = string.Empty;
         DefaultSongCustomBpm = 0;
@@ -931,12 +931,12 @@ public class SettingsPageViewModel : Screen
 
         Settings.Modify(s =>
         {
-            s.AutoDetectDefaultKey = true;
+            s.AutoDetectBaseKey = true;
             s.DefaultSongArtist = string.Empty;
             s.DefaultSongAlbum = string.Empty;
             s.DefaultSongCustomBpm = 0;
-            s.DefaultSongDefaultKey = defaultDefaultKeyOption.Value;
-            s.DefaultSongKey = defaultDefaultKeyOption.Value;
+            s.DefaultSongBaseKey = defaultBaseKeyOption.Value;
+            s.DefaultSongKey = defaultBaseKeyOption.Value;
             s.DefaultSongTranspose = (int)defaultTransposeOption.Key;
             s.DefaultSongSpeed = defaultSpeedOption.Value;
             s.DefaultSongHoldNotes = false;

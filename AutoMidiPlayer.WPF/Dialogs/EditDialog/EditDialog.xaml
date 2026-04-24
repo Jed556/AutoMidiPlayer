@@ -78,18 +78,18 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel Grid.Column="0">
-                <TextBlock Text="Default Key Offset"
+                <TextBlock Text="Base Key Offset"
                            FontWeight="SemiBold"
                            Margin="0,0,0,4"/>
                 <StackPanel Orientation="Horizontal"
                             HorizontalAlignment="Left">
-                    <ComboBox x:Name="DefaultKeyComboBox"
+                    <ComboBox x:Name="BaseKeyComboBox"
                               Width="160"
                               HorizontalAlignment="Left"
                               ItemTemplate="{StaticResource OffsetNoteTemplate}"
                               Cursor="Hand"
-                              SelectionChanged="OnDefaultKeyComboBoxSelectionChanged"/>
-                    <ui:Button x:Name="RescanDefaultKeyButton"
+                              SelectionChanged="OnBaseKeyComboBoxSelectionChanged"/>
+                    <ui:Button x:Name="RescanBaseKeyButton"
                                Margin="6,0,0,0"
                                Width="32"
                                Height="32"
@@ -97,10 +97,10 @@
                                HorizontalContentAlignment="Center"
                                VerticalContentAlignment="Center"
                                Cursor="Hand"
-                               ToolTip="Auto-scan default key offset from MIDI"
+                               ToolTip="Auto-scan base key offset from MIDI"
                                Style="{DynamicResource IconButton}"
                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                               Click="RescanDefaultKeyButton_Click">
+                               Click="RescanBaseKeyButton_Click">
                         <ui:SymbolIcon Symbol="ScanDash12"
                                        FontSize="16"
                                        HorizontalAlignment="Center"

@@ -38,7 +38,7 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         ("HoldNotes", "INTEGER NULL"),
         ("Speed", "REAL NULL"),
         ("Bpm", "REAL NULL"),
-        ("DefaultKey", "INTEGER NULL")
+        ("BaseKey", "INTEGER NULL")
     ];
 
     public Bootstrapper()
@@ -191,7 +191,8 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
             var existingSongColumns = GetSongTableColumns(db);
             if (existingSongColumns.Count > 0)
             {
-                RenameAuthorColumnToArtist(db, existingSongColumns);
+                RenameSongColumn(db, existingSongColumns, "Author", "Artist");
+                RenameSongColumn(db, existingSongColumns, "DefaultKey", "BaseKey");
 
                 foreach (var (columnName, sqlType) in SongColumnMigrations)
                 {
@@ -235,28 +236,34 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         return columns;
     }
 
-    private static void RenameAuthorColumnToArtist(PlayerContext db, HashSet<string> existingSongColumns)
+    private static void RenameSongColumn(PlayerContext db, HashSet<string> existingSongColumns, string oldColumnName, string newColumnName)
     {
-        if (!existingSongColumns.Contains("Author") || existingSongColumns.Contains("Artist"))
+        if (!existingSongColumns.Contains(oldColumnName) || existingSongColumns.Contains(newColumnName))
             return;
 
         try
         {
             db.Database.ExecuteSqlRaw(@"
-                ALTER TABLE Songs RENAME COLUMN Author TO Artist;
+                ALTER TABLE Songs RENAME COLUMN " + oldColumnName + @" TO " + newColumnName + @";
             ");
+
+            existingSongColumns.Remove(oldColumnName);
+            existingSongColumns.Add(newColumnName);
         }
         catch
         {
             ExecuteSqlIgnoringErrors(db, @"
-                ALTER TABLE Songs ADD COLUMN Artist TEXT NULL;
+                ALTER TABLE Songs ADD COLUMN " + newColumnName + @" TEXT NULL;
             ");
 
             ExecuteSqlIgnoringErrors(db, @"
                 UPDATE Songs
-                SET Artist = Author
-                WHERE Artist IS NULL;
+                SET " + newColumnName + @" = " + oldColumnName + @"
+                WHERE " + newColumnName + @" IS NULL;
             ");
+
+            existingSongColumns.Remove(oldColumnName);
+            existingSongColumns.Add(newColumnName);
         }
     }
 

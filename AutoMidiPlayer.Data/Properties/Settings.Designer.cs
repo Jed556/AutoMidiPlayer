@@ -185,6 +185,21 @@ namespace AutoMidiPlayer.Data.Properties
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool AutoDetectBaseKey
+        {
+            get
+            {
+                return ((bool)(this["AutoDetectDefaultKey"]));
+            }
+            set
+            {
+                this["AutoDetectDefaultKey"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("")]
         public string DefaultSongArtist
         {
@@ -217,6 +232,21 @@ namespace AutoMidiPlayer.Data.Properties
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("0")]
         public int DefaultSongDefaultKey
+        {
+            get
+            {
+                return ((int)(this["DefaultSongDefaultKey"]));
+            }
+            set
+            {
+                this["DefaultSongDefaultKey"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int DefaultSongBaseKey
         {
             get
             {

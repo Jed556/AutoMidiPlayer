@@ -127,28 +127,28 @@ public static class MusicConstants
 
     /// <summary>
     /// Resolve the absolute key offset used for note conversion.
-    /// For songs with a default key center, KeyOffset is relative to that center.
+    /// For songs with a base key center, KeyOffset is relative to that center.
     /// </summary>
-    public static int GetEffectiveKeyOffset(int keyOffset, int? defaultKeyOffset)
+    public static int GetEffectiveKeyOffset(int keyOffset, int? baseKeyOffset)
     {
-        if (defaultKeyOffset is null)
+        if (baseKeyOffset is null)
             return Math.Clamp(keyOffset, MinKeyOffset, MaxKeyOffset);
 
-        return Math.Clamp(defaultKeyOffset.Value + keyOffset, MinKeyOffset, MaxKeyOffset);
+        return Math.Clamp(baseKeyOffset.Value + keyOffset, MinKeyOffset, MaxKeyOffset);
     }
 
-    public static int GetRelativeMinKeyOffset(int? defaultKeyOffset) =>
-        defaultKeyOffset is null ? MinKeyOffset : MinKeyOffset - defaultKeyOffset.Value;
+    public static int GetRelativeMinKeyOffset(int? baseKeyOffset) =>
+        baseKeyOffset is null ? MinKeyOffset : MinKeyOffset - baseKeyOffset.Value;
 
-    public static int GetRelativeMaxKeyOffset(int? defaultKeyOffset) =>
-        defaultKeyOffset is null ? MaxKeyOffset : MaxKeyOffset - defaultKeyOffset.Value;
+    public static int GetRelativeMaxKeyOffset(int? baseKeyOffset) =>
+        baseKeyOffset is null ? MaxKeyOffset : MaxKeyOffset - baseKeyOffset.Value;
 
     /// <summary>
-    /// Format relative key offset around a song-specific default key center.
+    /// Format relative key offset around a song-specific base key center.
     /// </summary>
-    public static string FormatRelativeKeyDisplay(int relativeKeyOffset, int defaultKeyOffset, bool includeDefault = false)
+    public static string FormatRelativeKeyDisplay(int relativeKeyOffset, int baseKeyOffset, bool includeDefault = false)
     {
-        var effectiveKeyOffset = GetEffectiveKeyOffset(relativeKeyOffset, defaultKeyOffset);
+        var effectiveKeyOffset = GetEffectiveKeyOffset(relativeKeyOffset, baseKeyOffset);
         var note = GetNoteName(effectiveKeyOffset);
         return FormatAlignedKeyDisplay(relativeKeyOffset, note);
     }
@@ -162,15 +162,15 @@ public static class MusicConstants
     /// <summary>
     /// Generate key options for ComboBox binding
     /// </summary>
-    public static List<KeyOption> GenerateKeyOptions(int? defaultKeyOffset = null)
+    public static List<KeyOption> GenerateKeyOptions(int? baseKeyOffset = null)
     {
-        var min = GetRelativeMinKeyOffset(defaultKeyOffset);
-        var max = GetRelativeMaxKeyOffset(defaultKeyOffset);
+        var min = GetRelativeMinKeyOffset(baseKeyOffset);
+        var max = GetRelativeMaxKeyOffset(baseKeyOffset);
 
         return Enumerable.Range(min, max - min + 1)
             .Select(offset =>
             {
-                var effectiveKeyOffset = GetEffectiveKeyOffset(offset, defaultKeyOffset);
+                var effectiveKeyOffset = GetEffectiveKeyOffset(offset, baseKeyOffset);
                 var noteDisplay = GetNoteName(effectiveKeyOffset);
 
                 return new KeyOption

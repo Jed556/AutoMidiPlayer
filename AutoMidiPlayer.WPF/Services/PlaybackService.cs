@@ -399,9 +399,9 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
     private int ApplyListenModeSettings(int noteId)
     {
-        // Listen mode treats DefaultKey as metadata root and only applies the
+        // Listen mode treats BaseKey as metadata root and only applies the
         // user-selected relative song offset (+/- around 0).
-        var relativeOffset = Queue.OpenedFile?.Song.DefaultKey is not null
+        var relativeOffset = Queue.OpenedFile?.Song.BaseKey is not null
             ? SongSettings.KeyOffset
             : 0;
 

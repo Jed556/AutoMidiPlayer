@@ -347,10 +347,10 @@
 
                                     <controls:SimpleStackPanel Grid.Column="0"
                                                                Spacing="4">
-                                        <TextBlock Text="Default Key Offset"
+                                        <TextBlock Text="Base Key Offset"
                                                    FontWeight="SemiBold"/>
-                                        <ComboBox SelectedItem="{Binding SelectedNewSongDefaultKeyOption}"
-                                                  ItemsSource="{x:Static viewModels:SettingsPageViewModel.NewSongDefaultKeyOptions}"
+                                        <ComboBox SelectedItem="{Binding SelectedNewSongBaseKeyOption}"
+                                                  ItemsSource="{x:Static viewModels:SettingsPageViewModel.NewSongBaseKeyOptions}"
                                                   ItemTemplate="{StaticResource OffsetNoteTemplate}"
                                                   MinWidth="150"/>
                                     </controls:SimpleStackPanel>
@@ -367,10 +367,10 @@
                                 </Grid>
                             </GroupBox>
 
-                            <ui:ToggleSwitch Content="Auto Detect Default Key"
-                                             IsChecked="{Binding AutoDetectDefaultKey}"
+                            <ui:ToggleSwitch Content="Auto Detect Base Key"
+                                             IsChecked="{Binding AutoDetectBaseKey}"
                                              Margin="0,8,0,0"
-                                             ToolTip="When enabled, newly imported songs try to auto-detect default key. If detection fails, the Key Defaults above are used."/>
+                                             ToolTip="When enabled, newly imported songs try to auto-detect the song base key. If detection fails, the key defaults above are used."/>
 
                             <Grid Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>

@@ -30,7 +30,7 @@ public partial class EditDialog : ContentDialog
     private Wpf.Ui.Controls.TextBox _titleBox => TitleBox;
     private Wpf.Ui.Controls.TextBox _artistBox => ArtistBox;
     private Wpf.Ui.Controls.TextBox _albumBox => AlbumBox;
-    private System.Windows.Controls.ComboBox _defaultKeyComboBox => DefaultKeyComboBox;
+    private System.Windows.Controls.ComboBox _baseKeyComboBox => BaseKeyComboBox;
     private System.Windows.Controls.ComboBox _keyComboBox => KeyComboBox;
     private System.Windows.Controls.ComboBox _transposeComboBox => TransposeComboBox;
     private System.Windows.Controls.TextBlock _dateText => DateText;
@@ -48,7 +48,7 @@ public partial class EditDialog : ContentDialog
     private readonly string _initialArtist;
     private readonly string _initialAlbum;
     private readonly int _initialKey;
-    private readonly int? _initialDefaultKeyRoot;
+    private readonly int? _initialBaseKeyRoot;
     private readonly Transpose _initialTranspose;
     private readonly DateTime _initialDateAdded;
     private readonly double _initialNativeBpm;
@@ -58,8 +58,8 @@ public partial class EditDialog : ContentDialog
     private readonly bool _initialHoldNotes;
     private readonly double _initialSpeed;
 
-    private int _defaultKeyRoot;
-    private bool _hasDefaultKeyRoot;
+    private int _baseKeyRoot;
+    private bool _hasBaseKeyRoot;
     private DateTime _songDateAdded;
     private double _nativeBpm;
 
@@ -67,7 +67,7 @@ public partial class EditDialog : ContentDialog
     public string SongArtist => _artistBox.Text;
     public string SongAlbum => _albumBox.Text;
     public DateTime? SongDateAdded => _songDateAdded;
-    public int? SongDefaultKey => _hasDefaultKeyRoot ? _defaultKeyRoot : null;
+    public int? SongBaseKey => _hasBaseKeyRoot ? _baseKeyRoot : null;
     public int SongKey { get; private set; }
     public Transpose SongTranspose => _transposeComboBox.SelectedItem is TransposeOption option ? option.Value : Transpose.Ignore;
 
@@ -123,8 +123,8 @@ public partial class EditDialog : ContentDialog
     public EditDialog(
         string defaultTitle,
         string midiFilePath,
-        int defaultKey = 0,
-        int? defaultKeyRoot = null,
+        int baseKey = 0,
+        int? baseKeyRoot = null,
         Transpose defaultTranspose = Transpose.Ignore,
         string? defaultArtist = null,
         string? defaultAlbum = null,
@@ -182,16 +182,16 @@ public partial class EditDialog : ContentDialog
         };
 
         _midiFilePath = midiFilePath;
-        _hasDefaultKeyRoot = defaultKeyRoot.HasValue;
-        _defaultKeyRoot = defaultKeyRoot ?? 0;
+        _hasBaseKeyRoot = baseKeyRoot.HasValue;
+        _baseKeyRoot = baseKeyRoot ?? 0;
         _songDateAdded = ResolveMidiDate(midiFilePath, defaultDateAdded);
         _nativeBpm = nativeBpm;
 
         _initialTitle = defaultTitle;
         _initialArtist = defaultArtist ?? string.Empty;
         _initialAlbum = defaultAlbum ?? string.Empty;
-        _initialKey = defaultKey;
-        _initialDefaultKeyRoot = defaultKeyRoot;
+        _initialKey = baseKey;
+        _initialBaseKeyRoot = baseKeyRoot;
         _initialTranspose = defaultTranspose;
         _initialDateAdded = _songDateAdded;
         _initialNativeBpm = nativeBpm;
@@ -206,15 +206,15 @@ public partial class EditDialog : ContentDialog
             .Select(kvp => new TransposeOption(kvp.Key, kvp.Value))
             .ToList();
 
-        InitializeUi(defaultTitle, defaultArtist, defaultAlbum, defaultKey, defaultKeyRoot, defaultTranspose, customBpm, mergeNotes, mergeMilliseconds, holdNotes, speed);
+        InitializeUi(defaultTitle, defaultArtist, defaultAlbum, baseKey, baseKeyRoot, defaultTranspose, customBpm, mergeNotes, mergeMilliseconds, holdNotes, speed);
     }
 
     private void InitializeUi(
         string defaultTitle,
         string? defaultArtist,
         string? defaultAlbum,
-        int defaultKey,
-        int? defaultKeyRoot,
+        int baseKey,
+        int? baseKeyRoot,
         Transpose defaultTranspose,
         double? customBpm,
         bool? mergeNotes,
@@ -229,8 +229,8 @@ public partial class EditDialog : ContentDialog
         _transposeComboBox.ItemsSource = _transposeOptions;
         _speedComboBox.ItemsSource = _speedOptions;
 
-        PopulateDefaultKeyOptions(defaultKeyRoot);
-        PopulateKeyOptions(defaultKey);
+        PopulateBaseKeyOptions(baseKeyRoot);
+        PopulateKeyOptions(baseKey);
         SetTransposeSelection(defaultTranspose);
         SetSpeedSelection(speed ?? 1.0);
 
@@ -248,7 +248,7 @@ public partial class EditDialog : ContentDialog
             PathHyperlink.Style = hyperlinkStyle;
     }
 
-    private void RescanDefaultKeyButton_Click(object sender, RoutedEventArgs e)
+    private void RescanBaseKeyButton_Click(object sender, RoutedEventArgs e)
     {
         RescanMidiDefaults();
     }
@@ -319,7 +319,7 @@ public partial class EditDialog : ContentDialog
 
     private void PopulateKeyOptions(int selectedKey)
     {
-        var keyRoot = _hasDefaultKeyRoot ? _defaultKeyRoot : (int?)null;
+        var keyRoot = _hasBaseKeyRoot ? _baseKeyRoot : (int?)null;
         var minKey = MusicConstants.GetRelativeMinKeyOffset(keyRoot);
         var maxKey = MusicConstants.GetRelativeMaxKeyOffset(keyRoot);
         var clampedKey = Math.Clamp(selectedKey, minKey, maxKey);
@@ -338,44 +338,44 @@ public partial class EditDialog : ContentDialog
             SongKey = clampedKey;
     }
 
-    private void PopulateDefaultKeyOptions(int? selectedDefaultKey)
+    private void PopulateBaseKeyOptions(int? selectedBaseKey)
     {
-        var clampedDefaultKey = selectedDefaultKey.HasValue
-            ? Math.Clamp(selectedDefaultKey.Value, MusicConstants.MinKeyOffset, MusicConstants.MaxKeyOffset)
+        var clampedBaseKey = selectedBaseKey.HasValue
+            ? Math.Clamp(selectedBaseKey.Value, MusicConstants.MinKeyOffset, MusicConstants.MaxKeyOffset)
             : (int?)null;
 
-        var options = new System.Collections.Generic.List<DefaultKeyOption>
+        var options = new System.Collections.Generic.List<BaseKeyOption>
         {
             new(null, "Legacy", "(None)")
         };
 
         options.AddRange(
             MusicConstants.GenerateKeyOptions().Select(option =>
-                new DefaultKeyOption(option.Value, option.OffsetDisplay, option.NoteDisplay))
+                new BaseKeyOption(option.Value, option.OffsetDisplay, option.NoteDisplay))
         );
 
-        _defaultKeyComboBox.ItemsSource = options;
+        _baseKeyComboBox.ItemsSource = options;
 
-        var selectedOption = options.FirstOrDefault(option => option.Value == clampedDefaultKey)
+        var selectedOption = options.FirstOrDefault(option => option.Value == clampedBaseKey)
             ?? options.First();
 
-        _defaultKeyComboBox.SelectedItem = selectedOption;
+        _baseKeyComboBox.SelectedItem = selectedOption;
     }
 
-    private void OnDefaultKeyComboBoxSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    private void OnBaseKeyComboBoxSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
-        if (_defaultKeyComboBox.SelectedItem is not DefaultKeyOption option)
+        if (_baseKeyComboBox.SelectedItem is not BaseKeyOption option)
             return;
 
         if (option.Value.HasValue)
         {
-            _hasDefaultKeyRoot = true;
-            _defaultKeyRoot = option.Value.Value;
+            _hasBaseKeyRoot = true;
+            _baseKeyRoot = option.Value.Value;
         }
         else
         {
-            _hasDefaultKeyRoot = false;
-            _defaultKeyRoot = 0;
+            _hasBaseKeyRoot = false;
+            _baseKeyRoot = 0;
         }
 
         PopulateKeyOptions(SongKey);
@@ -425,11 +425,11 @@ public partial class EditDialog : ContentDialog
     {
         ResetToInitialValues();
 
-        if (!UserSettings.AutoDetectDefaultKey)
+        if (!UserSettings.AutoDetectBaseKey)
         {
-            _hasDefaultKeyRoot = true;
-            _defaultKeyRoot = 0;
-            PopulateDefaultKeyOptions(_defaultKeyRoot);
+            _hasBaseKeyRoot = true;
+            _baseKeyRoot = 0;
+            PopulateBaseKeyOptions(_baseKeyRoot);
             PopulateKeyOptions(0);
             return;
         }
@@ -443,9 +443,9 @@ public partial class EditDialog : ContentDialog
         _artistBox.Text = _initialArtist;
         _albumBox.Text = _initialAlbum;
 
-        _hasDefaultKeyRoot = _initialDefaultKeyRoot.HasValue;
-        _defaultKeyRoot = _initialDefaultKeyRoot ?? 0;
-        PopulateDefaultKeyOptions(_initialDefaultKeyRoot);
+        _hasBaseKeyRoot = _initialBaseKeyRoot.HasValue;
+        _baseKeyRoot = _initialBaseKeyRoot ?? 0;
+        PopulateBaseKeyOptions(_initialBaseKeyRoot);
         PopulateKeyOptions(_initialKey);
 
         SetTransposeSelection(_initialTranspose);
@@ -477,13 +477,13 @@ public partial class EditDialog : ContentDialog
         _nativeBpm = analysis.NativeBpm;
         UpdateNativeBpmText();
 
-        if (analysis.DetectedDefaultKeyOffset.HasValue)
+        if (analysis.DetectedBaseKeyOffset.HasValue)
         {
-            _hasDefaultKeyRoot = true;
-            _defaultKeyRoot = analysis.DetectedDefaultKeyOffset.Value;
+            _hasBaseKeyRoot = true;
+            _baseKeyRoot = analysis.DetectedBaseKeyOffset.Value;
         }
 
-        PopulateDefaultKeyOptions(SongDefaultKey);
+        PopulateBaseKeyOptions(SongBaseKey);
         PopulateKeyOptions(currentKey);
     }
 
@@ -511,7 +511,7 @@ public partial class EditDialog : ContentDialog
         public string Display { get; } = display;
     }
 
-    private sealed class DefaultKeyOption(int? value, string offsetDisplay, string noteDisplay)
+    private sealed class BaseKeyOption(int? value, string offsetDisplay, string noteDisplay)
     {
         public int? Value { get; } = value;
         public string OffsetDisplay { get; } = offsetDisplay;
