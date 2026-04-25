@@ -42,10 +42,19 @@
                              ScrollViewer.VerticalScrollBarVisibility="Visible"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              ScrollViewer.CanContentScroll="True"
+                             VirtualizingPanel.IsVirtualizing="False"
+                             VirtualizingPanel.ScrollUnit="Pixel"
                              helpers:ScrollEdgeFadeBehavior.IsEnabled="True"
                              ItemsSource="{Binding ItemsSource, ElementName=Root}"
                              SelectedItem="{Binding SelectedItem, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              SelectionChanged="SelectorListBox_SelectionChanged">
+                        <ListBox.Resources>
+                            <Style TargetType="ScrollViewer"
+                                   BasedOn="{StaticResource {x:Type ScrollViewer}}">
+                                <Setter Property="Padding"
+                                        Value="0"/>
+                            </Style>
+                        </ListBox.Resources>
                         <ListBox.ItemContainerStyle>
                             <Style TargetType="ListBoxItem">
                                 <Setter Property="OverridesDefaultStyle"
@@ -55,7 +64,7 @@
                                 <Setter Property="Padding"
                                         Value="0"/>
                                 <Setter Property="Margin"
-                                        Value="0,1,10,1"/>
+                                        Value="0,1,4,1"/>
                                 <Setter Property="Background"
                                         Value="Transparent"/>
                                 <Setter Property="BorderBrush"

@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
+using AutoMidiPlayer.WPF.Helpers;
 
 namespace AutoMidiPlayer.WPF.Controls;
 
@@ -99,6 +100,9 @@ public partial class SelectorPopupButton : UserControl
     private void SelectorPopup_Opened(object sender, EventArgs e)
     {
         QueueCenterSelectedItem();
+
+        if (FindDescendant<ScrollViewer>(SelectorListBox) is ScrollViewer scrollViewer)
+            ScrollViewerAutoFadeBehavior.SetIsEnabled(scrollViewer, true);
     }
 
     private void QueueCenterSelectedItem()
@@ -129,7 +133,9 @@ public partial class SelectorPopupButton : UserControl
             return;
 
         // With logical scrolling enabled, ScrollViewer offsets are measured in item units.
-        if (ScrollViewer.GetCanContentScroll(SelectorListBox))
+        var isLogicalScrollMode = ScrollViewer.GetCanContentScroll(SelectorListBox)
+                                  && VirtualizingPanel.GetScrollUnit(SelectorListBox) != ScrollUnit.Pixel;
+        if (isLogicalScrollMode)
         {
             double logicalOffset = selectedIndex - (scrollViewer.ViewportHeight / 2) + 0.5;
             double clampedLogicalOffset = Math.Clamp(logicalOffset, 0, scrollViewer.ScrollableHeight);

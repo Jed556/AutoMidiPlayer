@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
@@ -60,6 +61,7 @@ public static class ScrollViewerAutoFadeBehavior
         private static readonly TimeSpan FadeInDuration = TimeSpan.FromMilliseconds(140);
         private static readonly TimeSpan FadeOutDuration = TimeSpan.FromMilliseconds(260);
         private static readonly TimeSpan InactivityDelay = TimeSpan.FromMilliseconds(1500);
+        private const int WmMouseHWheel = 0x020E;
         private const double WheelStep = 40d;
         private const double LineButtonStepFactor = 0.18d;
         private const double MinLineButtonStep = 32d;
@@ -92,6 +94,7 @@ public static class ScrollViewerAutoFadeBehavior
         private bool _verticalScrollBarWired;
         private bool _horizontalScrollBarWired;
         private bool _isRetryScheduled;
+        private HwndSource? _hwndSource;
 
         public AutoFadeController(ScrollViewer viewer)
         {
@@ -107,7 +110,10 @@ public static class ScrollViewerAutoFadeBehavior
             _viewer.PreviewMouseWheel += OnViewerPreviewMouseWheel;
 
             if (_viewer.IsLoaded)
+            {
                 WireScrollBarsAndInitialize();
+                AttachWindowMessageHook();
+            }
         }
 
         public void Detach()
@@ -121,6 +127,7 @@ public static class ScrollViewerAutoFadeBehavior
             _viewer.Unloaded -= OnViewerUnloaded;
             _viewer.ScrollChanged -= OnViewerScrollChanged;
             _viewer.PreviewMouseWheel -= OnViewerPreviewMouseWheel;
+            DetachWindowMessageHook();
 
             DetachVerticalScrollBar();
             DetachHorizontalScrollBar();
@@ -129,6 +136,7 @@ public static class ScrollViewerAutoFadeBehavior
         private void OnViewerLoaded(object sender, RoutedEventArgs e)
         {
             WireScrollBarsAndInitialize();
+            AttachWindowMessageHook();
         }
 
         private void OnViewerUnloaded(object sender, RoutedEventArgs e)
@@ -136,14 +144,23 @@ public static class ScrollViewerAutoFadeBehavior
             _fadeTimer.Stop();
             _smoothScrollAnimator.Stop();
             _horizontalSmoothScrollAnimator.Stop();
+            DetachWindowMessageHook();
         }
 
         private void OnViewerPreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
+            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+            {
+                if (TryHandleHorizontalWheel(e.Delta, useNativeHorizontalConvention: false))
+                    e.Handled = true;
+
+                return;
+            }
+
             if (_viewer.ComputedVerticalScrollBarVisibility != Visibility.Visible)
                 return;
 
-            if (_viewer.ScrollableHeight <= 0 || Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+            if (_viewer.ScrollableHeight <= 0)
                 return;
 
             if (!IsSmoothScrollingEnabled())
@@ -172,6 +189,31 @@ public static class ScrollViewerAutoFadeBehavior
             var step = GetWheelStep();
             var deltaOffset = -(e.Delta / 120d) * step;
             ApplySmoothDelta(deltaOffset);
+        }
+
+        private bool TryHandleHorizontalWheel(int wheelDelta, bool useNativeHorizontalConvention)
+        {
+            if (_viewer.ComputedHorizontalScrollBarVisibility != Visibility.Visible)
+                return false;
+
+            if (_viewer.ScrollableWidth <= 0)
+                return false;
+
+            if (!IsSmoothScrollingEnabled() || IsLogicalScrollMode())
+            {
+                _horizontalSmoothScrollAnimator.Stop();
+                ApplyLogicalHorizontalWheelScroll(wheelDelta, useNativeHorizontalConvention);
+                _horizontalSmoothScrollAnimator.SyncTargetToCurrentOffset();
+                ShowScrollBars();
+                RestartFadeTimer();
+                return true;
+            }
+
+            var step = GetHorizontalWheelStep();
+            var directionFactor = useNativeHorizontalConvention ? 1d : -1d;
+            var deltaOffset = (wheelDelta / 120d) * step * directionFactor;
+            ApplyHorizontalSmoothDelta(deltaOffset);
+            return true;
         }
 
         private void OnViewerScrollChanged(object sender, ScrollChangedEventArgs e)
@@ -234,6 +276,28 @@ public static class ScrollViewerAutoFadeBehavior
         {
             _fadeTimer.Stop();
             FadeOutScrollBars();
+        }
+
+        private IntPtr OnWindowMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            if (handled || msg != WmMouseHWheel)
+                return IntPtr.Zero;
+
+            if (!_viewer.IsLoaded || !_viewer.IsVisible)
+                return IntPtr.Zero;
+
+            if (!IsPointerOverCurrentScrollViewer())
+                return IntPtr.Zero;
+
+            var wheelDelta = GetWheelDelta(wParam);
+            if (wheelDelta == 0)
+                return IntPtr.Zero;
+
+            if (!TryHandleHorizontalWheel(wheelDelta, useNativeHorizontalConvention: true))
+                return IntPtr.Zero;
+
+            handled = true;
+            return IntPtr.Zero;
         }
 
         private void ApplySmoothDelta(double deltaOffset)
@@ -324,7 +388,36 @@ public static class ScrollViewerAutoFadeBehavior
             RestartFadeTimer();
         }
 
+        private void ApplyLogicalHorizontalWheelScroll(int wheelDelta, bool useNativeHorizontalConvention)
+        {
+            var directionSource = useNativeHorizontalConvention ? wheelDelta : -wheelDelta;
+            var direction = Math.Sign(directionSource);
+            if (direction == 0)
+                return;
+
+            var linesPerNotch = Math.Max(1, SystemParameters.WheelScrollLines);
+            var notches = Math.Abs(wheelDelta) / 120d;
+            var steps = (int)Math.Ceiling(notches * linesPerNotch);
+            steps = Math.Clamp(steps, 1, 8);
+
+            if (direction > 0)
+            {
+                for (var i = 0; i < steps; i++)
+                    _viewer.LineRight();
+            }
+            else
+            {
+                for (var i = 0; i < steps; i++)
+                    _viewer.LineLeft();
+            }
+        }
+
         private double GetWheelStep()
+        {
+            return WheelStep;
+        }
+
+        private double GetHorizontalWheelStep()
         {
             return WheelStep;
         }
@@ -340,31 +433,11 @@ public static class ScrollViewerAutoFadeBehavior
             if (!ScrollViewer.GetCanContentScroll(_viewer))
                 return false;
 
-            // For templated controls (e.g. ListView), the ScrollViewer usually has
-            // the owning ItemsControl as its TemplatedParent.
-            if (_viewer.TemplatedParent is ItemsControl templatedItemsControl)
-                return VirtualizingPanel.GetScrollUnit(templatedItemsControl) != ScrollUnit.Pixel;
-
-            // Prefer the owning ItemsControl setting (e.g. ListView) because the
-            // realized panel can still report item scrolling while template values
-            // are being applied.
-            var itemsControl = FindAncestor<ItemsControl>(_viewer);
-            if (itemsControl != null)
-                return VirtualizingPanel.GetScrollUnit(itemsControl) != ScrollUnit.Pixel;
-
-            var virtualizingPanel = FindDescendant<VirtualizingPanel>(_viewer);
-            if (virtualizingPanel != null)
-            {
-                var owner = ItemsControl.GetItemsOwner(virtualizingPanel);
-                if (owner != null)
-                    return VirtualizingPanel.GetScrollUnit(owner) != ScrollUnit.Pixel;
-
-                // When owner resolution fails, prefer pixel smoothing to avoid
-                // falling back to item-based line scrolling in virtualized lists.
+            var owner = ResolveOwningItemsControl();
+            if (owner is null)
                 return false;
-            }
 
-            return false;
+            return VirtualizingPanel.GetScrollUnit(owner) != ScrollUnit.Pixel;
         }
 
         private static bool IsSmoothScrollingEnabled()
@@ -402,6 +475,7 @@ public static class ScrollViewerAutoFadeBehavior
         {
             WireVerticalScrollBar();
             WireHorizontalScrollBar();
+            AttachWindowMessageHook();
 
             if (_isRetryScheduled || !NeedsRetry())
                 return;
@@ -416,7 +490,7 @@ public static class ScrollViewerAutoFadeBehavior
 
         private void WireVerticalScrollBar()
         {
-            if (_verticalScrollBar == null)
+            if (_verticalScrollBar == null || !IsDescendantOf(_viewer, _verticalScrollBar))
                 _verticalScrollBar = FindDescendant<ScrollBar>(_viewer, bar => bar.Orientation == Orientation.Vertical);
 
             if (_verticalScrollBar == null)
@@ -442,7 +516,7 @@ public static class ScrollViewerAutoFadeBehavior
 
         private void WireHorizontalScrollBar()
         {
-            if (_horizontalScrollBar == null)
+            if (_horizontalScrollBar == null || !IsDescendantOf(_viewer, _horizontalScrollBar))
                 _horizontalScrollBar = FindDescendant<ScrollBar>(_viewer, bar => bar.Orientation == Orientation.Horizontal);
 
             if (_horizontalScrollBar == null)
@@ -723,6 +797,96 @@ public static class ScrollViewerAutoFadeBehavior
             _fadeTimer.Start();
         }
 
+        private ItemsControl? ResolveOwningItemsControl()
+        {
+            if (_viewer.TemplatedParent is ItemsControl templatedItemsControl)
+                return templatedItemsControl;
+
+            var itemsHost = FindDescendant<Panel>(_viewer, panel => ItemsControl.GetItemsOwner(panel) is not null);
+            if (itemsHost is null)
+                return null;
+
+            return ItemsControl.GetItemsOwner(itemsHost);
+        }
+
+        private void AttachWindowMessageHook()
+        {
+            var source = PresentationSource.FromVisual(_viewer) as HwndSource;
+            if (source is null)
+                return;
+
+            if (ReferenceEquals(_hwndSource, source))
+                return;
+
+            DetachWindowMessageHook();
+            _hwndSource = source;
+            _hwndSource.AddHook(OnWindowMessage);
+        }
+
+        private void DetachWindowMessageHook()
+        {
+            if (_hwndSource is null)
+                return;
+
+            _hwndSource.RemoveHook(OnWindowMessage);
+            _hwndSource = null;
+        }
+
+        private bool IsPointerOverCurrentScrollViewer()
+        {
+            if (Mouse.DirectlyOver is not DependencyObject hovered)
+                return false;
+
+            var nearestViewer = FindAncestorOrSelf<ScrollViewer>(hovered);
+            if (nearestViewer != null)
+                return ReferenceEquals(nearestViewer, _viewer);
+
+            return IsDescendantOf(_viewer, hovered);
+        }
+
+        private static int GetWheelDelta(IntPtr wParam)
+        {
+            var wParamValue = wParam.ToInt64();
+            return unchecked((short)((wParamValue >> 16) & 0xFFFF));
+        }
+
+        private static bool IsDescendantOf(DependencyObject ancestor, DependencyObject element)
+        {
+            var current = element;
+            while (current != null)
+            {
+                if (ReferenceEquals(current, ancestor))
+                    return true;
+
+                current = GetParent(current);
+            }
+
+            return false;
+        }
+
+        private static T? FindAncestorOrSelf<T>(DependencyObject start)
+            where T : DependencyObject
+        {
+            DependencyObject? current = start;
+            while (current != null)
+            {
+                if (current is T typed)
+                    return typed;
+
+                current = GetParent(current);
+            }
+
+            return null;
+        }
+
+        private static DependencyObject? GetParent(DependencyObject element)
+        {
+            if (element is Visual || element is System.Windows.Media.Media3D.Visual3D)
+                return VisualTreeHelper.GetParent(element);
+
+            return LogicalTreeHelper.GetParent(element);
+        }
+
         private static T? FindDescendant<T>(DependencyObject parent, Func<T, bool>? predicate = null)
             where T : DependencyObject
         {
@@ -737,21 +901,6 @@ public static class ScrollViewerAutoFadeBehavior
                 var result = FindDescendant(child, predicate);
                 if (result != null)
                     return result;
-            }
-
-            return null;
-        }
-
-        private static T? FindAncestor<T>(DependencyObject start)
-            where T : DependencyObject
-        {
-            var current = VisualTreeHelper.GetParent(start);
-            while (current != null)
-            {
-                if (current is T typed)
-                    return typed;
-
-                current = VisualTreeHelper.GetParent(current);
             }
 
             return null;

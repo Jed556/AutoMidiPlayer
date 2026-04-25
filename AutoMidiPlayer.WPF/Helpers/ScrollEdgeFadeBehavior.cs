@@ -179,6 +179,8 @@ public static class ScrollEdgeFadeBehavior
                 return;
             }
 
+            EnsureVerticalScrollBarLayerOrder();
+
             var fadeRampDistance = Math.Max(1, GetFadeRampDistance(_host));
             var maxFadeOpacity = Math.Clamp(GetMaxFadeOpacity(_host), 0, 1);
             var edgeFadeThickness = Math.Clamp(GetEdgeFadeThickness(_host), 0.01, 0.45);
@@ -295,16 +297,7 @@ public static class ScrollEdgeFadeBehavior
             _maskTargetOriginalMask = _maskTarget.OpacityMask;
             _maskTarget.OpacityMask = _mask;
 
-            _verticalScrollBar = ResolveVerticalScrollBar(viewer);
-            if (_verticalScrollBar is not null && VisualTreeHelper.GetParent(_verticalScrollBar) is Panel)
-            {
-                _verticalScrollBarOriginalZIndex = Panel.GetZIndex(_verticalScrollBar);
-                Panel.SetZIndex(_verticalScrollBar, _verticalScrollBarOriginalZIndex.Value + 100);
-            }
-            else
-            {
-                _verticalScrollBarOriginalZIndex = null;
-            }
+            EnsureVerticalScrollBarLayerOrder();
 
             _viewer.ScrollChanged += OnViewerScrollChanged;
             _viewer.SizeChanged += OnViewerSizeChanged;
@@ -355,6 +348,24 @@ public static class ScrollEdgeFadeBehavior
         private void OnMaskTargetSizeChanged(object sender, SizeChangedEventArgs e)
         {
             Update();
+        }
+
+        private void EnsureVerticalScrollBarLayerOrder()
+        {
+            var viewer = _viewer;
+            if (viewer is null)
+                return;
+
+            if (_verticalScrollBar is null || !IsDescendantOf(viewer, _verticalScrollBar))
+                _verticalScrollBar = ResolveVerticalScrollBar(viewer);
+
+            if (_verticalScrollBar is null || VisualTreeHelper.GetParent(_verticalScrollBar) is not Panel)
+                return;
+
+            if (_verticalScrollBarOriginalZIndex is null)
+                _verticalScrollBarOriginalZIndex = Panel.GetZIndex(_verticalScrollBar);
+
+            Panel.SetZIndex(_verticalScrollBar, _verticalScrollBarOriginalZIndex.Value + 100);
         }
 
         private static FrameworkElement ResolveMaskTarget(ScrollViewer viewer)
@@ -425,6 +436,28 @@ public static class ScrollEdgeFadeBehavior
             }
 
             return null;
+        }
+
+        private static bool IsDescendantOf(DependencyObject ancestor, DependencyObject element)
+        {
+            DependencyObject? current = element;
+            while (current is not null)
+            {
+                if (ReferenceEquals(current, ancestor))
+                    return true;
+
+                current = GetParent(current);
+            }
+
+            return false;
+        }
+
+        private static DependencyObject? GetParent(DependencyObject element)
+        {
+            if (element is Visual || element is System.Windows.Media.Media3D.Visual3D)
+                return VisualTreeHelper.GetParent(element);
+
+            return LogicalTreeHelper.GetParent(element);
         }
     }
 }
