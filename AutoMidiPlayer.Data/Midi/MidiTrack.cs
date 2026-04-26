@@ -132,7 +132,7 @@ public class MidiTrack : INotifyPropertyChanged
                 }
                 catch (Exception ex)
                 {
-                    CrashLogger.LogException(ex);
+                    Logger.LogException(ex);
                 }
             }
         }
@@ -168,7 +168,7 @@ public class MidiTrack : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            CrashLogger.LogException(ex);
+            Logger.LogException(ex);
         }
     }
 
@@ -183,7 +183,7 @@ public class MidiTrack : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            CrashLogger.LogException(ex);
+            Logger.LogException(ex);
         }
     }
 
@@ -202,7 +202,7 @@ public class MidiTrack : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            CrashLogger.LogException(ex);
+            Logger.LogException(ex);
         }
     }
 

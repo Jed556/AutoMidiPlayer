@@ -242,7 +242,7 @@ public class FileService(IContainer ioc)
         {
             if (_main is null) return;
             var fileList = files as IList<string> ?? files.ToList();
-            CrashLogger.LogStep("ADD_FILES_BEGIN", $"source=paths | requested={fileList.Count}");
+            Logger.LogStep("ADD_FILES_BEGIN", $"source=paths | requested={fileList.Count}");
 
             var songs = _main.SongsView;
             var loadedFileCount = 0;
@@ -275,7 +275,7 @@ public class FileService(IContainer ioc)
 
             songs.NotifyFileErrorsChanged();
             songs.ApplySort();
-            CrashLogger.LogStep("ADD_FILES_END", $"source=paths | processed={loadedFileCount}");
+            Logger.LogStep("ADD_FILES_END", $"source=paths | processed={loadedFileCount}");
         }
         finally
         {
@@ -293,7 +293,7 @@ public class FileService(IContainer ioc)
         {
             if (_main is null) return;
             var songList = songsFromDatabase as IList<Song> ?? songsFromDatabase.ToList();
-            CrashLogger.LogStep("ADD_FILES_BEGIN", $"source=database | requested={songList.Count}");
+            Logger.LogStep("ADD_FILES_BEGIN", $"source=database | requested={songList.Count}");
 
             var songs = _main.SongsView;
             var loadedSongCount = 0;
@@ -327,7 +327,7 @@ public class FileService(IContainer ioc)
 
             songs.NotifyFileErrorsChanged();
             songs.ApplySort();
-            CrashLogger.LogStep("ADD_FILES_END", $"source=database | processed={loadedSongCount}");
+            Logger.LogStep("ADD_FILES_END", $"source=database | processed={loadedSongCount}");
         }
         finally
         {
@@ -374,7 +374,7 @@ public class FileService(IContainer ioc)
         var startedAt = DateTime.UtcNow;
         var folderExists = Directory.Exists(folderPath);
         var midiFileCount = 0;
-        CrashLogger.LogStep("SCAN_FOLDER_BEGIN", $"folder='{folderPath}' | exists={folderExists}");
+        Logger.LogStep("SCAN_FOLDER_BEGIN", $"folder='{folderPath}' | exists={folderExists}");
 
         if (folderExists)
         {
@@ -386,8 +386,8 @@ public class FileService(IContainer ioc)
             }
             catch (Exception error)
             {
-                CrashLogger.Log($"Failed to enumerate MIDI files in folder '{folderPath}'.");
-                CrashLogger.LogException(error);
+                Logger.Log($"Failed to enumerate MIDI files in folder '{folderPath}'.");
+                Logger.LogException(error);
                 midiFiles = [];
             }
 
@@ -416,7 +416,7 @@ public class FileService(IContainer ioc)
         if (missingInFolder.Count == 0 && !duplicateFallbackApplied && !staleDuplicatesRemoved)
         {
             var elapsedMsEarly = (DateTime.UtcNow - startedAt).TotalMilliseconds;
-            CrashLogger.LogStep(
+            Logger.LogStep(
                 "SCAN_FOLDER_END",
                 $"folder='{folderPath}' | midiFiles={midiFileCount} | missingInFolder=0 | duplicateFallbackApplied={duplicateFallbackApplied} | staleDuplicatesRemoved={staleDuplicatesRemoved} | elapsedMs={elapsedMsEarly:F0}");
             return;
@@ -445,7 +445,7 @@ public class FileService(IContainer ioc)
         songs.ApplySort();
 
         var elapsedMs = (DateTime.UtcNow - startedAt).TotalMilliseconds;
-        CrashLogger.LogStep(
+        Logger.LogStep(
             "SCAN_FOLDER_END",
             $"folder='{folderPath}' | midiFiles={midiFileCount} | missingInFolder={missingInFolder.Count} | duplicateFallbackApplied={duplicateFallbackApplied} | staleDuplicatesRemoved={staleDuplicatesRemoved} | elapsedMs={elapsedMs:F0}");
     }
@@ -549,8 +549,8 @@ public class FileService(IContainer ioc)
         }
         catch (Exception error)
         {
-            CrashLogger.Log($"Failed to delete excluded MIDI file from disk: {path}");
-            CrashLogger.LogException(error);
+            Logger.Log($"Failed to delete excluded MIDI file from disk: {path}");
+            Logger.LogException(error);
             return false;
         }
     }

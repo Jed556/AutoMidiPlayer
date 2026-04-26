@@ -87,7 +87,7 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
     protected override void OnActivate()
     {
         base.OnActivate();
-        CrashLogger.LogPageVisit("Instrument", source: "screen-activate");
+        Logger.LogPageVisit("Instrument", source: "screen-activate");
         SyncListenModeFromSettings();
         SyncPlayUnplayableOnIgnoreFromSettings();
         UpdateFromCurrentSong();

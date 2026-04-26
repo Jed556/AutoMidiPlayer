@@ -13,7 +13,7 @@ namespace AutoMidiPlayer.Data.Properties
 
 
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.VisualStudio.Editors.SettingsDesigner.SettingsSingleFileGenerator", "18.4.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.VisualStudio.Editors.SettingsDesigner.SettingsSingleFileGenerator", "18.5.0.0")]
     public sealed partial class Settings : global::System.Configuration.ApplicationSettingsBase
     {
 
@@ -24,18 +24,6 @@ namespace AutoMidiPlayer.Data.Properties
             get
             {
                 return defaultInstance;
-            }
-        }
-
-        [global::System.Configuration.ApplicationScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.SpecialSettingAttribute(global::System.Configuration.SpecialSetting.ConnectionString)]
-        [global::System.Configuration.DefaultSettingValueAttribute("history.db")]
-        public string SqliteConnection
-        {
-            get
-            {
-                return ((string)(this["SqliteConnection"]));
             }
         }
 
@@ -185,21 +173,6 @@ namespace AutoMidiPlayer.Data.Properties
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("True")]
-        public bool AutoDetectBaseKey
-        {
-            get
-            {
-                return ((bool)(this["AutoDetectDefaultKey"]));
-            }
-            set
-            {
-                this["AutoDetectDefaultKey"] = value;
-            }
-        }
-
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("")]
         public string DefaultSongArtist
         {
@@ -232,21 +205,6 @@ namespace AutoMidiPlayer.Data.Properties
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("0")]
         public int DefaultSongDefaultKey
-        {
-            get
-            {
-                return ((int)(this["DefaultSongDefaultKey"]));
-            }
-            set
-            {
-                this["DefaultSongDefaultKey"] = value;
-            }
-        }
-
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("0")]
-        public int DefaultSongBaseKey
         {
             get
             {
@@ -420,21 +378,6 @@ namespace AutoMidiPlayer.Data.Properties
             set
             {
                 this["SelectedSpeed"] = value;
-            }
-        }
-
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("1")]
-        public int SelectedTransition
-        {
-            get
-            {
-                return ((int)(this["SelectedTransition"]));
-            }
-            set
-            {
-                this["SelectedTransition"] = value;
             }
         }
 
@@ -1005,6 +948,78 @@ namespace AutoMidiPlayer.Data.Properties
             set
             {
                 this["SmoothScrollingEnabled"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool DebugModeEnabled
+        {
+            get
+            {
+                return ((bool)(this["DebugModeEnabled"]));
+            }
+            set
+            {
+                this["DebugModeEnabled"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("2")]
+        public int CrashLogVerbosity
+        {
+            get
+            {
+                return ((int)(this["CrashLogVerbosity"]));
+            }
+            set
+            {
+                this["CrashLogVerbosity"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool LogPlayedNotes
+        {
+            get
+            {
+                return ((bool)(this["LogPlayedNotes"]));
+            }
+            set
+            {
+                this["LogPlayedNotes"] = value;
+            }
+        }
+
+        [global::System.Configuration.ApplicationScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.SpecialSettingAttribute(global::System.Configuration.SpecialSetting.ConnectionString)]
+        [global::System.Configuration.DefaultSettingValueAttribute("history.db")]
+        public string SqliteConnection
+        {
+            get
+            {
+                return ((string)(this["SqliteConnection"]));
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int SelectedTransition
+        {
+            get
+            {
+                return ((int)(this["SelectedTransition"]));
+            }
+            set
+            {
+                this["SelectedTransition"] = value;
             }
         }
     }

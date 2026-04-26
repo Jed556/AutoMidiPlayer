@@ -180,7 +180,7 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
         if (playback is null)
             return;
 
-        CrashLogger.LogStep(
+        Logger.LogStep(
             "PLAY_PAUSE_CLICK",
             $"isRunning={playback.IsRunning} | song='{CurrentSongLabel}' | position={CurrentTime:mm\\:ss}");
 
@@ -190,7 +190,7 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
             {
                 playback.Stop();
                 Queue.SaveCurrentSong(CurrentTime.TotalSeconds);
-                CrashLogger.LogStep("PLAYBACK_PAUSED", $"song='{CurrentSongLabel}' | position={CurrentTime:mm\\:ss}");
+                Logger.LogStep("PLAYBACK_PAUSED", $"song='{CurrentSongLabel}' | position={CurrentTime:mm\\:ss}");
             }
             else
             {
@@ -199,7 +199,7 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
                 playback.MoveToTime(time);
 
                 var started = await Engine.StartPlayback(playback);
-                CrashLogger.LogStep(
+                Logger.LogStep(
                     "PLAYBACK_START_REQUEST",
                     $"started={started} | song='{CurrentSongLabel}' | position={CurrentTime:mm\\:ss}");
             }
@@ -228,7 +228,7 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
     /// <param name="userInitiated">True if user clicked Next button, false if auto-triggered by song finish</param>
     public async Task Next(bool userInitiated = true)
     {
-        CrashLogger.LogStep(
+        Logger.LogStep(
             "NEXT_CLICK",
             $"userInitiated={userInitiated} | current='{CurrentSongLabel}'");
 
@@ -244,17 +244,17 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
 
             MoveSlider(TimeSpan.Zero);
             UpdateButtons();
-            CrashLogger.LogStep("NEXT_NO_TARGET", "Reached end of queue.");
+            Logger.LogStep("NEXT_NO_TARGET", "Reached end of queue.");
             return;
         }
 
-        CrashLogger.LogStep("NEXT_TARGET", $"song='{next.Title}' | path='{next.Path}'");
+        Logger.LogStep("NEXT_TARGET", $"song='{next.Title}' | path='{next.Path}'");
         await Engine.LoadFileAsync(next, autoPlay: true);
     }
 
     public async void Previous()
     {
-        CrashLogger.LogStep("PREVIOUS_CLICK", $"current='{CurrentSongLabel}' | position={CurrentTime:mm\\:ss}");
+        Logger.LogStep("PREVIOUS_CLICK", $"current='{CurrentSongLabel}' | position={CurrentTime:mm\\:ss}");
 
         if (CurrentTime > TimeSpan.FromSeconds(3))
         {
@@ -271,7 +271,7 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
             if (pb is not null)
                 await Engine.StartPlayback(pb);
 
-            CrashLogger.LogStep("PREVIOUS_RESTART_CURRENT", $"song='{CurrentSongLabel}'");
+            Logger.LogStep("PREVIOUS_RESTART_CURRENT", $"song='{CurrentSongLabel}'");
         }
         else
         {
@@ -282,13 +282,13 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
 
                 if (Queue.GetPlaylist().Any(track => track.Song.Id == previous.Song.Id))
                 {
-                    CrashLogger.LogStep("PREVIOUS_TARGET", $"song='{previous.Title}' | path='{previous.Path}'");
+                    Logger.LogStep("PREVIOUS_TARGET", $"song='{previous.Title}' | path='{previous.Path}'");
                     await Engine.LoadFileAsync(previous, autoPlay: true);
                     return;
                 }
             }
 
-            CrashLogger.LogStep("PREVIOUS_NO_TARGET", "No previous song available in current playlist history.");
+            Logger.LogStep("PREVIOUS_NO_TARGET", "No previous song available in current playlist history.");
         }
     }
 
@@ -359,7 +359,7 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
         if (Settings.UseSpeakers == enabled)
             return false;
 
-        CrashLogger.LogStep(
+        Logger.LogStep(
             "LISTEN_MODE_SET",
             $"enabled={enabled} | pausePlaybackOnChange={pausePlaybackOnChange} | song='{CurrentSongLabel}'");
 
@@ -385,14 +385,14 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
         _events.Publish(new ListenModeChangedNotification(enabled));
         NotifyListenModeProperties();
 
-        CrashLogger.LogStep("LISTEN_MODE_SET_COMPLETED", $"enabled={enabled} | pausedPlayback={pausedPlayback}");
+        Logger.LogStep("LISTEN_MODE_SET_COMPLETED", $"enabled={enabled} | pausedPlayback={pausedPlayback}");
         return pausedPlayback;
     }
 
     public void ToggleListenMode()
     {
         var enableListenMode = !IsListenModeEnabled;
-        CrashLogger.LogStep("LISTEN_MODE_TOGGLE_CLICK", $"targetEnabled={enableListenMode} | song='{CurrentSongLabel}'");
+        Logger.LogStep("LISTEN_MODE_TOGGLE_CLICK", $"targetEnabled={enableListenMode} | song='{CurrentSongLabel}'");
 
         // If user turns Listen Mode off while currently playing and no game is running,
         // pause immediately so auto-enable doesn't flip it back on mid-playback.

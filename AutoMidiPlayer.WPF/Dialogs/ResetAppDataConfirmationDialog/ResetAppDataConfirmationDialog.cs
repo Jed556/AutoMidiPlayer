@@ -40,12 +40,12 @@ public partial class ResetAppDataConfirmationDialog : ContentDialog
             if (hostReady)
                 return await dialog.ShowAsync() == ContentDialogResult.Primary;
 
-            CrashLogger.Log("DialogHost was not ready while showing reset confirmation dialog. Falling back to MessageBox.");
+            Logger.Log("DialogHost was not ready while showing reset confirmation dialog. Falling back to MessageBox.");
         }
         catch (Exception dialogError)
         {
-            CrashLogger.Log("Failed to display reset confirmation dialog.");
-            CrashLogger.LogException(dialogError);
+            Logger.Log("Failed to display reset confirmation dialog.");
+            Logger.LogException(dialogError);
         }
 
         return MessageBoxHelper.ConfirmOkCancel(

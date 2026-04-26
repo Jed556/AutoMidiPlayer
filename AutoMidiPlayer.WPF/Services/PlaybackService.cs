@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -42,6 +44,10 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
     private int _loadEpoch;
     private DateTime _suppressFocusLossUntilUtc = DateTime.MinValue;
+    private DateTime _playbackStartedAtUtc = DateTime.MinValue;
+    private long _scheduledEventTicks;
+    private bool _loggedSongContextForNotes;
+    private readonly Dictionary<int, (int SourceNote, int OutputNote, string KeyName, int Velocity, long StartMs)> _activeNotes = new();
 
     #endregion
 
@@ -68,8 +74,8 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         }
         catch (ArgumentException e)
         {
-            CrashLogger.Log("Failed to initialize Microsoft GS Wavetable Synth.");
-            CrashLogger.LogException(e);
+            Logger.Log("Failed to initialize Microsoft GS Wavetable Synth.");
+            Logger.LogException(e);
             _ = AudioDeviceUnavailableDialog.ShowInitializationErrorAsync(e);
             Settings.Modify(s => s.UseSpeakers = false);
             _events.Publish(new ListenModeChangedNotification(false));
@@ -108,8 +114,8 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         }
         catch (Exception ex)
         {
-            CrashLogger.Log("Unhandled exception while rebuilding playback after song settings change.");
-            CrashLogger.LogException(ex);
+            Logger.Log("Unhandled exception while rebuilding playback after song settings change.");
+            Logger.LogException(ex);
         }
     }
 
@@ -134,6 +140,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
     private string CurrentSongLabel => Queue.OpenedFile is null
         ? "<none>"
         : $"{Queue.OpenedFile.Title} ({Queue.OpenedFile.Path})";
+    private bool ShouldLogPlayedNotes => Settings.DebugModeEnabled && Settings.LogPlayedNotes;
 
     #endregion
 
@@ -223,6 +230,9 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         Playback = playback;
         ApplyEffectivePlaybackSpeed();
         playback.InterruptNotesOnStop = true;
+        _scheduledEventTicks = 0;
+        _activeNotes.Clear();
+        _loggedSongContextForNotes = false;
         playback.Finished += (_, _) =>
         {
             // Marshal to UI thread to avoid cross-thread issues
@@ -237,11 +247,19 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
         playback.Started += (_, _) =>
         {
+            _playbackStartedAtUtc = DateTime.UtcNow;
+            _scheduledEventTicks = 0;
+            _activeNotes.Clear();
+            _loggedSongContextForNotes = false;
+
             _timeWatcher.RemoveAllPlaybacks();
             _timeWatcher.AddPlayback(playback, TimeSpanType.Metric);
             _timeWatcher.Start();
             Controls.UpdateButtons();
             Controls.NotifyPlaybackStateChanged();
+
+            Logger.LogPlayback($"PLAYBACK_STARTED song='{CurrentSongLabel}'");
+            LogPerformanceSnapshot("playback-start");
         };
 
         playback.Stopped += (_, _) =>
@@ -249,6 +267,9 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             _timeWatcher.Stop();
             Controls.UpdateButtons();
             Controls.NotifyPlaybackStateChanged();
+
+            Logger.LogPlayback($"PLAYBACK_STOPPED song='{CurrentSongLabel}' | position={Controls.CurrentTime:mm\\:ss}");
+            LogPerformanceSnapshot("playback-stop");
         };
 
         if (SavedPosition.HasValue)
@@ -301,6 +322,8 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
     private void OnNoteEvent(object? sender, MidiEventPlayedEventArgs e)
     {
+        _scheduledEventTicks += (long)e.Event.DeltaTime;
+
         if (e.Event is not NoteEvent noteEvent)
             return;
 
@@ -317,9 +340,13 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             var isNoteOn = noteEvent.EventType == MidiEventType.NoteOn && noteEvent.Velocity > 0;
             var noteForKeyboard = ApplyNoteSettings(instrument, noteEvent.NoteNumber);
             var noteForListen = ApplyListenModeSettings(sourceNote);
+            var hasMappedKey = KeyboardPlayer.TryGetKey(layout, instrument, noteForKeyboard, out var mappedKey);
             var transposeMode = Settings.TransposeNotes && SongSettings.Transpose is not null
                 ? SongSettings.Transpose.Value.Key
                 : (Transpose?)null;
+
+            if (ShouldLogPlayedNotes && isNoteOn)
+                LogSchedulerSample(sourceNote);
 
             // Check listen mode BEFORE expensive IsGameRunning process lookup
             if (Settings.UseSpeakers)
@@ -329,6 +356,9 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
                 if (isNoteOn)
                     NotePlayed?.Invoke(this, new NotePlayedEventArgs(sourceNote));
+
+                if (ShouldLogPlayedNotes)
+                    LogNoteInputOutput("speakers", noteEvent, sourceNote, noteForKeyboard, hasMappedKey, mappedKey);
 
                 _speakers?.SendEvent(CreateOutputNoteEvent(noteEvent, noteForListen));
                 return;
@@ -348,6 +378,9 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                 if (isNoteOn)
                     NotePlayed?.Invoke(this, new NotePlayedEventArgs(sourceNote));
 
+                if (ShouldLogPlayedNotes)
+                    LogNoteInputOutput("auto-listen", noteEvent, sourceNote, noteForKeyboard, hasMappedKey, mappedKey);
+
                 _speakers?.SendEvent(CreateOutputNoteEvent(noteEvent, noteForListen));
                 return;
             }
@@ -366,15 +399,24 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             switch (noteEvent.EventType)
             {
                 case MidiEventType.NoteOff:
+                    if (ShouldLogPlayedNotes)
+                        LogNoteInputOutput("game", noteEvent, sourceNote, noteForKeyboard, hasMappedKey, mappedKey);
+
                     KeyboardPlayer.NoteUp(noteForKeyboard, layout, instrument);
                     break;
                 case MidiEventType.NoteOn when noteEvent.Velocity <= 0:
+                    if (ShouldLogPlayedNotes)
+                        LogNoteInputOutput("game", noteEvent, sourceNote, noteForKeyboard, hasMappedKey, mappedKey);
+
                     return;
                 case MidiEventType.NoteOn:
-                    if (!KeyboardPlayer.TryGetKey(layout, instrument, noteForKeyboard, out _))
+                    if (!hasMappedKey)
                         return;
 
                     NotePlayed?.Invoke(this, new NotePlayedEventArgs(sourceNote));
+
+                    if (ShouldLogPlayedNotes)
+                        LogNoteInputOutput("game", noteEvent, sourceNote, noteForKeyboard, hasMappedKey, mappedKey);
 
                     if (useHoldNotes)
                         KeyboardPlayer.NoteDown(noteForKeyboard, layout, instrument);
@@ -385,7 +427,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         }
         catch (Exception ex)
         {
-            CrashLogger.LogException(ex);
+            Logger.LogException(ex);
         }
     }
 
@@ -439,7 +481,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
     private bool HandleGameNotRunning(bool isPlaybackStartAttempt)
     {
-        CrashLogger.LogStep(
+        Logger.LogStep(
             "GAME_NOT_RUNNING_DETECTED",
             $"song='{CurrentSongLabel}' | playbackStartAttempt={isPlaybackStartAttempt} | autoEnableListenMode={Settings.AutoEnableListenMode}");
 
@@ -459,7 +501,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             if (pausedPlayback)
                 return false;
 
-            CrashLogger.LogStep("LISTEN_MODE_AUTO_ENABLED", $"song='{CurrentSongLabel}'");
+            Logger.LogStep("LISTEN_MODE_AUTO_ENABLED", $"song='{CurrentSongLabel}'");
         }
 
         var selectedGameName = _main.SelectedGame?.Definition.DisplayName ?? "Selected game";
@@ -468,7 +510,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         var listenModeEnabled = Settings.UseSpeakers;
         _main.ShowGameInactiveToast(gameLabel, listenModeEnabled);
 
-        CrashLogger.LogStep("GAME_NOT_RUNNING_TOAST", $"song='{CurrentSongLabel}' | listenModeEnabled={listenModeEnabled}");
+        Logger.LogStep("GAME_NOT_RUNNING_TOAST", $"song='{CurrentSongLabel}' | listenModeEnabled={listenModeEnabled}");
 
         return listenModeEnabled;
     }
@@ -497,7 +539,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
     private void HandleGameFocusLoss()
     {
-        CrashLogger.LogStep("GAME_FOCUS_LOST", $"song='{CurrentSongLabel}'");
+        Logger.LogStep("GAME_FOCUS_LOST", $"song='{CurrentSongLabel}'");
 
         var pb = Playback;
         if (pb is not null)
@@ -523,7 +565,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         var selectedGame = _main.SelectedGame?.Definition;
         var isGameRunning = selectedGame is not null && GameRegistry.IsGameRunning(selectedGame);
 
-        CrashLogger.LogStep(
+        Logger.LogStep(
             "PLAYBACK_ENGINE_START_ATTEMPT",
             $"song='{CurrentSongLabel}' | useSpeakers={Settings.UseSpeakers} | gameRunning={isGameRunning}");
 
@@ -533,7 +575,8 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             {
                 playback.PlaybackStart = playback.GetCurrentTime(TimeSpanType.Midi);
                 playback.Start();
-                CrashLogger.LogStep("PLAYBACK_ENGINE_STARTED", $"song='{CurrentSongLabel}' | mode=speakers");
+                Logger.LogStep("PLAYBACK_ENGINE_STARTED", $"song='{CurrentSongLabel}' | mode=speakers");
+                Logger.LogPlayback($"PLAYBACK_START song='{CurrentSongLabel}' | mode=speakers");
                 return true;
             }
 
@@ -544,6 +587,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
                 playback.PlaybackStart = playback.GetCurrentTime(TimeSpanType.Midi);
                 playback.Start();
+                Logger.LogPlayback($"PLAYBACK_START song='{CurrentSongLabel}' | mode=auto-listen");
                 return true;
             }
 
@@ -558,13 +602,14 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             {
                 playback.PlaybackStart = playback.GetCurrentTime(TimeSpanType.Midi);
                 playback.Start();
-                CrashLogger.LogStep("PLAYBACK_ENGINE_STARTED", $"song='{CurrentSongLabel}' | mode=game-focused");
+                Logger.LogStep("PLAYBACK_ENGINE_STARTED", $"song='{CurrentSongLabel}' | mode=game-focused");
+                Logger.LogPlayback($"PLAYBACK_START song='{CurrentSongLabel}' | mode=game-focused");
                 return true;
             }
         }
         catch (ObjectDisposedException) { }
 
-        CrashLogger.LogStep("PLAYBACK_ENGINE_START_ABORTED", $"song='{CurrentSongLabel}'");
+        Logger.LogStep("PLAYBACK_ENGINE_START_ABORTED", $"song='{CurrentSongLabel}'");
         return false;
     }
 
@@ -578,15 +623,22 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
     /// </summary>
     public async Task LoadFileAsync(MidiFile file, bool autoPlay = false)
     {
-        CrashLogger.LogStep(
+        _loggedSongContextForNotes = false;
+        _scheduledEventTicks = 0;
+        _activeNotes.Clear();
+
+        Logger.LogStep(
             "PLAYBACK_LOAD_REQUEST",
             $"title='{file.Title}' | path='{file.Path}' | autoPlay={autoPlay}");
+
+        Logger.LogPlayback(
+            $"PLAYBACK_LOAD_REQUEST title='{file.Title}' | path='{file.Path}' | autoPlay={autoPlay}");
 
         // Ignore duplicate reloads for the currently opened file.
         // This can be triggered by selection-change events while the same song is already loaded.
         if (Queue.OpenedFile == file && Playback is not null)
         {
-            CrashLogger.LogStep("PLAYBACK_LOAD_SKIPPED_DUPLICATE", $"title='{file.Title}' | autoPlay={autoPlay}");
+            Logger.LogStep("PLAYBACK_LOAD_SKIPPED_DUPLICATE", $"title='{file.Title}' | autoPlay={autoPlay}");
             if (autoPlay && !Playback.IsRunning)
             {
                 var playback = Playback;
@@ -621,13 +673,13 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         }
         catch (FileNotFoundException)
         {
-            CrashLogger.LogStep("PLAYBACK_LOAD_MISSING_FILE", $"path='{file.Path}'");
+            Logger.LogStep("PLAYBACK_LOAD_MISSING_FILE", $"path='{file.Path}'");
             await _main.FileService.HandleMissingSongFileAsync(file);
             return;
         }
         catch (DirectoryNotFoundException)
         {
-            CrashLogger.LogStep("PLAYBACK_LOAD_MISSING_DIRECTORY", $"path='{file.Path}'");
+            Logger.LogStep("PLAYBACK_LOAD_MISSING_DIRECTORY", $"path='{file.Path}'");
             await _main.FileService.HandleMissingSongFileAsync(file);
             return;
         }
@@ -635,7 +687,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         // Abandon stale load work if a newer request won while initialization was running.
         if (epoch != _loadEpoch || !ReferenceEquals(Queue.OpenedFile, file))
         {
-            CrashLogger.LogStep("PLAYBACK_LOAD_STALE_IGNORED", $"title='{file.Title}' | epoch={epoch} | currentEpoch={_loadEpoch}");
+            Logger.LogStep("PLAYBACK_LOAD_STALE_IGNORED", $"title='{file.Title}' | epoch={epoch} | currentEpoch={_loadEpoch}");
             return;
         }
 
@@ -651,16 +703,19 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         _main.SongsView.RefreshCurrentSong();
         _main.QueueView.RefreshCurrentSong();
 
-        CrashLogger.LogStep(
+        Logger.LogStep(
             "PLAYBACK_LOAD_COMPLETED",
             $"title='{file.Title}' | path='{file.Path}' | tracks={TrackView.MidiTracks.Count} | autoPlay={autoPlay}");
+
+        Logger.LogPlayback(
+            $"PLAYBACK_LOAD_COMPLETED title='{file.Title}' | path='{file.Path}' | tracks={TrackView.MidiTracks.Count} | autoPlay={autoPlay}");
 
         _events.Publish(new OpenedFileChangedNotification(file));
 
         // Only auto-play if this is still the most recent load request
         if (autoPlay && epoch == _loadEpoch && Playback is not null)
         {
-            CrashLogger.LogStep("PLAYBACK_LOAD_AUTOPLAY", $"title='{file.Title}'");
+            Logger.LogStep("PLAYBACK_LOAD_AUTOPLAY", $"title='{file.Title}'");
             await Controls.PlayPause();
         }
     }
@@ -677,8 +732,8 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         }
         catch (Exception e)
         {
-            CrashLogger.Log("Unhandled playback file-load exception.");
-            CrashLogger.LogException(e);
+            Logger.Log("Unhandled playback file-load exception.");
+            Logger.LogException(e);
         }
     }
 
@@ -751,6 +806,117 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
         TrackView.UpdateTrackPlayableNotes();
         TrackView.NotifyNoteStatsChanged();
+    }
+
+    private static string FormatNoteName(int noteNumber)
+    {
+        var names = new[] { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+        var normalized = Math.Clamp(noteNumber, 0, 127);
+        var pitch = names[normalized % 12];
+        var octave = (normalized / 12) - 1;
+        return $"{pitch}{octave}";
+    }
+
+    private long GetPlaybackElapsedMs()
+    {
+        if (_playbackStartedAtUtc == DateTime.MinValue)
+            return 0;
+
+        var elapsed = DateTime.UtcNow - _playbackStartedAtUtc;
+        return Math.Max(0, (long)Math.Round(elapsed.TotalMilliseconds));
+    }
+
+    private void EnsureNoteSongContextLogged()
+    {
+        if (_loggedSongContextForNotes)
+            return;
+
+        _loggedSongContextForNotes = true;
+
+        var opened = Queue.OpenedFile;
+        var songTitle = opened?.Title ?? "<none>";
+        var songPath = opened?.Path ?? "<none>";
+        var transpose = SongSettings.Transpose?.Key.ToString() ?? "Ignore";
+        var keyOffset = SongSettings.GetEffectiveKeyOffset(opened?.Song);
+        var layout = InstrumentPage.SelectedLayout.Key;
+        var instrument = InstrumentPage.SelectedInstrument.Key;
+
+        var header =
+            $"SONG title='{songTitle}' | path='{songPath}' | instrument={instrument} | layout={layout} | keyOffset={keyOffset} | transpose={transpose}";
+
+        Logger.LogInputOutput(header);
+        Logger.LogScheduler(header);
+    }
+
+    private void LogSchedulerSample(int sourceNote)
+    {
+        EnsureNoteSongContextLogged();
+
+        var tempoMap = Queue.OpenedFile?.OriginalTempoMap;
+        if (tempoMap is null)
+            return;
+
+        var scheduledMetric = TimeConverter.ConvertTo<MetricTimeSpan>(_scheduledEventTicks, tempoMap);
+        var scheduledMs = (long)Math.Round(scheduledMetric.TotalMicroseconds / 1000.0);
+        var actualMs = GetPlaybackElapsedMs();
+        var drift = actualMs - scheduledMs;
+
+        Logger.LogScheduler(
+            $"[{actualMs}ms] Note {FormatNoteName(sourceNote)} scheduled={scheduledMs}ms actual={actualMs}ms drift={(drift >= 0 ? "+" : string.Empty)}{drift}ms");
+    }
+
+    private void LogNoteInputOutput(string mode, NoteEvent noteEvent, int sourceNote, int outputNote, bool hasMappedKey, WindowsInput.Native.VirtualKeyCode mappedKey)
+    {
+        EnsureNoteSongContextLogged();
+
+        var keyName = hasMappedKey ? mappedKey.ToString() : "<unmapped>";
+        var source = FormatNoteName(sourceNote);
+        var output = FormatNoteName(outputNote);
+        var eventType = noteEvent.EventType == MidiEventType.NoteOn && noteEvent.Velocity > 0
+            ? "NoteOn"
+            : "NoteOff";
+
+        if (eventType == "NoteOn")
+        {
+            _activeNotes[outputNote] = (sourceNote, outputNote, keyName, noteEvent.Velocity, GetPlaybackElapsedMs());
+            Logger.LogInputOutput($"{eventType} {source} -> {output} Key={keyName} Vel={noteEvent.Velocity} mode={mode}");
+
+            if (hasMappedKey)
+            {
+                Logger.LogMapping($"MAP {source} -> {output} key={keyName} instrument={InstrumentPage.SelectedInstrument.Key} layout={InstrumentPage.SelectedLayout.Key}");
+            }
+            else
+            {
+                Logger.LogMapping($"MAP_MISS {source} -> {output} instrument={InstrumentPage.SelectedInstrument.Key} layout={InstrumentPage.SelectedLayout.Key}");
+            }
+
+            return;
+        }
+
+        if (_activeNotes.TryGetValue(outputNote, out var active))
+        {
+            _activeNotes.Remove(outputNote);
+            var pressLength = Math.Max(0, GetPlaybackElapsedMs() - active.StartMs);
+            Logger.LogInputOutput($"[{pressLength}ms] {FormatNoteName(active.SourceNote)} -> {FormatNoteName(active.OutputNote)} Key={active.KeyName} Vel={active.Velocity} mode={mode}");
+            return;
+        }
+
+        Logger.LogInputOutput($"{eventType} {source} -> {output} Key={keyName} Vel={noteEvent.Velocity} mode={mode}");
+    }
+
+    private static void LogPerformanceSnapshot(string reason)
+    {
+        try
+        {
+            using var process = Process.GetCurrentProcess();
+            var workingSetMb = process.WorkingSet64 / (1024d * 1024d);
+            var privateMb = process.PrivateMemorySize64 / (1024d * 1024d);
+            Logger.LogPerformance($"PERF reason={reason} | wsMB={workingSetMb:0.0} | privateMB={privateMb:0.0} | threads={process.Threads.Count}");
+        }
+        catch
+        {
+            // Best effort only.
+        }
     }
 
     #endregion

@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using AutoMidiPlayer.Data.Entities;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
@@ -79,8 +81,17 @@ public class MidiFile : Screen
 
     public void InitializeMidi()
     {
+        var sw = Stopwatch.StartNew();
+        Logger.LogMidiParser($"MIDI_LOAD_BEGIN path='{Path}'");
+
         Midi = Melanchall.DryWetMidi.Core.MidiFile.Read(Path, _settings);
         // Store the original tempo map so it's preserved even when tracks are modified
         OriginalTempoMap = Midi.GetTempoMap();
+
+        sw.Stop();
+        var trackCount = Midi.GetTrackChunks().Count();
+        var nativeBpm = GetNativeBpm();
+        Logger.LogMidiParser(
+            $"MIDI_LOAD_END path='{Path}' | tracks={trackCount} | bpm={nativeBpm:0.###} | elapsedMs={sw.Elapsed.TotalMilliseconds:0}");
     }
 }

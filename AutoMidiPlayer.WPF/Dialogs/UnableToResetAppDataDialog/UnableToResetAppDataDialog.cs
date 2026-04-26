@@ -44,13 +44,13 @@ public partial class UnableToResetAppDataDialog : ContentDialog
                 return;
             }
 
-            CrashLogger.Log("DialogHost was not ready while showing unable-to-reset dialog. Falling back to MessageBox.");
+            Logger.Log("DialogHost was not ready while showing unable-to-reset dialog. Falling back to MessageBox.");
             MessageBoxHelper.ShowError(message, FallbackTitle);
         }
         catch (Exception dialogError)
         {
-            CrashLogger.Log("Failed to display unable-to-reset dialog.");
-            CrashLogger.LogException(dialogError);
+            Logger.Log("Failed to display unable-to-reset dialog.");
+            Logger.LogException(dialogError);
             MessageBoxHelper.ShowError(message, FallbackTitle);
         }
     }

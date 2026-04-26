@@ -112,8 +112,8 @@ public class TrackViewModel : Screen
 
     protected override void OnActivate()
     {
-        CrashLogger.LogPageVisit("Tracks", source: "screen-activate");
-        CrashLogger.LogStep("TRACKS_ACTIVATE", $"midiTracks={MidiTracks.Count}");
+        Logger.LogPageVisit("Tracks", source: "screen-activate");
+        Logger.LogStep("TRACKS_ACTIVATE", $"midiTracks={MidiTracks.Count}");
         try
         {
             base.OnActivate();
@@ -122,7 +122,7 @@ public class TrackViewModel : Screen
         }
         catch (Exception ex)
         {
-            CrashLogger.LogException(ex);
+            Logger.LogException(ex);
             throw;
         }
     }
@@ -141,7 +141,7 @@ public class TrackViewModel : Screen
         }
         catch (Exception ex)
         {
-            CrashLogger.LogException(ex);
+            Logger.LogException(ex);
             throw;
         }
     }

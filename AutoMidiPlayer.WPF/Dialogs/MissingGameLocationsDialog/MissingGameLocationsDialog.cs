@@ -52,12 +52,12 @@ public partial class MissingGameLocationsDialog : ContentDialog
                 return result == ContentDialogResult.Primary;
             }
 
-            CrashLogger.Log("DialogHost was not ready while showing missing game location dialog. Falling back to MessageBox.");
+            Logger.Log("DialogHost was not ready while showing missing game location dialog. Falling back to MessageBox.");
         }
         catch (Exception dialogError)
         {
-            CrashLogger.Log("Failed to display missing game location dialog.");
-            CrashLogger.LogException(dialogError);
+            Logger.Log("Failed to display missing game location dialog.");
+            Logger.LogException(dialogError);
         }
 
         return MessageBoxHelper.ConfirmOkCancel(

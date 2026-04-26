@@ -43,13 +43,13 @@ public partial class UnableToDeleteFileDialog : ContentDialog
                 return;
             }
 
-            CrashLogger.Log("DialogHost was not ready while showing unable-to-delete dialog. Falling back to MessageBox.");
+            Logger.Log("DialogHost was not ready while showing unable-to-delete dialog. Falling back to MessageBox.");
             MessageBoxHelper.ShowWarning(FallbackMessage, FallbackTitle);
         }
         catch (Exception dialogError)
         {
-            CrashLogger.Log("Failed to display unable-to-delete dialog.");
-            CrashLogger.LogException(dialogError);
+            Logger.Log("Failed to display unable-to-delete dialog.");
+            Logger.LogException(dialogError);
             MessageBoxHelper.ShowWarning(FallbackMessage, FallbackTitle);
         }
     }

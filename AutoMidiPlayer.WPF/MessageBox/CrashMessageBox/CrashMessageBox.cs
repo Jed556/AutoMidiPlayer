@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Windows;
 
 namespace AutoMidiPlayer.WPF.MessageBox;
@@ -36,10 +37,21 @@ public partial class CrashMessageBox : Wpf.Ui.Controls.MessageBox
 
     private void OnLogPathClick(object sender, RoutedEventArgs e)
     {
-        Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{_logPath}\"")
+        if (File.Exists(_logPath))
         {
-            UseShellExecute = true
-        });
+            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{_logPath}\"")
+            {
+                UseShellExecute = true
+            });
+        }
+        else
+        {
+            var folder = Path.GetDirectoryName(_logPath) ?? _logPath;
+            Process.Start(new ProcessStartInfo("explorer.exe", folder)
+            {
+                UseShellExecute = true
+            });
+        }
 
         e.Handled = true;
     }

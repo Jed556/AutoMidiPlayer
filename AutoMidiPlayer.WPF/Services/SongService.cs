@@ -334,7 +334,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
         if (_main is null) return;
 
         var currentTitle = file.Song.Title ?? Path.GetFileNameWithoutExtension(file.Path);
-        CrashLogger.LogStep("SONG_EDIT_DIALOG_OPEN", $"source={source} | title='{currentTitle}' | path='{file.Path}'");
+        Logger.LogStep("SONG_EDIT_DIALOG_OPEN", $"source={source} | title='{currentTitle}' | path='{file.Path}'");
 
         var nativeBpm = file.GetNativeBpm();
 
@@ -357,7 +357,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
         var result = await dialog.ShowAsync();
         if (result != ContentDialogResult.Primary)
         {
-            CrashLogger.LogStep("SONG_EDIT_DIALOG_CANCEL", $"source={source} | result={result} | title='{currentTitle}' | path='{file.Path}'");
+            Logger.LogStep("SONG_EDIT_DIALOG_CANCEL", $"source={source} | result={result} | title='{currentTitle}' | path='{file.Path}'");
             return;
         }
 
@@ -365,7 +365,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
             ? Path.GetFileNameWithoutExtension(file.Path)
             : dialog.SongTitle;
 
-        CrashLogger.LogStep(
+        Logger.LogStep(
             "SONG_EDIT_DIALOG_SAVE",
             $"source={source} | oldTitle='{currentTitle}' | newTitle='{updatedTitle}' | path='{file.Path}' | key={dialog.SongKey} | transpose={dialog.SongTranspose} | bpm={dialog.SongBpm:0.###} | speed={dialog.SongSpeed:0.###}");
 
@@ -387,7 +387,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
         db.Songs.Update(file.Song);
         await db.SaveChangesAsync();
 
-        CrashLogger.LogStep("SONG_EDIT_DIALOG_SAVE_COMPLETED", $"source={source} | title='{updatedTitle}' | songId={file.Song.Id}");
+        Logger.LogStep("SONG_EDIT_DIALOG_SAVE_COMPLETED", $"source={source} | title='{updatedTitle}' | songId={file.Song.Id}");
 
         if (_main.QueueView.OpenedFile?.Song.Id == file.Song.Id)
         {
@@ -405,7 +405,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
         _main.SongsView.ApplySort();
         _main.QueueView.ApplyFilter();
 
-        CrashLogger.LogStep("SONG_EDIT_DIALOG_APPLIED", $"source={source} | title='{updatedTitle}'");
+        Logger.LogStep("SONG_EDIT_DIALOG_APPLIED", $"source={source} | title='{updatedTitle}'");
     }
 
     private static void CopyEditableSongFields(Song source, Song target)

@@ -98,13 +98,13 @@ public partial class BadMidiReadDialog : ContentDialog
 
     internal static async Task<bool> TryHandleAsync(Exception e, ReadingSettings settings, string? filePath = null)
     {
-        CrashLogger.Log($"Bad MIDI read error{(string.IsNullOrWhiteSpace(filePath) ? string.Empty : $" for '{filePath}'")}");
-        CrashLogger.LogException(e);
+        Logger.Log($"Bad MIDI read error{(string.IsNullOrWhiteSpace(filePath) ? string.Empty : $" for '{filePath}'")}");
+        Logger.LogException(e);
 
         var errorKey = BuildErrorKey(e);
         if (IsDuplicateError(errorKey))
         {
-            CrashLogger.Log("Duplicate bad MIDI error detected; suppressing additional dialog.");
+            Logger.Log("Duplicate bad MIDI error detected; suppressing additional dialog.");
             return false;
         }
 
@@ -123,7 +123,7 @@ public partial class BadMidiReadDialog : ContentDialog
             var hostReady = await DialogHelper.EnsureDialogHostAsync(dialog);
             if (!hostReady)
             {
-                CrashLogger.Log("DialogHost was not ready for bad MIDI dialog; skipping file.");
+                Logger.Log("DialogHost was not ready for bad MIDI dialog; skipping file.");
                 return false;
             }
 
@@ -131,8 +131,8 @@ public partial class BadMidiReadDialog : ContentDialog
         }
         catch (Exception dialogException)
         {
-            CrashLogger.Log("Failed to show bad MIDI dialog.");
-            CrashLogger.LogException(dialogException);
+            Logger.Log("Failed to show bad MIDI dialog.");
+            Logger.LogException(dialogException);
             return false;
         }
 

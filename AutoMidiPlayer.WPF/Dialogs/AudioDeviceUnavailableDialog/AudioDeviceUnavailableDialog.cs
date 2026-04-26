@@ -46,13 +46,13 @@ public partial class AudioDeviceUnavailableDialog : ContentDialog
                 return;
             }
 
-            CrashLogger.Log("DialogHost was not ready while showing audio initialization error. Falling back to MessageBox.");
+            Logger.Log("DialogHost was not ready while showing audio initialization error. Falling back to MessageBox.");
             MessageBoxHelper.ShowWarning(message, "Audio device unavailable");
         }
         catch (Exception dialogError)
         {
-            CrashLogger.Log("Failed to display audio initialization error dialog.");
-            CrashLogger.LogException(dialogError);
+            Logger.Log("Failed to display audio initialization error dialog.");
+            Logger.LogException(dialogError);
             MessageBoxHelper.ShowWarning(message, "Audio device unavailable");
         }
     }

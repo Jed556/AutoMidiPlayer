@@ -282,7 +282,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
                 BreadcrumbItems = [pageName];
                 Settings.LastViewedPage = pageName;
                 Settings.Save();
-                CrashLogger.LogPageVisit(pageName, source: "navigation-click");
+                Logger.LogPageVisit(pageName, source: "navigation-click");
             }
         }
 
@@ -292,14 +292,14 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
     public void NavigateToSettings()
     {
         ActivateItem(SettingsView);
-        CrashLogger.LogPageVisit("Settings", source: "programmatic-navigation");
+        Logger.LogPageVisit("Settings", source: "programmatic-navigation");
     }
 
     public void ToggleGameSelector()
     {
         IsGameSelectorOpen = !IsGameSelectorOpen;
         var selectedGameName = SelectedGame?.Definition.DisplayName ?? "none";
-        CrashLogger.LogStep("GAME_SELECTOR_TOGGLE", $"opened={IsGameSelectorOpen} | selectedGame='{selectedGameName}'");
+        Logger.LogStep("GAME_SELECTOR_TOGGLE", $"opened={IsGameSelectorOpen} | selectedGame='{selectedGameName}'");
     }
 
     /// <summary>
@@ -313,7 +313,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         if (game == SelectedGame)
         {
             IsGameSelectorOpen = false;
-            CrashLogger.LogStep("GAME_SELECTOR_SELECT_SAME", $"game='{previousGameName}'");
+            Logger.LogStep("GAME_SELECTOR_SELECT_SAME", $"game='{previousGameName}'");
             return;
         }
 
@@ -322,7 +322,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         SelectedGame = game;
         IsGameSelectorOpen = false;
 
-        CrashLogger.LogStep(
+        Logger.LogStep(
             "GAME_SELECTOR_SELECT",
             $"from='{previousGameName}' | to='{game.Definition.DisplayName}' | gameId='{game.Definition.Id}'");
 
@@ -368,7 +368,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
             {
                 SetSelectedNavItem(queue);
                 BreadcrumbItems = ["Queue"];
-                CrashLogger.LogPageVisit("Queue", source: "search-autonavigate");
+                Logger.LogPageVisit("Queue", source: "search-autonavigate");
             }
         }
 
@@ -402,7 +402,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
         if (midiFiles.Length > 0)
         {
-            CrashLogger.LogStep("FILE_DROP", $"midiFiles={midiFiles.Length}");
+            Logger.LogStep("FILE_DROP", $"midiFiles={midiFiles.Length}");
             await FileService.AddFiles(midiFiles);
 
             // Navigate to songs view
@@ -414,7 +414,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
             {
                 SetSelectedNavItem(songs);
                 BreadcrumbItems = ["Songs"];
-                CrashLogger.LogPageVisit("Songs", source: "file-drop");
+                Logger.LogPageVisit("Songs", source: "file-drop");
             }
         }
     }
@@ -451,7 +451,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
                 SetSelectedNavItem(targetNavItem);
                 // Update breadcrumb with current page name
                 BreadcrumbItems = [lastPage];
-                CrashLogger.LogPageVisit(lastPage, source: "startup-restore");
+                Logger.LogPageVisit(lastPage, source: "startup-restore");
             }
 
             ReportStartupProgress(14, "Checking game locations...");
@@ -524,8 +524,8 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         }
         catch (Exception ex)
         {
-            CrashLogger.Log("Deferred startup song load failed.");
-            CrashLogger.LogException(ex);
+            Logger.Log("Deferred startup song load failed.");
+            Logger.LogException(ex);
         }
     }
 
@@ -550,7 +550,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
         var midiFolder = SettingsView.MidiFolder;
         var startedAt = DateTime.UtcNow;
-        CrashLogger.LogStep("STARTUP_AUTO_SCAN_BEGIN", $"folder='{midiFolder}'");
+        Logger.LogStep("STARTUP_AUTO_SCAN_BEGIN", $"folder='{midiFolder}'");
 
         try
         {
@@ -570,12 +570,12 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
             await scanTask;
 
             var elapsedMs = (DateTime.UtcNow - startedAt).TotalMilliseconds;
-            CrashLogger.LogStep("STARTUP_AUTO_SCAN_END", $"folder='{midiFolder}' | elapsedMs={elapsedMs:F0}");
+            Logger.LogStep("STARTUP_AUTO_SCAN_END", $"folder='{midiFolder}' | elapsedMs={elapsedMs:F0}");
         }
         catch (Exception ex)
         {
-            CrashLogger.Log("Startup MIDI auto-scan failed.");
-            CrashLogger.LogException(ex);
+            Logger.Log("Startup MIDI auto-scan failed.");
+            Logger.LogException(ex);
         }
     }
 

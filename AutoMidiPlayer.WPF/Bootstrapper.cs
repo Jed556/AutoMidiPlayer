@@ -53,10 +53,16 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         EnsureQueueLoopModeSetting();
 
         // Clear log on startup
-        CrashLogger.ClearLog();
+        Logger.ClearLog();
 
         // log application start along with the product name and current version
-        CrashLogger.Log($"{GetProductName()} v{GetAppVersion()} Starting");
+        Logger.LogStartup(GetProductName(), GetAppVersion());
+        Logger.LogApp($"Logs directory: {Logger.GetLogsDirectoryPath()}");
+
+        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+        {
+            Logger.LogApp($"{GetProductName()} v{GetAppVersion()} Stopping");
+        };
 
         // Handle unhandled exceptions
         Application.Current.DispatcherUnhandledException += OnDispatcherUnhandledException;
@@ -165,7 +171,16 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
     {
         // assembly version should be kept in sync with project version
         var version = Assembly.GetExecutingAssembly().GetName().Version;
-        return version?.ToString() ?? "unknown";
+        if (version is null)
+            return "unknown";
+
+        if (version.Revision == 0 && version.Build >= 0)
+            return $"{version.Major}.{version.Minor}.{version.Build}";
+
+        if (version.Build < 0)
+            return $"{version.Major}.{version.Minor}";
+
+        return version.ToString();
     }
 
     private static string GetProductName()
@@ -288,35 +303,35 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        CrashLogger.Log("=== DISPATCHER UNHANDLED EXCEPTION ===");
-        CrashLogger.LogException(e.Exception);
+        Logger.Log("=== DISPATCHER UNHANDLED EXCEPTION ===");
+        Logger.LogException(e.Exception);
 
         try
         {
-            CrashMessageBox.Show(e.Exception, CrashLogger.GetLogPath());
+            CrashMessageBox.Show(e.Exception, Logger.GetPrimaryLogPath());
         }
         catch
         {
             // Fallback if the themed dialog itself fails
             MessageBoxHelper.ShowError(
-                $"An error occurred. Log saved to:\n{CrashLogger.GetLogPath()}\n\nError: {e.Exception.Message}",
+                $"An error occurred. Logs saved in:\n{Logger.GetLogsDirectoryPath()}\n\nError: {e.Exception.Message}",
                 "AutoMidiPlayer Error");
         }
     }
 
     private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
     {
-        CrashLogger.Log("=== UNHANDLED EXCEPTION ===");
+        Logger.Log("=== UNHANDLED EXCEPTION ===");
         if (e.ExceptionObject is Exception ex)
-            CrashLogger.LogException(ex);
+            Logger.LogException(ex);
         else
-            CrashLogger.Log($"Non-exception object: {e.ExceptionObject}");
+            Logger.Log($"Non-exception object: {e.ExceptionObject}");
     }
 
     private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
     {
-        CrashLogger.Log("=== UNOBSERVED TASK EXCEPTION ===");
-        CrashLogger.LogException(e.Exception);
+        Logger.Log("=== UNOBSERVED TASK EXCEPTION ===");
+        Logger.LogException(e.Exception);
     }
 
     protected override void ConfigureIoC(IStyletIoCBuilder builder)

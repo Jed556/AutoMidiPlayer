@@ -157,6 +157,8 @@ public class SettingsPageViewModel : Screen
         _selectedMouseStopClickOption = ResolveMouseStopClickOption(Settings.MouseStopClickMode);
         InitializeNewSongDefaults();
         ApplySmoothScrollingResource();
+        if (Settings.CrashLogVerbosity != CrashLogVerbosity)
+            Settings.Modify(s => s.CrashLogVerbosity = CrashLogVerbosity);
 
         ConfigureMidiFolderWatcher();
     }
@@ -382,6 +384,15 @@ public class SettingsPageViewModel : Screen
     }
 
     public bool AutoCheckUpdates { get; set; } = Settings.AutoCheckUpdates;
+
+    public bool DebugModeEnabled { get; set; } = Settings.DebugModeEnabled;
+
+    public bool LogPlayedNotes { get; set; } = Settings.LogPlayedNotes;
+
+    public int CrashLogVerbosity { get; set; } =
+        Math.Clamp(Settings.CrashLogVerbosity, Logger.ErrorsOnlyVerbosity, Logger.AllStepsVerbosity);
+
+    public string CrashLogVerbosityDescription => GetCrashLogVerbosityDescription(CrashLogVerbosity);
 
     public bool CanChangeTime => PlayTimerToken is null;
 
@@ -742,7 +753,63 @@ public class SettingsPageViewModel : Screen
         return version.ToString();
     }
 
+    private static string GetCrashLogVerbosityDescription(int verbosity)
+    {
+        if (!Settings.Default.DebugModeEnabled)
+            return "Debug mode is off, so diagnostics are forced to All Steps.";
+
+        return verbosity switch
+        {
+            <= Logger.ErrorsOnlyVerbosity => "Logs exceptions and explicit errors only.",
+            >= Logger.AllStepsVerbosity => "Logs all diagnostic steps, warnings, and errors.",
+            _ => "Logs warnings and errors."
+        };
+    }
+
     private QueueViewModel Queue => _main.QueueView;
+
+    public void ToggleDebugMode()
+    {
+        DebugModeEnabled = !DebugModeEnabled;
+    }
+
+    public void ShowDebugMessageBoxSample()
+    {
+        var result = MessageBoxHelper.Show(
+            "This is a sample themed message box used for debug UI validation.",
+            "Debug MessageBox Sample",
+            System.Windows.MessageBoxButton.OKCancel,
+            System.Windows.MessageBoxImage.Information);
+
+        Logger.LogStep("DEBUG_MESSAGEBOX_SAMPLE", $"result={result}");
+    }
+
+    public async Task ShowDebugDialogSample()
+    {
+        var result = await DialogHelper.ShowActionDialogAsync(new DialogActionRequest
+        {
+            Title = "Debug Dialog Sample",
+            Icon = SymbolRegular.Info24,
+            Body = "This is a sample dialog rendered through DialogHelper.",
+            ConfirmButton = new DialogActionButton
+            {
+                Text = "Primary",
+                Appearance = ControlAppearance.Primary
+            },
+            CustomButton = new DialogActionButton
+            {
+                Text = "Secondary",
+                Appearance = ControlAppearance.Secondary
+            },
+            CancelButton = new DialogActionButton
+            {
+                Text = "Close",
+                Appearance = ControlAppearance.Secondary
+            }
+        });
+
+        Logger.LogStep("DEBUG_DIALOG_SAMPLE", $"result={result}");
+    }
 
     public async Task<bool> TryGetLocationAsync()
     {
@@ -854,7 +921,7 @@ public class SettingsPageViewModel : Screen
 
         var folderPath = MidiFolder;
         var startedAt = DateTime.UtcNow;
-        CrashLogger.LogStep("MIDI_SCAN_BEGIN", $"folder='{folderPath}'");
+        Logger.LogStep("MIDI_SCAN_BEGIN", $"folder='{folderPath}'");
 
         IsScanningMidiFolder = true;
         try
@@ -865,7 +932,7 @@ public class SettingsPageViewModel : Screen
         {
             IsScanningMidiFolder = false;
             var elapsedMs = (DateTime.UtcNow - startedAt).TotalMilliseconds;
-            CrashLogger.LogStep("MIDI_SCAN_END", $"folder='{folderPath}' | elapsedMs={elapsedMs:F0}");
+            Logger.LogStep("MIDI_SCAN_END", $"folder='{folderPath}' | elapsedMs={elapsedMs:F0}");
         }
     }
 
@@ -1024,7 +1091,7 @@ public class SettingsPageViewModel : Screen
     private void OnAutoScanMidiFolderChanged()
     {
         Settings.Modify(settings => settings.AutoScanMidiFolder = AutoScanMidiFolder);
-        CrashLogger.LogStep("MIDI_AUTO_SCAN_TOGGLE", $"enabled={AutoScanMidiFolder}");
+        Logger.LogStep("MIDI_AUTO_SCAN_TOGGLE", $"enabled={AutoScanMidiFolder}");
         NotifyOfPropertyChange(nameof(ShowMidiFolderManualRefresh));
 
         ConfigureMidiFolderWatcher();
@@ -1097,8 +1164,8 @@ public class SettingsPageViewModel : Screen
         }
         catch (Exception error)
         {
-            CrashLogger.Log($"Failed to configure MIDI folder watcher for '{MidiFolder}'.");
-            CrashLogger.LogException(error);
+            Logger.Log($"Failed to configure MIDI folder watcher for '{MidiFolder}'.");
+            Logger.LogException(error);
             DisposeMidiFolderWatcher();
         }
     }
@@ -1237,8 +1304,8 @@ public class SettingsPageViewModel : Screen
             }
             catch (Exception error)
             {
-                CrashLogger.Log("MIDI folder auto-scan failed.");
-                CrashLogger.LogException(error);
+                Logger.Log("MIDI folder auto-scan failed.");
+                Logger.LogException(error);
             }
         });
     }
@@ -1300,7 +1367,7 @@ public class SettingsPageViewModel : Screen
 
     protected override void OnActivate()
     {
-        CrashLogger.LogPageVisit("Settings", source: "screen-activate");
+        Logger.LogPageVisit("Settings", source: "screen-activate");
 
         if (AutoCheckUpdates)
             _ = CheckForUpdate();
@@ -1330,6 +1397,37 @@ public class SettingsPageViewModel : Screen
             _ = CheckForUpdate();
 
         Settings.Modify(s => s.AutoCheckUpdates = AutoCheckUpdates);
+    }
+
+    [UsedImplicitly]
+    private void OnDebugModeEnabledChanged()
+    {
+        Settings.Modify(s => s.DebugModeEnabled = DebugModeEnabled);
+        NotifyOfPropertyChange(nameof(CrashLogVerbosityDescription));
+    }
+
+    [UsedImplicitly]
+    private void OnLogPlayedNotesChanged()
+    {
+        Settings.Modify(s => s.LogPlayedNotes = LogPlayedNotes);
+    }
+
+    [UsedImplicitly]
+    private void OnCrashLogVerbosityChanged()
+    {
+        var clampedVerbosity = Math.Clamp(
+            CrashLogVerbosity,
+            Logger.ErrorsOnlyVerbosity,
+            Logger.AllStepsVerbosity);
+
+        if (clampedVerbosity != CrashLogVerbosity)
+        {
+            CrashLogVerbosity = clampedVerbosity;
+            return;
+        }
+
+        Settings.Modify(s => s.CrashLogVerbosity = clampedVerbosity);
+        NotifyOfPropertyChange(nameof(CrashLogVerbosityDescription));
     }
 
     [UsedImplicitly]

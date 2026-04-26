@@ -151,7 +151,7 @@ public class PianoSheetViewModel : Screen, IHandle<OpenedFileChangedNotification
 
     protected override void OnActivate()
     {
-        CrashLogger.LogPageVisit("Piano Sheet", source: "screen-activate");
+        Logger.LogPageVisit("Piano Sheet", source: "screen-activate");
         NotifyOfPropertyChange(nameof(SelectedLayout));
         Update();
 

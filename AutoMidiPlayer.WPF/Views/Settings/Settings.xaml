@@ -32,6 +32,83 @@
                            Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
             </StackPanel>
         </DataTemplate>
+        <Style x:Key="DebugSectionContentContainerStyle"
+               TargetType="Border">
+            <Setter Property="Opacity"
+                    Value="0"/>
+            <Setter Property="MaxHeight"
+                    Value="0"/>
+            <Setter Property="IsHitTestVisible"
+                    Value="False"/>
+            <Setter Property="ClipToBounds"
+                    Value="True"/>
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <TranslateTransform Y="-8"/>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DebugModeEnabled}"
+                             Value="True">
+                    <Setter Property="IsHitTestVisible"
+                            Value="True"/>
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                 To="1"
+                                                 Duration="0:0:0.22">
+                                    <DoubleAnimation.EasingFunction>
+                                        <CubicEase EasingMode="EaseOut"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                                <DoubleAnimation Storyboard.TargetProperty="MaxHeight"
+                                                 To="360"
+                                                 Duration="0:0:0.22">
+                                    <DoubleAnimation.EasingFunction>
+                                        <CubicEase EasingMode="EaseOut"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                 To="0"
+                                                 Duration="0:0:0.22">
+                                    <DoubleAnimation.EasingFunction>
+                                        <CubicEase EasingMode="EaseOut"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                 To="0"
+                                                 Duration="0:0:0.18">
+                                    <DoubleAnimation.EasingFunction>
+                                        <CubicEase EasingMode="EaseIn"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                                <DoubleAnimation Storyboard.TargetProperty="MaxHeight"
+                                                 To="0"
+                                                 Duration="0:0:0.18">
+                                    <DoubleAnimation.EasingFunction>
+                                        <CubicEase EasingMode="EaseIn"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                 To="-8"
+                                                 Duration="0:0:0.18">
+                                    <DoubleAnimation.EasingFunction>
+                                        <CubicEase EasingMode="EaseIn"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
 
     <ScrollViewer helpers:ScrollEdgeFadeBehavior.IsEnabled="True">
@@ -518,6 +595,85 @@
                                              IsChecked="{Binding SmoothScrollingEnabled}"
                                              ToolTip="Smooths wheel scrolling in lists and panes. Turn off for default native scrolling."/>
                         </controls:SimpleStackPanel>
+                    </controls:Section>
+
+                    <!-- Debug Section -->
+                    <controls:Section Title="Debug"
+                                      Margin="0,16,0,0">
+                        <controls:Section.HeaderContent>
+                            <Button Style="{DynamicResource IconButton}"
+                                    controls:IconButtonProperties.IsActive="{Binding DebugModeEnabled}"
+                                    Command="{s:Action ToggleDebugMode}"
+                                    ToolTip="Enable or disable debug controls">
+                                <Grid>
+                                    <ui:SymbolIcon Symbol="LockClosed24"
+                                                   FontSize="18"
+                                                   Visibility="{Binding DebugModeEnabled, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}"/>
+                                    <ui:SymbolIcon Symbol="LockOpen24"
+                                                   FontSize="18"
+                                                   Visibility="{Binding DebugModeEnabled, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                                </Grid>
+                            </Button>
+                        </controls:Section.HeaderContent>
+
+                        <Border Style="{StaticResource DebugSectionContentContainerStyle}">
+                            <controls:SimpleStackPanel>
+                                <controls:SimpleStackPanel Orientation="Horizontal"
+                                                           Spacing="8">
+                                    <Button Command="{s:Action ShowDebugMessageBoxSample}"
+                                            Content="Sample MessageBox"/>
+                                    <Button Command="{s:Action ShowDebugDialogSample}"
+                                            Content="Sample DialogBox"/>
+                                </controls:SimpleStackPanel>
+
+                                <GroupBox Header="Crash Log Verbosity"
+                                          Margin="0,8,0,0">
+                                    <controls:SimpleStackPanel>
+                                        <controls:Slider
+                                            Minimum="0"
+                                            Maximum="2"
+                                            TickFrequency="1"
+                                            IsSnapToTickEnabled="True"
+                                            TickPlacement="BottomRight"
+                                            Value="{Binding CrashLogVerbosity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            ThumbToolTipOptions="Errors|Warnings + Errors|All Steps"
+                                            ThumbToolTipFallback="Verbosity: {0}"/>
+                                        <Grid Margin="0,4,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="Errors"
+                                                       FontSize="11"
+                                                       HorizontalAlignment="Left"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="Warnings + Errors"
+                                                       FontSize="11"
+                                                       HorizontalAlignment="Center"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                            <TextBlock Grid.Column="2"
+                                                       Text="All Steps"
+                                                       FontSize="11"
+                                                       HorizontalAlignment="Right"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                        </Grid>
+                                        <TextBlock Margin="0,6,0,0"
+                                                   Text="{Binding CrashLogVerbosityDescription}"
+                                                   TextWrapping="Wrap"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                    </controls:SimpleStackPanel>
+                                </GroupBox>
+
+                                <ui:ToggleSwitch Content="Log played notes"
+                                                 IsChecked="{Binding LogPlayedNotes}"
+                                                 Margin="0,8,0,0"
+                                                 ToolTip="Logs played note details (orig/transposed/key/velocity) and scheduler timing drift to input-output.log and scheduler.log."/>
+                            </controls:SimpleStackPanel>
+                        </Border>
                     </controls:Section>
 
                 </controls:SimpleStackPanel>

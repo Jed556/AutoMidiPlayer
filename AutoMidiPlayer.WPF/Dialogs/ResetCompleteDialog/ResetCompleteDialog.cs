@@ -42,11 +42,11 @@ public partial class ResetCompleteDialog : ContentDialog
         }
         catch (IOException ex)
         {
-            CrashLogger.LogStep("RESET_MARKER_DELETE_IO_ERROR", $"path='{AppPaths.ResetCompletedMarkerPath}' | message='{ex.Message}'");
+            Logger.LogStep("RESET_MARKER_DELETE_IO_ERROR", $"path='{AppPaths.ResetCompletedMarkerPath}' | message='{ex.Message}'");
         }
         catch (UnauthorizedAccessException ex)
         {
-            CrashLogger.LogStep("RESET_MARKER_DELETE_AUTH_ERROR", $"path='{AppPaths.ResetCompletedMarkerPath}' | message='{ex.Message}'");
+            Logger.LogStep("RESET_MARKER_DELETE_AUTH_ERROR", $"path='{AppPaths.ResetCompletedMarkerPath}' | message='{ex.Message}'");
         }
 
         try
@@ -60,13 +60,13 @@ public partial class ResetCompleteDialog : ContentDialog
                 return;
             }
 
-            CrashLogger.Log("DialogHost was not ready while showing reset-complete dialog. Falling back to MessageBox.");
+            Logger.Log("DialogHost was not ready while showing reset-complete dialog. Falling back to MessageBox.");
             MessageBoxHelper.ShowInformation(FallbackMessage, FallbackTitle);
         }
         catch (Exception dialogError)
         {
-            CrashLogger.Log("Failed to display reset-complete dialog.");
-            CrashLogger.LogException(dialogError);
+            Logger.Log("Failed to display reset-complete dialog.");
+            Logger.LogException(dialogError);
             MessageBoxHelper.ShowInformation(FallbackMessage, FallbackTitle);
         }
     }

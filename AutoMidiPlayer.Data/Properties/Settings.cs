@@ -11,6 +11,19 @@ namespace AutoMidiPlayer.Data.Properties;
 [SettingsProvider(typeof(PortableSettingsProvider))]
 public sealed partial class Settings
 {
+    // Backward-compatible aliases used throughout the WPF layer.
+    public bool AutoDetectBaseKey
+    {
+        get => AutoDetectDefaultKey;
+        set => AutoDetectDefaultKey = value;
+    }
+
+    public int DefaultSongBaseKey
+    {
+        get => DefaultSongDefaultKey;
+        set => DefaultSongDefaultKey = value;
+    }
+
     protected override void OnPropertyChanged(object sender, PropertyChangedEventArgs e) => Save();
 
     protected override void OnSettingsLoaded(object sender, SettingsLoadedEventArgs e)

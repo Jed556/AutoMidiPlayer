@@ -2,15 +2,6 @@
 <SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="AutoMidiPlayer.Data.Properties" GeneratedClassName="Settings">
   <Profiles />
   <Settings>
-    <Setting Name="SqliteConnection" Type="(Connection string)" Scope="Application">
-      <DesignTimeValue Profile="(Default)">&lt;?xml version="1.0" encoding="utf-16"?&gt;
-                &lt;SerializableConnectionString xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                xmlns:xsd="http://www.w3.org/2001/XMLSchema"&gt;
-                &lt;ConnectionString&gt;history.db&lt;/ConnectionString&gt;
-                &lt;ProviderName /&gt;
-                &lt;/SerializableConnectionString&gt;</DesignTimeValue>
-      <Value Profile="(Default)">history.db</Value>
-    </Setting>
     <Setting Name="LicenseUri" Type="(Web Service URL)" Scope="Application">
       <Value Profile="(Default)">https://github.com/Jed556/AutoMidiPlayer/blob/main/LICENSE.md</Value>
     </Setting>
@@ -42,10 +33,10 @@
       <Value Profile="(Default)">True</Value>
     </Setting>
     <Setting Name="DefaultSongArtist" Type="System.String" Scope="User">
-      <Value Profile="(Default)"></Value>
+      <Value Profile="(Default)" />
     </Setting>
     <Setting Name="DefaultSongAlbum" Type="System.String" Scope="User">
-      <Value Profile="(Default)"></Value>
+      <Value Profile="(Default)" />
     </Setting>
     <Setting Name="DefaultSongDefaultKey" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">0</Value>
@@ -83,9 +74,6 @@
     <Setting Name="SelectedSpeed" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">3</Value>
     </Setting>
-    <Setting Name="SelectedTransition" Type="System.Int32" Scope="User">
-      <Value Profile="(Default)">1</Value>
-    </Setting>
     <Setting Name="MergeMilliseconds" Type="System.UInt32" Scope="User">
       <Value Profile="(Default)">0</Value>
     </Setting>
@@ -120,13 +108,13 @@
       <Value Profile="(Default)">0</Value>
     </Setting>
     <Setting Name="MidiFolder" Type="System.String" Scope="User">
-      <Value Profile="(Default)"></Value>
+      <Value Profile="(Default)" />
     </Setting>
     <Setting Name="AutoScanMidiFolder" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>
     <Setting Name="ExcludedAutoImportPaths" Type="System.String" Scope="User">
-      <Value Profile="(Default)"></Value>
+      <Value Profile="(Default)" />
     </Setting>
     <Setting Name="SongsSortMode" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">0</Value>
@@ -135,7 +123,7 @@
       <Value Profile="(Default)">True</Value>
     </Setting>
     <Setting Name="QueueSongIds" Type="System.String" Scope="User">
-      <Value Profile="(Default)"></Value>
+      <Value Profile="(Default)" />
     </Setting>
     <Setting Name="QueueShuffle" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">False</Value>
@@ -144,7 +132,7 @@
       <Value Profile="(Default)">3</Value>
     </Setting>
     <Setting Name="CurrentSongId" Type="System.String" Scope="User">
-      <Value Profile="(Default)"></Value>
+      <Value Profile="(Default)" />
     </Setting>
     <Setting Name="CurrentSongPosition" Type="System.Double" Scope="User">
       <Value Profile="(Default)">0</Value>
@@ -195,10 +183,29 @@
       <Value Profile="(Default)">QWERTY</Value>
     </Setting>
     <Setting Name="SelectedInstrumentByGame" Type="System.String" Scope="User">
-      <Value Profile="(Default)"></Value>
+      <Value Profile="(Default)" />
     </Setting>
     <Setting Name="SmoothScrollingEnabled" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="DebugModeEnabled" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="CrashLogVerbosity" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">2</Value>
+    </Setting>
+    <Setting Name="LogPlayedNotes" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="SqliteConnection" Type="(Connection string)" Scope="Application">
+      <DesignTimeValue Profile="(Default)">&lt;?xml version="1.0" encoding="utf-16"?&gt;
+&lt;SerializableConnectionString xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"&gt;
+  &lt;ConnectionString&gt;history.db&lt;/ConnectionString&gt;
+&lt;/SerializableConnectionString&gt;</DesignTimeValue>
+      <Value Profile="(Default)">history.db</Value>
+    </Setting>
+    <Setting Name="SelectedTransition" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">0</Value>
     </Setting>
   </Settings>
 </SettingsFile>

@@ -1,0 +1,17 @@
+<UserControl x:Class="AutoMidiPlayer.WPF.Controls.Seekbar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root"
+             MinHeight="20">
+    <Grid>
+        <Slider x:Name="SliderHost"
+                Minimum="{Binding Minimum, ElementName=Root}"
+                Maximum="{Binding Maximum, ElementName=Root}"
+                TickFrequency="{Binding TickFrequency, ElementName=Root}"
+                IsSnapToTickEnabled="{Binding IsSnapToTickEnabled, ElementName=Root}"
+                TickPlacement="{Binding TickPlacement, ElementName=Root}"
+                IsMoveToPointEnabled="True"
+                Value="{Binding AnimatedValue, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                Style="{Binding SliderStyle, ElementName=Root}"/>
+    </Grid>
+</UserControl>
