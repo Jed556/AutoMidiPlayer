@@ -66,6 +66,7 @@ public static class ScrollViewerAutoFadeBehavior
         private const double LineButtonStepFactor = 0.18d;
         private const double MinLineButtonStep = 32d;
         private const double MaxLineButtonStep = 112d;
+        private const int MaxScrollBarWireRetries = 12;
 
         private readonly ScrollViewer _viewer;
         private readonly DispatcherTimer _fadeTimer;
@@ -94,6 +95,7 @@ public static class ScrollViewerAutoFadeBehavior
         private bool _verticalScrollBarWired;
         private bool _horizontalScrollBarWired;
         private bool _isRetryScheduled;
+        private int _scrollBarWireRetryCount;
         private HwndSource? _hwndSource;
 
         public AutoFadeController(ScrollViewer viewer)
@@ -144,6 +146,8 @@ public static class ScrollViewerAutoFadeBehavior
             _fadeTimer.Stop();
             _smoothScrollAnimator.Stop();
             _horizontalSmoothScrollAnimator.Stop();
+            _isRetryScheduled = false;
+            _scrollBarWireRetryCount = 0;
             DetachWindowMessageHook();
         }
 
@@ -477,13 +481,23 @@ public static class ScrollViewerAutoFadeBehavior
             WireHorizontalScrollBar();
             AttachWindowMessageHook();
 
-            if (_isRetryScheduled || !NeedsRetry())
+            if (!NeedsRetry())
+            {
+                _scrollBarWireRetryCount = 0;
+                return;
+            }
+
+            if (_isRetryScheduled || _scrollBarWireRetryCount >= MaxScrollBarWireRetries)
                 return;
 
+            _scrollBarWireRetryCount++;
             _isRetryScheduled = true;
-            _viewer.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+            _viewer.Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
             {
                 _isRetryScheduled = false;
+                if (!_viewer.IsLoaded)
+                    return;
+
                 WireScrollBarsAndInitialize();
             }));
         }

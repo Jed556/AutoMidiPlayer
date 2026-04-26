@@ -25,7 +25,6 @@
 
             <ScrollViewer MaxHeight="200"
                           BorderThickness="1"
-                          Padding="0"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           Background="{DynamicResource ControlFillColorDefaultBrush}"
@@ -53,7 +52,7 @@
                                                Background="Transparent"
                                                BorderThickness="0"
                                                ToolTip="Remove from database"
-                                               Style="{DynamicResource GhostIconButton}"
+                                               Style="{DynamicResource IconButton}"
                                                Content="✕"
                                                Click="OnRemoveMissingSongClick"/>
                                 </Grid>
@@ -72,7 +71,6 @@
 
             <ScrollViewer MaxHeight="220"
                           BorderThickness="1"
-                          Padding="0"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           Background="{DynamicResource ControlFillColorDefaultBrush}"
@@ -107,7 +105,7 @@
                                                Background="Transparent"
                                                BorderThickness="0"
                                                ToolTip="Remove from database"
-                                               Style="{DynamicResource GhostIconButton}"
+                                               Style="{DynamicResource IconButton}"
                                                Content="✕"
                                                Click="OnRemoveBadMidiSongClick"/>
                                 </Grid>
@@ -131,7 +129,6 @@
 
             <ScrollViewer MaxHeight="220"
                           BorderThickness="1"
-                          Padding="0"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           Background="{DynamicResource ControlFillColorDefaultBrush}"
@@ -192,7 +189,6 @@
 
             <ScrollViewer MaxHeight="200"
                           BorderThickness="1"
-                          Padding="0"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           Background="{DynamicResource ControlFillColorDefaultBrush}"
@@ -229,7 +225,7 @@
                                                    ToolTip="Restore this MIDI file to the song list"
                                                    Background="Transparent"
                                                    BorderThickness="0"
-                                                   Style="{DynamicResource GhostIconButton}"
+                                                   Style="{DynamicResource IconButton}"
                                                    Click="OnRestoreRemovedExistingClick">
                                             <ui:SymbolIcon Symbol="ArrowClockwise24"/>
                                         </ui:Button>
@@ -239,7 +235,7 @@
                                                    ToolTip="Delete this MIDI file from disk"
                                                    Background="Transparent"
                                                    BorderThickness="0"
-                                                   Style="{DynamicResource GhostIconButton}"
+                                                   Style="{DynamicResource IconButton}"
                                                    Click="OnDeleteRemovedExistingClick">
                                             <ui:SymbolIcon Symbol="Delete24"/>
                                         </ui:Button>

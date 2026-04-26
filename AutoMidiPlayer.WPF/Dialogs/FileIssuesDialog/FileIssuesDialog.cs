@@ -65,11 +65,14 @@ public partial class FileIssuesDialog : ContentDialog, INotifyPropertyChanged
         _restoreRemovedExistingAsync = restoreRemovedExistingAsync;
         _deleteRemovedExistingAsync = deleteRemovedExistingAsync;
 
+        DialogHelper.SetupDialogHost(this, new DialogHostSetupOptions
+        {
+            EnableScrollAutoFade = false
+        });
+
         InitializeComponent();
 
         DataContext = this;
-
-        DialogHelper.SetupDialogHost(this);
 
         if (Application.Current.TryFindResource(typeof(ContentDialog)) is Style dialogStyle)
             Style = dialogStyle;
