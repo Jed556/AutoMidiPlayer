@@ -6,37 +6,72 @@
                Title=""
                ShowTitle="False"
                CloseButtonText="OK"
-               CloseButtonAppearance="Secondary">
+               CloseButtonAppearance="Secondary"
+               IsCloseButtonEnabled="True"
+               Width="520"
+               MinWidth="520"
+               MaxWidth="520"
+               SizeToContent="Height"
+               ResizeMode="NoResize"
+               WindowStyle="None"
+               PreviewMouseLeftButtonDown="OnDialogPreviewMouseLeftButtonDown">
 
-    <StackPanel>
-        <StackPanel Orientation="Horizontal"
-                    Margin="0,0,0,8">
-            <ui:SymbolIcon Symbol="ErrorCircle12"
+    <ScrollViewer x:Name="BodyScrollViewer"
+                  Style="{DynamicResource {x:Type ScrollViewer}}"
+                  MaxHeight="420"
+                  Padding="0"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <Grid HorizontalAlignment="Stretch"
+              Margin="18,0,18,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0"
+                        HorizontalAlignment="Center"
+                        Margin="0,0,0,22">
+                <Image Width="34"
+                       Height="34"
+                       Source="{StaticResource ErrorOctagonIcon}"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,8"/>
+
+                <TextBlock x:Name="TitleTextBlock"
+                           Text="Auto MIDI Player Error"
+                           FontWeight="Bold"
                            FontSize="24"
-                           Margin="0,0,8,0"
-                           Filled="True"/>
+                           TextAlignment="Center"/>
 
-            <TextBlock Text="AutoMidiPlayer Error"
-                       FontWeight="Bold"
-                       FontSize="24"
-                       VerticalAlignment="Center"/>
-        </StackPanel>
+                <TextBlock x:Name="VersionTextBlock"
+                           FontSize="12"
+                           Opacity="0.6"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           Margin="0,4,0,0"/>
+            </StackPanel>
 
-        <TextBlock Margin="0,0,0,8"
-                   TextWrapping="Wrap">
-            <Run Text="An error occurred. Logs saved in:"/>
-            <LineBreak/>
-            <Hyperlink x:Name="LogPathHyperlink"
-                       Click="OnLogPathClick">
-                <Run x:Name="LogPathRun"/>
-            </Hyperlink>
-        </TextBlock>
+            <TextBlock Grid.Row="1"
+                       Margin="0,0,0,12"
+                       TextWrapping="Wrap">
+                <Run Text="An error occurred. Log saved to:"/>
+                <LineBreak/>
+                <Hyperlink x:Name="LogPathHyperlink"
+                           Click="OnLogPathClick">
+                    <Run x:Name="LogPathRun"/>
+                </Hyperlink>
+            </TextBlock>
 
-        <controls:CopyableTextBox x:Name="ErrorTextBox"
-                                  TextWrapping="Wrap"
-                                  TextBoxMaxHeight="200"
-                                  VerticalScrollBarVisibility="Auto"
-                                  FontSize="14"
-                                  CopyToolTip="Copy error message"/>
-    </StackPanel>
+            <controls:CopyableTextBox Grid.Row="2"
+                                      x:Name="ErrorTextBox"
+                                      HorizontalAlignment="Stretch"
+                                      TextWrapping="Wrap"
+                                      VerticalScrollBarVisibility="Disabled"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      FontSize="14"
+                                      CopyToolTip="Copy error message"/>
+        </Grid>
+    </ScrollViewer>
 </ui:MessageBox>

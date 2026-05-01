@@ -22,6 +22,7 @@ using AutoMidiPlayer.WPF.Animation;
 using AutoMidiPlayer.WPF.Dialogs;
 using AutoMidiPlayer.WPF.Helpers;
 using AutoMidiPlayer.WPF.Animation.Transitions;
+using AutoMidiPlayer.WPF.MessageBox;
 using AutoMidiPlayer.WPF.Services;
 using JetBrains.Annotations;
 using Microsoft.Win32;
@@ -775,13 +776,11 @@ public class SettingsPageViewModel : Screen
 
     public void ShowDebugMessageBoxSample()
     {
-        var result = MessageBoxHelper.Show(
-            "This is a sample themed message box used for debug UI validation.",
-            "Debug MessageBox Sample",
-            System.Windows.MessageBoxButton.OKCancel,
-            System.Windows.MessageBoxImage.Information);
+        CrashMessageBox.Show(
+            new InvalidOperationException("This is a sample themed message box used for debug UI validation."),
+            Logger.GetPrimaryLogPath());
 
-        Logger.LogStep("DEBUG_MESSAGEBOX_SAMPLE", $"result={result}");
+        Logger.LogStep("DEBUG_MESSAGEBOX_SAMPLE", "shown");
     }
 
     public async Task ShowDebugDialogSample()

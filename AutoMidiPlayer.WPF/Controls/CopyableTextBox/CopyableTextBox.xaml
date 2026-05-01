@@ -92,10 +92,12 @@
     </UserControl.Resources>
 
     <Grid x:Name="RootGrid"
+          ClipToBounds="True"
           MouseEnter="OnRootGridMouseEnter"
           MouseLeave="OnRootGridMouseLeave">
         <TextBox Text="{Binding Text, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                  Style="{StaticResource PassiveSelectableTextBoxStyle}"
+                 HorizontalAlignment="Stretch"
                  IsReadOnly="{Binding IsReadOnly, ElementName=Root}"
                  TextWrapping="{Binding TextWrapping, ElementName=Root}"
                  VerticalScrollBarVisibility="{Binding VerticalScrollBarVisibility, ElementName=Root}"
@@ -116,7 +118,7 @@
                    Opacity="0"
                    HorizontalAlignment="Right"
                    VerticalAlignment="Top"
-                   Margin="0,4,20,0"
+                   Margin="0,4,4,0"
                    Click="OnCopyClick"
                    MouseEnter="OnCopyButtonMouseEnter"
                    MouseLeave="OnCopyButtonMouseLeave">
