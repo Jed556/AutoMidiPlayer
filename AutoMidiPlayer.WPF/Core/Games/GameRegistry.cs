@@ -124,7 +124,7 @@ public static class GameRegistry
         ),
         new GameDefinition(
             id: "NTE",
-            displayName: "NTE: Neverness to Everness",
+            displayName: "NTE (Neverness to Everness)",
             instrumentGameName: "NTE",
             imageResourcePath: "pack://application:,,,/Resources/NTE.png",
             processNames: ["HTGame"],
