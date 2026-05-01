@@ -87,6 +87,7 @@ The short answer is that it's uncertain. Use it at your own risk. Do not play so
 * For Heartopia, here is their [Official Discord message](https://discord.com/channels/1128257488375005215/1460985755529773301/1465702188700405986) about using 3rd party tools.
 * For Sky, see their policy on [third-party apps](https://thatgamecompany.helpshift.com/hc/en/17-sky-children-of-the-light/faq/1250-can-i-use-or-create-third-party-applications-like-mods-or-bots/).
 * For Roblox, refer to their [third-party services Terms of Use](https://en.help.roblox.com/hc/en-us/articles/115004647846-Roblox-Terms-of-Use#third-party-services).
+* For NTE, see their [Data collected to prevent cheating and unauthorized software](https://static.pwsdk.com/nte/privacy/privacy.html).
 
 
 ## Documentation
