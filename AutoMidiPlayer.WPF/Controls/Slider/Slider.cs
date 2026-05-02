@@ -5,6 +5,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Data;
 
 namespace AutoMidiPlayer.WPF.Controls;
 
@@ -12,7 +13,13 @@ public partial class Slider : UserControl
 {
     private bool _suppressValuePropagation;
     private bool _suppressAnimation;
+    private bool _isTrackPressed;
+    private bool _isTrackDragging;
     private Thumb? _thumb;
+    private Track? _track;
+    private Point _trackPressPoint;
+    private Binding? _twoWayValueBinding;
+    private int _lastAnimationTarget = int.MinValue;
 
     public Slider()
     {
@@ -20,6 +27,9 @@ public partial class Slider : UserControl
 
         Loaded += OnLoaded;
         SliderHost.PreviewMouseLeftButtonDown += OnSliderPreviewMouseLeftButtonDown;
+        SliderHost.PreviewMouseMove += OnSliderPreviewMouseMove;
+        SliderHost.PreviewMouseLeftButtonUp += OnSliderPreviewMouseLeftButtonUp;
+        SliderHost.LostMouseCapture += OnSliderLostMouseCapture;
     }
 
     public static readonly DependencyProperty MinimumProperty = DependencyProperty.Register(
@@ -55,7 +65,7 @@ public partial class Slider : UserControl
         nameof(ThumbToolTipFallback), typeof(string), typeof(Slider), new PropertyMetadata("Value: {0}"));
 
     public static readonly DependencyProperty AnimationDurationMsProperty = DependencyProperty.Register(
-        nameof(AnimationDurationMs), typeof(double), typeof(Slider), new PropertyMetadata(180d));
+        nameof(AnimationDurationMs), typeof(double), typeof(Slider), new PropertyMetadata(140d));
 
     public double Minimum
     {
@@ -153,7 +163,11 @@ public partial class Slider : UserControl
 
         var rounded = (int)Math.Round((double)e.NewValue);
         if (control.Value != rounded)
+        {
+            control._suppressValuePropagation = true;
             control.Value = rounded;
+            control._suppressValuePropagation = false;
+        }
     }
 
     private static void OnThumbToolTipOptionsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -171,8 +185,15 @@ public partial class Slider : UserControl
             _suppressValuePropagation = true;
             AnimatedValue = clamped;
             _suppressValuePropagation = false;
+            _lastAnimationTarget = clamped;
             return;
         }
+
+        // If already animating to the same target, don't interrupt the animation
+        if (_lastAnimationTarget == clamped)
+            return;
+
+        _lastAnimationTarget = clamped;
 
         var animation = new DoubleAnimation
         {
@@ -196,28 +217,64 @@ public partial class Slider : UserControl
 
     private void OnSliderPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        // If clicking on the thumb itself, let default behavior handle it
         if (e.OriginalSource is DependencyObject source && FindAncestor<Thumb>(source) is not null)
             return;
 
-        var track = SliderHost.Template?.FindName("PART_Track", SliderHost) as Track;
-        if (track is null)
+        ResolveTrack();
+        if (_track is null)
             return;
 
-        var position = e.GetPosition(track);
-        var ratio = track.ActualWidth <= 0
-            ? 0
-            : Math.Clamp(position.X / track.ActualWidth, 0, 1);
+        _isTrackPressed = true;
+        _isTrackDragging = false;
+        _trackPressPoint = e.GetPosition(_track);
+        _lastAnimationTarget = int.MinValue; // Reset to allow new animation
 
-        var raw = Minimum + (Maximum - Minimum) * ratio;
-        var target = Snap(raw);
+        SliderHost.CaptureMouse();
+        SliderHost.Focus();
 
-        _suppressValuePropagation = true;
-        Value = target;
-        _suppressValuePropagation = false;
-
-        AnimateTo(target);
-
+        UpdateValueFromMousePosition(_trackPressPoint, animate: true);
         e.Handled = true;
+    }
+
+    private void OnSliderPreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_isTrackPressed || Mouse.LeftButton != MouseButtonState.Pressed)
+            return;
+
+        ResolveTrack();
+        if (_track is null)
+            return;
+
+        var currentPoint = e.GetPosition(_track);
+
+        if (!_isTrackDragging)
+        {
+            if (!HasExceededDragThreshold(currentPoint, _trackPressPoint))
+                return;
+
+            _isTrackDragging = true;
+        }
+
+        UpdateValueFromMousePosition(currentPoint, animate: true);
+        e.Handled = true;
+    }
+
+    private void OnSliderPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_isTrackPressed)
+            return;
+
+        ResetTrackInteraction();
+        e.Handled = true;
+    }
+
+    private void OnSliderLostMouseCapture(object sender, MouseEventArgs e)
+    {
+        if (!_isTrackPressed)
+            return;
+
+        ResetTrackInteraction();
     }
 
     private int Snap(double raw)
@@ -233,12 +290,124 @@ public partial class Slider : UserControl
         return (int)Math.Round(Math.Clamp(snapped, min, max));
     }
 
+    private void ResolveTrack()
+    {
+        if (_track is not null)
+            return;
+
+        _track = SliderHost.Template?.FindName("PART_Track", SliderHost) as Track;
+    }
+
+    private void UpdateValueFromMousePosition(Point position, bool animate)
+    {
+        ResolveTrack();
+        if (_track is null)
+            return;
+
+        var isVertical = SliderHost.Orientation == Orientation.Vertical;
+
+        double ratio;
+        if (isVertical)
+        {
+            var trackHeight = _track.ActualHeight;
+            ratio = trackHeight <= 0
+                ? 0
+                : Math.Clamp(1.0 - (position.Y / trackHeight), 0, 1);
+        }
+        else
+        {
+            var trackWidth = _track.ActualWidth;
+            ratio = trackWidth <= 0
+                ? 0
+                : Math.Clamp(position.X / trackWidth, 0, 1);
+        }
+
+        var raw = Minimum + (Maximum - Minimum) * ratio;
+        var target = Snap(raw);
+
+        CommitValue(target, animate);
+    }
+
+    private void CommitValue(int target, bool animate)
+    {
+        if (animate)
+        {
+            AnimateTo(target);
+            return;
+        }
+
+        _suppressValuePropagation = true;
+        Value = target;
+        _suppressValuePropagation = false;
+
+        _suppressAnimation = true;
+        AnimatedValue = target;
+        _suppressAnimation = false;
+
+        UpdateThumbToolTip();
+    }
+
+    private void ResetTrackInteraction()
+    {
+        _isTrackPressed = false;
+        _isTrackDragging = false;
+
+        if (SliderHost.IsMouseCaptured)
+            SliderHost.ReleaseMouseCapture();
+    }
+
+    private static bool HasExceededDragThreshold(Point currentPoint, Point startPoint)
+    {
+        return Math.Abs(currentPoint.X - startPoint.X) >= SystemParameters.MinimumHorizontalDragDistance
+            || Math.Abs(currentPoint.Y - startPoint.Y) >= SystemParameters.MinimumVerticalDragDistance;
+    }
+
     private void ResolveThumb()
     {
         if (_thumb is not null)
             return;
 
         _thumb = FindDescendant<Thumb>(SliderHost);
+        if (_thumb is not null)
+        {
+            _thumb.DragStarted += OnThumbDragStarted;
+            _thumb.DragDelta += OnThumbDragDelta;
+            _thumb.DragCompleted += OnThumbDragCompleted;
+        }
+    }
+
+    private void OnThumbDragStarted(object? sender, DragStartedEventArgs e)
+    {
+        _lastAnimationTarget = int.MinValue; // Reset to allow new animation
+
+        if (_twoWayValueBinding is null)
+        {
+            _twoWayValueBinding = new Binding(nameof(AnimatedValue)) { Source = this, Mode = BindingMode.TwoWay, UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged };
+        }
+
+        var oneWay = new Binding(nameof(AnimatedValue)) { Source = this, Mode = BindingMode.OneWay };
+        BindingOperations.ClearBinding(SliderHost, RangeBase.ValueProperty);
+        BindingOperations.SetBinding(SliderHost, RangeBase.ValueProperty, oneWay);
+    }
+
+    private void OnThumbDragDelta(object? sender, DragDeltaEventArgs e)
+    {
+        ResolveTrack();
+        if (_track is null)
+            return;
+
+        var currentPoint = Mouse.GetPosition(_track);
+        UpdateValueFromMousePosition(currentPoint, animate: true);
+        e.Handled = true;
+    }
+
+    private void OnThumbDragCompleted(object? sender, DragCompletedEventArgs e)
+    {
+        if (_twoWayValueBinding is null)
+            _twoWayValueBinding = new Binding(nameof(AnimatedValue)) { Source = this, Mode = BindingMode.TwoWay, UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged };
+
+        BindingOperations.ClearBinding(SliderHost, RangeBase.ValueProperty);
+        BindingOperations.SetBinding(SliderHost, RangeBase.ValueProperty, _twoWayValueBinding);
     }
 
     private void UpdateThumbToolTip()

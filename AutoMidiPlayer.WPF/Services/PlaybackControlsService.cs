@@ -38,7 +38,9 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
     private readonly WinMediaPlayer? _player;
 
     private bool _ignoreSliderChange;
+    private bool _isSeekPreviewActive;
     private TimeSpan _songPosition;
+    private TimeSpan _displaySongPosition;
     private int _savePositionCounter;
 
     #endregion
@@ -83,11 +85,48 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
             _songPosition = TimeSpan.FromSeconds(value);
             NotifyOfPropertyChange(nameof(SongPosition));
             NotifyOfPropertyChange(nameof(CurrentTime));
+            NotifyOfPropertyChange(nameof(DisplayCurrentTime));
+            NotifyOfPropertyChange(nameof(DisplayRemainingTime));
+            if (!_isSeekPreviewActive)
+                SetDisplaySongPosition(_songPosition);
             SongPositionChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 
     public TimeSpan CurrentTime => _songPosition;
+
+    public double DisplaySongPosition
+    {
+        get => _displaySongPosition.TotalSeconds;
+        set => SetDisplaySongPosition(TimeSpan.FromSeconds(value));
+    }
+
+    public TimeSpan DisplayCurrentTime => _songPosition;
+
+    public TimeSpan DisplayRemainingTime
+    {
+        get
+        {
+            var remaining = MaximumTime - _songPosition;
+            return remaining < TimeSpan.Zero ? TimeSpan.Zero : remaining;
+        }
+    }
+
+    public bool IsSeekPreviewActive
+    {
+        get => _isSeekPreviewActive;
+        set
+        {
+            if (_isSeekPreviewActive == value)
+                return;
+
+            _isSeekPreviewActive = value;
+            NotifyOfPropertyChange(nameof(IsSeekPreviewActive));
+
+            if (!value)
+                SetDisplaySongPosition(_songPosition);
+        }
+    }
 
     public TimeSpan MaximumTime => Queue.OpenedFile?.Duration ?? TimeSpan.Zero;
 
@@ -169,6 +208,7 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
     {
         Engine.SavedPosition = positionSeconds;
         SongPosition = positionSeconds;
+        SetDisplaySongPosition(TimeSpan.FromSeconds(positionSeconds));
     }
 
     public async Task PlayPause()
@@ -348,6 +388,13 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
 
         _ignoreSliderChange = true;
         SongPosition = value.TotalSeconds;
+    }
+
+    private void SetDisplaySongPosition(TimeSpan position)
+    {
+        _displaySongPosition = position;
+        NotifyOfPropertyChange(nameof(DisplaySongPosition));
+        NotifyOfPropertyChange(nameof(DisplayCurrentTime));
     }
 
     #endregion

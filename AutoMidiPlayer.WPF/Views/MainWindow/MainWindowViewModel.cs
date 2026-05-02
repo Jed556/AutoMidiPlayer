@@ -539,8 +539,25 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
         // Restore previously playing song and position.
         var savedPosition = QueueView.RestoreCurrentSong(SongsView.Tracks);
-        if (savedPosition.HasValue)
-            PlaybackControls.SetSavedPosition(savedPosition.Value);
+        var restoredFile = QueueView.OpenedFile;
+        if (restoredFile is not null)
+            _ = RestoreStartupSongAsync(restoredFile, savedPosition);
+    }
+
+    private async Task RestoreStartupSongAsync(MidiFile restoredFile, double? savedPosition)
+    {
+        try
+        {
+            await PlaybackEngine.LoadFileAsync(restoredFile, autoPlay: false);
+
+            if (savedPosition.HasValue)
+                PlaybackControls.SetSavedPosition(savedPosition.Value);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log("Failed to restore the previously playing song during startup.");
+            Logger.LogException(ex);
+        }
     }
 
     private async Task RunStartupMidiAutoScanAsync()

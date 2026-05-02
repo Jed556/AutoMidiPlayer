@@ -10,7 +10,7 @@
                 TickFrequency="{Binding TickFrequency, ElementName=Root}"
                 IsSnapToTickEnabled="{Binding IsSnapToTickEnabled, ElementName=Root}"
                 TickPlacement="{Binding TickPlacement, ElementName=Root}"
-                IsMoveToPointEnabled="True"
+            IsMoveToPointEnabled="False"
                 Value="{Binding AnimatedValue, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
     </Grid>
 </UserControl>

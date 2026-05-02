@@ -3,15 +3,28 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Name="Root"
              MinHeight="20">
-    <Grid>
-        <Slider x:Name="SliderHost"
-                Minimum="{Binding Minimum, ElementName=Root}"
-                Maximum="{Binding Maximum, ElementName=Root}"
-                TickFrequency="{Binding TickFrequency, ElementName=Root}"
-                IsSnapToTickEnabled="{Binding IsSnapToTickEnabled, ElementName=Root}"
-                TickPlacement="{Binding TickPlacement, ElementName=Root}"
-                IsMoveToPointEnabled="True"
-                Value="{Binding AnimatedValue, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                Style="{Binding SliderStyle, ElementName=Root}"/>
-    </Grid>
+        <Grid x:Name="RootGrid">
+                <Border x:Name="HoverFillOverlay"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Width="0"
+                        Height="4"
+                        CornerRadius="2"
+                        Opacity="0"
+                        IsHitTestVisible="False"
+                        Panel.ZIndex="0"/>
+                <Slider x:Name="SliderHost"
+                        Minimum="{Binding Minimum, ElementName=Root}"
+                        Maximum="{Binding Maximum, ElementName=Root}"
+                        TickFrequency="{Binding TickFrequency, ElementName=Root}"
+                        IsSnapToTickEnabled="{Binding IsSnapToTickEnabled, ElementName=Root}"
+                        TickPlacement="{Binding TickPlacement, ElementName=Root}"
+                        IsMoveToPointEnabled="False"
+                        IsSelectionRangeEnabled="{Binding IsSelectionRangeEnabled, ElementName=Root}"
+                        SelectionStart="{Binding SelectionStart, ElementName=Root}"
+                        SelectionEnd="{Binding SelectionEnd, ElementName=Root}"
+                        Value="{Binding AnimatedValue, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        Panel.ZIndex="1"
+                        Style="{Binding SliderStyle, ElementName=Root}"/>
+        </Grid>
 </UserControl>

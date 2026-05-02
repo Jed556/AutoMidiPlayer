@@ -1175,22 +1175,23 @@
                                        VerticalAlignment="Center"
                                        FontSize="11"
                                        Opacity="0.7"
-                                       Text="{Binding PlaybackControls.CurrentTime, StringFormat=m\\:ss}"/>
-                            <Slider Grid.Column="1"
-                                    Margin="8,0"
-                                    IsMoveToPointEnabled="True"
-                                    IsEnabled="{Binding PlaybackControls.CanHitPlayPause}"
-                                    Value="{Binding PlaybackControls.SongPosition}"
-                                    Maximum="{Binding PlaybackControls.MaximumTime.TotalSeconds}"
-                                    IsSelectionRangeEnabled="True"
-                                    SelectionStart="0"
-                                    SelectionEnd="{Binding PlaybackControls.SongPosition, Mode=OneWay}"
-                                    Style="{StaticResource ProgressSlider}"/>
+                                       Text="{Binding PlaybackControls.DisplayCurrentTime, StringFormat=m\\:ss}"/>
+                            <controls:Seekbar Grid.Column="1"
+                                              Margin="8,0"
+                                              IsEnabled="{Binding PlaybackControls.CanHitPlayPause}"
+                                              Value="{Binding PlaybackControls.SongPosition}"
+                                              PreviewValue="{Binding PlaybackControls.DisplaySongPosition, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              IsPreviewActive="{Binding PlaybackControls.IsSeekPreviewActive, Mode=TwoWay}"
+                                              Maximum="{Binding PlaybackControls.MaximumTime.TotalSeconds}"
+                                              IsSelectionRangeEnabled="True"
+                                              SelectionStart="0"
+                                              SelectionEnd="{Binding PlaybackControls.SongPosition, Mode=OneWay}"
+                                              SliderStyle="{StaticResource ProgressSlider}"/>
                             <TextBlock Grid.Column="2"
                                        VerticalAlignment="Center"
                                        FontSize="11"
                                        Opacity="0.7"
-                                       Text="{Binding PlaybackControls.MaximumTime, StringFormat=m\\:ss}"/>
+                                       Text="{Binding PlaybackControls.DisplayRemainingTime, StringFormat=m\\:ss}"/>
                         </Grid>
                     </StackPanel>
 
