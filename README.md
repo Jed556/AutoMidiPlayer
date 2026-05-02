@@ -136,7 +136,7 @@ This project is inspired by and built on top of **[sabihoshi/GenshinLyreMidiPlay
 # License
 * This project is under the [MIT](LICENSE.md) license.
 * Originally created by [sabihoshi][GenshinLyreMidiPlayer]. Modified by [Jed556](https://github.com/Jed556) for multi-game support and modernization.
-* All rights reserved by © miHoYo Co., Ltd., © XD Inc., © thatgamecompany, Inc., and © Roblox Corporation. This project is not affiliated nor endorsed by miHoYo, XD, thatgamecompany, or Roblox. Genshin Impact™, Heartopia™, Sky: Children of the Light™, Roblox™, and other properties belong to their respective owners.
+* All rights reserved by © miHoYo Co., Ltd., © XD Inc., © thatgamecompany, Inc., © Roblox Corporation, and © Hotta Studio, a Perfect World company. This project is not affiliated nor endorsed by miHoYo, XD, thatgamecompany, Roblox, or Hotta Studio. Genshin Impact™, Heartopia™, Sky: Children of the Light™, Roblox™, NTE (Neverness to Everness)™, and other properties belong to their respective owners.
 * This project uses third-party libraries or other resources that may be distributed under [different licenses](THIRD-PARTY-NOTICES.md).
 
 <br/>
