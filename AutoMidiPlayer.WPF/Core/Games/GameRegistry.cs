@@ -132,6 +132,10 @@ public static class GameRegistry
             defaultSearchPaths:
             [
                 @"C:\Program Files\Neverness To Everness\Client\WindowsNoEditor\HT\Binaries\Win64\HTGame.exe",
+                @"D:\Neverness To Everness\Client\WindowsNoEditor\HT\Binaries\Win64\HTGame.exe",
+                @"E:\Neverness To Everness\Client\WindowsNoEditor\HT\Binaries\Win64\HTGame.exe",
+                @"F:\Neverness To Everness\Client\WindowsNoEditor\HT\Binaries\Win64\HTGame.exe",
+                @"G:\Neverness To Everness\Client\WindowsNoEditor\HT\Binaries\Win64\HTGame.exe",
             ],
             getLocation: () => Settings.NTELocation,
             setLocation: v => Settings.Modify(s => s.NTELocation = v),
