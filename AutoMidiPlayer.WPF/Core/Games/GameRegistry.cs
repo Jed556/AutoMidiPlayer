@@ -121,6 +121,26 @@ public static class GameRegistry
             setLocation: v => Settings.Modify(s => s.SkyLocation = v),
             getIsActive: () => Settings.ActiveSky,
             setIsActive: v => Settings.Modify(s => s.ActiveSky = v)
+        ),
+        new GameDefinition(
+            id: "NTE",
+            displayName: "NTE (Neverness to Everness)",
+            instrumentGameName: "NTE",
+            imageResourcePath: "pack://application:,,,/Resources/NTE.png",
+            processNames: ["HTGame"],
+            defaultExeName: "HTGame.exe",
+            defaultSearchPaths:
+            [
+                @"C:\Program Files\Neverness To Everness\Client\WindowsNoEditor\HT\Binaries\Win64\HTGame.exe",
+                @"D:\Neverness To Everness\Client\WindowsNoEditor\HT\Binaries\Win64\HTGame.exe",
+                @"E:\Neverness To Everness\Client\WindowsNoEditor\HT\Binaries\Win64\HTGame.exe",
+                @"F:\Neverness To Everness\Client\WindowsNoEditor\HT\Binaries\Win64\HTGame.exe",
+                @"G:\Neverness To Everness\Client\WindowsNoEditor\HT\Binaries\Win64\HTGame.exe",
+            ],
+            getLocation: () => Settings.NTELocation,
+            setLocation: v => Settings.Modify(s => s.NTELocation = v),
+            getIsActive: () => Settings.ActiveNTE,
+            setIsActive: v => Settings.Modify(s => s.ActiveNTE = v)
         )
     ];
 

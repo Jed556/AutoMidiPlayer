@@ -24,6 +24,7 @@ https://github.com/user-attachments/assets/8e7d8dec-33c4-4d2b-a268-4abd1dbac405
 - **Heartopia** - Piano (All variations), 15-key instruments (e.g. lyre, wooden bass, violin, etc.)
 - **Roblox** - Piano (61-key)
 - **Sky: Children of the Light** - All available Sky instruments as of Feb 2026
+- **NTE (Neverness to Everness)** - Piano (21-Key)
 
 See the [Support wiki page][wiki-support] for details on supported games, instruments, and keyboard layouts.
 
@@ -86,6 +87,7 @@ The short answer is that it's uncertain. Use it at your own risk. Do not play so
 * For Heartopia, here is their [Official Discord message](https://discord.com/channels/1128257488375005215/1460985755529773301/1465702188700405986) about using 3rd party tools.
 * For Sky, see their policy on [third-party apps](https://thatgamecompany.helpshift.com/hc/en/17-sky-children-of-the-light/faq/1250-can-i-use-or-create-third-party-applications-like-mods-or-bots/).
 * For Roblox, refer to their [third-party services Terms of Use](https://en.help.roblox.com/hc/en-us/articles/115004647846-Roblox-Terms-of-Use#third-party-services).
+* For NTE, see their [Data collected to prevent cheating and unauthorized software](https://static.pwsdk.com/nte/privacy/privacy.html).
 
 
 ## Documentation
@@ -134,7 +136,7 @@ This project is inspired by and built on top of **[sabihoshi/GenshinLyreMidiPlay
 # License
 * This project is under the [MIT](LICENSE.md) license.
 * Originally created by [sabihoshi][GenshinLyreMidiPlayer]. Modified by [Jed556](https://github.com/Jed556) for multi-game support and modernization.
-* All rights reserved by © miHoYo Co., Ltd., © XD Inc., © thatgamecompany, Inc., and © Roblox Corporation. This project is not affiliated nor endorsed by miHoYo, XD, thatgamecompany, or Roblox. Genshin Impact™, Heartopia™, Sky: Children of the Light™, Roblox™, and other properties belong to their respective owners.
+* All rights reserved by © miHoYo Co., Ltd., © XD Inc., © thatgamecompany, Inc., © Roblox Corporation, and © Hotta Studio, a Perfect World company. This project is not affiliated nor endorsed by miHoYo, XD, thatgamecompany, Roblox, or Hotta Studio. Genshin Impact™, Heartopia™, Sky: Children of the Light™, Roblox™, NTE (Neverness to Everness)™, and other properties belong to their respective owners.
 * This project uses third-party libraries or other resources that may be distributed under [different licenses](THIRD-PARTY-NOTICES.md).
 
 <br/>

@@ -533,6 +533,36 @@ namespace AutoMidiPlayer.Data.Properties
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("HTGame.exe")]
+        public string NTELocation
+        {
+            get
+            {
+                return ((string)(this["NTELocation"]));
+            }
+            set
+            {
+                this["NTELocation"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool ActiveNTE
+        {
+            get
+            {
+                return ((bool)(this["ActiveNTE"]));
+            }
+            set
+            {
+                this["ActiveNTE"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("0")]
         public int SelectedInstrument
         {

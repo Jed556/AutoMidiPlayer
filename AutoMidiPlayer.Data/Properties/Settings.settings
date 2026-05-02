@@ -89,6 +89,9 @@
     <Setting Name="RobloxLocation" Type="System.String" Scope="User">
       <Value Profile="(Default)">RobloxPlayerBeta.exe</Value>
     </Setting>
+    <Setting Name="NTELocation" Type="System.String" Scope="User">
+      <Value Profile="(Default)">HTGame.exe</Value>
+    </Setting>
     <Setting Name="ActiveGenshin" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>
@@ -102,6 +105,9 @@
       <Value Profile="(Default)">Sky.exe</Value>
     </Setting>
     <Setting Name="ActiveSky" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="ActiveNTE" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>
     <Setting Name="SelectedInstrument" Type="System.Int32" Scope="User">
