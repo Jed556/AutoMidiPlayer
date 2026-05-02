@@ -1,7 +1,7 @@
 namespace AutoMidiPlayer.WPF.Core.Instruments;
 
 /// <summary>
-/// NTE keyboard layouts.
+/// Neverness to Everness keyboard layouts.
 /// </summary>
 internal static class NTEKeyboardLayouts
 {

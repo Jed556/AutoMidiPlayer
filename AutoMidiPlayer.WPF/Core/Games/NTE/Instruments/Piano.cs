@@ -5,7 +5,7 @@ namespace AutoMidiPlayer.WPF.Core.Instruments;
 public static partial class NTEInstruments
 {
     public static readonly InstrumentConfig Piano21k = new(
-        game: "NTE",
+        game: "Neverness to Everness",
         name: "Piano (21 Key)",
         notes: [
             60, 62, 64, 65, 67, 69, 71, // C4 D4 E4 F4 G4 A4 B4
@@ -16,7 +16,7 @@ public static partial class NTEInstruments
     );
 
     public static readonly InstrumentConfig Piano36k = new(
-    game: "NTE",
+    game: "Neverness to Everness",
     name: "Piano (36 Key)",
     notes: [
             60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, // C4 C#4 D4 D#4 E4 F4 F#4 G4 G#4 A4 A#4 B4
