@@ -296,6 +296,143 @@ public static class Keyboard
     public static bool TryGetKeyStrokeForCharacter(char character, out KeyStroke keyStroke)
         => CharacterToKeyStroke.TryGetValue(character, out keyStroke);
 
+    /// <summary>
+    /// Parse layout keys from a collection of string elements.
+    /// Each element can be:
+    ///   - Single character: "a", "b", "1", "!" (uses existing character-to-keystroke map)
+    ///   - Multi-character with Ctrl prefix: "^a", "^b", "^1" (Ctrl+key)
+    ///   - Multi-character with Ctrl+Shift: "^A", "^B" (Ctrl+Shift+key)
+    ///   - Special cases: "^" alone = Shift+6 (caret character)
+    /// 
+    /// Examples:
+    ///   ["a", "b", "c"] → plain A, B, C
+    ///   ["^a", "^b", "^c"] → Ctrl+A, Ctrl+B, Ctrl+C
+    ///   ["^A", "^B", "^C"] → Ctrl+Shift+A, Ctrl+Shift+B, Ctrl+Shift+C
+    ///   ["n", "^n", "m", "^m"] → mixed layout with octave variants
+    ///   ["^"] → Shift+6 (caret character, not Ctrl modifier)
+    /// </summary>
+    public static IReadOnlyList<KeyStroke> ParseLayoutKeys(IEnumerable<string> keyElements)
+    {
+        var keyStrokes = new List<KeyStroke>();
+
+        foreach (var element in keyElements)
+        {
+            if (string.IsNullOrEmpty(element))
+            {
+                // Empty element → space key
+                keyStrokes.Add(new KeyStroke(VirtualKeyCode.SPACE));
+                continue;
+            }
+
+            if (element.Length == 1)
+            {
+                // Single character: use existing character-to-keystroke map
+                char ch = element[0];
+                if (TryGetKeyStrokeForCharacter(ch, out var keyStroke))
+                {
+                    keyStrokes.Add(keyStroke);
+                }
+                else
+                {
+                    keyStrokes.Add(new KeyStroke(VirtualKeyCode.SPACE));
+                }
+            }
+            else if (element.Length == 2 && element[0] == '^')
+            {
+                // Two-character element starting with '^': Ctrl+key or the literal '^' character
+                var baseChar = element[1];
+                var modifiers = KeyModifiers.Ctrl;
+
+                // Check if the base character is uppercase (add Shift if so)
+                if (char.IsLetter(baseChar) && char.IsUpper(baseChar))
+                {
+                    modifiers |= KeyModifiers.Shift;
+                }
+
+                // Try to get the keystroke for the base character
+                if (TryGetKeyStrokeForCharacter(char.ToLower(baseChar), out var baseKeyStroke))
+                {
+                    keyStrokes.Add(new KeyStroke(baseKeyStroke.Key, modifiers));
+                }
+                else
+                {
+                    // Fallback to space if character not recognized
+                    keyStrokes.Add(new KeyStroke(VirtualKeyCode.SPACE, modifiers));
+                }
+            }
+            else
+            {
+                // Multi-character element (more than 2 chars or doesn't match pattern)
+                // Treat as invalid/unsupported, add space
+                keyStrokes.Add(new KeyStroke(VirtualKeyCode.SPACE));
+            }
+        }
+
+        return keyStrokes;
+    }
+
+    /// <summary>
+    /// Parse a layout string with modifier prefix notation.
+    /// Supports:
+    ///   - Single characters: 'a' maps to VK_A
+    ///   - Ctrl prefix: '^a' maps to VK_A with Ctrl modifier
+    ///   - Shift prefix: 'A' (uppercase) maps to VK_A with Shift modifier (existing system)
+    ///   - Multi-modifier: '^A' maps to VK_A with Ctrl+Shift
+    /// </summary>
+    public static IReadOnlyList<KeyStroke> ParseLayoutString(string layoutDefinition)
+    {
+        if (string.IsNullOrEmpty(layoutDefinition))
+            return Array.Empty<KeyStroke>();
+
+        var keyStrokes = new List<KeyStroke>();
+        var i = 0;
+
+        while (i < layoutDefinition.Length)
+        {
+            if (layoutDefinition[i] == '^' && i + 1 < layoutDefinition.Length)
+            {
+                // Ctrl prefix: ^a, ^1, etc.
+                var baseChar = layoutDefinition[i + 1];
+                var modifiers = KeyModifiers.Ctrl;
+
+                // Check if the base character is uppercase (add Shift if so)
+                if (char.IsLetter(baseChar) && char.IsUpper(baseChar))
+                {
+                    modifiers |= KeyModifiers.Shift;
+                }
+
+                // Try to get the keystroke for the base character
+                if (TryGetKeyStrokeForCharacter(char.ToLower(baseChar), out var baseKeyStroke))
+                {
+                    keyStrokes.Add(new KeyStroke(baseKeyStroke.Key, modifiers));
+                }
+                else
+                {
+                    // Fallback to space if character not recognized
+                    keyStrokes.Add(new KeyStroke(VirtualKeyCode.SPACE, modifiers));
+                }
+
+                i += 2;
+            }
+            else
+            {
+                // Regular character (uses existing character-to-keystroke map)
+                if (TryGetKeyStrokeForCharacter(layoutDefinition[i], out var keyStroke))
+                {
+                    keyStrokes.Add(keyStroke);
+                }
+                else
+                {
+                    keyStrokes.Add(new KeyStroke(VirtualKeyCode.SPACE));
+                }
+
+                i++;
+            }
+        }
+
+        return keyStrokes;
+    }
+
     #region Helper Methods
 
     /// <summary>

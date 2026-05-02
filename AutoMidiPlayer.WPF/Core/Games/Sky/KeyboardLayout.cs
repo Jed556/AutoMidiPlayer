@@ -18,9 +18,9 @@ internal static class SkyKeyboardLayouts
     public static readonly KeyboardLayoutConfig QWERTY_15 = new(
         name: "QWERTY",
         keys: [
-            'y', 'u', 'i', 'o', 'p',
-            'h', 'j', 'k', 'l', ';',
-            'n', 'm', ',', '.', '/',
+            "n", "m", ",", ".", "/",
+            "h", "j", "k", "l", ";",
+            "y", "u", "i", "o", "p",
             ]);
 
     /// <summary>
@@ -31,8 +31,8 @@ internal static class SkyKeyboardLayouts
     public static readonly KeyboardLayoutConfig QWERTY_8 = new(
         name: "QWERTY",
         keys: [
-            'y', 'u', 'i', 'o',
-            'p', 'h', 'j', 'k',
+            "y", "u", "i", "o",
+            "p", "h", "j", "k",
             ]);
 
     /// <summary>
@@ -43,7 +43,7 @@ internal static class SkyKeyboardLayouts
     public static readonly KeyboardLayoutConfig QWERTY_4 = new(
         name: "QWERTY",
         keys: [
-            'y', 'u',
-            'i', 'o',
+            "y", "u",
+            "i", "o",
         ]);
 }

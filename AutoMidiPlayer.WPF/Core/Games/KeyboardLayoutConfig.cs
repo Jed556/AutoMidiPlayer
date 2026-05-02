@@ -25,13 +25,23 @@ public class KeyboardLayoutConfig
         KeyStrokes = keyStrokes;
     }
 
-    public KeyboardLayoutConfig(string name, IReadOnlyList<char> keys)
+    /// <summary>
+    /// Initialize a keyboard layout from a collection of string elements.
+    /// 
+    /// Each element can be:
+    ///   - Single character: "a", "b", "1", "!" → uses existing character-to-keystroke map
+    ///   - Ctrl prefix: "^a", "^b", "^1" → Ctrl+key modifier
+    ///   - Ctrl+Shift: "^A", "^B", "^C" → Ctrl+Shift+key modifiers
+    ///   - Special: "^" alone → Shift+6 (the caret character itself, not a Ctrl modifier)
+    /// 
+    /// Examples:
+    ///   new KeyboardLayoutConfig("Standard", ["n", "m", ",", ".", "/", "h", "j", "k", "l", ";", "y", "u", "i", "o", "p"])
+    ///   new KeyboardLayoutConfig("Extended", ["^n", "^m", "^,", "^.", "^/", "^h", "^j", "^k", "^l", "^;", "^y", "^u", "^i", "^o", "^p"])
+    ///   new KeyboardLayoutConfig("Mixed", ["n", "^n", "m", "^m", ...])
+    /// </summary>
+    public KeyboardLayoutConfig(string name, IReadOnlyList<string> keys)
     {
         Name = name;
-        KeyStrokes = keys
-            .Select(character => Keyboard.TryGetKeyStrokeForCharacter(character, out var keyStroke)
-                ? keyStroke
-                : new Keyboard.KeyStroke(VirtualKeyCode.SPACE))
-            .ToArray();
+        KeyStrokes = Keyboard.ParseLayoutKeys(keys);
     }
 }
