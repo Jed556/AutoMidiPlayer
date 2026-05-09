@@ -1,11 +1,7 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Navigation;
 using System.Windows.Threading;
 using Windows.Media;
 using Windows.Media.Playback;
@@ -20,7 +16,9 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Stylet;
 using StyletIoC;
 using System.Reflection;
-using Wpf.Ui.Controls;
+using Wpf.Ui.Appearance;
+using System.Threading;
+using System.Windows.Media;
 
 namespace AutoMidiPlayer.WPF;
 
@@ -62,6 +60,12 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         AppDomain.CurrentDomain.ProcessExit += (_, _) =>
         {
             Logger.LogApp($"{GetProductName()} v{GetAppVersion()} Stopping");
+            try
+            {
+                // Best-effort: stop the system theme watcher if running.
+                AutoMidiPlayer.WPF.Services.SystemThemeService.Stop();
+            }
+            catch { }
         };
 
         // Handle unhandled exceptions
@@ -69,93 +73,6 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
 
-        // Make Hyperlinks handle themselves
-        EventManager.RegisterClassHandler(
-            typeof(Hyperlink), Hyperlink.RequestNavigateEvent,
-            new RequestNavigateEventHandler((_, e) =>
-            {
-                var url = e.Uri.ToString();
-                Process.Start(new ProcessStartInfo(url)
-                {
-                    UseShellExecute = true
-                });
-            })
-        );
-
-        EventManager.RegisterClassHandler(
-            typeof(Hyperlink),
-            Mouse.MouseEnterEvent,
-            new MouseEventHandler(OnHyperlinkMouseEnter)
-        );
-
-        EventManager.RegisterClassHandler(
-            typeof(Hyperlink),
-            Mouse.MouseLeaveEvent,
-            new MouseEventHandler(OnHyperlinkMouseLeave)
-        );
-    }
-
-    private static void OnHyperlinkMouseEnter(object sender, MouseEventArgs e)
-    {
-        if (sender is Hyperlink hyperlink)
-            AnimateHyperlinkForeground(hyperlink, isHover: true);
-    }
-
-    private static void OnHyperlinkMouseLeave(object sender, MouseEventArgs e)
-    {
-        if (sender is Hyperlink hyperlink)
-            AnimateHyperlinkForeground(hyperlink, isHover: false);
-    }
-
-    private static void AnimateHyperlinkForeground(Hyperlink hyperlink, bool isHover)
-    {
-        var primaryColor = GetResourceColor("SystemAccentColorPrimary", System.Windows.Media.Colors.DodgerBlue);
-        var secondaryColor = GetResourceColor("SystemAccentColorSecondary", primaryColor);
-        var targetColor = isHover ? secondaryColor : primaryColor;
-
-        if (hyperlink.Foreground is not System.Windows.Media.SolidColorBrush brush || brush.IsFrozen)
-        {
-            var startingColor = hyperlink.Foreground is System.Windows.Media.SolidColorBrush existingBrush
-                ? existingBrush.Color
-                : primaryColor;
-
-            brush = new System.Windows.Media.SolidColorBrush(startingColor);
-            hyperlink.Foreground = brush;
-        }
-
-        brush.BeginAnimation(System.Windows.Media.SolidColorBrush.ColorProperty, null);
-
-        var animation = new System.Windows.Media.Animation.ColorAnimation
-        {
-            To = targetColor,
-            Duration = isHover
-                ? TimeSpan.FromMilliseconds(150)
-                : TimeSpan.FromMilliseconds(240),
-            EasingFunction = new System.Windows.Media.Animation.QuadraticEase
-            {
-                EasingMode = isHover
-                    ? System.Windows.Media.Animation.EasingMode.EaseOut
-                    : System.Windows.Media.Animation.EasingMode.EaseInOut
-            },
-            FillBehavior = System.Windows.Media.Animation.FillBehavior.Stop
-        };
-
-        animation.Completed += (_, _) => brush.Color = targetColor;
-        brush.BeginAnimation(
-            System.Windows.Media.SolidColorBrush.ColorProperty,
-            animation,
-            System.Windows.Media.Animation.HandoffBehavior.SnapshotAndReplace);
-    }
-
-    private static System.Windows.Media.Color GetResourceColor(string key, System.Windows.Media.Color fallback)
-    {
-        var value = Application.Current?.TryFindResource(key);
-        return value switch
-        {
-            System.Windows.Media.Color color => color,
-            System.Windows.Media.SolidColorBrush brush => brush.Color,
-            _ => fallback
-        };
     }
 
     private static void EnsureQueueLoopModeSetting()
@@ -353,9 +270,9 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
             return db;
         });
 
-        builder.Bind<MediaPlayer>().ToFactory(_ =>
+        builder.Bind<Windows.Media.Playback.MediaPlayer>().ToFactory(_ =>
         {
-            var player = new MediaPlayer();
+            var player = new Windows.Media.Playback.MediaPlayer();
             var controls = player.SystemMediaTransportControls;
 
             controls.IsEnabled = true;
@@ -374,6 +291,11 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         // Register GlobalHotkeyService as singleton
         builder.Bind<Services.GlobalHotkeyService>().ToSelf().InSingletonScope();
 
-        // Theme service removed in WPF-UI 3.x - use ApplicationThemeManager directly
+        // Theme service removed in WPF-UI 3.x - use centralized SystemThemeService
+        AutoMidiPlayer.WPF.Services.SystemThemeService.Start();
     }
+
+
+
+    // System theme watcher has been moved to SystemThemeService.cs
 }

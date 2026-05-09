@@ -117,6 +117,7 @@ public class SettingsPageViewModel : Screen
     private CancellationTokenSource? _midiFolderScanDebounceToken;
     private static readonly TimeSpan MidiFolderWatchDebounceDelay = TimeSpan.FromMilliseconds(750);
 
+
     public SettingsPageViewModel(IContainer ioc, MainWindowViewModel main)
     {
         _ioc = ioc;
@@ -133,7 +134,10 @@ public class SettingsPageViewModel : Screen
             1 => ThemeOptions[1], // Dark
             _ => ThemeOptions[2]  // System
         };
-        ApplicationThemeManager.Apply(_selectedTheme.Value, WindowBackdropType.Mica, false);
+        var startupTheme = _selectedTheme.Value == WpfUiApplicationTheme.Unknown
+            ? (WpfUiApplicationTheme)SystemThemeService.GetSystemTheme()
+            : _selectedTheme.Value;
+        SystemThemeService.ApplySystemThemeNow((ApplicationTheme)startupTheme);
 
         // Initialize accent color from settings
         _selectedAccentColor = AccentColors.FirstOrDefault(c => c.ColorHex == Settings.AccentColor)
@@ -176,7 +180,7 @@ public class SettingsPageViewModel : Screen
             {
                 Settings.AccentColor = value.ColorHex;
                 Settings.Save();
-                ApplyAccentColor(value.ColorHex);
+                SystemThemeService.ApplyAccentColorNow(value.ColorHex);
             }
         }
     }
@@ -196,149 +200,7 @@ public class SettingsPageViewModel : Screen
     }
 
     private void ApplyAccentColor(string hexColor, bool scheduleDeferredRefresh = true)
-    {
-        try
-        {
-            var color = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hexColor);
-            ApplyColorToAllSystems(color, scheduleDeferredRefresh);
-        }
-        catch
-        {
-            // Fallback to Green if color parsing fails
-            var fallbackColor = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#1DB954");
-            ApplyColorToAllSystems(fallbackColor, scheduleDeferredRefresh);
-        }
-    }
-
-    private void ApplyColorToAllSystems(System.Windows.Media.Color color, bool scheduleDeferredRefresh)
-    {
-        // Create brushes from color
-        var accentBrush = new System.Windows.Media.SolidColorBrush(color);
-        accentBrush.Freeze();
-
-        // Also set SystemAccentColorLight1/2/3 and Dark1/2/3 for more controls
-        var accentLight1 = AdjustColorBrightness(color, 0.15f);
-        var accentLight2 = AdjustColorBrightness(color, 0.30f);
-        var accentLight3 = AdjustColorBrightness(color, 0.45f);
-        var accentDark1 = AdjustColorBrightness(color, -0.15f);
-        var accentDark2 = AdjustColorBrightness(color, -0.30f);
-        var accentDark3 = AdjustColorBrightness(color, -0.45f);
-
-        // Set all SystemAccentColor resources
-        SetOrUpdateResource("SystemAccentColor", color);
-        SetOrUpdateResource("SystemAccentColorLight1", accentLight1);
-        SetOrUpdateResource("SystemAccentColorLight2", accentLight2);
-        SetOrUpdateResource("SystemAccentColorLight3", accentLight3);
-        SetOrUpdateResource("SystemAccentColorDark1", accentDark1);
-        SetOrUpdateResource("SystemAccentColorDark2", accentDark2);
-        SetOrUpdateResource("SystemAccentColorDark3", accentDark3);
-
-        // Set accent brushes that controls bind to
-        var light1Brush = new System.Windows.Media.SolidColorBrush(accentLight1);
-        var light2Brush = new System.Windows.Media.SolidColorBrush(accentLight2);
-        var light3Brush = new System.Windows.Media.SolidColorBrush(accentLight3);
-        var dark1Brush = new System.Windows.Media.SolidColorBrush(accentDark1);
-        var dark2Brush = new System.Windows.Media.SolidColorBrush(accentDark2);
-        var dark3Brush = new System.Windows.Media.SolidColorBrush(accentDark3);
-        light1Brush.Freeze();
-        light2Brush.Freeze();
-        light3Brush.Freeze();
-        dark1Brush.Freeze();
-        dark2Brush.Freeze();
-        dark3Brush.Freeze();
-
-        SetOrUpdateResource("SystemAccentColorBrush", accentBrush);
-        SetOrUpdateResource("SystemAccentColorLight1Brush", light1Brush);
-        SetOrUpdateResource("SystemAccentColorLight2Brush", light2Brush);
-        SetOrUpdateResource("SystemAccentColorLight3Brush", light3Brush);
-        SetOrUpdateResource("SystemAccentColorDark1Brush", dark1Brush);
-        SetOrUpdateResource("SystemAccentColorDark2Brush", dark2Brush);
-        SetOrUpdateResource("SystemAccentColorDark3Brush", dark3Brush);
-
-        // Set WPF-UI specific accent color resources (Primary, Secondary, Tertiary)
-        SetOrUpdateResource("SystemAccentColorPrimary", color);
-        SetOrUpdateResource("SystemAccentColorSecondary", accentLight1);
-        SetOrUpdateResource("SystemAccentColorTertiary", accentLight2);
-        SetOrUpdateResource("SystemAccentColorPrimaryBrush", accentBrush);
-        SetOrUpdateResource("SystemAccentColorSecondaryBrush", light1Brush);
-        SetOrUpdateResource("SystemAccentColorTertiaryBrush", light2Brush);
-
-        // Apply to WPF-UI theme system with proper order
-        var currentTheme = ApplicationThemeManager.GetAppTheme();
-
-        // Apply accent color with updateResources=true so WPF-UI controls update immediately
-        ApplicationAccentColorManager.Apply(color, currentTheme, true);
-
-        // Re-apply our custom resources since WPF-UI may have modified them
-        SetOrUpdateResource("SystemAccentColorPrimary", color);
-        SetOrUpdateResource("SystemAccentColorPrimaryBrush", accentBrush);
-        SetOrUpdateResource("SystemAccentColorSecondaryBrush", light1Brush);
-        SetOrUpdateResource("SystemAccentColorTertiaryBrush", light2Brush);
-
-        if (scheduleDeferredRefresh)
-        {
-            // Delayed refresh keeps accent color stable after async theme updates.
-            System.Windows.Application.Current.Dispatcher.BeginInvoke(
-                System.Windows.Threading.DispatcherPriority.Background,
-                new System.Action(() =>
-                {
-                    // Re-apply custom WPF-UI resources after theme system has finished
-                    SetOrUpdateResource("SystemAccentColorPrimary", color);
-                    SetOrUpdateResource("SystemAccentColorPrimaryBrush", accentBrush);
-                    SetOrUpdateResource("SystemAccentColorSecondaryBrush", light1Brush);
-                    SetOrUpdateResource("SystemAccentColorTertiaryBrush", light2Brush);
-
-                    // Force full theme re-apply so NavigationView, drawers, and all views refresh
-                    ApplicationThemeManager.Apply(currentTheme, WindowBackdropType.Mica, false);
-
-                    // Re-apply accent after theme refresh to ensure our custom colors persist
-                    ApplicationAccentColorManager.Apply(color, currentTheme, true);
-                    SetOrUpdateResource("SystemAccentColorPrimary", color);
-                    SetOrUpdateResource("SystemAccentColorPrimaryBrush", accentBrush);
-                    SetOrUpdateResource("SystemAccentColorSecondaryBrush", light1Brush);
-                    SetOrUpdateResource("SystemAccentColorTertiaryBrush", light2Brush);
-                }));
-        }
-
-        // Notify other components that accent color changed
-        _events.Publish(new AccentColorChangedNotification());
-    }
-
-    private static void SetOrUpdateResource(string key, object value)
-    {
-        if (Application.Current.Resources.Contains(key))
-            Application.Current.Resources[key] = value;
-        else
-            Application.Current.Resources.Add(key, value);
-    }
-
-    private static System.Windows.Media.Color AdjustColorBrightness(System.Windows.Media.Color color, float factor)
-    {
-        float r = color.R / 255f;
-        float g = color.G / 255f;
-        float b = color.B / 255f;
-
-        if (factor > 0)
-        {
-            // Lighten
-            r = r + (1 - r) * factor;
-            g = g + (1 - g) * factor;
-            b = b + (1 - b) * factor;
-        }
-        else
-        {
-            // Darken
-            r = r * (1 + factor);
-            g = g * (1 + factor);
-            b = b * (1 + factor);
-        }
-
-        return System.Windows.Media.Color.FromArgb(
-            color.A,
-            (byte)Math.Clamp(r * 255, 0, 255),
-            (byte)Math.Clamp(g * 255, 0, 255),
-            (byte)Math.Clamp(b * 255, 0, 255));
-    }
+        => SystemThemeService.ApplyAccentColorNow(hexColor, scheduleDeferredRefresh);
 
     private static bool GetSmoothScrollingEnabled()
     {
@@ -370,7 +232,14 @@ public class SettingsPageViewModel : Screen
         {
             if (SetAndNotify(ref _selectedTheme, value) && value is not null)
             {
-                ApplicationThemeManager.Apply(value.Value, WindowBackdropType.Mica, false);
+                var toApply = value.Value;
+                if (toApply == WpfUiApplicationTheme.Unknown)
+                {
+                    toApply = (WpfUiApplicationTheme)SystemThemeService.GetSystemTheme();
+                }
+
+                SystemThemeService.ApplySystemThemeNow((ApplicationTheme)toApply);
+
                 Settings.Modify(s => s.AppTheme = value.Value switch
                 {
                     WpfUiApplicationTheme.Light => 0,
@@ -378,11 +247,13 @@ public class SettingsPageViewModel : Screen
                     _ => -1
                 });
 
-                // Reapply accent color after theme change
-                ApplyAccentColor(_selectedAccentColor.ColorHex);
+                // Reapply accent color after theme change without forcing a second immediate theme apply.
+                ApplyAccentColor(_selectedAccentColor.ColorHex, scheduleDeferredRefresh: false);
             }
         }
     }
+
+
 
     public bool AutoCheckUpdates { get; set; } = Settings.AutoCheckUpdates;
 
@@ -1358,7 +1229,7 @@ public class SettingsPageViewModel : Screen
 
         // Only re-apply accent when theme state actually changes.
         if (changed)
-            ApplyAccentColor(_selectedAccentColor.ColorHex);
+            SystemThemeService.ApplyAccentColorNow(_selectedAccentColor.ColorHex, scheduleDeferredRefresh: false);
     }
 
     [UsedImplicitly]
@@ -1370,6 +1241,11 @@ public class SettingsPageViewModel : Screen
 
         if (AutoCheckUpdates)
             _ = CheckForUpdate();
+    }
+
+    protected override void OnDeactivate()
+    {
+        base.OnDeactivate();
     }
 
     private async Task<GitVersion?> GetLatestVersion()

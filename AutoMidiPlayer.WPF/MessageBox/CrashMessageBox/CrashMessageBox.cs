@@ -7,7 +7,6 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls.Primitives;
 using System.Linq;
-using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Interop;
@@ -78,10 +77,8 @@ public partial class CrashMessageBox : Wpf.Ui.Controls.MessageBox
         TitleTextBlock.Text = $"{GetProductName()} Error";
         VersionTextBlock.Text = $"Version {GetAppVersion()}";
         ErrorTextBox.Text = exception.Message;
-        LogPathRun.Text = logPath;
-
-        if (Application.Current.TryFindResource("AppHyperlinkStyle") is Style hyperlinkStyle)
-            LogPathHyperlink.Style = hyperlinkStyle;
+        LogPathTextBlock.Text = logPath;
+        LogPathHyperlink.PreviewToolTip = $"Open in File Explorer: {logPath}";
 
         SourceInitialized += OnSourceInitialized;
         Closed += OnClosed;
@@ -331,7 +328,7 @@ public partial class CrashMessageBox : Wpf.Ui.Controls.MessageBox
     {
         while (source != null)
         {
-            if (source is ButtonBase or ScrollBar or Thumb or TextBoxBase or Hyperlink)
+            if (source is ButtonBase or ScrollBar or Thumb or TextBoxBase)
                 return true;
 
             source = source is Visual

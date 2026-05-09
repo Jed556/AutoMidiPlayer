@@ -1,6 +1,7 @@
 <ui:ContentDialog x:Class="AutoMidiPlayer.WPF.Dialogs.EditDialog"
                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
                   xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                   xmlns:helpers="clr-namespace:AutoMidiPlayer.WPF.Helpers"
                   Title="Edit Song"
@@ -231,15 +232,15 @@
 
         <Separator Margin="0,0,0,10"/>
 
-        <TextBlock TextWrapping="Wrap"
-                   Margin="0,0,0,2">
-                <Hyperlink x:Name="PathHyperlink"
-                           Cursor="Hand"
-                           Click="PathHyperlink_Click">
-                    <Run x:Name="PathRun"
-                         Text="(unknown)"/>
-                </Hyperlink>
-        </TextBlock>
+        <controls:Hyperlink x:Name="PathHyperlink"
+                            HorizontalAlignment="Left"
+                            Margin="0,0,0,2"
+                            Click="PathHyperlink_Click">
+            <TextBlock x:Name="PathTextBlock"
+                       Text="(unknown)"
+                       TextWrapping="Wrap"
+                       FontSize="12"/>
+        </controls:Hyperlink>
 
         <TextBlock x:Name="DateText"
                    Margin="0,2,0,2"

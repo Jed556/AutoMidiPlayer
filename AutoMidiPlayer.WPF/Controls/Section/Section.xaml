@@ -32,11 +32,13 @@
                        FontWeight="SemiBold"
                        VerticalAlignment="Center"/>
 
-            <ContentPresenter Grid.Column="1"
-                              Margin="12,0,0,0"
-                              VerticalAlignment="Center"
-                              Content="{Binding HeaderContent, ElementName=Root}"
-                              Visibility="{Binding HasHeaderContent, ElementName=Root, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+            <ContentControl Grid.Column="1"
+                            Margin="12,0,0,0"
+                            VerticalAlignment="Center"
+                            HorizontalContentAlignment="Stretch"
+                            VerticalContentAlignment="Center"
+                            Content="{Binding HeaderContent, ElementName=Root}"
+                            Visibility="{Binding HasHeaderContent, ElementName=Root, Converter={StaticResource BooleanToVisibilityConverter}}"/>
         </Grid>
 
         <TextBlock Text="{Binding Description, ElementName=Root}"
@@ -47,6 +49,6 @@
                    Visibility="{Binding HasDescription, ElementName=Root, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
         <ContentPresenter Margin="0,8,0,0"
-                Content="{Binding ChildContent, ElementName=Root}"/>
+                          Content="{Binding ChildContent, ElementName=Root}"/>
     </StackPanel>
 </UserControl>

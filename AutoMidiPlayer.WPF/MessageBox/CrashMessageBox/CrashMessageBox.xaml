@@ -58,10 +58,14 @@
                        TextWrapping="Wrap">
                 <Run Text="An error occurred. Log saved to:"/>
                 <LineBreak/>
-                <Hyperlink x:Name="LogPathHyperlink"
-                           Click="OnLogPathClick">
-                    <Run x:Name="LogPathRun"/>
-                </Hyperlink>
+                <InlineUIContainer BaselineAlignment="Center">
+                    <controls:Hyperlink x:Name="LogPathHyperlink"
+                                        Click="OnLogPathClick">
+                        <TextBlock x:Name="LogPathTextBlock"
+                                   TextWrapping="Wrap"
+                                   FontSize="12"/>
+                    </controls:Hyperlink>
+                </InlineUIContainer>
             </TextBlock>
 
             <controls:CopyableTextBox Grid.Row="2"

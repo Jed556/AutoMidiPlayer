@@ -566,17 +566,6 @@
                 Value="14"/>
     </Style>
 
-    <Style x:Key="AppHyperlinkStyle"
-           TargetType="Hyperlink">
-        <Setter Property="Foreground">
-            <Setter.Value>
-                <SolidColorBrush Color="{DynamicResource SystemAccentColorPrimary}"/>
-            </Setter.Value>
-        </Setter>
-        <Setter Property="Cursor"
-                Value="Hand"/>
-    </Style>
-
     <Color x:Key="DangerActionButtonNormalColor">#FFC42B1C</Color>
     <Color x:Key="DangerActionButtonHoverColor">#FFE04F3F</Color>
     <Color x:Key="DangerActionButtonPressedColor">#FFAA2418</Color>

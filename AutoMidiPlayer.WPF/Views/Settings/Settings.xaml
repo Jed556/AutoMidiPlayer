@@ -408,7 +408,8 @@
                                     ToolTip="Reset song defaults"
                                     Margin="0,0,0,2">
                                 <ui:SymbolIcon Symbol="ArrowClockwise24"
-                                               FontSize="18"/>
+                                               FontSize="18"
+                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
                             </Button>
                         </controls:Section.HeaderContent>
 
@@ -523,15 +524,17 @@
                                            Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
                                     <Run Text="{Binding LatestVersion.TagName}"/>
                                 </TextBlock>
-                                <ui:HyperlinkButton NavigateUri="{Binding LatestVersion.Url}"
-                                                    Style="{DynamicResource IconHyperlinkButton}"
+                                <controls:Hyperlink NavigateUri="{Binding LatestVersion.Url}"
                                                     Padding="2"
-                                                    ToolTip="Open update page"
+                                                    NormalOpacity="0.42"
+                                                    PointerOverOpacity="1"
+                                                    PreviewToolTip="{Binding LatestVersion.Url, StringFormat=Open update page: {0}}"
                                                     Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
                                     <ui:SymbolIcon Symbol="ArrowCircleUp12"
                                                    FontSize="16"
-                                                   Filled="True"/>
-                                </ui:HyperlinkButton>
+                                                   Filled="True"
+                                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=controls:Hyperlink}}"/>
+                                </controls:Hyperlink>
                                 <controls:BusyActionButton Width="24"
                                                            Height="24"
                                                            IsBusy="{Binding IsCheckingUpdate}"
@@ -685,24 +688,18 @@
                 <controls:SimpleStackPanel Spacing="4">
                     <TextBlock TextWrapping="Wrap"
                                FontSize="12">
-                    Adapted and expanded by © 2026 Jed556.
-                    Originally forked from © 2022
-                    <Hyperlink NavigateUri="https://github.com/sabihoshi/GenshinLyreMidiPlayer"
-                               Style="{DynamicResource AppHyperlinkStyle}">sabihoshi/GenshinLyreMidiPlayer</Hyperlink>.
-                    Licensed under the
-                    <Hyperlink NavigateUri="{Binding Default.LicenseUri, Source={StaticResource Settings}}"
-                               Style="{DynamicResource AppHyperlinkStyle}">MIT License</Hyperlink>.
+                        <Run Text="Adapted and expanded by © 2026 Jed556. Originally forked from © 2021 "/><InlineUIContainer BaselineAlignment="Center"><controls:Hyperlink NavigateUri="https://github.com/sabihoshi/GenshinLyreMidiPlayer"><TextBlock Text="sabihoshi/GenshinLyreMidiPlayer"
+                                                                                                                                                                                                                                                         FontSize="12"/></controls:Hyperlink></InlineUIContainer><Run Text=". Licensed under the "/><InlineUIContainer BaselineAlignment="Center"><controls:Hyperlink NavigateUri="{Binding Default.LicenseUri, Source={StaticResource Settings}}"><TextBlock Text="MIT License"
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              FontSize="12"/></controls:Hyperlink></InlineUIContainer><Run Text="."/>
                     </TextBlock>
                     <TextBlock TextWrapping="Wrap"
                                FontSize="12">
-                    This project uses third-party libraries that may be distributed under
-                    <Hyperlink NavigateUri="{Binding Default.ThirdPartyLicenseUri, Source={StaticResource Settings}}"
-                               Style="{DynamicResource AppHyperlinkStyle}">different licenses</Hyperlink>.
+                        <Run Text="This project uses third-party libraries that may be distributed under "/><InlineUIContainer BaselineAlignment="Center"><controls:Hyperlink NavigateUri="{Binding Default.ThirdPartyLicenseUri, Source={StaticResource Settings}}"><TextBlock Text="different licenses"
+                                                                                                                                                                                                                                                                                FontSize="12"/></controls:Hyperlink></InlineUIContainer><Run Text="."/>
                     </TextBlock>
                     <TextBlock TextWrapping="Wrap"
                                FontSize="11"
                                Opacity="0.7">
-
                     All rights reserved by © miHoYo Co., Ltd., © XD Inc., © thatgamecompany, Inc., and © Roblox Corporation.
                     Not affiliated with miHoYo, XD, thatgamecompany, Roblox or © Hotta Studio.
                     </TextBlock>

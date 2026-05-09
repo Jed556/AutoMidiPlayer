@@ -243,9 +243,11 @@ public partial class EditDialog : ContentDialog
         UpdateNativeBpmText();
         UpdateDateText();
 
-        PathRun.Text = string.IsNullOrWhiteSpace(_midiFilePath) ? "(unknown)" : _midiFilePath;
-        if (Application.Current.TryFindResource("AppHyperlinkStyle") is Style hyperlinkStyle)
-            PathHyperlink.Style = hyperlinkStyle;
+        PathTextBlock.Text = string.IsNullOrWhiteSpace(_midiFilePath) ? "(unknown)" : _midiFilePath;
+        PathHyperlink.PreviewToolTip =
+            string.IsNullOrWhiteSpace(_midiFilePath)
+                ? "MIDI file path is unavailable"
+                : $"Open in File Explorer: {_midiFilePath}";
     }
 
     private void RescanBaseKeyButton_Click(object sender, RoutedEventArgs e)

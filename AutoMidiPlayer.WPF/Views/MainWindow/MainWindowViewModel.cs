@@ -340,8 +340,13 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
             _ => WpfUiAppTheme.Dark
         };
 
-        ApplicationThemeManager.Apply(newTheme, WindowBackdropType.Mica, false);
-        SettingsView.OnThemeChanged();
+        var matchingOption = SettingsPageViewModel.ThemeOptions
+            .FirstOrDefault(option => option.Value == newTheme);
+
+        if (matchingOption is not null)
+            SettingsView.SelectedTheme = matchingOption;
+        else
+            SettingsView.OnThemeChanged();
     }
 
     public void TrayShowWindow()
