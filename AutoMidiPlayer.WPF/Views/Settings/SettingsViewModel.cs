@@ -24,6 +24,7 @@ using AutoMidiPlayer.WPF.Helpers;
 using AutoMidiPlayer.WPF.Animation.Transitions;
 using AutoMidiPlayer.WPF.MessageBox;
 using AutoMidiPlayer.WPF.Services;
+using AutoMidiPlayer.WPF.Views;
 using JetBrains.Annotations;
 using Microsoft.Win32;
 using PropertyChanged;
@@ -459,6 +460,14 @@ public class SettingsPageViewModel : Screen
     public void ResumeHotkeys()
     {
         _hotkeyService.ResumeHotkeys();
+    }
+
+    public void ScrollToVersionSection()
+    {
+        if (View is SettingsPageView view)
+        {
+            view.ScrollToVersionSection();
+        }
     }
 
     public void ResetHotkeys()

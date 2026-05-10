@@ -653,6 +653,7 @@
                                     Visibility="{Binding ShowUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
                                     Padding="8,4"
                                     Margin="0,0,6,0"
+                                    Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
                                     shell:WindowChrome.IsHitTestVisibleInChrome="True">
                                 <ui:SymbolIcon Symbol="ArrowDownload16"
                                                FontSize="18"/>

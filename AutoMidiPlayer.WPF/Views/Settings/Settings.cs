@@ -43,4 +43,20 @@ public partial class SettingsPageView : UserControl
             viewModel.ResumeHotkeys();
         }
     }
+
+    public void ScrollToVersionSection()
+    {
+        if (VersionSection is null || RootScrollViewer is null) return;
+
+        // Defer scroll to ensure layout is complete
+        Dispatcher.InvokeAsync(
+            () =>
+            {
+                // Get the position of Version section relative to the scroll viewer
+                var transform = VersionSection.TranslatePoint(new System.Windows.Point(0, 0), RootScrollViewer);
+                // Scroll to position it near the top (with some padding), not just barely in view
+                RootScrollViewer.ScrollToVerticalOffset(transform.Y - 100);
+            },
+            System.Windows.Threading.DispatcherPriority.Render);
+    }
 }

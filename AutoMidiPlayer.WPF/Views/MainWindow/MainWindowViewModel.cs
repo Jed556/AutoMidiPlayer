@@ -292,6 +292,31 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
     public void NavigateToSettings()
     {
         ActivateItem(SettingsView);
+
+        // Find the Settings navigation item and set it as active
+        var settingsNavItem = Navigation?.FooterMenuItems
+            .OfType<NavigationViewItem>()
+            .FirstOrDefault(nav => nav.Tag == SettingsView);
+        if (settingsNavItem != null)
+        {
+            SetSelectedNavItem(settingsNavItem);
+        }
+
+        // Update breadcrumb with current page name
+        BreadcrumbItems = ["Settings"];
+        Settings.LastViewedPage = "Settings";
+        Settings.Save();
+
+        // Notify that ShowUpdate property may have changed
+        NotifyOfPropertyChange(() => ShowUpdate);
+
+        // Scroll to Version section when coming from update button
+        // Defer with a small delay to ensure view is fully activated and rendered
+        var dispatcher = (View as FrameworkElement)?.Dispatcher ?? System.Windows.Application.Current?.Dispatcher;
+        dispatcher?.InvokeAsync(
+            () => SettingsView.ScrollToVersionSection(),
+            System.Windows.Threading.DispatcherPriority.Normal);
+
         Logger.LogPageVisit("Settings", source: "programmatic-navigation");
     }
 

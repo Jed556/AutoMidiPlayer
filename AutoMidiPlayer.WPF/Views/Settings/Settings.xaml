@@ -112,7 +112,8 @@
         </Style>
     </UserControl.Resources>
 
-    <ScrollViewer helpers:ScrollEdgeFadeBehavior.IsEnabled="True">
+    <ScrollViewer x:Name="RootScrollViewer"
+                  helpers:ScrollEdgeFadeBehavior.IsEnabled="True">
         <controls:SimpleStackPanel>
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -429,9 +430,9 @@
                                         <TextBlock Text="Base Key Offset"
                                                    FontWeight="SemiBold"/>
                                         <button:StandardDropdown SelectedItem="{Binding SelectedNewSongBaseKeyOption}"
-                                                  ItemsSource="{x:Static viewModels:SettingsPageViewModel.NewSongBaseKeyOptions}"
-                                                  ItemTemplate="{StaticResource OffsetNoteTemplate}"
-                                                  MinWidth="150"/>
+                                                                 ItemsSource="{x:Static viewModels:SettingsPageViewModel.NewSongBaseKeyOptions}"
+                                                                 ItemTemplate="{StaticResource OffsetNoteTemplate}"
+                                                                 MinWidth="150"/>
                                     </controls:SimpleStackPanel>
 
                                     <controls:SimpleStackPanel Grid.Column="2"
@@ -439,9 +440,9 @@
                                         <TextBlock Text="Key Offset"
                                                    FontWeight="SemiBold"/>
                                         <button:StandardDropdown SelectedItem="{Binding SelectedNewSongKeyOption}"
-                                                  ItemsSource="{Binding NewSongKeyOptions}"
-                                                  ItemTemplate="{StaticResource OffsetNoteTemplate}"
-                                                  MinWidth="150"/>
+                                                                 ItemsSource="{Binding NewSongKeyOptions}"
+                                                                 ItemTemplate="{StaticResource OffsetNoteTemplate}"
+                                                                 MinWidth="150"/>
                                     </controls:SimpleStackPanel>
                                 </Grid>
                             </GroupBox>
@@ -461,9 +462,9 @@
                                 <GroupBox Grid.Column="0"
                                           Header="Transpose">
                                     <button:StandardDropdown SelectedItem="{Binding SelectedNewSongTransposeOption}"
-                                              ItemsSource="{x:Static viewModels:SettingsPageViewModel.NewSongTransposeOptions}"
-                                              DisplayMemberPath="Value"
-                                              MinWidth="150"/>
+                                                             ItemsSource="{x:Static viewModels:SettingsPageViewModel.NewSongTransposeOptions}"
+                                                             DisplayMemberPath="Value"
+                                                             MinWidth="150"/>
                                 </GroupBox>
 
                                 <GroupBox Grid.Column="2"
@@ -494,7 +495,8 @@
                     </controls:Section>
 
                     <!-- Version Section -->
-                    <controls:Section Title="Version"
+                    <controls:Section x:Name="VersionSection"
+                                      Title="Version"
                                       Margin="0,16,0,0">
                         <controls:Section.HeaderContent>
                             <Border Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
