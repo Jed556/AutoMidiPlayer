@@ -1,0 +1,32 @@
+<UserControl x:Class="AutoMidiPlayer.WPF.Controls.RotateToggleButton"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
+             x:Name="Root">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </UserControl.Resources>
+    <Button Style="{DynamicResource IconButton}"
+            Command="{Binding Command, ElementName=Root}"
+            CommandParameter="{Binding CommandParameter, ElementName=Root}"
+            ToolTip="{Binding ButtonToolTip, ElementName=Root}"
+            Padding="{Binding ButtonPadding, ElementName=Root}">
+        <Grid RenderTransformOrigin="0.5,0.5"
+              Loaded="Icon_Loaded">
+            <Grid.RenderTransform>
+                <RotateTransform x:Name="IconRotation" Angle="0"/>
+            </Grid.RenderTransform>
+            <!-- SymbolIcon mode: shown when IconSymbol is set -->
+            <ui:SymbolIcon x:Name="SymbolIconElement"
+                           Symbol="{Binding IconSymbol, ElementName=Root, TargetNullValue=ChevronDown24}"
+                           FontSize="{Binding IconFontSize, ElementName=Root}"/>
+            <!-- FontIcon (glyph) mode: shown when Glyph is set -->
+            <ui:FontIcon x:Name="GlyphIconElement"
+                         Glyph="{Binding Glyph, ElementName=Root}"
+                         FontFamily="{Binding GlyphFontFamily, ElementName=Root, TargetNullValue={x:Static SystemFonts.MessageFontFamily}}"
+                         FontSize="{Binding GlyphFontSize, ElementName=Root}"
+                         Visibility="Collapsed"/>
+        </Grid>
+    </Button>
+</UserControl>

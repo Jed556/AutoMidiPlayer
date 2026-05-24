@@ -10,6 +10,7 @@
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
     xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
     xmlns:converters="clr-namespace:AutoMidiPlayer.WPF.Converters"
+    xmlns:button="clr-namespace:AutoMidiPlayer.WPF.Controls.SelectorPopupButton.Button"
     d:DataContext="{d:DesignInstance Type=viewModels:SongsViewModel}">
 
     <UserControl.Resources>
@@ -94,24 +95,19 @@
                                        Orientation="Horizontal"
                                        Spacing="8">
                 <!-- Sort Dropdown -->
-                <ComboBox Width="150"
-                          SelectedIndex="{Binding SortModeIndex, Mode=TwoWay}"
-                          ToolTip="Sort by">
-                    <ComboBoxItem Content="Custom order"/>
-                    <ComboBoxItem Content="Title"/>
-                    <ComboBoxItem Content="Recently added"/>
-                    <ComboBoxItem Content="Duration"/>
-                </ComboBox>
+                <button:StandardDropdown HorizontalAlignment="Left"
+                                         ItemsSource="{x:Static viewModels:SongsViewModel.SortModeOptions}"
+                                         SelectedIndex="{Binding SortModeIndex, Mode=TwoWay}"
+                                         ToolTip="Sort by"/>
 
-                <!-- Sort Direction Toggle -->
-                <Button Style="{DynamicResource IconButton}"
-                        Command="{s:Action ToggleSortDirection}"
-                        Padding="8,6"
-                        ToolTip="Toggle sort direction">
-                    <ui:FontIcon Glyph="{Binding SortDirectionIcon}"
-                                 FontFamily="{StaticResource MdlFontFamily}"
-                                 FontSize="12"/>
-                </Button>
+                <controls:RotateToggleButton
+                    IsRotated="{Binding IsDescending}"
+                    Glyph="&#xE74A;"
+                    GlyphFontFamily="{StaticResource MdlFontFamily}"
+                    GlyphFontSize="12"
+                    ButtonPadding="8,6"
+                    Command="{s:Action ToggleSortDirection}"
+                    ButtonToolTip="Toggle sort direction"/>
             </controls:SimpleStackPanel>
         </Grid>
 

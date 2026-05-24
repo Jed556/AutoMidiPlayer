@@ -172,6 +172,9 @@ public class SettingsPageViewModel : Screen
     /// <summary>Observable collection of game location entries for the settings UI</summary>
     public BindableCollection<GameInfo> GameLocations { get; }
 
+    public bool IsGameLocationsExpanded { get; set; }
+    public void ToggleGameLocationsExpanded() => IsGameLocationsExpanded = !IsGameLocationsExpanded;
+
     public AccentColorOption SelectedAccentColor
     {
         get => _selectedAccentColor;
@@ -328,14 +331,9 @@ public class SettingsPageViewModel : Screen
 
     /// <summary>
     /// Sorted distinct key counts across all registered instruments.
-    /// Drives the slider tick positions.
+    /// Drives the slider tick positions via CustomTicks binding.
     /// </summary>
     public static int[] AutoCorrectThresholdTicks { get; } = Core.Keyboard.GetDistinctInstrumentKeyCounts();
-
-    /// <summary>
-    /// Maximum slider index (0-based).
-    /// </summary>
-    public int AutoCorrectThresholdMaxIndex => AutoCorrectThresholdTicks.Length - 1;
 
     /// <summary>
     /// Pipe-delimited labels for the slider thumb tooltip (one per tick).
@@ -343,33 +341,31 @@ public class SettingsPageViewModel : Screen
     public string AutoCorrectThresholdToolTipOptions { get; } =
         string.Join("|", AutoCorrectThresholdTicks.Select(k => $"{k} keys"));
 
-    private int _autoCorrectThresholdIndex = Array.IndexOf(
-        AutoCorrectThresholdTicks,
-        AutoCorrectThresholdTicks.OrderBy(t => Math.Abs(t - Settings.AutoCorrectThreshold)).First());
+    private int _autoCorrectThresholdValue = AutoCorrectThresholdTicks
+        .OrderBy(t => Math.Abs(t - Settings.AutoCorrectThreshold))
+        .FirstOrDefault();
 
     /// <summary>
-    /// Current slider index. Converts to/from the actual key count for persistence.
+    /// Current slider value — the actual key count (not an index).
+    /// Bound directly to the Slider.Value property.
     /// </summary>
-    public int AutoCorrectThresholdIndex
+    public int AutoCorrectThresholdValue
     {
-        get => _autoCorrectThresholdIndex;
+        get => _autoCorrectThresholdValue;
         set
         {
-            var clamped = Math.Clamp(value, 0, AutoCorrectThresholdMaxIndex);
-            if (SetAndNotify(ref _autoCorrectThresholdIndex, clamped))
+            // Snap to nearest valid tick (the slider control already snaps,
+            // but guard against programmatic sets with arbitrary values)
+            var snapped = AutoCorrectThresholdTicks
+                .OrderBy(t => Math.Abs(t - value))
+                .FirstOrDefault();
+
+            if (SetAndNotify(ref _autoCorrectThresholdValue, snapped))
             {
                 NotifyOfPropertyChange(nameof(AutoCorrectThresholdDescription));
             }
         }
     }
-
-    /// <summary>
-    /// The actual key count value represented by the current slider position.
-    /// </summary>
-    public int AutoCorrectThresholdValue =>
-        AutoCorrectThresholdIndex >= 0 && AutoCorrectThresholdIndex < AutoCorrectThresholdTicks.Length
-            ? AutoCorrectThresholdTicks[AutoCorrectThresholdIndex]
-            : 22;
 
     /// <summary>
     /// Human-readable description shown below the slider.
@@ -1471,7 +1467,7 @@ public class SettingsPageViewModel : Screen
     }
 
     [UsedImplicitly]
-    private void OnAutoCorrectThresholdIndexChanged()
+    private void OnAutoCorrectThresholdValueChanged()
     {
         Settings.AutoCorrectThreshold = AutoCorrectThresholdValue;
         Settings.Save();

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using System.Windows.Media;
 using AutoMidiPlayer.Data.Entities;
 using AutoMidiPlayer.Data.Properties;
@@ -12,6 +13,7 @@ using Microsoft.Win32;
 using Wpf.Ui.Controls;
 using Stylet;
 using StyletIoC;
+using PropertyChanged;
 using MidiFile = AutoMidiPlayer.Data.Midi.MidiFile;
 
 namespace AutoMidiPlayer.WPF.ViewModels;
@@ -54,6 +56,14 @@ public class SongsViewModel : Screen
         RecentlyAdded,
         Duration
     }
+
+    public static List<string> SortModeOptions { get; } = new()
+    {
+        "Custom order",
+        "Title",
+        "Recently added",
+        "Duration"
+    };
 
     private static readonly Settings Settings = Settings.Default;
     private readonly IContainer _ioc;
@@ -161,6 +171,9 @@ public class SongsViewModel : Screen
 
     public bool IsAscending { get; set; } = true;
 
+    [DependsOn(nameof(IsAscending))]
+    public bool IsDescending => !IsAscending;
+
     public int SortModeIndex
     {
         get => (int)CurrentSortMode;
@@ -191,7 +204,8 @@ public class SongsViewModel : Screen
     {
         Settings.SongsSortAscending = IsAscending;
         Settings.Save();
-        ApplySort();
+        // Defer sort so the rotation animation can start rendering first
+        Application.Current?.Dispatcher.BeginInvoke(DispatcherPriority.Background, ApplySort);
     }
 
     public void OnSearchTextChanged() => ApplySort();

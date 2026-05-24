@@ -9,6 +9,7 @@
     xmlns:s="https://github.com/canton7/Stylet"
     xmlns:core="clr-namespace:AutoMidiPlayer.WPF.Core"
     xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
+    xmlns:button="clr-namespace:AutoMidiPlayer.WPF.Controls.SelectorPopupButton.Button"
     xmlns:helpers="clr-namespace:AutoMidiPlayer.WPF.Helpers"
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
     xmlns:properties="clr-namespace:AutoMidiPlayer.Data.Properties;assembly=AutoMidiPlayer.Data"
@@ -30,19 +31,23 @@
 
                 <!-- Instrument Section -->
                 <controls:Section Title="Game Instrument">
-                    <ComboBox
+                    <button:StandardDropdown
                         ItemsSource="{Binding AvailableInstruments}"
                         SelectedItem="{Binding SelectedInstrument}"
                         DisplayMemberPath="Value"
+                        HorizontalAlignment="Left"
+                        Margin="2,0,0,0"
                         MinWidth="200"/>
                 </controls:Section>
 
                 <controls:Section Title="Keyboard Layout"
                                   Margin="0,16,0,0">
-                    <ComboBox
+                    <button:StandardDropdown
                         ItemsSource="{Binding AvailableLayouts}"
                         SelectedItem="{Binding SelectedLayout}"
                         DisplayMemberPath="Value"
+                        HorizontalAlignment="Left"
+                        Margin="2,0,0,0"
                         MinWidth="200"/>
                 </controls:Section>
 
@@ -50,11 +55,13 @@
                                   Margin="0,16,0,0">
                     <controls:SimpleStackPanel>
                         <ui:ToggleSwitch
-                            Content="Listen Mode (Speakers)"
+                            Content="Listen Mode"
+                            ToolTip="Play MIDI to speakers"
                             IsChecked="{Binding UseSpeakers, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
 
                         <ui:ToggleSwitch
-                            Content="Play unplayable notes (Ignore transpose)"
+                            Content="Play unplayable notes in listen mode"
+                            ToolTip="Play unplayable notes in listen mode when transposition is set to ignore"
                             IsChecked="{Binding PlayUnplayableOnIgnore, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                             Margin="0,0,0,0"/>
                     </controls:SimpleStackPanel>
@@ -138,10 +145,12 @@
                     <GroupBox Header="Physical MIDI Instrument">
                         <controls:SimpleStackPanel>
                             <controls:SimpleStackPanel Orientation="Horizontal">
-                                <ComboBox
+                                <button:StandardDropdown
                                     ItemsSource="{Binding MidiInputs}"
                                     SelectedItem="{Binding SelectedMidiInput}"
                                     DisplayMemberPath="DeviceName"
+                                    HorizontalAlignment="Left"
+                                    Margin="2,0,0,0"
                                     MinWidth="200"/>
                                 <Button Style="{DynamicResource IconButton}"
                                         Command="{s:Action RefreshDevices}"

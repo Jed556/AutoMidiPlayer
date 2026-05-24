@@ -177,12 +177,10 @@
                                       Margin="0,8,0,0">
                                 <controls:SimpleStackPanel>
                                     <controls:Slider
-                                        Minimum="0"
-                                        Maximum="{Binding AutoCorrectThresholdMaxIndex}"
-                                        TickFrequency="1"
+                                        CustomTicks="{x:Static viewModels:SettingsPageViewModel.AutoCorrectThresholdTicks}"
                                         IsSnapToTickEnabled="True"
                                         TickPlacement="BottomRight"
-                                        Value="{Binding AutoCorrectThresholdIndex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Value="{Binding AutoCorrectThresholdValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                         ThumbToolTipOptions="{Binding AutoCorrectThresholdToolTipOptions}"/>
                                     <TextBlock Text="{Binding AutoCorrectThresholdDescription}"
                                                TextWrapping="Wrap"
@@ -232,7 +230,7 @@
                                     SelectedItem="{Binding SelectedMouseStopClickOption}"
                                     ItemsSource="{x:Static viewModels:SettingsPageViewModel.MouseStopClickOptions}"
                                     DisplayMemberPath="Name"
-                                    MinWidth="220"/>
+                                    HorizontalAlignment="Left"/>
                             </GroupBox>
 
                             <controls:SimpleStackPanel Spacing="8"
@@ -282,42 +280,141 @@
                     <controls:Section Title="Locations"
                                       Margin="0,16,0,0">
                         <controls:SimpleStackPanel>
-                            <ItemsControl ItemsSource="{Binding GameLocations}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type games:GameInfo}">
-                                        <GroupBox Margin="0,0,0,4">
-                                            <GroupBox.Header>
-                                                <TextBlock>
-                                                    <Run Text="{Binding DisplayName, Mode=OneWay}"/><Run Text=" Location"/>
-                                                </TextBlock>
-                                            </GroupBox.Header>
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                </Grid.ColumnDefinitions>
-                                                <Button Style="{DynamicResource IconButton}"
-                                                        s:View.ActionTarget="{Binding Data, Source={StaticResource SettingsVmProxy}}"
-                                                        CommandParameter="{Binding}"
-                                                        Command="{s:Action BrowseGameLocation}"
-                                                        Width="28"
-                                                        Height="28"
-                                                        MinWidth="0"
-                                                        Padding="0">
-                                                    <ui:SymbolIcon Symbol="AppsAddIn16"
-                                                                   FontSize="16"/>
-                                                </Button>
-                                                <TextBlock Grid.Column="1"
-                                                           Margin="4,0,0,0"
-                                                           Text="{Binding Location}"
-                                                           VerticalAlignment="Center"
-                                                           TextTrimming="CharacterEllipsis"
-                                                           ToolTip="{Binding Location}"/>
-                                            </Grid>
-                                        </GroupBox>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                            <GroupBox Padding="0">
+                                <GroupBox.Header>
+                                    <Grid Margin="0,0,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Game Locations"
+                                                VerticalAlignment="Center"
+                                                FontWeight="SemiBold"/>
+                                        <controls:RotateToggleButton Grid.Column="1"
+                                                                     s:View.ActionTarget="{Binding Data, Source={StaticResource SettingsVmProxy}}"
+                                                                     IsRotated="{Binding IsGameLocationsExpanded}"
+                                                                     Command="{s:Action ToggleGameLocationsExpanded}"
+                                                                     ButtonToolTip="Toggle Game Locations"/>
+                                    </Grid>
+                                </GroupBox.Header>
+                                <Border>
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Opacity"
+                                                    Value="0"/>
+                                            <Setter Property="MaxHeight"
+                                                    Value="0"/>
+                                            <Setter Property="IsHitTestVisible"
+                                                    Value="False"/>
+                                            <Setter Property="ClipToBounds"
+                                                    Value="True"/>
+                                            <Setter Property="RenderTransform">
+                                                <Setter.Value>
+                                                    <TranslateTransform Y="-8"/>
+                                                </Setter.Value>
+                                            </Setter>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsGameLocationsExpanded}"
+                                                        Value="True">
+                                                    <Setter Property="IsHitTestVisible"
+                                                            Value="True"/>
+                                                    <DataTrigger.EnterActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                        To="1"
+                                                                        Duration="0:0:0.22">
+                                                                    <DoubleAnimation.EasingFunction>
+                                                                        <CubicEase EasingMode="EaseOut"/>
+                                                                    </DoubleAnimation.EasingFunction>
+                                                                </DoubleAnimation>
+                                                                <DoubleAnimation Storyboard.TargetProperty="MaxHeight"
+                                                                        To="1500"
+                                                                        Duration="0:0:0.22">
+                                                                    <DoubleAnimation.EasingFunction>
+                                                                        <CubicEase EasingMode="EaseOut"/>
+                                                                    </DoubleAnimation.EasingFunction>
+                                                                </DoubleAnimation>
+                                                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                                        To="0"
+                                                                        Duration="0:0:0.22">
+                                                                    <DoubleAnimation.EasingFunction>
+                                                                        <CubicEase EasingMode="EaseOut"/>
+                                                                    </DoubleAnimation.EasingFunction>
+                                                                </DoubleAnimation>
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </DataTrigger.EnterActions>
+                                                    <DataTrigger.ExitActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                        To="0"
+                                                                        Duration="0:0:0.18">
+                                                                    <DoubleAnimation.EasingFunction>
+                                                                        <CubicEase EasingMode="EaseIn"/>
+                                                                    </DoubleAnimation.EasingFunction>
+                                                                </DoubleAnimation>
+                                                                <DoubleAnimation Storyboard.TargetProperty="MaxHeight"
+                                                                        To="0"
+                                                                        Duration="0:0:0.18">
+                                                                    <DoubleAnimation.EasingFunction>
+                                                                        <CubicEase EasingMode="EaseIn"/>
+                                                                    </DoubleAnimation.EasingFunction>
+                                                                </DoubleAnimation>
+                                                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                                        To="-8"
+                                                                        Duration="0:0:0.18">
+                                                                    <DoubleAnimation.EasingFunction>
+                                                                        <CubicEase EasingMode="EaseIn"/>
+                                                                    </DoubleAnimation.EasingFunction>
+                                                                </DoubleAnimation>
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </DataTrigger.ExitActions>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <ItemsControl ItemsSource="{Binding GameLocations}"
+                                            Margin="0,12,0,0">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type games:GameInfo}">
+                                                <GroupBox Margin="0,0,0,4">
+                                                    <GroupBox.Header>
+                                                        <TextBlock>
+                                                            <Run Text="{Binding DisplayName, Mode=OneWay}"/><Run Text=" Location"/>
+                                                        </TextBlock>
+                                                    </GroupBox.Header>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Button Style="{DynamicResource IconButton}"
+                                                                s:View.ActionTarget="{Binding Data, Source={StaticResource SettingsVmProxy}}"
+                                                                CommandParameter="{Binding}"
+                                                                Command="{s:Action BrowseGameLocation}"
+                                                                Width="28"
+                                                                Height="28"
+                                                                MinWidth="0"
+                                                                Padding="0">
+                                                            <ui:SymbolIcon Symbol="AppsAddIn16"
+                                                                           FontSize="16"/>
+                                                        </Button>
+                                                        <TextBlock Grid.Column="1"
+                                                                   Margin="4,0,0,0"
+                                                                   Text="{Binding Location}"
+                                                                   VerticalAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   ToolTip="{Binding Location}"/>
+                                                    </Grid>
+                                                </GroupBox>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Border>
+                            </GroupBox>
 
                             <GroupBox Header="MIDI Folder">
                                 <controls:SimpleStackPanel>
@@ -458,7 +555,11 @@
                                         <button:StandardDropdown SelectedItem="{Binding SelectedNewSongBaseKeyOption}"
                                                                  ItemsSource="{x:Static viewModels:SettingsPageViewModel.NewSongBaseKeyOptions}"
                                                                  ItemTemplate="{StaticResource OffsetNoteTemplate}"
-                                                                 MinWidth="150"/>
+                                                                 HorizontalAlignment="Left"/>
+                                        <ui:ToggleSwitch Content="Auto Detect Base Key"
+                                                         IsChecked="{Binding AutoDetectBaseKey}"
+                                                         Margin="0,4,0,0"
+                                                         ToolTip="When enabled, newly imported songs try to auto-detect the song base key. If detection fails, the key defaults above are used."/>
                                     </controls:SimpleStackPanel>
 
                                     <controls:SimpleStackPanel Grid.Column="2"
@@ -468,15 +569,10 @@
                                         <button:StandardDropdown SelectedItem="{Binding SelectedNewSongKeyOption}"
                                                                  ItemsSource="{Binding NewSongKeyOptions}"
                                                                  ItemTemplate="{StaticResource OffsetNoteTemplate}"
-                                                                 MinWidth="150"/>
+                                                                 HorizontalAlignment="Left"/>
                                     </controls:SimpleStackPanel>
                                 </Grid>
                             </GroupBox>
-
-                            <ui:ToggleSwitch Content="Auto Detect Base Key"
-                                             IsChecked="{Binding AutoDetectBaseKey}"
-                                             Margin="0,0,0,0"
-                                             ToolTip="When enabled, newly imported songs try to auto-detect the song base key. If detection fails, the key defaults above are used."/>
 
                             <Grid Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>
@@ -490,7 +586,7 @@
                                     <button:StandardDropdown SelectedItem="{Binding SelectedNewSongTransposeOption}"
                                                              ItemsSource="{x:Static viewModels:SettingsPageViewModel.NewSongTransposeOptions}"
                                                              DisplayMemberPath="Value"
-                                                             MinWidth="150"/>
+                                                             HorizontalAlignment="Left"/>
                                 </GroupBox>
 
                                 <GroupBox Grid.Column="2"
@@ -587,45 +683,63 @@
                     <controls:Section Title="Style"
                                       Margin="0,16,0,0">
                         <controls:SimpleStackPanel>
-                            <GroupBox Header="Theme Mode">
-                                <button:StandardDropdown
-                                    SelectedItem="{Binding SelectedTheme}"
-                                    ItemsSource="{x:Static viewModels:SettingsPageViewModel.ThemeOptions}"
-                                    DisplayMemberPath="Name"
-                                    MinWidth="150"/>
-                            </GroupBox>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <GroupBox Grid.Column="0"
+                                        Header="Theme Mode">
+                                    <button:StandardDropdown
+                                        SelectedItem="{Binding SelectedTheme}"
+                                        ItemsSource="{x:Static viewModels:SettingsPageViewModel.ThemeOptions}"
+                                        DisplayMemberPath="Name"
+                                        HorizontalAlignment="Left"/>
+                                </GroupBox>
+                                <GroupBox Grid.Column="2"
+                                        Header="Accent Color">
+                                    <button:StandardDropdown
+                                        SelectedItem="{Binding SelectedAccentColor}"
+                                        ItemsSource="{x:Static viewModels:SettingsPageViewModel.AccentColors}"
+                                        HorizontalAlignment="Left">
+                                        <button:StandardDropdown.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Border Width="16"
+                                                            Height="16"
+                                                            CornerRadius="8"
+                                                            Background="{Binding ColorBrush}"
+                                                            Margin="0,0,8,0"/>
+                                                    <TextBlock Text="{Binding Name}"
+                                                               VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </button:StandardDropdown.ItemTemplate>
+                                    </button:StandardDropdown>
+                                </GroupBox>
+                            </Grid>
 
-                            <GroupBox Header="Accent Color">
-                                <button:StandardDropdown
-                                    SelectedItem="{Binding SelectedAccentColor}"
-                                    ItemsSource="{x:Static viewModels:SettingsPageViewModel.AccentColors}"
-                                    MinWidth="150">
-                                    <button:StandardDropdown.ItemTemplate>
-                                        <DataTemplate>
-                                            <StackPanel Orientation="Horizontal">
-                                                <Border Width="16"
-                                                        Height="16"
-                                                        CornerRadius="8"
-                                                        Background="{Binding ColorBrush}"
-                                                        Margin="0,0,8,0"/>
-                                                <TextBlock Text="{Binding Name}"
-                                                           VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </button:StandardDropdown.ItemTemplate>
-                                </button:StandardDropdown>
-                            </GroupBox>
-
-                            <GroupBox Header="Transition Style">
-                                <button:StandardDropdown
-                                    SelectedItem="{Binding Transition}"
-                                    SelectedIndex="{Binding Default.SelectedTransition, Source={StaticResource Settings}}"
-                                    ItemsSource="{x:Static transitions:TransitionCollection.Transitions}"
-                                    MinWidth="150"/>
-                            </GroupBox>
-                            <ui:ToggleSwitch Content="Enable smooth scrolling"
-                                             IsChecked="{Binding SmoothScrollingEnabled}"
-                                             ToolTip="Smooths wheel scrolling in lists and panes. Turn off for default native scrolling."/>
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <GroupBox Grid.Column="0"
+                                        Header="Transition Style">
+                                    <button:StandardDropdown
+                                        SelectedItem="{Binding Transition}"
+                                        SelectedIndex="{Binding Default.SelectedTransition, Source={StaticResource Settings}}"
+                                        ItemsSource="{x:Static transitions:TransitionCollection.Transitions}"
+                                        HorizontalAlignment="Left"/>
+                                </GroupBox>
+                                <ui:ToggleSwitch Grid.Column="2"
+                                        Content="Enable smooth scrolling"
+                                                 IsChecked="{Binding SmoothScrollingEnabled}"
+                                                 Margin="0,4,0,0"
+                                                 ToolTip="Smooths wheel scrolling in lists and panes. Turn off for default native scrolling."/>
+                            </Grid>
                         </controls:SimpleStackPanel>
                     </controls:Section>
 
