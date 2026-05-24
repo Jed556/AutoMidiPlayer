@@ -5,14 +5,14 @@
              MinHeight="20">
     <Grid x:Name="RootGrid">
         <Slider x:Name="SliderHost"
-                Minimum="{Binding Minimum, ElementName=Root}"
-                Maximum="{Binding Maximum, ElementName=Root}"
-                TickFrequency="{Binding TickFrequency, ElementName=Root}"
+                Minimum="{Binding VisualMinimum, ElementName=Root}"
+                Maximum="{Binding VisualMaximum, ElementName=Root}"
+                TickFrequency="{Binding VisualTickFrequency, ElementName=Root}"
                 IsSnapToTickEnabled="{Binding IsSnapToTickEnabled, ElementName=Root}"
                 TickPlacement="{Binding TickPlacement, ElementName=Root}"
                 AutoToolTipPlacement="None"
                 AutoToolTipPrecision="0"
                 IsMoveToPointEnabled="False"
-                Value="{Binding AnimatedValue, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                Value="{Binding VisualValue, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
     </Grid>
 </UserControl>

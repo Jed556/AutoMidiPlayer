@@ -22,6 +22,11 @@ public partial class Slider : UserControl
     private Track? _track;
     private Point _trackPressPoint;
     private Binding? _twoWayValueBinding;
+    private bool _suppressVisualValuePropagation;
+    private bool _isApplyingTickLayout;
+    private int[]? _sortedCustomTicks;
+    private double[]? _visualTickPositions;
+    private double _lastTickLayoutTrackLength;
 
     // Popup-based drag tooltip (mirrors Seekbar behavior)
     private Popup? _dragPopup;
@@ -45,13 +50,22 @@ public partial class Slider : UserControl
     }
 
     public static readonly DependencyProperty MinimumProperty = DependencyProperty.Register(
-        nameof(Minimum), typeof(double), typeof(Slider), new PropertyMetadata(0d));
+        nameof(Minimum), typeof(double), typeof(Slider), new PropertyMetadata(0d, OnRangePropertyChanged));
 
     public static readonly DependencyProperty MaximumProperty = DependencyProperty.Register(
-        nameof(Maximum), typeof(double), typeof(Slider), new PropertyMetadata(2d));
+        nameof(Maximum), typeof(double), typeof(Slider), new PropertyMetadata(2d, OnRangePropertyChanged));
 
     public static readonly DependencyProperty TickFrequencyProperty = DependencyProperty.Register(
-        nameof(TickFrequency), typeof(double), typeof(Slider), new PropertyMetadata(1d));
+        nameof(TickFrequency), typeof(double), typeof(Slider), new PropertyMetadata(1d, OnRangePropertyChanged));
+
+    public static readonly DependencyProperty VisualMinimumProperty = DependencyProperty.Register(
+        nameof(VisualMinimum), typeof(double), typeof(Slider), new PropertyMetadata(0d));
+
+    public static readonly DependencyProperty VisualMaximumProperty = DependencyProperty.Register(
+        nameof(VisualMaximum), typeof(double), typeof(Slider), new PropertyMetadata(2d));
+
+    public static readonly DependencyProperty VisualTickFrequencyProperty = DependencyProperty.Register(
+        nameof(VisualTickFrequency), typeof(double), typeof(Slider), new PropertyMetadata(1d));
 
     public static readonly DependencyProperty IsSnapToTickEnabledProperty = DependencyProperty.Register(
         nameof(IsSnapToTickEnabled), typeof(bool), typeof(Slider), new PropertyMetadata(true));
@@ -70,6 +84,9 @@ public partial class Slider : UserControl
         nameof(AnimatedValue), typeof(double), typeof(Slider),
         new PropertyMetadata(0d, OnAnimatedValueChanged));
 
+    public static readonly DependencyProperty VisualValueProperty = DependencyProperty.Register(
+        nameof(VisualValue), typeof(double), typeof(Slider), new PropertyMetadata(0d, OnVisualValueChanged));
+
     public static readonly DependencyProperty ThumbToolTipOptionsProperty = DependencyProperty.Register(
         nameof(ThumbToolTipOptions), typeof(string), typeof(Slider), new PropertyMetadata(string.Empty, OnThumbToolTipOptionsChanged));
 
@@ -81,6 +98,9 @@ public partial class Slider : UserControl
 
     public static readonly DependencyProperty CustomTicksProperty = DependencyProperty.Register(
         nameof(CustomTicks), typeof(int[]), typeof(Slider), new PropertyMetadata(null, OnCustomTicksChanged));
+
+    public static readonly DependencyProperty MinimumTickGapProperty = DependencyProperty.Register(
+        nameof(MinimumTickGap), typeof(double), typeof(Slider), new PropertyMetadata(0d, OnMinimumTickGapChanged));
 
     public double Minimum
     {
@@ -98,6 +118,24 @@ public partial class Slider : UserControl
     {
         get => (double)GetValue(TickFrequencyProperty);
         set => SetValue(TickFrequencyProperty, value);
+    }
+
+    public double VisualMinimum
+    {
+        get => (double)GetValue(VisualMinimumProperty);
+        set => SetValue(VisualMinimumProperty, value);
+    }
+
+    public double VisualMaximum
+    {
+        get => (double)GetValue(VisualMaximumProperty);
+        set => SetValue(VisualMaximumProperty, value);
+    }
+
+    public double VisualTickFrequency
+    {
+        get => (double)GetValue(VisualTickFrequencyProperty);
+        set => SetValue(VisualTickFrequencyProperty, value);
     }
 
     public bool IsSnapToTickEnabled
@@ -130,6 +168,12 @@ public partial class Slider : UserControl
         set => SetValue(AnimatedValueProperty, value);
     }
 
+    public double VisualValue
+    {
+        get => (double)GetValue(VisualValueProperty);
+        set => SetValue(VisualValueProperty, value);
+    }
+
     public string ThumbToolTipOptions
     {
         get => (string)GetValue(ThumbToolTipOptionsProperty);
@@ -158,13 +202,21 @@ public partial class Slider : UserControl
         set => SetValue(CustomTicksProperty, value);
     }
 
+    public double MinimumTickGap
+    {
+        get => (double)GetValue(MinimumTickGapProperty);
+        set => SetValue(MinimumTickGapProperty, value);
+    }
+
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        SliderHost.SizeChanged += OnSliderHostSizeChanged;
+
         _suppressAnimation = true;
         AnimatedValue = Value;
         _suppressAnimation = false;
 
-        ApplyCustomTicksToHost();
+        RefreshTickLayout();
         ResolveThumb();
         EnsureDragPopup();
         UpdateThumbToolTip();
@@ -179,6 +231,8 @@ public partial class Slider : UserControl
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        SliderHost.SizeChanged -= OnSliderHostSizeChanged;
+
         if (_dragPopup is not null)
             _dragPopup.IsOpen = false;
 
@@ -188,6 +242,24 @@ public partial class Slider : UserControl
             _parentWindow.StateChanged -= ParentWindow_StateChanged;
             _parentWindow = null;
         }
+    }
+
+    private void OnSliderHostSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_isApplyingTickLayout)
+            return;
+
+        if (CustomTicks is not { Length: > 1 } || MinimumTickGap <= 0)
+            return;
+
+        var trackLength = ResolveTrackLength();
+        if (trackLength <= 0)
+            return;
+
+        if (Math.Abs(trackLength - _lastTickLayoutTrackLength) < 0.5)
+            return;
+
+        RefreshTickLayout();
     }
 
     private void ParentWindow_LocationChanged(object? sender, EventArgs e)
@@ -215,7 +287,34 @@ public partial class Slider : UserControl
     {
         // AnimatedValue is purely visual — only update the tooltip, never touch Value
         var control = (Slider)d;
+        control.SyncVisualValueFromActual((double)e.NewValue);
         control.UpdateThumbToolTip();
+    }
+
+    private static void OnVisualValueChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var control = (Slider)d;
+        if (control._suppressVisualValuePropagation)
+            return;
+
+        var actual = control.MapVisualToActual((double)e.NewValue);
+        var target = control.Snap(actual);
+        control.CommitValue(target, animate: false);
+    }
+
+    private static void OnRangePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var control = (Slider)d;
+        if (control._isApplyingTickLayout)
+            return;
+
+        control.RefreshTickLayout();
+    }
+
+    private static void OnMinimumTickGapChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var control = (Slider)d;
+        control.RefreshTickLayout();
     }
 
     private static void OnThumbToolTipOptionsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -394,7 +493,10 @@ public partial class Slider : UserControl
                 : Math.Clamp(position.X / trackWidth, 0, 1);
         }
 
-        var raw = Minimum + (Maximum - Minimum) * ratio;
+        var visualMin = VisualMinimum;
+        var visualMax = VisualMaximum;
+        var visualValue = visualMin + (visualMax - visualMin) * ratio;
+        var raw = MapVisualToActual(visualValue);
         var target = Snap(raw);
 
         CommitValue(target, animate);
@@ -457,10 +559,10 @@ public partial class Slider : UserControl
 
         if (_twoWayValueBinding is null)
         {
-            _twoWayValueBinding = new Binding(nameof(AnimatedValue)) { Source = this, Mode = BindingMode.TwoWay, UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged };
+            _twoWayValueBinding = new Binding(nameof(VisualValue)) { Source = this, Mode = BindingMode.TwoWay, UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged };
         }
 
-        var oneWay = new Binding(nameof(AnimatedValue)) { Source = this, Mode = BindingMode.OneWay };
+        var oneWay = new Binding(nameof(VisualValue)) { Source = this, Mode = BindingMode.OneWay };
         BindingOperations.ClearBinding(SliderHost, RangeBase.ValueProperty);
         BindingOperations.SetBinding(SliderHost, RangeBase.ValueProperty, oneWay);
 
@@ -496,7 +598,7 @@ public partial class Slider : UserControl
     private void OnThumbDragCompleted(object? sender, DragCompletedEventArgs e)
     {
         if (_twoWayValueBinding is null)
-            _twoWayValueBinding = new Binding(nameof(AnimatedValue)) { Source = this, Mode = BindingMode.TwoWay, UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged };
+            _twoWayValueBinding = new Binding(nameof(VisualValue)) { Source = this, Mode = BindingMode.TwoWay, UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged };
 
         BindingOperations.ClearBinding(SliderHost, RangeBase.ValueProperty);
         BindingOperations.SetBinding(SliderHost, RangeBase.ValueProperty, _twoWayValueBinding);
@@ -616,9 +718,9 @@ public partial class Slider : UserControl
             {
                 var sb = new Storyboard();
                 var scaleX = new DoubleAnimation(1.0, TimeSpan.FromMilliseconds(100))
-                    { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }, From = 0.85 };
+                { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }, From = 0.85 };
                 var scaleY = new DoubleAnimation(1.0, TimeSpan.FromMilliseconds(100))
-                    { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }, From = 0.85 };
+                { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }, From = 0.85 };
                 var opacity = new DoubleAnimation(1.0, TimeSpan.FromMilliseconds(100)) { From = 0.0 };
 
                 Storyboard.SetTargetProperty(scaleX, new PropertyPath("RenderTransform.ScaleX"));
@@ -666,9 +768,9 @@ public partial class Slider : UserControl
         {
             var sb = new Storyboard();
             var scaleX = new DoubleAnimation(0.85, TimeSpan.FromMilliseconds(90))
-                { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+            { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
             var scaleY = new DoubleAnimation(0.85, TimeSpan.FromMilliseconds(90))
-                { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+            { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
             var opacity = new DoubleAnimation(0.0, TimeSpan.FromMilliseconds(90));
 
             Storyboard.SetTargetProperty(scaleX, new PropertyPath("RenderTransform.ScaleX"));
@@ -738,32 +840,302 @@ public partial class Slider : UserControl
     private static void OnCustomTicksChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         var control = (Slider)d;
-        control.ApplyCustomTicksToHost();
+        control.RefreshTickLayout();
     }
 
-    /// <summary>
-    /// Applies the CustomTicks array to the inner SliderHost, setting Min, Max, and Ticks.
-    /// </summary>
-    private void ApplyCustomTicksToHost()
+    private void RefreshTickLayout()
     {
-        var ticks = CustomTicks;
-        if (ticks is not { Length: > 0 })
+        if (_isApplyingTickLayout)
             return;
 
-        var sorted = ticks.OrderBy(v => v).ToArray();
-        var min = (double)sorted[0];
-        var max = (double)sorted[^1];
+        _isApplyingTickLayout = true;
+        try
+        {
+            var ticks = CustomTicks;
+            if (ticks is not { Length: > 0 })
+            {
+                _sortedCustomTicks = null;
+                _visualTickPositions = null;
+                _lastTickLayoutTrackLength = 0;
+                SetCurrentValue(VisualMinimumProperty, Minimum);
+                SetCurrentValue(VisualMaximumProperty, Maximum);
+                SetCurrentValue(VisualTickFrequencyProperty, TickFrequency);
+                SliderHost.ClearValue(System.Windows.Controls.Slider.TicksProperty);
+                SyncVisualValueFromActual(AnimatedValue);
+                return;
+            }
 
-        // Update our own Minimum/Maximum so internal calculations use the real range
-        Minimum = min;
-        Maximum = max;
+            var sorted = ticks.OrderBy(v => v).ToArray();
+            var hasSameTicks = _sortedCustomTicks is not null && _sortedCustomTicks.SequenceEqual(sorted);
+            _sortedCustomTicks = sorted;
 
-        // Set the WPF Slider's Ticks property for non-uniform tick rendering
-        var tickCollection = new DoubleCollection(sorted.Select(v => (double)v));
-        SliderHost.Ticks = tickCollection;
+            var min = (double)sorted[0];
+            var max = (double)sorted[^1];
 
-        // Use TickFrequency of 0 so only explicit Ticks are shown (no auto-generated ticks)
-        SliderHost.TickFrequency = 0;
+            SetCurrentValue(MinimumProperty, min);
+            SetCurrentValue(MaximumProperty, max);
+
+            var trackLength = ResolveTrackLength();
+            var canApplyMinGap = MinimumTickGap > 0 && sorted.Length > 1 && trackLength > 0;
+
+            if (!canApplyMinGap
+                && MinimumTickGap > 0
+                && hasSameTicks
+                && _visualTickPositions is not null
+                && _visualTickPositions.Length == sorted.Length)
+            {
+                SetCurrentValue(VisualMinimumProperty, 0d);
+                SetCurrentValue(VisualMaximumProperty, 1d);
+                SetCurrentValue(VisualTickFrequencyProperty, 0d);
+                SliderHost.Ticks = new DoubleCollection(_visualTickPositions);
+                SyncVisualValueFromActual(AnimatedValue);
+                return;
+            }
+
+            if (canApplyMinGap)
+            {
+                _visualTickPositions = BuildVisualTickPositions(sorted, trackLength, MinimumTickGap);
+                SetCurrentValue(VisualMinimumProperty, 0d);
+                SetCurrentValue(VisualMaximumProperty, 1d);
+                SetCurrentValue(VisualTickFrequencyProperty, 0d);
+                SliderHost.Ticks = new DoubleCollection(_visualTickPositions);
+                if (trackLength > 0)
+                    _lastTickLayoutTrackLength = trackLength;
+            }
+            else
+            {
+                _visualTickPositions = null;
+                SetCurrentValue(VisualMinimumProperty, min);
+                SetCurrentValue(VisualMaximumProperty, max);
+                SetCurrentValue(VisualTickFrequencyProperty, 0d);
+                SliderHost.Ticks = new DoubleCollection(sorted.Select(v => (double)v));
+                if (trackLength > 0)
+                    _lastTickLayoutTrackLength = trackLength;
+            }
+
+            SyncVisualValueFromActual(AnimatedValue);
+        }
+        finally
+        {
+            _isApplyingTickLayout = false;
+        }
+    }
+
+    private void SyncVisualValueFromActual(double actual)
+    {
+        EnsureMinimumGapTickVisuals();
+        _suppressVisualValuePropagation = true;
+        SetCurrentValue(VisualValueProperty, MapActualToVisual(actual));
+        _suppressVisualValuePropagation = false;
+    }
+
+    private void EnsureMinimumGapTickVisuals()
+    {
+        if (MinimumTickGap > 0
+            && _visualTickPositions is null
+            && !_isApplyingTickLayout
+            && CustomTicks is { Length: > 1 })
+        {
+            RefreshTickLayout();
+        }
+
+        if (MinimumTickGap <= 0
+            || _visualTickPositions is null
+            || _sortedCustomTicks is null
+            || _sortedCustomTicks.Length <= 1)
+        {
+            return;
+        }
+
+        if (VisualMinimum != 0d)
+            SetCurrentValue(VisualMinimumProperty, 0d);
+
+        if (VisualMaximum != 1d)
+            SetCurrentValue(VisualMaximumProperty, 1d);
+
+        if (VisualTickFrequency != 0d)
+            SetCurrentValue(VisualTickFrequencyProperty, 0d);
+
+        if (!AreTicksApplied(SliderHost.Ticks, _visualTickPositions))
+            SliderHost.Ticks = new DoubleCollection(_visualTickPositions);
+    }
+
+    private static bool AreTicksApplied(DoubleCollection? ticks, double[] target)
+    {
+        if (ticks is null || ticks.Count != target.Length)
+            return false;
+
+        for (var i = 0; i < target.Length; i++)
+        {
+            if (Math.Abs(ticks[i] - target[i]) > 0.0001)
+                return false;
+        }
+
+        return true;
+    }
+
+    private double MapActualToVisual(double actual)
+    {
+        if (_visualTickPositions is null || _sortedCustomTicks is null || _sortedCustomTicks.Length == 0)
+            return actual;
+
+        if (_sortedCustomTicks.Length == 1)
+            return _visualTickPositions[0];
+
+        if (actual <= _sortedCustomTicks[0])
+            return _visualTickPositions[0];
+
+        if (actual >= _sortedCustomTicks[^1])
+            return _visualTickPositions[^1];
+
+        var lowerIndex = FindLowerIndex(actual, _sortedCustomTicks);
+        var upperIndex = Math.Min(lowerIndex + 1, _sortedCustomTicks.Length - 1);
+
+        var lowerValue = _sortedCustomTicks[lowerIndex];
+        var upperValue = _sortedCustomTicks[upperIndex];
+        var span = upperValue - lowerValue;
+        var t = span <= 0 ? 0 : (actual - lowerValue) / span;
+
+        var lowerPos = _visualTickPositions[lowerIndex];
+        var upperPos = _visualTickPositions[upperIndex];
+        return lowerPos + (upperPos - lowerPos) * t;
+    }
+
+    private double MapVisualToActual(double visual)
+    {
+        if (_visualTickPositions is null || _sortedCustomTicks is null || _sortedCustomTicks.Length == 0)
+            return visual;
+
+        if (_sortedCustomTicks.Length == 1)
+            return _sortedCustomTicks[0];
+
+        if (visual <= _visualTickPositions[0])
+            return _sortedCustomTicks[0];
+
+        if (visual >= _visualTickPositions[^1])
+            return _sortedCustomTicks[^1];
+
+        var lowerIndex = FindLowerIndex(visual, _visualTickPositions);
+        var upperIndex = Math.Min(lowerIndex + 1, _visualTickPositions.Length - 1);
+
+        var lowerPos = _visualTickPositions[lowerIndex];
+        var upperPos = _visualTickPositions[upperIndex];
+        var span = upperPos - lowerPos;
+        var t = span <= 0 ? 0 : (visual - lowerPos) / span;
+
+        var lowerValue = _sortedCustomTicks[lowerIndex];
+        var upperValue = _sortedCustomTicks[upperIndex];
+        return lowerValue + (upperValue - lowerValue) * t;
+    }
+
+    private double ResolveTrackLength()
+    {
+        ResolveTrack();
+        var length = _track is not null
+            ? (SliderHost.Orientation == Orientation.Vertical ? _track.ActualHeight : _track.ActualWidth)
+            : (SliderHost.Orientation == Orientation.Vertical ? SliderHost.ActualHeight : SliderHost.ActualWidth);
+
+        if (length <= 0 && _lastTickLayoutTrackLength > 0)
+            return _lastTickLayoutTrackLength;
+
+        return length;
+    }
+
+    private static double[] BuildVisualTickPositions(int[] ticks, double trackLength, double minGap)
+    {
+        var count = ticks.Length;
+        var positions = new double[count];
+
+        if (count == 1)
+        {
+            positions[0] = 0;
+            return positions;
+        }
+
+        if (trackLength <= 0)
+        {
+            var step = 1.0 / Math.Max(1, count - 1);
+            for (var i = 0; i < count; i++)
+                positions[i] = i * step;
+            positions[^1] = 1.0;
+            return positions;
+        }
+
+        var min = ticks[0];
+        var max = ticks[^1];
+        var range = (double)(max - min);
+
+        if (range <= 0)
+        {
+            var step = trackLength / (count - 1);
+            positions[0] = 0;
+            for (var i = 1; i < count; i++)
+                positions[i] = positions[i - 1] + step;
+
+            for (var i = 0; i < count; i++)
+                positions[i] = Math.Clamp(positions[i] / trackLength, 0, 1);
+            positions[^1] = 1.0;
+            return positions;
+        }
+
+        var rawGaps = new double[count - 1];
+        for (var i = 0; i < count - 1; i++)
+        {
+            var normalizedGap = (ticks[i + 1] - ticks[i]) / range;
+            rawGaps[i] = normalizedGap * trackLength;
+        }
+
+        var maxMinGap = trackLength / (count - 1);
+        var effectiveMinGap = Math.Clamp(minGap, 0, maxMinGap);
+        var minRequired = effectiveMinGap * (count - 1);
+        var slack = trackLength - minRequired;
+
+        var weights = new double[count - 1];
+        var weightSum = 0.0;
+        for (var i = 0; i < count - 1; i++)
+        {
+            var weight = Math.Max(0, rawGaps[i] - effectiveMinGap);
+            weights[i] = weight;
+            weightSum += weight;
+        }
+
+        positions[0] = 0;
+        for (var i = 0; i < count - 1; i++)
+        {
+            var extra = weightSum <= 0
+                ? slack / (count - 1)
+                : slack * (weights[i] / weightSum);
+            var adjusted = effectiveMinGap + extra;
+            positions[i + 1] = positions[i] + adjusted;
+        }
+
+        for (var i = 0; i < count; i++)
+            positions[i] = Math.Clamp(positions[i] / trackLength, 0, 1);
+
+        positions[^1] = 1.0;
+        return positions;
+    }
+
+    private static int FindLowerIndex(double value, int[] ticks)
+    {
+        for (var i = 0; i < ticks.Length - 1; i++)
+        {
+            if (value <= ticks[i + 1])
+                return i;
+        }
+
+        return ticks.Length - 2;
+    }
+
+    private static int FindLowerIndex(double value, double[] positions)
+    {
+        for (var i = 0; i < positions.Length - 1; i++)
+        {
+            if (value <= positions[i + 1])
+                return i;
+        }
+
+        return positions.Length - 2;
     }
 
     #endregion

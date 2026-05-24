@@ -178,6 +178,7 @@
                                 <controls:SimpleStackPanel>
                                     <controls:Slider
                                         CustomTicks="{x:Static viewModels:SettingsPageViewModel.AutoCorrectThresholdTicks}"
+                                        MinimumTickGap="12"
                                         IsSnapToTickEnabled="True"
                                         TickPlacement="BottomRight"
                                         Value="{Binding AutoCorrectThresholdValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -288,8 +289,8 @@
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="Game Locations"
-                                                VerticalAlignment="Center"
-                                                FontWeight="SemiBold"/>
+                                                   VerticalAlignment="Center"
+                                                   FontWeight="SemiBold"/>
                                         <controls:RotateToggleButton Grid.Column="1"
                                                                      s:View.ActionTarget="{Binding Data, Source={StaticResource SettingsVmProxy}}"
                                                                      IsRotated="{Binding IsGameLocationsExpanded}"
@@ -315,29 +316,29 @@
                                             </Setter>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsGameLocationsExpanded}"
-                                                        Value="True">
+                                                             Value="True">
                                                     <Setter Property="IsHitTestVisible"
                                                             Value="True"/>
                                                     <DataTrigger.EnterActions>
                                                         <BeginStoryboard>
                                                             <Storyboard>
                                                                 <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                                                        To="1"
-                                                                        Duration="0:0:0.22">
+                                                                                 To="1"
+                                                                                 Duration="0:0:0.22">
                                                                     <DoubleAnimation.EasingFunction>
                                                                         <CubicEase EasingMode="EaseOut"/>
                                                                     </DoubleAnimation.EasingFunction>
                                                                 </DoubleAnimation>
                                                                 <DoubleAnimation Storyboard.TargetProperty="MaxHeight"
-                                                                        To="1500"
-                                                                        Duration="0:0:0.22">
+                                                                                 To="1500"
+                                                                                 Duration="0:0:0.22">
                                                                     <DoubleAnimation.EasingFunction>
                                                                         <CubicEase EasingMode="EaseOut"/>
                                                                     </DoubleAnimation.EasingFunction>
                                                                 </DoubleAnimation>
                                                                 <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
-                                                                        To="0"
-                                                                        Duration="0:0:0.22">
+                                                                                 To="0"
+                                                                                 Duration="0:0:0.22">
                                                                     <DoubleAnimation.EasingFunction>
                                                                         <CubicEase EasingMode="EaseOut"/>
                                                                     </DoubleAnimation.EasingFunction>
@@ -349,22 +350,22 @@
                                                         <BeginStoryboard>
                                                             <Storyboard>
                                                                 <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                                                        To="0"
-                                                                        Duration="0:0:0.18">
+                                                                                 To="0"
+                                                                                 Duration="0:0:0.18">
                                                                     <DoubleAnimation.EasingFunction>
                                                                         <CubicEase EasingMode="EaseIn"/>
                                                                     </DoubleAnimation.EasingFunction>
                                                                 </DoubleAnimation>
                                                                 <DoubleAnimation Storyboard.TargetProperty="MaxHeight"
-                                                                        To="0"
-                                                                        Duration="0:0:0.18">
+                                                                                 To="0"
+                                                                                 Duration="0:0:0.18">
                                                                     <DoubleAnimation.EasingFunction>
                                                                         <CubicEase EasingMode="EaseIn"/>
                                                                     </DoubleAnimation.EasingFunction>
                                                                 </DoubleAnimation>
                                                                 <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
-                                                                        To="-8"
-                                                                        Duration="0:0:0.18">
+                                                                                 To="-8"
+                                                                                 Duration="0:0:0.18">
                                                                     <DoubleAnimation.EasingFunction>
                                                                         <CubicEase EasingMode="EaseIn"/>
                                                                     </DoubleAnimation.EasingFunction>
@@ -377,7 +378,7 @@
                                         </Style>
                                     </Border.Style>
                                     <ItemsControl ItemsSource="{Binding GameLocations}"
-                                            Margin="0,12,0,0">
+                                                  Margin="0,12,0,0">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate DataType="{x:Type games:GameInfo}">
                                                 <GroupBox Margin="0,0,0,4">
@@ -690,7 +691,7 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <GroupBox Grid.Column="0"
-                                        Header="Theme Mode">
+                                          Header="Theme Mode">
                                     <button:StandardDropdown
                                         SelectedItem="{Binding SelectedTheme}"
                                         ItemsSource="{x:Static viewModels:SettingsPageViewModel.ThemeOptions}"
@@ -698,7 +699,7 @@
                                         HorizontalAlignment="Left"/>
                                 </GroupBox>
                                 <GroupBox Grid.Column="2"
-                                        Header="Accent Color">
+                                          Header="Accent Color">
                                     <button:StandardDropdown
                                         SelectedItem="{Binding SelectedAccentColor}"
                                         ItemsSource="{x:Static viewModels:SettingsPageViewModel.AccentColors}"
@@ -727,7 +728,7 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <GroupBox Grid.Column="0"
-                                        Header="Transition Style">
+                                          Header="Transition Style">
                                     <button:StandardDropdown
                                         SelectedItem="{Binding Transition}"
                                         SelectedIndex="{Binding Default.SelectedTransition, Source={StaticResource Settings}}"
@@ -735,7 +736,7 @@
                                         HorizontalAlignment="Left"/>
                                 </GroupBox>
                                 <ui:ToggleSwitch Grid.Column="2"
-                                        Content="Enable smooth scrolling"
+                                                 Content="Enable smooth scrolling"
                                                  IsChecked="{Binding SmoothScrollingEnabled}"
                                                  Margin="0,4,0,0"
                                                  ToolTip="Smooths wheel scrolling in lists and panes. Turn off for default native scrolling."/>
