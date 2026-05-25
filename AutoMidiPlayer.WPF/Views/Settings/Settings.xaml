@@ -295,7 +295,7 @@
                                                                      s:View.ActionTarget="{Binding Data, Source={StaticResource SettingsVmProxy}}"
                                                                      IsRotated="{Binding IsGameLocationsExpanded}"
                                                                      Command="{s:Action ToggleGameLocationsExpanded}"
-                                                                     ButtonToolTip="Toggle Game Locations"/>
+                                                                     ButtonToolTip="Expand Game Locations"/>
                                     </Grid>
                                 </GroupBox.Header>
                                 <Border>
@@ -377,50 +377,65 @@
                                             </Style.Triggers>
                                         </Style>
                                     </Border.Style>
-                                    <ItemsControl ItemsSource="{Binding GameLocations}"
-                                                  Margin="0,12,0,0">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate DataType="{x:Type games:GameInfo}">
-                                                <GroupBox Margin="0,0,0,4">
-                                                    <GroupBox.Header>
-                                                        <TextBlock>
+                                    <controls:SimpleStackPanel Margin="0,12,0,0"
+                                                               Spacing="8">
+                                        <TextBlock Text="Running games are auto-detected. Set a location only to target a specific .exe file."
+                                                   TextWrapping="Wrap"
+                                                   Opacity="0.6"
+                                                   FontSize="12"/>
+                                        <ItemsControl ItemsSource="{Binding GameLocations}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type games:GameInfo}">
+                                                    <GroupBox Margin="0,0,0,4">
+                                                        <GroupBox.Header>
+                                                            <TextBlock>
                                                             <Run Text="{Binding DisplayName, Mode=OneWay}"/><Run Text=" Location"/>
-                                                        </TextBlock>
-                                                    </GroupBox.Header>
-                                                    <Grid>
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <Button Style="{DynamicResource IconButton}"
-                                                                s:View.ActionTarget="{Binding Data, Source={StaticResource SettingsVmProxy}}"
-                                                                CommandParameter="{Binding}"
-                                                                Command="{s:Action BrowseGameLocation}"
-                                                                Width="28"
-                                                                Height="28"
-                                                                MinWidth="0"
-                                                                Padding="0">
-                                                            <ui:SymbolIcon Symbol="AppsAddIn16"
-                                                                           FontSize="16"/>
-                                                        </Button>
-                                                        <TextBlock Grid.Column="1"
-                                                                   Margin="4,0,0,0"
-                                                                   Text="{Binding Location}"
-                                                                   VerticalAlignment="Center"
-                                                                   TextTrimming="CharacterEllipsis"
-                                                                   ToolTip="{Binding Location}"/>
-                                                    </Grid>
-                                                </GroupBox>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                                            </TextBlock>
+                                                        </GroupBox.Header>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Button Style="{DynamicResource IconButton}"
+                                                                    s:View.ActionTarget="{Binding Data, Source={StaticResource SettingsVmProxy}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    Command="{s:Action BrowseGameLocation}"
+                                                                    Width="28"
+                                                                    Height="28"
+                                                                    MinWidth="0"
+                                                                    Padding="0">
+                                                                <ui:SymbolIcon Symbol="AppsAddIn16"
+                                                                               FontSize="16"/>
+                                                            </Button>
+                                                            <TextBlock Grid.Column="1"
+                                                                       Margin="4,0,0,0"
+                                                                       Text="{Binding Location}"
+                                                                       VerticalAlignment="Center"
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       ToolTip="{Binding Location}"/>
+                                                        </Grid>
+                                                    </GroupBox>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </controls:SimpleStackPanel>
                                 </Border>
                             </GroupBox>
 
                             <GroupBox Header="MIDI Folder">
                                 <controls:SimpleStackPanel>
-                                    <controls:SimpleStackPanel Orientation="Horizontal">
-                                        <Button Style="{DynamicResource IconButton}"
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0"
+                                                Style="{DynamicResource IconButton}"
                                                 Command="{s:Action BrowseMidiFolder}"
                                                 Width="28"
                                                 Height="28"
@@ -431,7 +446,8 @@
                                             <ui:SymbolIcon Symbol="FolderAdd16"
                                                            FontSize="16"/>
                                         </Button>
-                                        <Button Style="{DynamicResource IconButton}"
+                                        <Button Grid.Column="1"
+                                                Style="{DynamicResource IconButton}"
                                                 Command="{s:Action OpenMidiFolder}"
                                                 Width="28"
                                                 Height="28"
@@ -442,7 +458,8 @@
                                             <ui:SymbolIcon Symbol="FolderOpen16"
                                                            FontSize="16"/>
                                         </Button>
-                                        <Border Padding="6"
+                                        <Border Grid.Column="2"
+                                                Padding="6"
                                                 Background="Transparent"
                                                 ToolTip="MIDI folder can&apos;t be found. Select a new folder path."
                                                 Visibility="{Binding IsMidiFolderMissing, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
@@ -450,21 +467,20 @@
                                                            Foreground="#C42B1C"
                                                            FontSize="18"/>
                                         </Border>
-                                        <TextBlock Text="{Binding MidiFolder, TargetNullValue='No folder selected'}"
-                                                   VerticalAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   MaxWidth="200"
-                                                   ToolTip="{Binding MidiFolder, TargetNullValue='No folder selected'}"/>
-                                        <controls:BusyActionButton Width="32"
-                                                                   Height="28"
-                                                                   Visibility="{Binding ShowMidiFolderManualRefresh, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
-                                                                   IsBusy="{Binding IsScanningMidiFolder}"
-                                                                   MinimumVisibleDuration="0:0:1"
-                                                                   Command="{s:Action ScanMidiFolder}"
-                                                                   ButtonToolTip="Refresh/Scan folder for new MIDI files"
-                                                                   IconSymbol="ArrowClockwise24"
-                                                                   IconFontSize="18"/>
-                                        <Button Style="{DynamicResource IconButton}"
+                                        <Button Grid.Column="3"
+                                                Style="{DynamicResource IconButton}"
+                                                Command="{s:Action ScanMidiFolder}"
+                                                Width="28"
+                                                Height="28"
+                                                MinWidth="0"
+                                                Padding="0"
+                                                ToolTip="Refresh/Scan folder for new MIDI files"
+                                                Visibility="{Binding ShowMidiFolderManualRefresh, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                            <ui:SymbolIcon Symbol="ArrowClockwise24"
+                                                           FontSize="16"/>
+                                        </Button>
+                                        <Button Grid.Column="4"
+                                                Style="{DynamicResource IconButton}"
                                                 Command="{s:Action ClearMidiFolder}"
                                                 Width="28"
                                                 Height="28"
@@ -475,7 +491,13 @@
                                             <ui:SymbolIcon Symbol="Delete16"
                                                            FontSize="16"/>
                                         </Button>
-                                    </controls:SimpleStackPanel>
+                                        <TextBlock Grid.Column="5"
+                                                   Text="{Binding MidiFolder, TargetNullValue='No folder selected'}"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Margin="4,0,0,0"
+                                                   ToolTip="{Binding MidiFolder, TargetNullValue='No folder selected'}"/>
+                                    </Grid>
 
                                     <ui:ToggleSwitch Content="Auto-scan folder for new MIDI files"
                                                      IsChecked="{Binding AutoScanMidiFolder}"
@@ -486,9 +508,14 @@
                             </GroupBox>
 
                             <GroupBox Header="Data Location">
-                                <controls:SimpleStackPanel Orientation="Horizontal"
-                                                           Spacing="6">
-                                    <Button Style="{DynamicResource IconButton}"
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0"
+                                            Style="{DynamicResource IconButton}"
                                             Command="{s:Action OpenDataFolder}"
                                             Width="28"
                                             Height="28"
@@ -498,13 +525,8 @@
                                         <ui:SymbolIcon Symbol="FolderOpen16"
                                                        FontSize="16"/>
                                     </Button>
-                                    <TextBlock Text="{x:Static viewModels:SettingsPageViewModel.DataLocation}"
-                                               VerticalAlignment="Center"
-                                               TextTrimming="CharacterEllipsis"
-                                               MaxWidth="220"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                               ToolTip="{x:Static viewModels:SettingsPageViewModel.DataLocation}"/>
-                                    <Button Style="{DynamicResource IconButton}"
+                                    <Button Grid.Column="1"
+                                            Style="{DynamicResource IconButton}"
                                             Command="{s:Action ResetAppData}"
                                             Width="28"
                                             Height="28"
@@ -514,7 +536,14 @@
                                         <ui:SymbolIcon Symbol="ArrowClockwise24"
                                                        FontSize="16"/>
                                     </Button>
-                                </controls:SimpleStackPanel>
+                                    <TextBlock Grid.Column="2"
+                                               Text="{x:Static viewModels:SettingsPageViewModel.DataLocation}"
+                                               VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis"
+                                               Margin="4,0,0,0"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               ToolTip="{x:Static viewModels:SettingsPageViewModel.DataLocation}"/>
+                                </Grid>
                             </GroupBox>
                         </controls:SimpleStackPanel>
                     </controls:Section>
@@ -539,9 +568,9 @@
                             </Button>
                         </controls:Section.HeaderContent>
 
-                        <controls:SimpleStackPanel>
+                        <WrapPanel>
                             <GroupBox Header="Key Defaults"
-                                      Margin="0,0,0,0">
+                                      Margin="0,0,16,8">
                                 <controls:SimpleStackPanel>
                                     <WrapPanel Margin="0,0,0,0">
                                         <controls:SimpleStackPanel Spacing="4"
@@ -571,7 +600,7 @@
                                 </controls:SimpleStackPanel>
                             </GroupBox>
 
-                            <WrapPanel Margin="0,8,0,0">
+                            <WrapPanel Margin="0,0,16,0">
                                 <GroupBox Header="Transpose"
                                           Margin="0,0,18,8">
                                     <button:StandardDropdown SelectedItem="{Binding SelectedNewSongTransposeOption}"
@@ -589,7 +618,7 @@
                             </WrapPanel>
 
                             <GroupBox Header="Merge Notes"
-                                      Margin="0,8,0,0">
+                                      Margin="0,0,16,8">
                                 <WrapPanel>
                                     <controls:SimpleStackPanel Spacing="4"
                                                                Margin="0,0,24,8">
@@ -613,7 +642,7 @@
                                     </controls:SimpleStackPanel>
                                 </WrapPanel>
                             </GroupBox>
-                        </controls:SimpleStackPanel>
+                        </WrapPanel>
                     </controls:Section>
 
                     <!-- Version Section -->
@@ -672,67 +701,67 @@
                                                            IndicatorSize="16"/>
                             </controls:SimpleStackPanel>
 
-                            <ui:ToggleSwitch Content="Auto-check updates"
-                                             IsChecked="{Binding AutoCheckUpdates}"/>
-                            <ui:ToggleSwitch Content="Include beta updates"
-                                             IsChecked="{Binding IncludeBetaUpdates}"/>
+                            <WrapPanel>
+                                <ui:ToggleSwitch Content="Auto-check updates"
+                                                 IsChecked="{Binding AutoCheckUpdates}"
+                                                 Margin="0,0,16,8"/>
+                                <ui:ToggleSwitch Content="Include beta updates"
+                                                 IsChecked="{Binding IncludeBetaUpdates}"
+                                                 Margin="0,0,16,8"/>
+                            </WrapPanel>
                         </controls:SimpleStackPanel>
                     </controls:Section>
 
                     <!-- Style Section -->
                     <controls:Section Title="Style"
                                       Margin="0,16,0,0">
-                        <controls:SimpleStackPanel>
-                            <WrapPanel>
-                                <GroupBox Header="Theme Mode"
-                                          Margin="0,0,18,0">
-                                    <button:StandardDropdown
-                                        SelectedItem="{Binding SelectedTheme}"
-                                        ItemsSource="{x:Static viewModels:SettingsPageViewModel.ThemeOptions}"
-                                        DisplayMemberPath="Name"
-                                        HorizontalAlignment="Left"/>
-                                </GroupBox>
-                                <GroupBox Header="Accent Color"
-                                          Margin="0,0,0,0">
-                                    <button:StandardDropdown
-                                        SelectedItem="{Binding SelectedAccentColor}"
-                                        ItemsSource="{x:Static viewModels:SettingsPageViewModel.AccentColors}"
-                                        HorizontalAlignment="Left">
-                                        <button:StandardDropdown.ItemTemplate>
-                                            <DataTemplate>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <Border Width="16"
-                                                            Height="16"
-                                                            CornerRadius="8"
-                                                            Background="{Binding ColorBrush}"
-                                                            Margin="0,0,8,0"/>
-                                                    <TextBlock Text="{Binding Name}"
-                                                               VerticalAlignment="Center"/>
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </button:StandardDropdown.ItemTemplate>
-                                    </button:StandardDropdown>
-                                </GroupBox>
-                            </WrapPanel>
+                        <WrapPanel>
+                            <GroupBox Header="Theme Mode"
+                                      Margin="0,0,16,8">
+                                <button:StandardDropdown
+                                    SelectedItem="{Binding SelectedTheme}"
+                                    ItemsSource="{x:Static viewModels:SettingsPageViewModel.ThemeOptions}"
+                                    DisplayMemberPath="Name"
+                                    HorizontalAlignment="Left"/>
+                            </GroupBox>
+                            <GroupBox Header="Accent Color"
+                                      Margin="0,0,16,8">
+                                <button:StandardDropdown
+                                    SelectedItem="{Binding SelectedAccentColor}"
+                                    ItemsSource="{x:Static viewModels:SettingsPageViewModel.AccentColors}"
+                                    HorizontalAlignment="Left">
+                                    <button:StandardDropdown.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border Width="16"
+                                                        Height="16"
+                                                        CornerRadius="8"
+                                                        Background="{Binding ColorBrush}"
+                                                        Margin="0,0,8,0"/>
+                                                <TextBlock Text="{Binding Name}"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </button:StandardDropdown.ItemTemplate>
+                                </button:StandardDropdown>
+                            </GroupBox>
 
-                            <WrapPanel>
-                                <GroupBox Header="Transition Style"
-                                          Margin="0,0,18,0">
-                                    <button:StandardDropdown
-                                        SelectedItem="{Binding Transition}"
-                                        SelectedIndex="{Binding Default.SelectedTransition, Source={StaticResource Settings}}"
-                                        ItemsSource="{x:Static transitions:TransitionCollection.Transitions}"
-                                        HorizontalAlignment="Left"/>
-                                </GroupBox>
-                                <GroupBox Header="Smooth Scrolling"
-                                          Margin="0,0,0,0">
-                                    <ui:ToggleSwitch Content="Enable"
-                                                     IsChecked="{Binding SmoothScrollingEnabled}"
-                                                     Margin="0,4,0,0"
-                                                     ToolTip="Smooths wheel scrolling in lists and panes. Turn off for default native scrolling."/>
-                                </GroupBox>
-                            </WrapPanel>
-                        </controls:SimpleStackPanel>
+                            <GroupBox Header="Transition Style"
+                                      Margin="0,0,16,8">
+                                <button:StandardDropdown
+                                    SelectedItem="{Binding Transition}"
+                                    SelectedIndex="{Binding Default.SelectedTransition, Source={StaticResource Settings}}"
+                                    ItemsSource="{x:Static transitions:TransitionCollection.Transitions}"
+                                    HorizontalAlignment="Left"/>
+                            </GroupBox>
+                            <GroupBox Header="Smooth Scrolling"
+                                      Margin="0,0,16,8">
+                                <ui:ToggleSwitch Content="Enable"
+                                                 IsChecked="{Binding SmoothScrollingEnabled}"
+                                                 Margin="0,4,0,0"
+                                                 ToolTip="Smooths wheel scrolling in lists and panes. Turn off for default native scrolling."/>
+                            </GroupBox>
+                        </WrapPanel>
                     </controls:Section>
 
                     <!-- Debug Section -->

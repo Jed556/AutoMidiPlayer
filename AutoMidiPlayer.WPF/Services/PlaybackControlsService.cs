@@ -176,6 +176,8 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
         ? "Listen Mode (Speakers): On"
         : "Listen Mode (Speakers): Off";
 
+    public bool HasSongOpen => Queue.OpenedFile != null;
+
     private QueueViewModel Queue => _main.QueueView;
     private TrackViewModel TrackView => _main.TrackView;
     private SongService SongSettings => _main.SongSettings;
@@ -521,6 +523,7 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
         NotifyOfPropertyChange(nameof(CanHitPlayPause));
         NotifyOfPropertyChange(nameof(CanHitNext));
         NotifyOfPropertyChange(nameof(CanHitPrevious));
+        NotifyOfPropertyChange(nameof(HasSongOpen));
 
         PlaybackStateChanged?.Invoke(this, EventArgs.Empty);
 

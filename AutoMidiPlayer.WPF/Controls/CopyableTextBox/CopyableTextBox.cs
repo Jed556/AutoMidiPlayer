@@ -56,6 +56,24 @@ public partial class CopyableTextBox : UserControl
     public CopyableTextBox()
     {
         InitializeComponent();
+        LayoutUpdated += OnLayoutUpdated;
+    }
+
+    private void OnLayoutUpdated(object? sender, EventArgs e)
+    {
+        if (MainTextBox is null || CopyButton is null)
+            return;
+
+        bool isScrollbarVisible = MainTextBox.VerticalScrollBarVisibility == ScrollBarVisibility.Visible ||
+                                 (MainTextBox.VerticalScrollBarVisibility == ScrollBarVisibility.Auto &&
+                                  MainTextBox.ExtentHeight > MainTextBox.ViewportHeight);
+
+        double targetRightMargin = isScrollbarVisible ? SystemParameters.VerticalScrollBarWidth + 4 : 4;
+
+        if (Math.Abs(CopyButton.Margin.Right - targetRightMargin) > 0.1)
+        {
+            CopyButton.Margin = new Thickness(0, 4, targetRightMargin, 0);
+        }
     }
 
     public string Text

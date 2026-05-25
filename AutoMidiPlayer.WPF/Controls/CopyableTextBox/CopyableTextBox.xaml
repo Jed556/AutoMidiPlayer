@@ -95,7 +95,8 @@
           ClipToBounds="True"
           MouseEnter="OnRootGridMouseEnter"
           MouseLeave="OnRootGridMouseLeave">
-        <TextBox Text="{Binding Text, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+        <TextBox x:Name="MainTextBox"
+                 Text="{Binding Text, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                  Style="{StaticResource PassiveSelectableTextBoxStyle}"
                  HorizontalAlignment="Stretch"
                  IsReadOnly="{Binding IsReadOnly, ElementName=Root}"

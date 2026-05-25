@@ -1180,7 +1180,7 @@
                                        Text="{Binding PlaybackControls.DisplayCurrentTime, StringFormat=m\\:ss}"/>
                             <controls:Seekbar Grid.Column="1"
                                               Margin="8,0"
-                                              IsEnabled="{Binding PlaybackControls.CanHitPlayPause}"
+                                              IsEnabled="{Binding PlaybackControls.HasSongOpen}"
                                               Value="{Binding PlaybackControls.SongPosition}"
                                               PreviewValue="{Binding PlaybackControls.DisplaySongPosition, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                               IsPreviewActive="{Binding PlaybackControls.IsSeekPreviewActive, Mode=TwoWay}"
@@ -1202,6 +1202,7 @@
                           Margin="12,0,0,0"
                           VerticalAlignment="Center"
                           HorizontalAlignment="Stretch"
+                          IsEnabled="{Binding PlaybackControls.HasSongOpen}"
                           ClipToBounds="False">
                         <controls:SimpleStackPanel Orientation="Horizontal"
                                                    HorizontalAlignment="Right"

@@ -17,15 +17,13 @@
         </Grid.RowDefinitions>
 
         <controls:SimpleStackPanel Grid.Row="0">
-            <controls:SimpleStackPanel Orientation="Horizontal"
-                                       VerticalAlignment="Top"
-                                       Spacing="12">
-                <GroupBox Header="Delimiter">
+            <WrapPanel>
+                <GroupBox Header="Delimiter" VerticalAlignment="Top" Margin="0,0,12,12">
                     <TextBox Text="{Binding Delimiter, UpdateSourceTrigger=PropertyChanged}"
                              MinWidth="80"/>
                 </GroupBox>
 
-                <GroupBox Header="Layout">
+                <GroupBox Header="Layout" VerticalAlignment="Top" Margin="0,0,12,12">
                     <ComboBox
                         ItemsSource="{Binding InstrumentPage.AvailableLayouts}"
                         SelectedItem="{Binding SelectedLayout}"
@@ -33,33 +31,30 @@
                         MinWidth="150"/>
                 </GroupBox>
 
-                <!-- Split Size column with header on top and inputs below -->
-                <StackPanel>
-                    <TextBlock Text="Split Size"
-                               FontWeight="SemiBold"
-                               VerticalAlignment="Top"
-                               Margin="0,0,0,6"/>
-                    <controls:SimpleStackPanel Orientation="Horizontal"
-                                               Spacing="8">
-                        <GroupBox Header="Bars">
+                <GroupBox Header="Split Size" VerticalAlignment="Top" Margin="0,0,12,12">
+                    <controls:SimpleStackPanel Orientation="Horizontal" Spacing="8">
+                        <StackPanel>
+                            <TextBlock Text="Bars" Margin="0,0,0,4"/>
                             <ui:NumberBox Value="{Binding Bars, UpdateSourceTrigger=PropertyChanged}"
                                           Minimum="0"
                                           MinWidth="80"/>
-                        </GroupBox>
-                        <GroupBox Header="Beats">
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="Beats" Margin="0,0,0,4"/>
                             <ui:NumberBox Value="{Binding Beats, UpdateSourceTrigger=PropertyChanged}"
                                           Minimum="0"
                                           MinWidth="80"/>
-                        </GroupBox>
-                        <GroupBox Header="Shorten every">
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="Shorten every" Margin="0,0,0,4"/>
                             <ui:NumberBox Value="{Binding Shorten, UpdateSourceTrigger=PropertyChanged}"
                                           ToolTip="This will divide the delimiter by this number"
                                           Minimum="1"
                                           MinWidth="80"/>
-                        </GroupBox>
+                        </StackPanel>
                     </controls:SimpleStackPanel>
-                </StackPanel>
-            </controls:SimpleStackPanel>
+                </GroupBox>
+            </WrapPanel>
         </controls:SimpleStackPanel>
 
         <controls:CopyableTextBox Grid.Row="1"
