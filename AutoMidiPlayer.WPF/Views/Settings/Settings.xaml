@@ -634,11 +634,11 @@
                                         <TextBlock Text="Tolerance (ms)"
                                                    FontWeight="SemiBold"/>
                                         <controls:Numberbox Value="{Binding DefaultSongMergeMilliseconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                              Minimum="1"
-                                                              Maximum="1000"
-                                                              MaxDecimalPlaces="0"
-                                                              FixedWidth="True"
-                                                              IsEnabled="{Binding CanEditDefaultSongMergeMilliseconds}"/>
+                                                            Minimum="1"
+                                                            Maximum="1000"
+                                                            MaxDecimalPlaces="0"
+                                                            FixedWidth="True"
+                                                            IsEnabled="{Binding CanEditDefaultSongMergeMilliseconds}"/>
                                     </controls:SimpleStackPanel>
                                 </WrapPanel>
                             </GroupBox>
@@ -862,7 +862,7 @@
                         <Run Text=". Licensed under the "/>
                         <InlineUIContainer BaselineAlignment="Center">
                             <controls:Hyperlink NavigateUri="{Binding Default.LicenseUri, Source={StaticResource Settings}, TargetNullValue={x:Null}}">
-                                <TextBlock Text="MIT License"
+                                <TextBlock Text="GNU GPL v3.0"
                                            FontSize="12"/>
                             </controls:Hyperlink>
                         </InlineUIContainer>
