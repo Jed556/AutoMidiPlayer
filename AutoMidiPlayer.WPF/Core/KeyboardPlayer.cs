@@ -1,18 +1,15 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using AutoMidiPlayer.Data.Entities;
-using WindowsInput;
-using WindowsInput.Native;
 
 namespace AutoMidiPlayer.WPF.Core;
 
 public static class KeyboardPlayer
 {
-    private static readonly IInputSimulator Input = new InputSimulator();
     private static readonly int[][] SmartModes =
     [
         [0, 2, 4, 5, 7, 9, 11], // ionian (major)
@@ -71,12 +68,12 @@ public static class KeyboardPlayer
         private readonly uint pad2;
     }
 
-    // Use direct SendInput for games that don't respond to InputSimulator
+    // Use direct SendInput for key injection
     public static bool UseDirectInput { get; set; } = true;
 
     /// <summary>
     /// Delay (in milliseconds) inserted between key-down and key-up when performing
-    /// <see cref="KeyAction.Press"/> in InputSimulator, direct input, and window-message paths.
+    /// <see cref="KeyAction.Press"/> in direct input and window-message paths.
     /// A non-zero value can improve compatibility with games that require a
     /// slightly longer held press. Delay is handled asynchronously so playback timing
     /// is not blocked. Default is 50.
@@ -85,7 +82,7 @@ public static class KeyboardPlayer
 
     /// <summary>
     /// Controls whether the key-up event is sent for <see cref="KeyAction.Press"/> across
-    /// InputSimulator, direct input, and window-message paths. Default is true.
+    /// direct input and window-message paths. Default is true.
     /// </summary>
     public static bool EnableKeyUp { get; set; } = true;
 
@@ -308,55 +305,7 @@ public static class KeyboardPlayer
             // Fall through to normal input if window not found
         }
 
-        if (UseDirectInput)
-        {
-            SendKeyStrokeDirect(keyStroke, action);
-        }
-        else
-        {
-            SendKeyStrokeSimulated(keyStroke, action);
-        }
-    }
-
-    private static void SendKeyStrokeSimulated(Keyboard.KeyStroke keyStroke, KeyAction action)
-    {
-        var modifiers = GetModifierKeys(keyStroke.Modifiers).ToArray();
-
-        switch (action)
-        {
-            case KeyAction.Down:
-                foreach (var modifier in modifiers)
-                    Input.Keyboard.KeyDown(modifier);
-                Input.Keyboard.KeyDown(keyStroke.Key);
-                for (int i = modifiers.Length - 1; i >= 0; i--)
-                    Input.Keyboard.KeyUp(modifiers[i]);
-                break;
-
-            case KeyAction.Up:
-                Input.Keyboard.KeyUp(keyStroke.Key);
-                break;
-
-            case KeyAction.Press:
-                foreach (var modifier in modifiers)
-                    Input.Keyboard.KeyDown(modifier);
-                Input.Keyboard.KeyDown(keyStroke.Key);
-
-                if (EnableKeyUp)
-                {
-                    ScheduleDelayedAction(() =>
-                    {
-                        Input.Keyboard.KeyUp(keyStroke.Key);
-                        for (int i = modifiers.Length - 1; i >= 0; i--)
-                            Input.Keyboard.KeyUp(modifiers[i]);
-                    });
-                }
-                else
-                {
-                    for (int i = modifiers.Length - 1; i >= 0; i--)
-                        Input.Keyboard.KeyUp(modifiers[i]);
-                }
-                break;
-        }
+        SendKeyStrokeDirect(keyStroke, action);
     }
 
     private static void SendKeyStrokeDirect(Keyboard.KeyStroke keyStroke, KeyAction action)

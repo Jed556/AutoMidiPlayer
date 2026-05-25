@@ -4,7 +4,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 using AutoMidiPlayer.WPF.Core.Instruments;
-using WindowsInput.Native;
 
 namespace AutoMidiPlayer.WPF.Core;
 

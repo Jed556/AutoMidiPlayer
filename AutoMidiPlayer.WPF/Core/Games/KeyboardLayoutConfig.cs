@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using AutoMidiPlayer.WPF.Core;
-using WindowsInput.Native;
 
 namespace AutoMidiPlayer.WPF.Core.Instruments;
 

@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using WindowsInput.Native;
 
 namespace AutoMidiPlayer.WPF.Core.Instruments
 {

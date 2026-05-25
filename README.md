@@ -10,7 +10,7 @@
   </p>
 </div>
 
-A MIDI to key player for in-game instruments made using C# and WPF with Windows Mica design. This project is originally forked from **[sabihoshi/GenshinLyreMidiPlayer][GenshinLyreMidiPlayer]** and was later detached into its own repository to enable multi-game support and introduce features that don’t fit the original Genshin Impact–only use design.
+A MIDI to key player for in-game instruments made using C# and WPF with Windows Mica design.
 
 <div align="center">
   <i>If you liked this project, consider <a href="CONTRIBUTING.md">contributing</a> or giving a 🌟 star. Thank you~</i>
@@ -127,17 +127,19 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md).
 For adding notes, instruments, games, or keyboard mappings, see [Getting Started][wiki-getting-started]
 
 # Special Thanks
-This project is inspired by and built on top of **[sabihoshi/GenshinLyreMidiPlayer][GenshinLyreMidiPlayer]** [v4.0.5](https://github.com/sabihoshi/GenshinLyreMidiPlayer/releases/tag/v4.0.5). Huge thanks for the original work!
+This project was originally forked from **[sabihoshi/GenshinLyreMidiPlayer][GenshinLyreMidiPlayer]** [v4.0.5](https://github.com/sabihoshi/GenshinLyreMidiPlayer/releases/tag/v4.0.5) and later detached into its own repository to enable multi-game support and features that do not fit the original Genshin Impact-only design. Huge thanks for the original work!
 #### Projects that inspired GenshinLyreMidiPlayer
 * **[ianespana/ShawzinBot](https://github.com/ianespana/ShawzinBot)** - Original inspiration for the concept
 * **[yoroshikun/flutter_genshin_lyre_player](https://github.com/yoroshikun/flutter_genshin_lyre_player)** - Ideas for history and fluent design
 * **[Lantua](https://github.com/lantua)** - Music theory guidance (octaves, transposition, keys, scales)
 
 # License
-* This project is under the [MIT](LICENSE.md) license.
-* Originally created by [sabihoshi][GenshinLyreMidiPlayer]. Modified by [Jed556](https://github.com/Jed556) for multi-game support and modernization.
-* All rights reserved by © miHoYo Co., Ltd., © XD Inc., © thatgamecompany, Inc., © Roblox Corporation, and © Hotta Studio, a Perfect World company. This project is not affiliated nor endorsed by miHoYo, XD, thatgamecompany, Roblox, or Hotta Studio. Genshin Impact™, Heartopia™, Sky: Children of the Light™, Roblox™, Neverness to Everness™, and other properties belong to their respective owners.
-* This project uses third-party libraries or other resources that may be distributed under [different licenses](THIRD-PARTY-NOTICES.md).
+
+* This project’s source code is licensed under the [GNU General Public License v3.0](LICENSE).
+* This project is based on [sabihoshi][GenshinLyreMidiPlayer]. Original attribution and upstream notices are preserved in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+* "AutoMidiPlayer" and its logo are trademarks of Jed556. Trademark and branding use are governed by [TRADEMARK.md](TRADEMARK.md).
+* This project is not affiliated with or endorsed by miHoYo, XD, thatgamecompany, Roblox Corporation, Hotta Studio, or any other rights holder. Genshin Impact™, Heartopia™, Sky: Children of the Light™, Roblox™, Neverness to Everness™, and other game titles and properties belong to their respective owners.
+* Third-party libraries and other resources used by this project may be distributed under different licenses and are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 <br/>
 

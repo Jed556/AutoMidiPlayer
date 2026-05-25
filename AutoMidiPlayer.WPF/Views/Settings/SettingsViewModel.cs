@@ -69,10 +69,6 @@ public class SettingsPageViewModel : Screen
     public static List<KeypressInputModeOption> KeypressInputModes { get; } = new()
     {
         new(
-            "Input Simulator",
-            "Uses InputSimulator to inject keyboard events globally. Best for standard desktop apps, but some games may ignore it.",
-            mode: KeypressInputMode.InputSimulator),
-        new(
             "Direct Input (SendInput)",
             "Uses Win32 SendInput for global low-level key injection. This is usually the most reliable option for games.",
             mode: KeypressInputMode.DirectInput),
@@ -1482,7 +1478,7 @@ public class SettingsPageViewModel : Screen
         if (useDirectInput)
             return GetKeypressInputModeOption(KeypressInputMode.DirectInput);
 
-        return GetKeypressInputModeOption(KeypressInputMode.InputSimulator);
+        return GetKeypressInputModeOption(KeypressInputMode.DirectInput);
     }
 
     private static KeypressInputModeOption GetKeypressInputModeOption(KeypressInputMode mode)
@@ -1553,9 +1549,8 @@ public class ThemeOption(string name, WpfUiApplicationTheme value)
 
 public enum KeypressInputMode
 {
-    InputSimulator = 0,
-    DirectInput = 1,
-    WindowMessage = 2
+    DirectInput = 0,
+    WindowMessage = 1
 }
 
 public class KeypressInputModeOption(

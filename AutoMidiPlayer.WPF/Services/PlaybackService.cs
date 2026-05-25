@@ -871,7 +871,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             $"[{actualMs}ms] Note {FormatNoteName(sourceNote)} scheduled={scheduledMs}ms actual={actualMs}ms drift={(drift >= 0 ? "+" : string.Empty)}{drift}ms");
     }
 
-    private void LogNoteInputOutput(string mode, NoteEvent noteEvent, int sourceNote, int outputNote, bool hasMappedKey, WindowsInput.Native.VirtualKeyCode mappedKey)
+    private void LogNoteInputOutput(string mode, NoteEvent noteEvent, int sourceNote, int outputNote, bool hasMappedKey, VirtualKeyCode mappedKey)
     {
         EnsureNoteSongContextLogged();
 
