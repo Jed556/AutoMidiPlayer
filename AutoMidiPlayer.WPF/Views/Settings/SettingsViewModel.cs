@@ -259,6 +259,8 @@ public class SettingsPageViewModel : Screen
 
     public bool DebugModeEnabled { get; set; } = Settings.DebugModeEnabled;
 
+    public bool PageCaching { get; set; } = Settings.PageCaching;
+
     public bool LogPlayedNotes { get; set; } = Settings.LogPlayedNotes;
 
     public int CrashLogVerbosity { get; set; } =
@@ -1314,6 +1316,10 @@ public class SettingsPageViewModel : Screen
         request.Headers.UserAgent.Add(productInfo);
 
         var response = await client.SendAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+            return null;
+
         var versions = await response.Content.ReadFromJsonAsync<List<GitVersion>>();
 
         return versions?
@@ -1335,6 +1341,12 @@ public class SettingsPageViewModel : Screen
     {
         Settings.Modify(s => s.DebugModeEnabled = DebugModeEnabled);
         NotifyOfPropertyChange(nameof(CrashLogVerbosityDescription));
+    }
+
+    [UsedImplicitly]
+    private void OnPageCachingChanged()
+    {
+        Settings.Modify(s => s.PageCaching = PageCaching);
     }
 
     [UsedImplicitly]

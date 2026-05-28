@@ -1,3 +1,4 @@
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -15,7 +16,14 @@ public class AnimatedContentControl : ContentControl
         if (oldContent != null)
         {
             var exit = Transition.GetExitAnimation(oldContent, false);
-            exit?.Begin();
+            try
+            {
+                exit?.Begin();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[AnimatedContentControl] Exit animation error: {ex}");
+            }
         }
 
         AutoMidiPlayer.WPF.Animation.Animation? enter = null;
@@ -38,8 +46,20 @@ public class AnimatedContentControl : ContentControl
             // so the animation plays smoothly instead of being frozen by heavy view construction.
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
             {
-                uiElement2.Visibility = Visibility.Visible;
-                enter.Begin();
+                // If we navigated away before this dispatcher ran, abort the animation
+                // to prevent InvalidOperationException since the element is no longer loaded.
+                if (Content != newContent)
+                    return;
+
+                try
+                {
+                    uiElement2.Visibility = Visibility.Visible;
+                    enter.Begin();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[AnimatedContentControl] Enter animation error: {ex}");
+                }
             });
         }
     }

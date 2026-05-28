@@ -270,10 +270,13 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
     {
         if (sender is NavigationViewItem { Tag: IScreen viewModel } item)
         {
-            ActivateItem(viewModel);
+            if (ActiveItem == viewModel)
+                return;
 
-            // Set selected item for visual indicator
+            // Set selected item for visual indicator BEFORE heavy loading
             SetSelectedNavItem(item);
+
+            ActivateItem(viewModel);
 
             // Update breadcrumb with current page name
             var pageName = item.Content?.ToString();
@@ -291,7 +294,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
     public void NavigateToSettings()
     {
-        ActivateItem(SettingsView);
+        if (ActiveItem == SettingsView) return;
 
         // Find the Settings navigation item and set it as active
         var settingsNavItem = Navigation?.FooterMenuItems
@@ -301,6 +304,8 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         {
             SetSelectedNavItem(settingsNavItem);
         }
+
+        ActivateItem(SettingsView);
 
         // Update breadcrumb with current page name
         BreadcrumbItems = ["Settings"];

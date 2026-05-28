@@ -216,5 +216,8 @@
     <Setting Name="AutoCorrectThreshold" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">22</Value>
     </Setting>
+    <Setting Name="PageCaching" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
   </Settings>
 </SettingsFile>

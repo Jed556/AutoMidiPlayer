@@ -1067,5 +1067,20 @@ namespace AutoMidiPlayer.Data.Properties
                 this["AutoCorrectThreshold"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool PageCaching
+        {
+            get
+            {
+                return ((bool)(this["PageCaching"]));
+            }
+            set
+            {
+                this["PageCaching"] = value;
+            }
+        }
     }
 }

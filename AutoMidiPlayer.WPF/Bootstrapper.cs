@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Windows;
@@ -256,6 +256,9 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         // Use centralized app data path
         AppPaths.EnsureDirectoryExists();
 
+        // Use cached view manager to avoid rebuilding heavy views on navigation
+        builder.Bind<IViewManager>().To<CachedViewManager>().InSingletonScope();
+
         builder.Bind<PlayerContext>().ToFactory(_ =>
         {
             var source = AppPaths.DatabasePath;
@@ -294,8 +297,4 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         // Theme service removed in WPF-UI 3.x - use centralized SystemThemeService
         AutoMidiPlayer.WPF.Services.SystemThemeService.Start();
     }
-
-
-
-    // System theme watcher has been moved to SystemThemeService.cs
 }

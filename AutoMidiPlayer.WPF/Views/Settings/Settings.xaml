@@ -839,6 +839,11 @@
                                                  IsChecked="{Binding LogPlayedNotes}"
                                                  Margin="0,8,0,0"
                                                  ToolTip="Logs played note details (orig/transposed/key/velocity) and scheduler timing drift to input-output.log and scheduler.log."/>
+
+                                <ui:ToggleSwitch Content="Enable page caching"
+                                                 IsChecked="{Binding PageCaching}"
+                                                 Margin="0,8,0,0"
+                                                 ToolTip="When enabled, main navigation pages are cached in memory after first load to make navigation instantaneous. Turn off to force views to recreate every time."/>
                             </controls:SimpleStackPanel>
                         </Border>
                     </controls:Section>
