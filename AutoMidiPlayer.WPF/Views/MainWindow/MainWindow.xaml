@@ -1244,10 +1244,10 @@
                                     <TextBlock Text="{Binding SongSettings.AutoCorrectEffectiveNote}"
                                                FontSize="10"
                                                VerticalAlignment="Center"
-                                               Foreground="#4CAF50"/>
+                                               Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"/>
                                     <ui:SymbolIcon Symbol="Checkmark12"
                                                    FontSize="10"
-                                                   Foreground="#4CAF50"
+                                                   Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
                                                    VerticalAlignment="Center"
                                                    Margin="1,1,0,0"/>
                                 </StackPanel>

@@ -37,9 +37,16 @@ public class Animation
     public void Stop()
     {
         if (_currentState != ClockState.Stopped) _storyboard.Stop(_element);
+        Cleanup();
         _element.InvalidateProperty(UIElement.CacheModeProperty);
         _element.InvalidateProperty(UIElement.RenderTransformProperty);
         _element.InvalidateProperty(UIElement.RenderTransformOriginProperty);
+    }
+
+    private void Cleanup()
+    {
+        _storyboard.CurrentStateInvalidated -= OnCurrentStateInvalidated;
+        _storyboard.Completed -= OnCompleted;
     }
 
     private BitmapCache GetBitmapCache()
@@ -51,7 +58,11 @@ public class Animation
 #endif
     }
 
-    private void OnCompleted(object? sender, EventArgs e) => Completed?.Invoke(this, EventArgs.Empty);
+    private void OnCompleted(object? sender, EventArgs e)
+    {
+        Cleanup();
+        Completed?.Invoke(this, EventArgs.Empty);
+    }
 
     private void OnCurrentStateInvalidated(object? sender, EventArgs e)
     {

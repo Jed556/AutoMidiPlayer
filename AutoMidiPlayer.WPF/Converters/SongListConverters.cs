@@ -86,6 +86,8 @@ public class KeyToNoteConverter : IValueConverter
 public class IsPlayingToColorConverter : IMultiValueConverter
 {
     public static IsPlayingToColorConverter Instance { get; } = new();
+    private static SolidColorBrush? _cachedBrush;
+    private static Color _cachedColor;
 
     public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
     {
@@ -93,7 +95,14 @@ public class IsPlayingToColorConverter : IMultiValueConverter
         {
             if (rowFile == openedFile)
             {
-                return new SolidColorBrush(AccentColorHelper.GetAccentColor());
+                var color = AccentColorHelper.GetAccentColor();
+                if (_cachedBrush == null || _cachedColor != color)
+                {
+                    _cachedColor = color;
+                    _cachedBrush = new SolidColorBrush(color);
+                    _cachedBrush.Freeze();
+                }
+                return _cachedBrush;
             }
         }
         return Brushes.Transparent;
@@ -112,6 +121,8 @@ public class IsPlayingToColorConverter : IMultiValueConverter
 public class IsPlayingToForegroundConverter : IMultiValueConverter
 {
     public static IsPlayingToForegroundConverter Instance { get; } = new();
+    private static SolidColorBrush? _cachedBrush;
+    private static Color _cachedColor;
 
     public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
     {
@@ -119,7 +130,14 @@ public class IsPlayingToForegroundConverter : IMultiValueConverter
         {
             if (rowFile == openedFile)
             {
-                return new SolidColorBrush(AccentColorHelper.GetAccentColor());
+                var color = AccentColorHelper.GetAccentColor();
+                if (_cachedBrush == null || _cachedColor != color)
+                {
+                    _cachedColor = color;
+                    _cachedBrush = new SolidColorBrush(color);
+                    _cachedBrush.Freeze();
+                }
+                return _cachedBrush;
             }
         }
         return DependencyProperty.UnsetValue; // Use default foreground

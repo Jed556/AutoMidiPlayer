@@ -149,11 +149,7 @@
                                            HorizontalAlignment="Center"
                                            Opacity="0.6">
                                     <TextBlock.Text>
-                                        <MultiBinding Converter="{x:Static converters:ItemIndexConverter.Instance}">
-                                            <Binding/>
-                                            <Binding Path="ItemsSource"
-                                                     RelativeSource="{RelativeSource AncestorType=controls:SongListControl}"/>
-                                        </MultiBinding>
+                                        <Binding Path="Position"/>
                                     </TextBlock.Text>
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">

@@ -193,6 +193,10 @@ public partial class RotateToggleButton : UserControl
     public RotateToggleButton()
     {
         InitializeComponent();
+        Unloaded += (_, _) => 
+        {
+            IconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
+        };
     }
 
     // ── XAML event handlers ────────────────────────────────────────────
@@ -205,8 +209,8 @@ public partial class RotateToggleButton : UserControl
         GlyphIconElement.Visibility = useGlyph ? Visibility.Visible : Visibility.Collapsed;
 
         // Sync initial state without animating
-        if (IsRotated)
-            IconRotation.Angle = RotationAngle;
+        IconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
+        IconRotation.Angle = IsRotated ? RotationAngle : 0.0;
     }
 
     // ── Animation callback ─────────────────────────────────────────────

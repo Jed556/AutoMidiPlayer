@@ -208,7 +208,19 @@ public class SongsViewModel : Screen
         Application.Current?.Dispatcher.BeginInvoke(DispatcherPriority.Background, ApplySort);
     }
 
-    public void OnSearchTextChanged() => ApplySort();
+    private DispatcherTimer? _searchDebounceTimer;
+
+    public void OnSearchTextChanged()
+    {
+        _searchDebounceTimer?.Stop();
+        _searchDebounceTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        _searchDebounceTimer.Tick += (_, _) =>
+        {
+            _searchDebounceTimer.Stop();
+            ApplySort();
+        };
+        _searchDebounceTimer.Start();
+    }
 
     public void SetSort(SortMode mode)
     {
@@ -262,12 +274,18 @@ public class SongsViewModel : Screen
             }
             else if (!IsAscending)
             {
-                sorted = sorted.Reverse();
+                sorted = CurrentSortMode switch
+                {
+                    SortMode.Title => filtered.OrderByDescending(t => t.Title, StringComparer.OrdinalIgnoreCase),
+                    SortMode.Duration => filtered.OrderByDescending(t => t.Duration),
+                    _ => sorted.Reverse()
+                };
             }
         }
 
-        SortedTracks = new BindableCollection<MidiFile>(sorted);
-        NotifyOfPropertyChange(nameof(SortedTracks));
+        var sortedList = sorted.ToList();
+        SortedTracks.Clear();
+        SortedTracks.AddRange(sortedList);
         RefreshPositions();
     }
 
@@ -560,7 +578,7 @@ public class SongsViewModel : Screen
     {
         for (int i = 0; i < SortedTracks.Count; i++)
         {
-            SortedTracks[i].Position = i + 1; // 1-based for display
+            SortedTracks[i].Position = i; // 0-based; getter adds +1 for display
         }
     }
 
