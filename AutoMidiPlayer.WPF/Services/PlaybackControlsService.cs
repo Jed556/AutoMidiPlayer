@@ -260,6 +260,10 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
         SongSettings.ClearSettings();
         _main.InstrumentView.UpdateFromCurrentSong();
 
+        // Notify MaximumTime (and other control properties) so the seekbar
+        // range resets to zero when no file is open.
+        NotifyControlProperties();
+
         if (notifyOpenedFileChanged)
             _events.Publish(new OpenedFileChangedNotification(null));
     }
@@ -492,9 +496,12 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
     public void NotifyControlProperties()
     {
         NotifyOfPropertyChange(nameof(MaximumTime));
+        NotifyOfPropertyChange(nameof(DisplayCurrentTime));
+        NotifyOfPropertyChange(nameof(DisplayRemainingTime));
         NotifyOfPropertyChange(nameof(CanHitPlayPause));
         NotifyOfPropertyChange(nameof(CanHitNext));
         NotifyOfPropertyChange(nameof(CanHitPrevious));
+        NotifyOfPropertyChange(nameof(HasSongOpen));
         NotifyListenModeProperties();
     }
 

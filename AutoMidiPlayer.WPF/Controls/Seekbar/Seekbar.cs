@@ -345,6 +345,9 @@ public partial class Seekbar : UserControl
 
     private void OnSliderPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (!IsEnabled)
+            return;
+
         _interactionMode = e.OriginalSource is DependencyObject source && FindAncestor<Thumb>(source) is not null
             ? SeekInteractionMode.Thumb
             : SeekInteractionMode.Track;
@@ -982,6 +985,14 @@ public partial class Seekbar : UserControl
 
     private void ParentWindow_MouseMove(object? sender, MouseEventArgs e)
     {
+        // Suppress hover effects when the control is disabled (no song loaded).
+        if (!IsEnabled)
+        {
+            HideHoverPopup();
+            HideHoverFill();
+            return;
+        }
+
         // Window-level mouse tracking so popups being displayed don't prevent hover detection.
         ResolveTrack();
         if (_track is null)

@@ -235,6 +235,11 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         _loggedSongContextForNotes = false;
         playback.Finished += (_, _) =>
         {
+            // DryWetMidi does NOT fire the Stopped event when playback finishes
+            // naturally — only Finished is raised. Stop the time watcher here so
+            // it doesn't keep overriding the slider position after the song ends.
+            _timeWatcher.Stop();
+
             // Marshal to UI thread to avoid cross-thread issues
             // Only auto-next if this playback is still the current one
             System.Windows.Application.Current?.Dispatcher?.BeginInvoke(async () =>

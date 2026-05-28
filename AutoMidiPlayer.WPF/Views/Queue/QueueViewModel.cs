@@ -244,7 +244,7 @@ public class QueueViewModel : Screen
         ApplyFilter();
     }
 
-    public void RemoveSong(IEnumerable<MidiFile>? selectedFiles)
+    public async void RemoveSong(IEnumerable<MidiFile>? selectedFiles)
     {
         // Get files to remove - either multi-select or single select. The parameter may be null when
         // invoked via a command without a CommandParameter, so guard against that.
@@ -259,9 +259,38 @@ public class QueueViewModel : Screen
             .Select(file => file.Song.Id)
             .ToHashSet();
 
-        // If the currently opened song is being removed from queue, stop playback.
-        if (OpenedFile is not null && removedSongIds.Contains(OpenedFile.Song.Id))
+        // Determine whether the currently opened song is being removed and find its successor
+        // BEFORE modifying the playlist, so index-based lookups are still valid.
+        MidiFile? nextSong = null;
+        var isCurrentSongRemoved = OpenedFile is not null && removedSongIds.Contains(OpenedFile.Song.Id);
+        if (isCurrentSongRemoved)
         {
+            // Find the next song that isn't being removed.
+            var playlist = GetPlaylist().ToList();
+            var currentIndex = playlist.IndexOf(OpenedFile!);
+            for (var i = currentIndex + 1; i < playlist.Count; i++)
+            {
+                if (!removedSongIds.Contains(playlist[i].Song.Id))
+                {
+                    nextSong = playlist[i];
+                    break;
+                }
+            }
+
+            // If no successor found and loop is Queue, wrap around to the beginning.
+            if (nextSong is null && Loop == LoopMode.Queue)
+            {
+                for (var i = 0; i < currentIndex; i++)
+                {
+                    if (!removedSongIds.Contains(playlist[i].Song.Id))
+                    {
+                        nextSong = playlist[i];
+                        break;
+                    }
+                }
+            }
+
+            // Close current playback before modifying the queue.
             _main.PlaybackControls.CloseFile();
             ClearSavedSong();
             _main.PlaybackControls.UpdateButtons();
@@ -284,6 +313,13 @@ public class QueueViewModel : Screen
         }
 
         OnQueueModified();
+
+        // Auto-play the next song only in Queue loop mode.
+        // In Off and Track modes, just stop (the user expects removal to not auto-advance).
+        if (isCurrentSongRemoved && nextSong is not null && Loop == LoopMode.Queue)
+        {
+            await _main.PlaybackEngine.LoadFileAsync(nextSong, autoPlay: true);
+        }
     }
 
     public async Task DeleteSongs(IEnumerable<MidiFile> selectedFiles)
