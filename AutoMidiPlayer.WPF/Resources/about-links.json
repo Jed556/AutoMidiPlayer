@@ -1,0 +1,22 @@
+[
+  {
+    "Name": "Release notes",
+    "Url": "https://github.com/Jed556/AutoMidiPlayer/releases",
+    "Tooltip": "Open https://github.com/Jed556/AutoMidiPlayer/releases"
+  },
+  {
+    "Name": "Report a bug",
+    "Url": "https://github.com/Jed556/AutoMidiPlayer/issues/new?template=bug_report.yml",
+    "Tooltip": "Open https://github.com/Jed556/AutoMidiPlayer/issues/new?template=bug_report.yml"
+  },
+  {
+    "Name": "Feature request",
+    "Url": "https://github.com/Jed556/AutoMidiPlayer/issues/new?template=feature_request.yml",
+    "Tooltip": "Open https://github.com/Jed556/AutoMidiPlayer/issues/new?template=feature_request.yml"
+  },
+  {
+    "Name": "Wiki",
+    "Url": "https://github.com/Jed556/AutoMidiPlayer/wiki",
+    "Tooltip": "Open https://github.com/Jed556/AutoMidiPlayer/wiki"
+  }
+]

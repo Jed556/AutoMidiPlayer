@@ -190,8 +190,8 @@
                         </controls:SimpleStackPanel>
                     </controls:Section>
 
-                    <!-- Keybinds Section -->
-                    <controls:Section Title="Keybinds"
+                    <!-- Hotkeys Section -->
+                    <controls:Section Title="Hotkeys"
                                       Margin="0,16,0,0">
                         <controls:Section.HeaderContent>
                             <Button Style="{DynamicResource IconButton}"
@@ -211,12 +211,12 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <ui:ToggleSwitch Grid.Column="0"
-                                                 Content="Enable global hotkeys"
+                                                 Content="Enable hotkeys"
                                                  IsChecked="{Binding HotkeysEnabled}"
                                                  ToolTip="When enabled, hotkeys work even when the app is not focused"/>
                             </Grid>
 
-                            <TextBlock Text="Global hotkeys work even when the app is not in focus. Requires at least one modifier key (Ctrl, Alt, Shift)."
+                            <TextBlock Text="Hotkeys work even when the app is not in focus. Requires at least one modifier key (Ctrl, Alt, Shift)."
                                        TextWrapping="Wrap"
                                        Opacity="0.6"
                                        FontSize="12"
@@ -851,47 +851,6 @@
                 </controls:SimpleStackPanel>
             </Grid>
 
-            <!-- License Section (full width) -->
-            <controls:Section Title="License"
-                              Margin="0,16,0,0">
-                <controls:SimpleStackPanel Spacing="4">
-                    <TextBlock TextWrapping="Wrap"
-                               FontSize="12">
-                        <Run Text="Adapted and expanded by © 2026 Jed556. Originally forked from © 2021 "/>
-                        <InlineUIContainer BaselineAlignment="Center">
-                            <controls:Hyperlink NavigateUri="https://github.com/sabihoshi/GenshinLyreMidiPlayer">
-                                <TextBlock Text="sabihoshi/GenshinLyreMidiPlayer"
-                                           FontSize="12"/>
-                            </controls:Hyperlink>
-                        </InlineUIContainer>
-                        <Run Text=". Licensed under the "/>
-                        <InlineUIContainer BaselineAlignment="Center">
-                            <controls:Hyperlink NavigateUri="{Binding Default.LicenseUri, Source={StaticResource Settings}, TargetNullValue={x:Null}}">
-                                <TextBlock Text="GNU GPL v3.0"
-                                           FontSize="12"/>
-                            </controls:Hyperlink>
-                        </InlineUIContainer>
-                        <Run Text="."/>
-                    </TextBlock>
-                    <TextBlock TextWrapping="Wrap"
-                               FontSize="12">
-                        <Run Text="This project uses third-party libraries that may be distributed under "/>
-                        <InlineUIContainer BaselineAlignment="Center">
-                            <controls:Hyperlink NavigateUri="{Binding Default.ThirdPartyLicenseUri, Source={StaticResource Settings}, TargetNullValue={x:Null}}">
-                                <TextBlock Text="different licenses"
-                                           FontSize="12"/>
-                            </controls:Hyperlink>
-                        </InlineUIContainer>
-                        <Run Text="."/>
-                    </TextBlock>
-                    <TextBlock TextWrapping="Wrap"
-                               FontSize="11"
-                               Opacity="0.7">
-                    All rights reserved by © miHoYo Co., Ltd., © XD Inc., © thatgamecompany, Inc., © Roblox Corporation, and © Hotta Studio, a Perfect World company.
-                    Not affiliated with miHoYo, XD, thatgamecompany, Roblox, or Hotta Studio.
-                    </TextBlock>
-                </controls:SimpleStackPanel>
-            </controls:Section>
         </controls:SimpleStackPanel>
     </ScrollViewer>
 </UserControl>

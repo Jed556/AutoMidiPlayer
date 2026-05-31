@@ -22,7 +22,7 @@ public partial class QueueView : UserControl
         {
             _dragDropHelper = new ListViewDragDropHelper(
                 SongList.ListView,
-                viewModel.Tracks,
+                () => viewModel.GetPlaylist(),
                 viewModel.OnQueueModified);
         }
     }

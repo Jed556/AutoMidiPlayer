@@ -61,7 +61,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
     // Helper to set selected navigation item safely
     private void SetSelectedNavItem(NavigationViewItem? item)
     {
-        if (Navigation == null || item == null) return;
+        if (Navigation == null) return;
 
         try
         {
@@ -74,6 +74,9 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
             {
                 try { navItem.IsActive = false; } catch { /* Ignore animation errors */ }
             }
+
+            if (item == null)
+                return;
 
             // Activate the selected item
             try { item.IsActive = true; } catch { /* Ignore animation errors */ }
@@ -117,6 +120,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
         // Initialize ViewModels - order matters for dependencies
         SettingsView = new(ioc, this);
+        AboutView = new();
         InstrumentView = new(ioc, this);
 
         // TrackView only handles track list management
@@ -188,10 +192,13 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
     public SettingsPageViewModel SettingsView { get; }
 
+    public AboutViewModel AboutView { get; }
+
     public InstrumentViewModel InstrumentView { get; }
 
     private static string NormalizePageName(string? pageName) => pageName switch
     {
+        "About" => "About",
         "Tracks" => "Tracks",
         "Sheet" => "Sheet",
         "Instrument" => "Instrument",
@@ -203,6 +210,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
     private IScreen ResolveViewFromName(string? pageName) => NormalizePageName(pageName) switch
     {
+        "About" => AboutView,
         "Tracks" => TrackView,
         "Sheet" => PianoSheetView,
         "Instrument" => InstrumentView,
@@ -323,6 +331,19 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
             System.Windows.Threading.DispatcherPriority.Normal);
 
         Logger.LogPageVisit("Settings", source: "programmatic-navigation");
+    }
+
+    public void NavigateToAbout()
+    {
+        if (ActiveItem == AboutView) return;
+
+        SetSelectedNavItem(null);
+        ActivateItem(AboutView);
+
+        BreadcrumbItems = ["About"];
+
+        NotifyOfPropertyChange(() => ShowUpdate);
+        Logger.LogPageVisit("About", source: "titlebar");
     }
 
     public void ToggleGameSelector()

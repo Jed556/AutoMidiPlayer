@@ -177,14 +177,18 @@ public class QueueViewModel : Screen
 
     public void AddFiles(IEnumerable<MidiFile> files)
     {
+        var added = false;
         foreach (var file in files)
         {
             if (!Tracks.Contains(file))
+            {
                 Tracks.Add(file);
+                if (Shuffle) ShuffledTracks.Add(file);
+                added = true;
+            }
         }
 
-        ShuffledTracks = new(Tracks.OrderBy(_ => Guid.NewGuid()));
-        OnQueueModified();
+        if (added) OnQueueModified();
 
         var next = Next();
         if (OpenedFile is null && Tracks.Count > 0 && next is not null)
@@ -196,7 +200,7 @@ public class QueueViewModel : Screen
         if (!Tracks.Contains(file))
         {
             Tracks.Add(file);
-            ShuffledTracks = new(Tracks.OrderBy(_ => Guid.NewGuid()));
+            if (Shuffle) ShuffledTracks.Add(file);
             OnQueueModified();
         }
     }
@@ -357,11 +361,12 @@ public class QueueViewModel : Screen
     public void MoveUp()
     {
         if (SelectedFile is null) return;
-
-        var index = Tracks.IndexOf(SelectedFile);
+        
+        var playlist = GetPlaylist();
+        var index = playlist.IndexOf(SelectedFile);
         if (index > 0)
         {
-            Tracks.Move(index, index - 1);
+            playlist.Move(index, index - 1);
             OnQueueModified();
         }
     }
@@ -370,10 +375,11 @@ public class QueueViewModel : Screen
     {
         if (SelectedFile is null) return;
 
-        var index = Tracks.IndexOf(SelectedFile);
-        if (index < Tracks.Count - 1)
+        var playlist = GetPlaylist();
+        var index = playlist.IndexOf(SelectedFile);
+        if (index < playlist.Count - 1)
         {
-            Tracks.Move(index, index + 1);
+            playlist.Move(index, index + 1);
             OnQueueModified();
         }
     }
@@ -550,10 +556,11 @@ public class QueueViewModel : Screen
     public void ApplyFilter()
     {
         var searchTerm = FilterText?.Trim() ?? string.Empty;
+        var playlist = GetPlaylist();
 
         IEnumerable<MidiFile> filtered = string.IsNullOrWhiteSpace(searchTerm)
-            ? Tracks
-            : Tracks.Where(t =>
+            ? playlist
+            : playlist.Where(t =>
                 t.Title.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)
                 || (!string.IsNullOrWhiteSpace(t.Song.Album) && t.Song.Album.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
                 || (!string.IsNullOrWhiteSpace(t.Song.Artist) && t.Song.Artist.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)));

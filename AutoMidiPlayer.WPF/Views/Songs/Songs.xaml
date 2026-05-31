@@ -118,7 +118,7 @@
                                   SelectedItem="{Binding SelectedFile, Mode=TwoWay}"
                                   OpenedFile="{Binding QueueView.OpenedFile}"
                                   IsPlaying="{Binding Playback.IsPlaying}"
-                                  AllowReorder="True"
+                                  AllowReorder="{Binding IsCustomSort}"
                                   ItemDoubleClick="TrackList_ItemDoubleClick"
                                   PlayPauseClick="TrackList_PlayPauseClick"
                                   MenuClick="TrackList_MenuClick">

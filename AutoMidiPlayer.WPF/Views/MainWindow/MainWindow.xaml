@@ -669,6 +669,16 @@
                                                FontSize="18"/>
                             </Button>
 
+                            <Button Style="{DynamicResource IconButton}"
+                                    Command="{s:Action NavigateToAbout}"
+                                    ToolTip="About Auto MIDI Player"
+                                    Padding="8,4"
+                                    Margin="0,0,8,0"
+                                    shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                                <ui:SymbolIcon Symbol="Info24"
+                                               FontSize="18"/>
+                            </Button>
+
                             <!-- Let's have a pin / always on top button some time here -->
                             <!-- <Button Style="{DynamicResource IconButton}"
                                     Command="{s:Action PinWindow}"

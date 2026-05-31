@@ -6,7 +6,7 @@
         <UseWPF>true</UseWPF>
         <StartupObject>AutoMidiPlayer.WPF.App</StartupObject>
         <ApplicationManifest>app.manifest</ApplicationManifest>
-        <Version>7.2.3</Version>
+        <Version>7.3.2</Version>
         <ApplicationIcon>Resources\logo.ico</ApplicationIcon>
         <Nullable>enable</Nullable>
         <RepositoryUrl>https://github.com/Jed556/AutoMidiPlayer</RepositoryUrl>
@@ -35,6 +35,17 @@
     </ItemGroup>
 
     <ItemGroup>
+        <None Include="..\LICENSE">
+            <Pack>True</Pack>
+            <PackagePath></PackagePath>
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Include="..\THIRD-PARTY-LICENSES.md">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Include="Resources\about-links.json">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
         <None Include="..\LICENSE.md">
             <Pack>True</Pack>
             <PackagePath></PackagePath>
@@ -46,7 +57,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Resource Include="Resources\*.png" />
+        <Resource Include="Resources\**\*.png" />
     </ItemGroup>
 
     <ItemGroup>

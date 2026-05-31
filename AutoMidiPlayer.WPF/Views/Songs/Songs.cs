@@ -26,7 +26,7 @@ public partial class SongsView : UserControl
         {
             _dragDropHelper = new ListViewDragDropHelper(
                 SongList.ListView,
-                viewModel.Tracks,
+                () => viewModel.Tracks,
                 viewModel.ApplySort);
         }
     }

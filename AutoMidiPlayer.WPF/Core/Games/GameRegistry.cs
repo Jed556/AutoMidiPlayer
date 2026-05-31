@@ -35,7 +35,7 @@ public static class GameRegistry
             id: "Genshin Impact",
             displayName: "Genshin Impact",
             instrumentGameName: "Genshin Impact",
-            imageResourcePath: "pack://application:,,,/Resources/Genshin_Impact.png",
+            imageResourcePath: "pack://application:,,,/Resources/Images/Games/Genshin_Impact.png",
             processNames: ["GenshinImpact", "YuanShen"],
             defaultExeName: "GenshinImpact.exe",
             defaultSearchPaths:
@@ -58,7 +58,7 @@ public static class GameRegistry
             id: "NTE",
             displayName: "Neverness to Everness",
             instrumentGameName: "Neverness to Everness",
-            imageResourcePath: "pack://application:,,,/Resources/NTE.png",
+            imageResourcePath: "pack://application:,,,/Resources/Images/Games/NTE.png",
             processNames: ["HTGame"],
             defaultExeName: "HTGame.exe",
             defaultSearchPaths:
@@ -78,7 +78,7 @@ public static class GameRegistry
             id: "Heartopia",
             displayName: "Heartopia",
             instrumentGameName: "Heartopia",
-            imageResourcePath: "pack://application:,,,/Resources/Heartopia.png",
+            imageResourcePath: "pack://application:,,,/Resources/Images/Games/Heartopia.png",
             processNames: ["xdt"],
             defaultExeName: "xdt.exe",
             defaultSearchPaths:
@@ -104,7 +104,7 @@ public static class GameRegistry
             id: "Roblox",
             displayName: "Roblox",
             instrumentGameName: "Roblox",
-            imageResourcePath: "pack://application:,,,/Resources/Roblox.png",
+            imageResourcePath: "pack://application:,,,/Resources/Images/Games/Roblox.png",
             processNames: ["RobloxPlayerBeta", "Roblox"],
             defaultExeName: "RobloxPlayerBeta.exe",
             defaultSearchPaths:
@@ -121,7 +121,7 @@ public static class GameRegistry
             id: "Sky",
             displayName: "Sky: Children of the Light",
             instrumentGameName: "Sky",
-            imageResourcePath: "pack://application:,,,/Resources/Sky.png",
+            imageResourcePath: "pack://application:,,,/Resources/Images/Games/Sky.png",
             processNames: ["Sky"],
             defaultExeName: "Sky.exe",
             defaultSearchPaths:

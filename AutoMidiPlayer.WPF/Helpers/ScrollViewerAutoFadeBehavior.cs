@@ -543,7 +543,12 @@ public static class ScrollViewerAutoFadeBehavior
         private void WireVerticalScrollBar()
         {
             if (_verticalScrollBar == null || !IsDescendantOf(_viewer, _verticalScrollBar))
-                _verticalScrollBar = FindDescendant<ScrollBar>(_viewer, bar => bar.Orientation == Orientation.Vertical);
+            {
+                if (_viewer.Template?.FindName("PART_VerticalScrollBar", _viewer) is ScrollBar templateBar)
+                    _verticalScrollBar = templateBar;
+                else
+                    _verticalScrollBar = FindDescendant<ScrollBar>(_viewer, bar => bar.Orientation == Orientation.Vertical && ReferenceEquals(bar.TemplatedParent, _viewer));
+            }
 
             if (_verticalScrollBar == null)
                 return;
@@ -569,7 +574,12 @@ public static class ScrollViewerAutoFadeBehavior
         private void WireHorizontalScrollBar()
         {
             if (_horizontalScrollBar == null || !IsDescendantOf(_viewer, _horizontalScrollBar))
-                _horizontalScrollBar = FindDescendant<ScrollBar>(_viewer, bar => bar.Orientation == Orientation.Horizontal);
+            {
+                if (_viewer.Template?.FindName("PART_HorizontalScrollBar", _viewer) is ScrollBar templateBar)
+                    _horizontalScrollBar = templateBar;
+                else
+                    _horizontalScrollBar = FindDescendant<ScrollBar>(_viewer, bar => bar.Orientation == Orientation.Horizontal && ReferenceEquals(bar.TemplatedParent, _viewer));
+            }
 
             if (_horizontalScrollBar == null)
                 return;
