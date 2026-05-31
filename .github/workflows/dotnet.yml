@@ -82,7 +82,7 @@ jobs:
           ref: ${{ needs.prepare.outputs.build_sha }}
 
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v5.2.0
+        uses: actions/setup-dotnet@v5.3.0
         with:
           dotnet-version: 10.x
 
@@ -119,7 +119,7 @@ jobs:
           ref: ${{ needs.prepare.outputs.build_sha }}
 
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v5.2.0
+        uses: actions/setup-dotnet@v5.3.0
         with:
           dotnet-version: 10.x
 
@@ -135,15 +135,15 @@ jobs:
         run: |
           $version = "${{ needs.prepare.outputs.version }}"
           $portableExe = ".\portable\Auto MIDI Player.exe"
-          $stagedExe = ".\AutoMidiPlayer_${version}_win-x64.exe"
+          $stagedExe = ".\Auto MIDI Player.exe"
           $portableArchive = ".\AutoMidiPlayer_${version}_win-x64-portable.zip"
 
           if (-not (Test-Path $portableExe)) { throw "Missing portable executable: $portableExe" }
 
           Copy-Item $portableExe $stagedExe -Force
           if (Test-Path $portableArchive) { Remove-Item $portableArchive -Force }
-          7z a $portableArchive $stagedExe -mx9
-          Remove-Item $stagedExe -Force
+          7z a $portableArchive "`"$stagedExe`"" -mx9
+          Remove-Item "`"$stagedExe`"" -Force
 
       - name: Upload portable artifact
         uses: actions/upload-artifact@v7.0.1
