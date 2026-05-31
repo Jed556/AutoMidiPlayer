@@ -167,11 +167,6 @@
               echo "Using default GITHUB_TOKEN for gh commands."
             fi
 
-            if [ "${UPDATE_TYPE}" != "version-update:semver-patch" ]; then
-              echo "Skipping merge because update type is '${UPDATE_TYPE}' (only patch updates are merged)."
-              exit 0
-            fi
-
             if [ -z "${PR_URL}" ]; then
               echo "No pull_request URL found in event payload."
               exit 1
