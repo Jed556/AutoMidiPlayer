@@ -20,4 +20,38 @@ public static class IconButtonProperties
     {
         obj.SetValue(IsActiveProperty, value);
     }
+
+    public static readonly DependencyProperty IsGhostProperty =
+        DependencyProperty.RegisterAttached(
+            "IsGhost",
+            typeof(bool),
+            typeof(IconButtonProperties),
+            new FrameworkPropertyMetadata(true));
+
+    public static bool GetIsGhost(DependencyObject obj)
+    {
+        return (bool)obj.GetValue(IsGhostProperty);
+    }
+
+    public static void SetIsGhost(DependencyObject obj, bool value)
+    {
+        obj.SetValue(IsGhostProperty, value);
+    }
+
+    public static readonly DependencyProperty UseAccentColorProperty =
+        DependencyProperty.RegisterAttached(
+            "UseAccentColor",
+            typeof(bool),
+            typeof(IconButtonProperties),
+            new FrameworkPropertyMetadata(false));
+
+    public static bool GetUseAccentColor(DependencyObject obj)
+    {
+        return (bool)obj.GetValue(UseAccentColorProperty);
+    }
+
+    public static void SetUseAccentColor(DependencyObject obj, bool value)
+    {
+        obj.SetValue(UseAccentColorProperty, value);
+    }
 }

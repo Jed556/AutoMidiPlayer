@@ -7,8 +7,8 @@
                   CloseButtonAppearance="Secondary"
                   DefaultButton="Close">
     
-    <Grid Width="280" Height="200" VerticalAlignment="Center" HorizontalAlignment="Center">
-        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,16">
+    <Grid Width="280" VerticalAlignment="Center" HorizontalAlignment="Center">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
             <ui:SymbolIcon Symbol="{Binding StatusIcon, RelativeSource={RelativeSource AncestorType=ui:ContentDialog}}" 
                            FontSize="34" 
                            HorizontalAlignment="Center" 

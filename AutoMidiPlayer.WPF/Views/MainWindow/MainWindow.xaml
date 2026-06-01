@@ -495,6 +495,8 @@
             </Setter>
         </Style>
 
+
+
         <DataTemplate x:Key="SelectorDisplayItemTemplate">
             <TextBlock x:Name="DisplayText"
                        Text="{Binding Display}"
@@ -647,17 +649,17 @@
                                     HorizontalAlignment="Right"
                                     VerticalAlignment="Center"
                                     Margin="0">
-                            <Button Style="{DynamicResource IconButton}"
+                            <controls:IconButton Style="{DynamicResource IconButton}"
+                                    controls:IconButtonProperties.IsGhost="False"
+                                    controls:IconButtonProperties.UseAccentColor="True"
                                     Command="{s:Action NavigateToSettings}"
                                     ToolTip="Update available"
                                     Visibility="{Binding ShowUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
-                                    Padding="8,4"
                                     Margin="0,0,6,0"
-                                    Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
                                     shell:WindowChrome.IsHitTestVisibleInChrome="True">
                                 <ui:SymbolIcon Symbol="ArrowDownload16"
                                                FontSize="18"/>
-                            </Button>
+                            </controls:IconButton>
 
                             <Button Style="{DynamicResource IconButton}"
                                     Command="{s:Action ToggleTheme}"

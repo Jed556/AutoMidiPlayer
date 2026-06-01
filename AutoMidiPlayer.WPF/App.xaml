@@ -25,6 +25,7 @@
                 <!-- Shared style dictionaries -->
                 <ResourceDictionary Source="/Theme/BaseStyles.xaml"/>
                 <ResourceDictionary Source="/Theme/IconButton.xaml"/>
+                <ResourceDictionary Source="/Theme/ToggleSwitch.xaml"/>
                 <ResourceDictionary Source="/Controls/Hyperlink/Hyperlink.xaml"/>
 
             </ResourceDictionary.MergedDictionaries>

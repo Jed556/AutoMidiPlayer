@@ -1,0 +1,285 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+
+    <Style TargetType="{x:Type ui:ToggleSwitch}">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="HorizontalAlignment" Value="Left"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Padding" Value="12,0,0,0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ui:ToggleSwitch}">
+                    <Grid Background="Transparent">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Grid Width="44" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <!-- Base off background with the only border stroke -->
+                            <Border x:Name="SwitchBorder"
+                                    CornerRadius="11"
+                                    Background="{DynamicResource ControlAltFillColorSecondaryBrush}"
+                                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}" />
+
+                            <!-- Off hover fill overlay (no border stroke) -->
+                            <Border x:Name="FillOffHover"
+                                    CornerRadius="11"
+                                    Background="{DynamicResource ControlAltFillColorTertiaryBrush}"
+                                    Opacity="0" />
+
+                            <!-- Checked fill overlay (no border stroke) -->
+                            <Border x:Name="FillChecked"
+                                    CornerRadius="11"
+                                    Background="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                    Opacity="0" />
+
+                            <!-- Checked hover fill overlay (no border stroke) -->
+                            <Border x:Name="FillCheckedHover"
+                                    CornerRadius="11"
+                                    Background="{DynamicResource SystemAccentColorSecondaryBrush}"
+                                    Opacity="0" />
+
+                            <!-- Checked border stroke overlay (sits on top, transparent fill) -->
+                            <Border x:Name="StrokeChecked"
+                                    CornerRadius="11"
+                                    Background="Transparent"
+                                    BorderBrush="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    Opacity="0" />
+
+                            <!-- The Thumb -->
+                            <Grid x:Name="ThumbContainer"
+                                  HorizontalAlignment="Left"
+                                  Margin="4,0,0,0"
+                                  Width="14"
+                                  Height="14"
+                                  RenderTransformOrigin="0.5,0.5">
+                                <Grid.RenderTransform>
+                                    <ScaleTransform x:Name="ThumbScale" ScaleX="1" ScaleY="1"/>
+                                </Grid.RenderTransform>
+
+                                <Border x:Name="ThumbOff" CornerRadius="7" Background="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <Border x:Name="ThumbOffHover" CornerRadius="7" Background="{DynamicResource TextFillColorPrimaryBrush}" Opacity="0" />
+                                <Border x:Name="ThumbChecked" CornerRadius="7" Background="{DynamicResource TextOnAccentFillColorPrimaryBrush}" Opacity="0" />
+                            </Grid>
+                        </Grid>
+
+                        <ContentPresenter Grid.Column="1"
+                                          x:Name="ContentPresenter"
+                                          Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          Focusable="False"
+                                          RecognizesAccessKey="True"
+                                          SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                    </Grid>
+                    
+                    <ControlTemplate.Triggers>
+                        <!-- Snap checked state for initial load -->
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="FillChecked" Property="Opacity" Value="1"/>
+                            <Setter TargetName="StrokeChecked" Property="Opacity" Value="1"/>
+                            <Setter TargetName="SwitchBorder" Property="BorderBrush" Value="Transparent"/>
+                            <Setter TargetName="ThumbChecked" Property="Opacity" Value="1"/>
+                            <Setter TargetName="ThumbContainer" Property="Margin" Value="27,0,0,0"/>
+                        </Trigger>
+
+                        <!-- ===== HOVER: Off + MouseOver ===== -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True"/>
+                                <Condition Property="IsChecked" Value="False"/>
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard x:Name="OffHoverEnter">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="FillOffHover"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="0:0:0.22">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                        <DoubleAnimation Storyboard.TargetName="ThumbOffHover"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="0:0:0.22">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <RemoveStoryboard BeginStoryboardName="OffHoverEnter"/>
+                                <BeginStoryboard x:Name="OffHoverExit">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="FillOffHover"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="0:0:0.28">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                        <DoubleAnimation Storyboard.TargetName="ThumbOffHover"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="0:0:0.28">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
+
+                        <!-- ===== HOVER: On + MouseOver ===== -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True"/>
+                                <Condition Property="IsChecked" Value="True"/>
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard x:Name="OnHoverEnter">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="FillCheckedHover"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="0:0:0.22">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <RemoveStoryboard BeginStoryboardName="OnHoverEnter"/>
+                                <BeginStoryboard x:Name="OnHoverExit">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="FillCheckedHover"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="0:0:0.28">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
+
+                        <!-- ===== TOGGLE: Checked ===== -->
+                        <EventTrigger RoutedEvent="ToggleButton.Checked">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <ThicknessAnimation Storyboard.TargetName="ThumbContainer"
+                                                        Storyboard.TargetProperty="Margin"
+                                                        To="27,0,0,0" Duration="0:0:0.18">
+                                        <ThicknessAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut"/>
+                                        </ThicknessAnimation.EasingFunction>
+                                    </ThicknessAnimation>
+                                    
+                                    <DoubleAnimation Storyboard.TargetName="FillChecked"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="1" Duration="0:0:0.25">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut"/>
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+
+                                    <DoubleAnimation Storyboard.TargetName="StrokeChecked"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="1" Duration="0:0:0.25">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut"/>
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+
+                                    <DoubleAnimation Storyboard.TargetName="ThumbChecked"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="1" Duration="0:0:0.25">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut"/>
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+
+                                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="ThumbScale"
+                                                                   Storyboard.TargetProperty="ScaleX"
+                                                                   Duration="0:0:0.25">
+                                        <LinearDoubleKeyFrame Value="1.4" KeyTime="0:0:0.08"/>
+                                        <LinearDoubleKeyFrame Value="1.0" KeyTime="0:0:0.25"/>
+                                    </DoubleAnimationUsingKeyFrames>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+
+                        <!-- ===== TOGGLE: Unchecked ===== -->
+                        <EventTrigger RoutedEvent="ToggleButton.Unchecked">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <ThicknessAnimation Storyboard.TargetName="ThumbContainer"
+                                                        Storyboard.TargetProperty="Margin"
+                                                        To="4,0,0,0" Duration="0:0:0.18">
+                                        <ThicknessAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut"/>
+                                        </ThicknessAnimation.EasingFunction>
+                                    </ThicknessAnimation>
+                                    
+                                    <DoubleAnimation Storyboard.TargetName="FillChecked"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="0" Duration="0:0:0.25">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut"/>
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+
+                                    <DoubleAnimation Storyboard.TargetName="StrokeChecked"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="0" Duration="0:0:0.25">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut"/>
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+
+                                    <DoubleAnimation Storyboard.TargetName="FillCheckedHover"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="0" Duration="0:0:0.25">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut"/>
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+
+                                    <DoubleAnimation Storyboard.TargetName="ThumbChecked"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="0" Duration="0:0:0.25">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut"/>
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                    
+                                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="ThumbScale"
+                                                                   Storyboard.TargetProperty="ScaleX"
+                                                                   Duration="0:0:0.25">
+                                        <LinearDoubleKeyFrame Value="1.4" KeyTime="0:0:0.08"/>
+                                        <LinearDoubleKeyFrame Value="1.0" KeyTime="0:0:0.25"/>
+                                    </DoubleAnimationUsingKeyFrames>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

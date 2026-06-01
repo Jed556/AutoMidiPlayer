@@ -188,7 +188,7 @@
                            Margin="0,16,0,0"/>
 
                 <TextBlock FontSize="12"
-                           Opacity="0.7"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                            TextAlignment="Center"
                            TextWrapping="Wrap"
                            Margin="0,8,0,0">

@@ -30,30 +30,44 @@
                                           TextElement.Foreground="{TemplateBinding Foreground}"/>
                     </Border>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="controls:IconButtonProperties.IsActive"
-                                 Value="True">
-                            <Setter Property="Foreground"
-                                    Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
-                            <Setter TargetName="IconContent"
-                                    Property="Opacity"
-                                    Value="0.85"/>
+                        <Trigger Property="controls:IconButtonProperties.UseAccentColor" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
                         </Trigger>
-                        <Trigger Property="controls:IconButtonProperties.IsActive"
-                                 Value="False">
-                            <Setter TargetName="IconContent"
-                                    Property="Opacity"
-                                    Value="0.4"/>
+                        <!-- GHOST MODE OFF (Color Mode) -->
+                        <Trigger Property="controls:IconButtonProperties.IsGhost" Value="False">
+                            <Setter TargetName="IconContent" Property="Opacity" Value="1"/>
                         </Trigger>
+                        
+                        <!-- IsActive Color (applies to both, but opacity only for Ghost mode) -->
+                        <Trigger Property="controls:IconButtonProperties.IsActive" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
+                        </Trigger>
+
+                        <!-- Ghost mode specific IsActive opacity -->
                         <MultiTrigger>
                             <MultiTrigger.Conditions>
-                                <Condition Property="IsEnabled"
-                                           Value="True"/>
-                                <Condition Property="IsHitTestVisible"
-                                           Value="True"/>
-                                <Condition Property="IsMouseOver"
-                                           Value="False"/>
-                                <Condition Property="controls:IconButtonProperties.IsActive"
-                                           Value="False"/>
+                                <Condition Property="controls:IconButtonProperties.IsGhost" Value="True"/>
+                                <Condition Property="controls:IconButtonProperties.IsActive" Value="True"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="IconContent" Property="Opacity" Value="0.85"/>
+                        </MultiTrigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="controls:IconButtonProperties.IsGhost" Value="True"/>
+                                <Condition Property="controls:IconButtonProperties.IsActive" Value="False"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="IconContent" Property="Opacity" Value="0.4"/>
+                        </MultiTrigger>
+
+
+                        <!-- GHOST MODE ON ANIMATIONS -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="controls:IconButtonProperties.IsGhost" Value="True"/>
+                                <Condition Property="IsEnabled" Value="True"/>
+                                <Condition Property="IsHitTestVisible" Value="True"/>
+                                <Condition Property="IsMouseOver" Value="False"/>
+                                <Condition Property="controls:IconButtonProperties.IsActive" Value="False"/>
                             </MultiTrigger.Conditions>
                             <MultiTrigger.EnterActions>
                                 <BeginStoryboard x:Name="IconButtonIdleInactiveOpacityStoryboard">
@@ -73,16 +87,14 @@
                                 <RemoveStoryboard BeginStoryboardName="IconButtonIdleInactiveOpacityStoryboard"/>
                             </MultiTrigger.ExitActions>
                         </MultiTrigger>
+                        
                         <MultiTrigger>
                             <MultiTrigger.Conditions>
-                                <Condition Property="IsEnabled"
-                                           Value="True"/>
-                                <Condition Property="IsHitTestVisible"
-                                           Value="True"/>
-                                <Condition Property="IsMouseOver"
-                                           Value="False"/>
-                                <Condition Property="controls:IconButtonProperties.IsActive"
-                                           Value="True"/>
+                                <Condition Property="controls:IconButtonProperties.IsGhost" Value="True"/>
+                                <Condition Property="IsEnabled" Value="True"/>
+                                <Condition Property="IsHitTestVisible" Value="True"/>
+                                <Condition Property="IsMouseOver" Value="False"/>
+                                <Condition Property="controls:IconButtonProperties.IsActive" Value="True"/>
                             </MultiTrigger.Conditions>
                             <MultiTrigger.EnterActions>
                                 <BeginStoryboard x:Name="IconButtonIdleActiveOpacityStoryboard">
@@ -102,16 +114,14 @@
                                 <RemoveStoryboard BeginStoryboardName="IconButtonIdleActiveOpacityStoryboard"/>
                             </MultiTrigger.ExitActions>
                         </MultiTrigger>
+                        
                         <MultiTrigger>
                             <MultiTrigger.Conditions>
-                                <Condition Property="IsEnabled"
-                                           Value="True"/>
-                                <Condition Property="IsHitTestVisible"
-                                           Value="True"/>
-                                <Condition Property="IsMouseOver"
-                                           Value="True"/>
-                                <Condition Property="controls:IconButtonProperties.IsActive"
-                                           Value="True"/>
+                                <Condition Property="controls:IconButtonProperties.IsGhost" Value="True"/>
+                                <Condition Property="IsEnabled" Value="True"/>
+                                <Condition Property="IsHitTestVisible" Value="True"/>
+                                <Condition Property="IsMouseOver" Value="True"/>
+                                <Condition Property="controls:IconButtonProperties.IsActive" Value="True"/>
                             </MultiTrigger.Conditions>
                             <MultiTrigger.EnterActions>
                                 <BeginStoryboard x:Name="IconButtonHoverActiveOpacityStoryboard">
@@ -131,16 +141,14 @@
                                 <RemoveStoryboard BeginStoryboardName="IconButtonHoverActiveOpacityStoryboard"/>
                             </MultiTrigger.ExitActions>
                         </MultiTrigger>
+                        
                         <MultiTrigger>
                             <MultiTrigger.Conditions>
-                                <Condition Property="IsEnabled"
-                                           Value="True"/>
-                                <Condition Property="IsHitTestVisible"
-                                           Value="True"/>
-                                <Condition Property="IsMouseOver"
-                                           Value="True"/>
-                                <Condition Property="controls:IconButtonProperties.IsActive"
-                                           Value="False"/>
+                                <Condition Property="controls:IconButtonProperties.IsGhost" Value="True"/>
+                                <Condition Property="IsEnabled" Value="True"/>
+                                <Condition Property="IsHitTestVisible" Value="True"/>
+                                <Condition Property="IsMouseOver" Value="True"/>
+                                <Condition Property="controls:IconButtonProperties.IsActive" Value="False"/>
                             </MultiTrigger.Conditions>
                             <MultiTrigger.EnterActions>
                                 <BeginStoryboard x:Name="IconButtonHoverInactiveOpacityStoryboard">
@@ -160,17 +168,14 @@
                                 <RemoveStoryboard BeginStoryboardName="IconButtonHoverInactiveOpacityStoryboard"/>
                             </MultiTrigger.ExitActions>
                         </MultiTrigger>
-                        <Trigger Property="IsHitTestVisible"
-                                 Value="False">
-                            <Setter TargetName="IconContent"
-                                    Property="Opacity"
-                                    Value="0.2"/>
+
+                        <!-- Common disabled states -->
+                        <Trigger Property="IsHitTestVisible" Value="False">
+                            <Setter TargetName="IconContent" Property="Opacity" Value="0.2"/>
                         </Trigger>
-                        <Trigger Property="IsEnabled"
-                                 Value="False">
-                            <Setter TargetName="IconContent"
-                                    Property="Opacity"
-                                    Value="0.2"/>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="IconContent" Property="Opacity" Value="0.2"/>
+                            <Setter TargetName="IconContent" Property="TextElement.Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
