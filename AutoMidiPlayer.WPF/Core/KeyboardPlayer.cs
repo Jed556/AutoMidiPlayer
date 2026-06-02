@@ -271,13 +271,13 @@ public static class KeyboardPlayer
         return found;
     }
 
-    private static bool TryGetKeyStroke(
-        string layoutName, string instrumentId, int noteId, out Keyboard.KeyStroke keyStroke)
+    public static bool TryGetKeyStroke(string layoutName, string instrumentId, int noteId, out Keyboard.KeyStroke keyStroke)
     {
         var keyStrokes = Keyboard.GetLayout(layoutName, instrumentId);
         var notes = Keyboard.GetNotes(instrumentId);
         return TryGetKeyStroke(keyStrokes, notes, noteId, out keyStroke);
     }
+
 
     private static bool TryGetKeyStroke(
         this IEnumerable<Keyboard.KeyStroke> keyStrokes, IList<int> notes,

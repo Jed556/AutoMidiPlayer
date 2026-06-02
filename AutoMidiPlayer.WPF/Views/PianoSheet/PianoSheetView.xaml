@@ -9,7 +9,11 @@
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
     xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
     xmlns:button="clr-namespace:AutoMidiPlayer.WPF.Controls.SelectorPopupButton.Button"
+    xmlns:s="https://github.com/canton7/Stylet"
     d:DataContext="{d:DesignInstance Type=viewModels:PianoSheetViewModel}">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </UserControl.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -22,8 +26,25 @@
                 <GroupBox Header="Delimiter"
                         VerticalAlignment="Top"
                         Margin="0,0,12,12">
-                    <TextBox Text="{Binding Delimiter, UpdateSourceTrigger=PropertyChanged}"
-                             MinWidth="80"/>
+                    <StackPanel>
+                        <TextBox Text="{Binding Delimiter, UpdateSourceTrigger=PropertyChanged}"
+                                 MinWidth="50"
+                                 Width="50"
+                                 HorizontalAlignment="Left"/>
+                        
+                        <controls:SimpleStackPanel Orientation="Horizontal"
+                                                   Spacing="4"
+                                                   Margin="0,4,0,0"
+                                                   Visibility="{Binding IsDelimiterWarningVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <ui:SymbolIcon Symbol="Warning20" 
+                                           Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                           FontSize="14"/>
+                            <TextBlock Text="{Binding DelimiterWarningText}"
+                                       Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                       FontSize="12"
+                                       VerticalAlignment="Center"/>
+                        </controls:SimpleStackPanel>
+                    </StackPanel>
                 </GroupBox>
 
                 <GroupBox Header="Layout"
@@ -63,15 +84,40 @@
                         </StackPanel>
                     </controls:SimpleStackPanel>
                 </GroupBox>
+                
+                <StackPanel VerticalAlignment="Top" Margin="0,8,0,0">
+                    <Button Style="{DynamicResource IconButton}"
+                            controls:IconButtonProperties.IsGhost="True"
+                            Command="{s:Action ShowLegend}"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Left"
+                            Margin="0,0,0,4">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Info24" Margin="0,0,8,0" />
+                            <TextBlock Text="Legend" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{DynamicResource IconButton}"
+                            controls:IconButtonProperties.IsGhost="True"
+                            controls:IconButtonProperties.IsDanger="True"
+                            Command="{s:Action ResetDefaults}"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Left">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="ArrowClockwise24" Margin="0,0,8,0" />
+                            <TextBlock Text="Reset defaults" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
             </WrapPanel>
         </controls:SimpleStackPanel>
 
-        <controls:CopyableTextBox Grid.Row="1"
-                                  Margin="0,8,0,10"
-                                  Text="{Binding Result, Mode=OneWay}"
-                                  TextWrapping="NoWrap"
-                                  HorizontalScrollBarVisibility="Visible"
-                                  VerticalScrollBarVisibility="Auto"
-                                  CopyToolTip="Copy sheet output"/>
+        <controls:CopyableRichTextBox Grid.Row="1"
+                                      Margin="0,8,0,10"
+                                      Text="{Binding Result, Mode=OneWay}"
+                                      Delimiter="{Binding Delimiter, Mode=OneWay}"
+                                      HorizontalScrollBarVisibility="Visible"
+                                      VerticalScrollBarVisibility="Auto"
+                                      CopyToolTip="Copy sheet output"/>
     </Grid>
 </UserControl>

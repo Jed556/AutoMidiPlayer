@@ -54,4 +54,21 @@ public static class IconButtonProperties
     {
         obj.SetValue(UseAccentColorProperty, value);
     }
+
+    public static readonly DependencyProperty IsDangerProperty =
+        DependencyProperty.RegisterAttached(
+            "IsDanger",
+            typeof(bool),
+            typeof(IconButtonProperties),
+            new FrameworkPropertyMetadata(false));
+
+    public static bool GetIsDanger(DependencyObject obj)
+    {
+        return (bool)obj.GetValue(IsDangerProperty);
+    }
+
+    public static void SetIsDanger(DependencyObject obj, bool value)
+    {
+        obj.SetValue(IsDangerProperty, value);
+    }
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -12,6 +12,7 @@ using Melanchall.DryWetMidi.Interaction;
 using PropertyChanged;
 using Stylet;
 using StyletIoC;
+using AutoMidiPlayer.WPF.Helpers;
 
 namespace AutoMidiPlayer.WPF.ViewModels;
 
@@ -34,7 +35,28 @@ public class PianoSheetViewModel : Screen, IHandle<OpenedFileChangedNotification
         SongSettings.SettingsRebuildRequired += OnSongSettingsRebuildRequired;
     }
 
-    [OnChangedMethod(nameof(Update))] public char Delimiter { get; set; } = '_';
+    private string _delimiter = "_";
+
+    public string Delimiter
+    {
+        get => _delimiter;
+        set
+        {
+            if (string.IsNullOrEmpty(value)) return;
+
+            var newDelimiter = value.Last().ToString();
+            if (_delimiter != newDelimiter)
+            {
+                _delimiter = newDelimiter;
+                NotifyOfPropertyChange();
+                Update();
+            }
+            else if (value != _delimiter)
+            {
+                NotifyOfPropertyChange();
+            }
+        }
+    }
 
     [OnChangedMethod(nameof(Update))]
     public KeyValuePair<string, string> SelectedLayout
@@ -54,6 +76,9 @@ public class PianoSheetViewModel : Screen, IHandle<OpenedFileChangedNotification
         get => _result;
         private set => SetAndNotify(ref _result, value);
     }
+
+    public bool IsDelimiterWarningVisible { get; private set; }
+    public string DelimiterWarningText { get; private set; }
 
     [OnChangedMethod(nameof(Update))]
     public int Bars
@@ -94,6 +119,31 @@ public class PianoSheetViewModel : Screen, IHandle<OpenedFileChangedNotification
         var layout = InstrumentPage.SelectedLayout.Key; // layout name (string)
         var instrument = InstrumentPage.SelectedInstrument.Key; // instrument id (string)
 
+        var hasWarning = false;
+        var warningText = string.Empty;
+
+        if (Keyboard.TryGetKeyStrokeForCharacter(Delimiter[0], out var stroke))
+        {
+            var layoutKeys = Keyboard.GetLayout(layout, instrument);
+            var index = layoutKeys.ToList().FindIndex(k => k.Key == stroke.Key);
+            if (index >= 0)
+            {
+                var notes = Keyboard.GetNotes(instrument);
+                if (index < notes.Count)
+                {
+                    var noteId = notes[index];
+                    var noteName = Melanchall.DryWetMidi.MusicTheory.Note.Get((Melanchall.DryWetMidi.Common.SevenBitNumber)noteId).ToString();
+                    hasWarning = true;
+                    warningText = $"Used as note {noteName}";
+                }
+            }
+        }
+
+        IsDelimiterWarningVisible = hasWarning;
+        DelimiterWarningText = warningText;
+        NotifyOfPropertyChange(nameof(IsDelimiterWarningVisible));
+        NotifyOfPropertyChange(nameof(DelimiterWarningText));
+
         // Ticks is too small so it is not included
         var split = openedFile.Split((uint)Bars, (uint)Beats, 0);
 
@@ -113,13 +163,13 @@ public class PianoSheetViewModel : Screen, IHandle<OpenedFileChangedNotification
                 if (Settings.TransposeNotes && transpose is not null)
                     KeyboardPlayer.TransposeNote(instrument, ref id, transpose.Value);
 
-                if (!KeyboardPlayer.TryGetKey(layout, instrument, id, out var key)) continue;
+                if (!KeyboardPlayer.TryGetKeyStroke(layout, instrument, id, out var keyStroke)) continue;
 
                 var difference = note.Time - last;
                 var dotCount = difference / Shorten;
 
-                sb.Append(new string(Delimiter, (int)dotCount));
-                sb.Append(key.ToString().Last());
+                sb.Append(new string(Delimiter[0], (int)dotCount));
+                sb.Append(Keyboard.KeyStrokeToDisplayString(keyStroke));
 
                 last = (int)note.Time;
             }
@@ -147,6 +197,50 @@ public class PianoSheetViewModel : Screen, IHandle<OpenedFileChangedNotification
         }
 
         Update();
+    }
+
+    public async void ShowLegend()
+    {
+        var layout = InstrumentPage.SelectedLayout.Key;
+        var instrument = InstrumentPage.SelectedInstrument.Key;
+
+        var notes = Keyboard.GetNotes(instrument);
+        var keys = Keyboard.GetLayout(layout, instrument);
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"Delimiter: {Delimiter}");
+        sb.AppendLine("^: Ctrl modifier");
+        sb.AppendLine("Uppercase: Shift modifier");
+        sb.AppendLine();
+        sb.AppendLine("Keystrokes:");
+
+        var layoutList = keys.ToList();
+        for (int i = 0; i < Math.Min(notes.Count, layoutList.Count); i++)
+        {
+            var noteId = notes[i];
+            var keyStroke = layoutList[i];
+            var noteName = Melanchall.DryWetMidi.MusicTheory.Note.Get((Melanchall.DryWetMidi.Common.SevenBitNumber)noteId).ToString();
+            sb.AppendLine($"{Keyboard.KeyStrokeToDisplayString(keyStroke)} : {noteName}");
+        }
+
+        var request = new DialogActionRequest
+        {
+            Title = "Legend",
+            Body = sb.ToString(),
+            Icon = Wpf.Ui.Controls.SymbolRegular.Info20,
+            ConfirmButton = new DialogActionButton { Text = "Close", Appearance = Wpf.Ui.Controls.ControlAppearance.Primary },
+            CancelButton = null,
+        };
+
+        await DialogHelper.ShowActionDialogAsync(request);
+    }
+
+    public void ResetDefaults()
+    {
+        Delimiter = "_";
+        Bars = 1;
+        Beats = 1;
+        Shorten = 1;
     }
 
     protected override void OnActivate()

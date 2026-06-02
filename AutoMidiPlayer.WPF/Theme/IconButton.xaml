@@ -16,6 +16,10 @@
                 Value="Hand"/>
         <Setter Property="Foreground"
                 Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        <Setter Property="HorizontalContentAlignment"
+                Value="Center"/>
+        <Setter Property="VerticalContentAlignment"
+                Value="Center"/>
         <Setter Property="controls:IconButtonProperties.IsActive"
                 Value="False"/>
         <Setter Property="Template">
@@ -24,8 +28,8 @@
                     <Border Background="Transparent"
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter x:Name="IconContent"
-                                          HorizontalAlignment="Center"
-                                          VerticalAlignment="Center"
+                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                           Opacity="0.4"
                                           TextElement.Foreground="{TemplateBinding Foreground}"/>
                     </Border>
@@ -57,6 +61,14 @@
                                 <Condition Property="controls:IconButtonProperties.IsActive" Value="False"/>
                             </MultiTrigger.Conditions>
                             <Setter TargetName="IconContent" Property="Opacity" Value="0.4"/>
+                        </MultiTrigger>
+                        <!-- Danger Color on Hover -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="controls:IconButtonProperties.IsDanger" Value="True"/>
+                                <Condition Property="IsMouseOver" Value="True"/>
+                            </MultiTrigger.Conditions>
+                            <Setter Property="Foreground" Value="#FF453A"/>
                         </MultiTrigger>
 
 

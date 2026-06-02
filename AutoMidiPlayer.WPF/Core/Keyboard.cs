@@ -488,5 +488,40 @@ public static class Keyboard
             .ToArray();
     }
 
+    /// <summary>
+    /// Convert a KeyStroke to a display string for the sheet view.
+    /// - Plain key: lowercase letter (e.g. "a")
+    /// - Shift key: uppercase letter (e.g. "A")
+    /// - Ctrl key: "^" prefix + lowercase letter (e.g. "^a")
+    /// - Ctrl+Shift key: "^" prefix + uppercase letter (e.g. "^A")
+    /// </summary>
+    public static string KeyStrokeToDisplayString(KeyStroke keyStroke)
+    {
+        // Reverse lookup: find the character that maps to this keystroke
+        foreach (var kvp in CharacterToKeyStroke)
+        {
+            if (kvp.Value.Key == keyStroke.Key && kvp.Value.Modifiers == keyStroke.Modifiers)
+                return kvp.Key.ToString();
+        }
+
+        // If exact match not found (e.g. Ctrl modifier), build from the base key
+        var hasCtrl = (keyStroke.Modifiers & KeyModifiers.Ctrl) != 0;
+        var hasShift = (keyStroke.Modifiers & KeyModifiers.Shift) != 0;
+
+        // Find the base character (no modifiers) for this key
+        char baseChar = '?';
+        foreach (var kvp in CharacterToKeyStroke)
+        {
+            if (kvp.Value.Key == keyStroke.Key && kvp.Value.Modifiers == KeyModifiers.None)
+            {
+                baseChar = kvp.Key;
+                break;
+            }
+        }
+
+        var display = hasShift ? char.ToUpper(baseChar).ToString() : baseChar.ToString();
+        return hasCtrl ? $"^{display}" : display;
+    }
+
     #endregion
 }

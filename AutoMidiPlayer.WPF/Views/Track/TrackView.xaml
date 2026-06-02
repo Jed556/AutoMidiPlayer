@@ -96,8 +96,7 @@
                                     <ui:ToggleSwitch Grid.Column="0"
                                                      IsChecked="{Binding IsChecked}"
                                                      IsEnabled="{Binding CanBePlayed}"
-                                                     OffContent="{Binding TrackName, TargetNullValue=Unknown}"
-                                                     OnContent="{Binding TrackName, TargetNullValue=Unknown}"
+                                                     Content="{Binding TrackName, TargetNullValue=Unknown}"
                                                      MinWidth="180">
                                     </ui:ToggleSwitch>
 

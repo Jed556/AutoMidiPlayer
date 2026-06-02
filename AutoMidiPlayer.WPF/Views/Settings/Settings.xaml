@@ -195,13 +195,13 @@
                                       Margin="0,16,0,0">
                         <controls:Section.HeaderContent>
                             <Button Style="{DynamicResource IconButton}"
+                                    controls:IconButtonProperties.IsDanger="True"
                                     Command="{s:Action ResetHotkeys}"
                                     ToolTip="Reset all hotkeys to defaults"
                                     Visibility="{Binding HotkeysEnabled, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
                                     Margin="0,0,0,2">
                                 <ui:SymbolIcon Symbol="ArrowClockwise24"
-                                               FontSize="18"
-                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                               FontSize="18"/>
                             </Button>
                         </controls:Section.HeaderContent>
                         <controls:SimpleStackPanel>
@@ -527,6 +527,7 @@
                                     </Button>
                                     <Button Grid.Column="1"
                                             Style="{DynamicResource IconButton}"
+                                            controls:IconButtonProperties.IsDanger="True"
                                             Command="{s:Action ResetAppData}"
                                             Width="28"
                                             Height="28"
@@ -559,12 +560,12 @@
                                       Description="Applied when importing new songs.">
                         <controls:Section.HeaderContent>
                             <Button Style="{DynamicResource IconButton}"
+                                    controls:IconButtonProperties.IsDanger="True"
                                     Command="{s:Action ResetSongDefaults}"
                                     ToolTip="Reset song defaults"
                                     Margin="0,0,0,2">
                                 <ui:SymbolIcon Symbol="ArrowClockwise24"
-                                               FontSize="18"
-                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                               FontSize="18"/>
                             </Button>
                         </controls:Section.HeaderContent>
 
@@ -685,8 +686,7 @@
                                         Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
                                     <ui:SymbolIcon Symbol="ArrowCircleUp12"
                                                    FontSize="16"
-                                                   Filled="True"
-                                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                                   Filled="True"/>
                                 </Button>
                                 <controls:BusyActionButton Width="24"
                                                            Height="24"
