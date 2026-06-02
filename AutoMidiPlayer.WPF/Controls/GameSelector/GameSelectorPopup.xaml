@@ -1,0 +1,104 @@
+<UserControl x:Class="AutoMidiPlayer.WPF.Controls.GameSelector.GameSelectorPopup"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:AutoMidiPlayer.WPF.Controls.GameSelector"
+             xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
+             xmlns:games="clr-namespace:AutoMidiPlayer.WPF.Core.Games"
+             xmlns:s="https://github.com/canton7/Stylet"
+             mc:Ignorable="d" 
+             d:DesignHeight="300" d:DesignWidth="280">
+
+    <UserControl.Resources>
+        <Style x:Key="GameSelectorItemButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <!-- Outer border: solid opaque background to prevent transparency bleed -->
+    <Border Margin="8,0,0,0"
+            CornerRadius="12"
+            Background="{DynamicResource ApplicationBackgroundBrush}"
+            TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+            x:Name="PopupRootBorder">
+        
+        <Border.RenderTransform>
+            <TranslateTransform x:Name="PopupTranslate" X="-15" Y="0" />
+        </Border.RenderTransform>
+
+        <!-- Inner border: themed surface with stroke -->
+        <Border Padding="10"
+                Width="260"
+                CornerRadius="10"
+                BorderThickness="1"
+                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+            <controls:SimpleStackPanel Spacing="6">
+                <TextBlock Text="Select Game"
+                           FontWeight="SemiBold"
+                           Margin="4,2,0,4"/>
+
+                <!-- Dynamic game list from GameRegistry -->
+                <ItemsControl ItemsSource="{Binding Games}"
+                              HorizontalAlignment="Stretch">
+                    <ItemsControl.ItemContainerStyle>
+                        <Style TargetType="ContentPresenter">
+                            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+                        </Style>
+                    </ItemsControl.ItemContainerStyle>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type games:GameInfo}">
+                            <Button s:View.ActionTarget="{Binding DataContext, RelativeSource={RelativeSource AncestorType=local:GameSelectorPopup}}"
+                                    CommandParameter="{Binding}"
+                                    Command="{s:Action SelectGame}"
+                                    Margin="0"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Stretch"
+                                    Style="{StaticResource GameSelectorItemButtonStyle}">
+                                
+                                <local:GameSelectorItem />
+                                
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </controls:SimpleStackPanel>
+        </Border>
+    </Border>
+
+    <UserControl.Triggers>
+        <EventTrigger RoutedEvent="UserControl.Loaded">
+            <BeginStoryboard>
+                <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="PopupRootBorder" 
+                                     Storyboard.TargetProperty="Opacity" 
+                                     From="0" To="1" Duration="0:0:0.25">
+                        <DoubleAnimation.EasingFunction>
+                            <CubicEase EasingMode="EaseOut" />
+                        </DoubleAnimation.EasingFunction>
+                    </DoubleAnimation>
+                    <DoubleAnimation Storyboard.TargetName="PopupTranslate" 
+                                     Storyboard.TargetProperty="X" 
+                                     From="-15" To="0" Duration="0:0:0.35">
+                        <DoubleAnimation.EasingFunction>
+                            <CubicEase EasingMode="EaseOut" />
+                        </DoubleAnimation.EasingFunction>
+                    </DoubleAnimation>
+                </Storyboard>
+            </BeginStoryboard>
+        </EventTrigger>
+    </UserControl.Triggers>
+
+</UserControl>

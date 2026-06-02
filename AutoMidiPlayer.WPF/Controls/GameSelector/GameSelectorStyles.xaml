@@ -1,0 +1,118 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                    xmlns:converters="clr-namespace:AutoMidiPlayer.WPF.Converters">
+
+    <converters:GameImageStateConverter x:Key="GameImageStateConverter"/>
+
+    <ControlTemplate x:Key="GameDrawerNavigationItemTemplate"
+                     TargetType="ui:NavigationViewItem">
+        <Border x:Name="ItemHost"
+                Background="{TemplateBinding Background}"
+                CornerRadius="10"
+                ClipToBounds="True">
+            <Grid ToolTip="{Binding DataContext.SelectedGame.DisplayName, RelativeSource={RelativeSource TemplatedParent}}">
+                <Border x:Name="GameImageHost"
+                        CornerRadius="10"
+                        RenderOptions.BitmapScalingMode="Fant">
+                    <Border.Background>
+                        <ImageBrush Stretch="UniformToFill"
+                                    RenderOptions.BitmapScalingMode="Fant">
+                            <ImageBrush.RelativeTransform>
+                                <ScaleTransform ScaleX="1"
+                                                ScaleY="1"
+                                                CenterX="0.5"
+                                                CenterY="0.5"/>
+                            </ImageBrush.RelativeTransform>
+                            <ImageBrush.ImageSource>
+                                <MultiBinding Converter="{StaticResource GameImageStateConverter}">
+                                    <Binding Path="DataContext.SelectedGame.ImagePath"
+                                             RelativeSource="{RelativeSource TemplatedParent}"/>
+                                    <Binding Path="DataContext.SelectedGame.IsRunning"
+                                             RelativeSource="{RelativeSource TemplatedParent}"/>
+                                </MultiBinding>
+                            </ImageBrush.ImageSource>
+                        </ImageBrush>
+                    </Border.Background>
+                </Border>
+            </Grid>
+        </Border>
+        <ControlTemplate.Triggers>
+            <!-- Hover feedback is zoom-only to avoid tint/opacity artifacts. -->
+            <Trigger Property="IsMouseOver"
+                     Value="True">
+                <Trigger.EnterActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="GameImageHost"
+                                             Storyboard.TargetProperty="(Border.Background).(ImageBrush.RelativeTransform).(ScaleTransform.ScaleX)"
+                                             To="1.08"
+                                             Duration="0:0:0.14">
+                                <DoubleAnimation.EasingFunction>
+                                    <QuadraticEase EasingMode="EaseOut"/>
+                                </DoubleAnimation.EasingFunction>
+                            </DoubleAnimation>
+                            <DoubleAnimation Storyboard.TargetName="GameImageHost"
+                                             Storyboard.TargetProperty="(Border.Background).(ImageBrush.RelativeTransform).(ScaleTransform.ScaleY)"
+                                             To="1.08"
+                                             Duration="0:0:0.14">
+                                <DoubleAnimation.EasingFunction>
+                                    <QuadraticEase EasingMode="EaseOut"/>
+                                </DoubleAnimation.EasingFunction>
+                            </DoubleAnimation>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="GameImageHost"
+                                             Storyboard.TargetProperty="(Border.Background).(ImageBrush.RelativeTransform).(ScaleTransform.ScaleX)"
+                                             To="1"
+                                             Duration="0:0:0.16">
+                                <DoubleAnimation.EasingFunction>
+                                    <QuadraticEase EasingMode="EaseOut"/>
+                                </DoubleAnimation.EasingFunction>
+                            </DoubleAnimation>
+                            <DoubleAnimation Storyboard.TargetName="GameImageHost"
+                                             Storyboard.TargetProperty="(Border.Background).(ImageBrush.RelativeTransform).(ScaleTransform.ScaleY)"
+                                             To="1"
+                                             Duration="0:0:0.16">
+                                <DoubleAnimation.EasingFunction>
+                                    <QuadraticEase EasingMode="EaseOut"/>
+                                </DoubleAnimation.EasingFunction>
+                            </DoubleAnimation>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </Trigger.ExitActions>
+            </Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
+
+    <Style x:Key="GameDrawerNavigationItemStyle"
+           TargetType="ui:NavigationViewItem">
+        <Setter Property="Height"
+                Value="67"/>
+        <Setter Property="Width"
+                Value="67"/>
+        <Setter Property="MinHeight"
+                Value="67"/>
+        <Setter Property="MinWidth"
+                Value="67"/>
+        <Setter Property="Padding"
+                Value="0"/>
+        <Setter Property="Margin"
+                Value="3,6,3,6"/>
+        <Setter Property="Background"
+                Value="Transparent"/>
+        <Setter Property="Cursor"
+                Value="Hand"/>
+        <Setter Property="HorizontalContentAlignment"
+                Value="Center"/>
+        <Setter Property="VerticalContentAlignment"
+                Value="Center"/>
+        <Setter Property="Template"
+                Value="{StaticResource GameDrawerNavigationItemTemplate}"/>
+    </Style>
+
+</ResourceDictionary>

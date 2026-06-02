@@ -219,7 +219,21 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         "Songs" or _ => SongsView
     };
 
-    public bool IsGameSelectorOpen { get; set; }
+    private bool _isGameSelectorOpen;
+    private DateTime _lastGameSelectorCloseTime = DateTime.MinValue;
+
+    public bool IsGameSelectorOpen
+    {
+        get => _isGameSelectorOpen;
+        set
+        {
+            if (_isGameSelectorOpen && !value)
+            {
+                _lastGameSelectorCloseTime = DateTime.UtcNow;
+            }
+            SetAndNotify(ref _isGameSelectorOpen, value);
+        }
+    }
 
     /// <summary>Observable collection of all supported games with runtime state</summary>
     public BindableCollection<GameInfo> Games { get; }
@@ -348,6 +362,12 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
     public void ToggleGameSelector()
     {
+        if (!IsGameSelectorOpen && (DateTime.UtcNow - _lastGameSelectorCloseTime).TotalMilliseconds < 250)
+        {
+            // Just closed due to StaysOpen="False" losing focus. Don't reopen.
+            return;
+        }
+        
         IsGameSelectorOpen = !IsGameSelectorOpen;
         var selectedGameName = SelectedGame?.Definition.DisplayName ?? "none";
         Logger.LogStep("GAME_SELECTOR_TOGGLE", $"opened={IsGameSelectorOpen} | selectedGame='{selectedGameName}'");

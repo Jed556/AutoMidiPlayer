@@ -16,6 +16,7 @@
     xmlns:services="clr-namespace:AutoMidiPlayer.WPF.Services"
     xmlns:core="clr-namespace:AutoMidiPlayer.WPF.Core"
     xmlns:games="clr-namespace:AutoMidiPlayer.WPF.Core.Games"
+    xmlns:gameSelector="clr-namespace:AutoMidiPlayer.WPF.Controls.GameSelector"
     xmlns:entities="clr-namespace:AutoMidiPlayer.Data.Entities;assembly=AutoMidiPlayer.Data"
     xmlns:converters="clr-namespace:AutoMidiPlayer.WPF.Converters"
     xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
@@ -33,8 +34,13 @@
     WindowStartupLocation="CenterScreen">
 
     <ui:FluentWindow.Resources>
-        <helpers:BindingProxy x:Key="DataContextProxy"
-                              Data="{Binding}"/>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Controls/GameSelector/GameSelectorStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            
+            <helpers:BindingProxy x:Key="DataContextProxy"
+                                  Data="{Binding}"/>
         <converters:GameImageStateConverter x:Key="GameImageStateConverter"/>
 
         <!-- Disable keyboard focus outlines globally in this window (WPF + WPF-UI). -->
@@ -272,115 +278,7 @@
             </ControlTemplate.Triggers>
         </ControlTemplate>
 
-        <ControlTemplate x:Key="GameDrawerNavigationItemTemplate"
-                         TargetType="ui:NavigationViewItem">
-            <Border x:Name="ItemHost"
-                    Background="{TemplateBinding Background}"
-                    CornerRadius="10"
-                    ClipToBounds="True">
-                <Grid ToolTip="{Binding DataContext.SelectedGame.DisplayName, RelativeSource={RelativeSource TemplatedParent}}">
-                    <Border x:Name="GameImageHost"
-                            CornerRadius="10"
-                            RenderOptions.BitmapScalingMode="Fant">
-                        <Border.Background>
-                            <ImageBrush Stretch="UniformToFill"
-                                        RenderOptions.BitmapScalingMode="Fant">
-                                <ImageBrush.RelativeTransform>
-                                    <ScaleTransform ScaleX="1"
-                                                    ScaleY="1"
-                                                    CenterX="0.5"
-                                                    CenterY="0.5"/>
-                                </ImageBrush.RelativeTransform>
-                                <ImageBrush.ImageSource>
-                                    <MultiBinding Converter="{StaticResource GameImageStateConverter}">
-                                        <Binding Path="DataContext.SelectedGame.ImagePath"
-                                                 RelativeSource="{RelativeSource TemplatedParent}"/>
-                                        <Binding Path="DataContext.SelectedGame.IsRunning"
-                                                 RelativeSource="{RelativeSource TemplatedParent}"/>
-                                    </MultiBinding>
-                                </ImageBrush.ImageSource>
-                            </ImageBrush>
-                        </Border.Background>
-                    </Border>
-                </Grid>
-            </Border>
-            <ControlTemplate.Triggers>
-                <!-- Hover feedback is zoom-only to avoid tint/opacity artifacts. -->
-                <Trigger Property="IsMouseOver"
-                         Value="True">
-                    <Trigger.EnterActions>
-                        <BeginStoryboard>
-                            <Storyboard>
-                                <DoubleAnimation Storyboard.TargetName="GameImageHost"
-                                                 Storyboard.TargetProperty="(Border.Background).(ImageBrush.RelativeTransform).(ScaleTransform.ScaleX)"
-                                                 To="1.08"
-                                                 Duration="0:0:0.14">
-                                    <DoubleAnimation.EasingFunction>
-                                        <QuadraticEase EasingMode="EaseOut"/>
-                                    </DoubleAnimation.EasingFunction>
-                                </DoubleAnimation>
-                                <DoubleAnimation Storyboard.TargetName="GameImageHost"
-                                                 Storyboard.TargetProperty="(Border.Background).(ImageBrush.RelativeTransform).(ScaleTransform.ScaleY)"
-                                                 To="1.08"
-                                                 Duration="0:0:0.14">
-                                    <DoubleAnimation.EasingFunction>
-                                        <QuadraticEase EasingMode="EaseOut"/>
-                                    </DoubleAnimation.EasingFunction>
-                                </DoubleAnimation>
-                            </Storyboard>
-                        </BeginStoryboard>
-                    </Trigger.EnterActions>
-                    <Trigger.ExitActions>
-                        <BeginStoryboard>
-                            <Storyboard>
-                                <DoubleAnimation Storyboard.TargetName="GameImageHost"
-                                                 Storyboard.TargetProperty="(Border.Background).(ImageBrush.RelativeTransform).(ScaleTransform.ScaleX)"
-                                                 To="1"
-                                                 Duration="0:0:0.16">
-                                    <DoubleAnimation.EasingFunction>
-                                        <QuadraticEase EasingMode="EaseOut"/>
-                                    </DoubleAnimation.EasingFunction>
-                                </DoubleAnimation>
-                                <DoubleAnimation Storyboard.TargetName="GameImageHost"
-                                                 Storyboard.TargetProperty="(Border.Background).(ImageBrush.RelativeTransform).(ScaleTransform.ScaleY)"
-                                                 To="1"
-                                                 Duration="0:0:0.16">
-                                    <DoubleAnimation.EasingFunction>
-                                        <QuadraticEase EasingMode="EaseOut"/>
-                                    </DoubleAnimation.EasingFunction>
-                                </DoubleAnimation>
-                            </Storyboard>
-                        </BeginStoryboard>
-                    </Trigger.ExitActions>
-                </Trigger>
-            </ControlTemplate.Triggers>
-        </ControlTemplate>
 
-        <Style x:Key="GameDrawerNavigationItemStyle"
-               TargetType="ui:NavigationViewItem">
-            <Setter Property="Height"
-                    Value="67"/>
-            <Setter Property="Width"
-                    Value="67"/>
-            <Setter Property="MinHeight"
-                    Value="67"/>
-            <Setter Property="MinWidth"
-                    Value="67"/>
-            <Setter Property="Padding"
-                    Value="0"/>
-            <Setter Property="Margin"
-                    Value="3,6,3,6"/>
-            <Setter Property="Background"
-                    Value="Transparent"/>
-            <Setter Property="Cursor"
-                    Value="Hand"/>
-            <Setter Property="HorizontalContentAlignment"
-                    Value="Center"/>
-            <Setter Property="VerticalContentAlignment"
-                    Value="Center"/>
-            <Setter Property="Template"
-                    Value="{StaticResource GameDrawerNavigationItemTemplate}"/>
-        </Style>
 
         <Style x:Key="TitleBarCloseButtonStyle"
                TargetType="Button"
@@ -417,27 +315,7 @@
             </Setter>
         </Style>
 
-        <Style x:Key="GameSelectorItemButtonStyle"
-               TargetType="Button">
-            <Setter Property="Background"
-                    Value="Transparent"/>
-            <Setter Property="BorderBrush"
-                    Value="Transparent"/>
-            <Setter Property="BorderThickness"
-                    Value="0"/>
-            <Setter Property="Padding"
-                    Value="0"/>
-            <Setter Property="HorizontalContentAlignment"
-                    Value="Stretch"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <ContentPresenter HorizontalAlignment="Stretch"
-                                          VerticalAlignment="Center"/>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+
 
         <Style x:Key="NavigationScrollHintButtonStyle"
                TargetType="Button">
@@ -564,7 +442,7 @@
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
-
+        </ResourceDictionary>
     </ui:FluentWindow.Resources>
 
     <Grid>
@@ -794,8 +672,8 @@
                         </ui:NavigationView.MenuItems>
                         <ui:NavigationView.FooterMenuItems>
                             <ui:NavigationViewItem x:Name="GameDrawerItem"
-                                                   Loaded="GameDrawerItem_Loaded"
                                                    Style="{StaticResource GameDrawerNavigationItemStyle}"
+                                                   Loaded="GameDrawerItem_Loaded"
                                                    Click="{s:Action ToggleGameSelector}"/>
                             <ui:NavigationViewItem Content="Settings"
                                                    Icon="{ui:SymbolIcon Settings16}"
@@ -837,121 +715,8 @@
                            Placement="Right"
                            IsOpen="{Binding IsGameSelectorOpen, Mode=TwoWay}"
                            StaysOpen="False"
-                           AllowsTransparency="True"
-                           PopupAnimation="Fade">
-                        <!-- Outer border: solid opaque background to prevent transparency bleed -->
-                        <Border Margin="8,0,0,0"
-                                CornerRadius="12"
-                                Background="{DynamicResource ApplicationBackgroundBrush}"
-                                TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
-                            <!-- Inner border: themed surface with stroke -->
-                            <Border Padding="10"
-                                    Width="260"
-                                    CornerRadius="10"
-                                    BorderThickness="1"
-                                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
-                                <controls:SimpleStackPanel Spacing="6">
-                                    <TextBlock Text="Select Game"
-                                               FontWeight="SemiBold"
-                                               Margin="4,2,0,4"/>
-
-                                    <!-- Dynamic game list from GameRegistry -->
-                                    <ItemsControl ItemsSource="{Binding Games}"
-                                                  HorizontalAlignment="Stretch">
-                                        <ItemsControl.ItemContainerStyle>
-                                            <Style TargetType="ContentPresenter">
-                                                <Setter Property="HorizontalAlignment"
-                                                        Value="Stretch"/>
-                                            </Style>
-                                        </ItemsControl.ItemContainerStyle>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate DataType="{x:Type games:GameInfo}">
-                                                <Button s:View.ActionTarget="{Binding Data, Source={StaticResource DataContextProxy}}"
-                                                        CommandParameter="{Binding}"
-                                                        Command="{s:Action SelectGame}"
-                                                        Margin="0"
-                                                        HorizontalAlignment="Stretch"
-                                                        HorizontalContentAlignment="Stretch"
-                                                        Style="{StaticResource GameSelectorItemButtonStyle}">
-                                                    <Border CornerRadius="10"
-                                                            Padding="10"
-                                                            Margin="0,2"
-                                                            ClipToBounds="True">
-                                                        <Border.Style>
-                                                            <Style TargetType="Border">
-                                                                <Setter Property="Background"
-                                                                        Value="{DynamicResource SubtleFillColorSecondaryBrush}"/>
-                                                                <Setter Property="BorderThickness"
-                                                                        Value="1"/>
-                                                                <Setter Property="BorderBrush"
-                                                                        Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsSelected}"
-                                                                                 Value="True">
-                                                                        <Setter Property="BorderBrush"
-                                                                                Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
-                                                                        <Setter Property="BorderThickness"
-                                                                                Value="2"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Border.Style>
-                                                        <Grid>
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                                <ColumnDefinition Width="*"/>
-                                                            </Grid.ColumnDefinitions>
-                                                            <Border Width="44"
-                                                                    Height="44"
-                                                                    CornerRadius="10"
-                                                                    SnapsToDevicePixels="False"
-                                                                    UseLayoutRounding="True">
-                                                                <Border.Background>
-                                                                    <ImageBrush Stretch="UniformToFill"
-                                                                                RenderOptions.BitmapScalingMode="Fant">
-                                                                        <ImageBrush.ImageSource>
-                                                                            <MultiBinding Converter="{StaticResource GameImageStateConverter}">
-                                                                                <Binding Path="ImagePath"/>
-                                                                                <Binding Path="IsRunning"/>
-                                                                            </MultiBinding>
-                                                                        </ImageBrush.ImageSource>
-                                                                    </ImageBrush>
-                                                                </Border.Background>
-                                                            </Border>
-                                                            <StackPanel Grid.Column="1"
-                                                                        Margin="12,0,0,0"
-                                                                        VerticalAlignment="Center">
-                                                                <StackPanel.Resources>
-                                                                    <Style TargetType="{x:Type TextBlock}">
-                                                                        <Setter Property="Foreground"
-                                                                                Value="{DynamicResource TextFillColorPrimaryBrush}"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding IsSelected}"
-                                                                                         Value="True">
-                                                                                <Setter Property="Foreground"
-                                                                                        Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </StackPanel.Resources>
-
-                                                                <TextBlock Text="{Binding DisplayName}"
-                                                                           FontWeight="SemiBold"
-                                                                           FontSize="13"/>
-                                                                <TextBlock Text="{Binding StatusText}"
-                                                                           FontSize="11"
-                                                                           Opacity="0.6"/>
-                                                            </StackPanel>
-                                                        </Grid>
-                                                    </Border>
-                                                </Button>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </controls:SimpleStackPanel>
-                            </Border>
-                        </Border>
+                           AllowsTransparency="True">
+                        <gameSelector:GameSelectorPopup />
                     </Popup>
                 </Grid>
 
