@@ -34,8 +34,37 @@ public partial class ActionDialog : ContentDialog
         if (DialogIcon.HasValue)
             HeaderIcon.Symbol = DialogIcon.Value;
 
+        if (request.ConfirmButton is not null)
+        {
+            ConfirmBtn.Content = request.ConfirmButton.Text;
+            ConfirmBtn.Visibility = Visibility.Visible;
+            ConfirmBtn.Click += (_, _) => { Result = DialogActionOutcome.Confirmed; Hide(); };
+        }
+        else
+            ConfirmBtn.Visibility = Visibility.Collapsed;
+
+        if (request.CustomButton is not null)
+        {
+            CustomBtn.Content = request.CustomButton.Text;
+            CustomBtn.Visibility = Visibility.Visible;
+            CustomBtn.Click += (_, _) => { Result = DialogActionOutcome.Custom; Hide(); };
+        }
+        else
+            CustomBtn.Visibility = Visibility.Collapsed;
+
+        if (request.CancelButton is not null)
+        {
+            CancelBtn.Content = request.CancelButton.Text;
+            CancelBtn.Visibility = Visibility.Visible;
+            CancelBtn.Click += (_, _) => { Result = DialogActionOutcome.Cancelled; Hide(); };
+        }
+        else
+            CancelBtn.Visibility = Visibility.Collapsed;
+
         DataContext = this;
     }
+
+    public DialogActionOutcome Result { get; private set; } = DialogActionOutcome.Cancelled;
 
     public string HeaderText { get; }
 

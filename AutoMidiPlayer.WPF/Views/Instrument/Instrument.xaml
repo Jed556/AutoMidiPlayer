@@ -151,12 +151,11 @@
                                     HorizontalAlignment="Left"
                                     Margin="2,0,0,0"
                                     MinWidth="200"/>
-                                <Button Style="{DynamicResource IconButton}"
-                                        Command="{s:Action RefreshDevices}"
-                                        ToolTip="Refresh MIDI devices">
-                                    <ui:SymbolIcon Symbol="ArrowClockwise24"
-                                                   FontSize="18"/>
-                                </Button>
+                                <controls:Button Variant="Ghost"
+                                                 Icon="ArrowClockwise24"
+                                                 IconFontSize="18"
+                                                 Command="{s:Action RefreshDevices}"
+                                                 ToolTip="Refresh MIDI devices"/>
                             </controls:SimpleStackPanel>
                             <TextBlock Text="Connect a physical MIDI keyboard or controller to use it as input."
                                        TextWrapping="Wrap"

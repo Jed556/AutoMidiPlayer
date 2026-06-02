@@ -7,11 +7,11 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
     </UserControl.Resources>
-    <Button Style="{DynamicResource IconButton}"
-            Command="{Binding Command, ElementName=Root}"
-            CommandParameter="{Binding CommandParameter, ElementName=Root}"
-            ToolTip="{Binding ButtonToolTip, ElementName=Root}"
-            Padding="{Binding ButtonPadding, ElementName=Root}">
+    <controls:Button Variant="Ghost"
+                     Command="{Binding Command, ElementName=Root}"
+                     CommandParameter="{Binding CommandParameter, ElementName=Root}"
+                     ToolTip="{Binding ButtonToolTip, ElementName=Root}"
+                     Padding="{Binding ButtonPadding, ElementName=Root}">
         <Grid RenderTransformOrigin="0.5,0.5"
               Loaded="Icon_Loaded">
             <Grid.RenderTransform>
@@ -28,5 +28,5 @@
                          FontSize="{Binding GlyphFontSize, ElementName=Root}"
                          Visibility="Collapsed"/>
         </Grid>
-    </Button>
+    </controls:Button>
 </UserControl>

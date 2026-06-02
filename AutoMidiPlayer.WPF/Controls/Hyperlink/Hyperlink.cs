@@ -9,7 +9,7 @@ using AutoMidiPlayer.Data;
 
 namespace AutoMidiPlayer.WPF.Controls;
 
-public class Hyperlink : Button
+public class Hyperlink : System.Windows.Controls.Button
 {
     private const double TooltipFontSize = 10d;
     private const double TooltipMaxWidth = 380d;

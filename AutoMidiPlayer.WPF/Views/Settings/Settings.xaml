@@ -194,15 +194,14 @@
                     <controls:Section Title="Hotkeys"
                                       Margin="0,16,0,0">
                         <controls:Section.HeaderContent>
-                            <Button Style="{DynamicResource IconButton}"
-                                    controls:IconButtonProperties.IsDanger="True"
-                                    Command="{s:Action ResetHotkeys}"
-                                    ToolTip="Reset all hotkeys to defaults"
-                                    Visibility="{Binding HotkeysEnabled, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
-                                    Margin="0,0,0,2">
-                                <ui:SymbolIcon Symbol="ArrowClockwise24"
-                                               FontSize="18"/>
-                            </Button>
+                            <controls:Button Variant="Ghost"
+                                             ColorMode="Danger"
+                                             Command="{s:Action ResetHotkeys}"
+                                             ToolTip="Reset all hotkeys to defaults"
+                                             Visibility="{Binding HotkeysEnabled, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                             Margin="0,0,0,2"
+                                             Icon="ArrowClockwise24"
+                                             IconFontSize="18"/>
                         </controls:Section.HeaderContent>
                         <controls:SimpleStackPanel>
                             <Grid>
@@ -397,17 +396,16 @@
                                                                 <ColumnDefinition Width="Auto"/>
                                                                 <ColumnDefinition Width="*"/>
                                                             </Grid.ColumnDefinitions>
-                                                            <Button Style="{DynamicResource IconButton}"
-                                                                    s:View.ActionTarget="{Binding Data, Source={StaticResource SettingsVmProxy}}"
-                                                                    CommandParameter="{Binding}"
-                                                                    Command="{s:Action BrowseGameLocation}"
-                                                                    Width="28"
-                                                                    Height="28"
-                                                                    MinWidth="0"
-                                                                    Padding="0">
-                                                                <ui:SymbolIcon Symbol="AppsAddIn16"
-                                                                               FontSize="16"/>
-                                                            </Button>
+                                                            <controls:Button Variant="Ghost"
+                                                                             s:View.ActionTarget="{Binding Data, Source={StaticResource SettingsVmProxy}}"
+                                                                             CommandParameter="{Binding}"
+                                                                             Command="{s:Action BrowseGameLocation}"
+                                                                             Width="28"
+                                                                             Height="28"
+                                                                             MinWidth="0"
+                                                                             Padding="0"
+                                                                             Icon="AppsAddIn16"
+                                                                             IconFontSize="16"/>
                                                             <TextBlock Grid.Column="1"
                                                                        Margin="4,0,0,0"
                                                                        Text="{Binding Location}"
@@ -434,30 +432,28 @@
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Button Grid.Column="0"
-                                                Style="{DynamicResource IconButton}"
-                                                Command="{s:Action BrowseMidiFolder}"
-                                                Width="28"
-                                                Height="28"
-                                                MinWidth="0"
-                                                Padding="0"
-                                                ToolTip="Browse for MIDI folder"
-                                                Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}">
-                                            <ui:SymbolIcon Symbol="FolderAdd16"
-                                                           FontSize="16"/>
-                                        </Button>
-                                        <Button Grid.Column="1"
-                                                Style="{DynamicResource IconButton}"
-                                                Command="{s:Action OpenMidiFolder}"
-                                                Width="28"
-                                                Height="28"
-                                                MinWidth="0"
-                                                Padding="0"
-                                                ToolTip="Open MIDI folder in Explorer"
-                                                Visibility="{Binding HasAccessibleMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                                            <ui:SymbolIcon Symbol="FolderOpen16"
-                                                           FontSize="16"/>
-                                        </Button>
+                                        <controls:Button Grid.Column="0"
+                                                         Variant="Ghost"
+                                                         Command="{s:Action BrowseMidiFolder}"
+                                                         Width="28"
+                                                         Height="28"
+                                                         MinWidth="0"
+                                                         Padding="0"
+                                                         ToolTip="Browse for MIDI folder"
+                                                         Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}"
+                                                         Icon="FolderAdd16"
+                                                         IconFontSize="16"/>
+                                        <controls:Button Grid.Column="1"
+                                                         Variant="Ghost"
+                                                         Command="{s:Action OpenMidiFolder}"
+                                                         Width="28"
+                                                         Height="28"
+                                                         MinWidth="0"
+                                                         Padding="0"
+                                                         ToolTip="Open MIDI folder in Explorer"
+                                                         Visibility="{Binding HasAccessibleMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                                         Icon="FolderOpen16"
+                                                         IconFontSize="16"/>
                                         <Border Grid.Column="2"
                                                 Padding="6"
                                                 Background="Transparent"
@@ -467,30 +463,28 @@
                                                            Foreground="#C42B1C"
                                                            FontSize="18"/>
                                         </Border>
-                                        <Button Grid.Column="3"
-                                                Style="{DynamicResource IconButton}"
-                                                Command="{s:Action ScanMidiFolder}"
-                                                Width="28"
-                                                Height="28"
-                                                MinWidth="0"
-                                                Padding="0"
-                                                ToolTip="Refresh/Scan folder for new MIDI files"
-                                                Visibility="{Binding ShowMidiFolderManualRefresh, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                                            <ui:SymbolIcon Symbol="ArrowClockwise24"
-                                                           FontSize="16"/>
-                                        </Button>
-                                        <Button Grid.Column="4"
-                                                Style="{DynamicResource IconButton}"
-                                                Command="{s:Action ClearMidiFolder}"
-                                                Width="28"
-                                                Height="28"
-                                                MinWidth="0"
-                                                Padding="0"
-                                                ToolTip="Clear MIDI folder"
-                                                Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                                            <ui:SymbolIcon Symbol="Delete16"
-                                                           FontSize="16"/>
-                                        </Button>
+                                        <controls:Button Grid.Column="3"
+                                                         Variant="Ghost"
+                                                         Command="{s:Action ScanMidiFolder}"
+                                                         Width="28"
+                                                         Height="28"
+                                                         MinWidth="0"
+                                                         Padding="0"
+                                                         ToolTip="Refresh/Scan folder for new MIDI files"
+                                                         Visibility="{Binding ShowMidiFolderManualRefresh, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                                         Icon="ArrowClockwise24"
+                                                         IconFontSize="16"/>
+                                        <controls:Button Grid.Column="4"
+                                                         Variant="Ghost"
+                                                         Command="{s:Action ClearMidiFolder}"
+                                                         Width="28"
+                                                         Height="28"
+                                                         MinWidth="0"
+                                                         Padding="0"
+                                                         ToolTip="Clear MIDI folder"
+                                                         Visibility="{Binding HasMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                                         Icon="Delete16"
+                                                         IconFontSize="16"/>
                                         <TextBlock Grid.Column="5"
                                                    Text="{Binding MidiFolder, TargetNullValue='No folder selected'}"
                                                    VerticalAlignment="Center"
@@ -514,29 +508,27 @@
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="0"
-                                            Style="{DynamicResource IconButton}"
-                                            Command="{s:Action OpenDataFolder}"
-                                            Width="28"
-                                            Height="28"
-                                            MinWidth="0"
-                                            Padding="0"
-                                            ToolTip="Open data folder in Explorer">
-                                        <ui:SymbolIcon Symbol="FolderOpen16"
-                                                       FontSize="16"/>
-                                    </Button>
-                                    <Button Grid.Column="1"
-                                            Style="{DynamicResource IconButton}"
-                                            controls:IconButtonProperties.IsDanger="True"
-                                            Command="{s:Action ResetAppData}"
-                                            Width="28"
-                                            Height="28"
-                                            MinWidth="0"
-                                            Padding="0"
-                                            ToolTip="Clear/reset app data">
-                                        <ui:SymbolIcon Symbol="ArrowClockwise24"
-                                                       FontSize="16"/>
-                                    </Button>
+                                    <controls:Button Grid.Column="0"
+                                                     Variant="Ghost"
+                                                     Command="{s:Action OpenDataFolder}"
+                                                     Width="28"
+                                                     Height="28"
+                                                     MinWidth="0"
+                                                     Padding="0"
+                                                     ToolTip="Open data folder in Explorer"
+                                                     Icon="FolderOpen16"
+                                                     IconFontSize="16"/>
+                                    <controls:Button Grid.Column="1"
+                                                     Variant="Ghost"
+                                                     ColorMode="Danger"
+                                                     Command="{s:Action ResetAppData}"
+                                                     Width="28"
+                                                     Height="28"
+                                                     MinWidth="0"
+                                                     Padding="0"
+                                                     ToolTip="Clear/reset app data"
+                                                     Icon="ArrowClockwise24"
+                                                     IconFontSize="16"/>
                                     <TextBlock Grid.Column="2"
                                                Text="{x:Static viewModels:SettingsPageViewModel.DataLocation}"
                                                VerticalAlignment="Center"
@@ -559,14 +551,13 @@
                     <controls:Section Title="New Song Defaults"
                                       Description="Applied when importing new songs.">
                         <controls:Section.HeaderContent>
-                            <Button Style="{DynamicResource IconButton}"
-                                    controls:IconButtonProperties.IsDanger="True"
-                                    Command="{s:Action ResetSongDefaults}"
-                                    ToolTip="Reset song defaults"
-                                    Margin="0,0,0,2">
-                                <ui:SymbolIcon Symbol="ArrowClockwise24"
-                                               FontSize="18"/>
-                            </Button>
+                            <controls:Button Variant="Ghost"
+                                             ColorMode="Danger"
+                                             Command="{s:Action ResetSongDefaults}"
+                                             ToolTip="Reset song defaults"
+                                             Margin="0,0,0,2"
+                                             Icon="ArrowClockwise24"
+                                             IconFontSize="18"/>
                         </controls:Section.HeaderContent>
 
                         <WrapPanel>
@@ -679,15 +670,14 @@
                                            Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
                                     <Run Text="{Binding LatestVersion.TagName}"/>
                                 </TextBlock>
-                                <Button Style="{DynamicResource IconButton}"
-                                        Command="{s:Action ShowUpdateDialog}"
-                                        Padding="2"
-                                        ToolTip="Install Update"
-                                        Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                                    <ui:SymbolIcon Symbol="ArrowCircleUp12"
-                                                   FontSize="16"
-                                                   Filled="True"/>
-                                </Button>
+                                <controls:Button Variant="Ghost"
+                                                 Command="{s:Action ShowUpdateDialog}"
+                                                 Padding="2"
+                                                 ToolTip="Install Update"
+                                                 Visibility="{Binding NeedsUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                                 Icon="ArrowCircleUp12"
+                                                 IconFontSize="16"
+                                                 IconFilled="True"/>
                                 <controls:BusyActionButton Width="24"
                                                            Height="24"
                                                            IsBusy="{Binding IsCheckingUpdate}"
@@ -767,10 +757,10 @@
                     <controls:Section Title="Debug"
                                       Margin="0,16,0,0">
                         <controls:Section.HeaderContent>
-                            <Button Style="{DynamicResource IconButton}"
-                                    controls:IconButtonProperties.IsActive="{Binding DebugModeEnabled}"
-                                    Command="{s:Action ToggleDebugMode}"
-                                    ToolTip="Enable or disable debug controls">
+                            <controls:Button Variant="Ghost"
+                                             IsActive="{Binding DebugModeEnabled}"
+                                             Command="{s:Action ToggleDebugMode}"
+                                             ToolTip="Enable or disable debug controls">
                                 <Grid>
                                     <ui:SymbolIcon Symbol="LockClosed24"
                                                    FontSize="18"
@@ -779,7 +769,7 @@
                                                    FontSize="18"
                                                    Visibility="{Binding DebugModeEnabled, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
                                 </Grid>
-                            </Button>
+                            </controls:Button>
                         </controls:Section.HeaderContent>
 
                         <Border Style="{StaticResource DebugSectionContentContainerStyle}">

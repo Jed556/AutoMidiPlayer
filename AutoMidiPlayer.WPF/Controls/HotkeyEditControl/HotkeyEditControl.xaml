@@ -138,29 +138,25 @@
                     Margin="8,0,0,0"
                     VerticalAlignment="Center">
             <!-- Edit / Cancel -->
-            <Button Style="{DynamicResource IconButton}"
-                    Click="EditButton_Click"
-                    Padding="4"
-                    ToolTip="Edit hotkey"
-                    Visibility="{Binding IsNotEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                <ui:SymbolIcon Symbol="Edit16"/>
-            </Button>
-            <Button Style="{DynamicResource IconButton}"
-                    Click="CancelEdit_Click"
-                    Padding="4"
-                    ToolTip="Cancel (Esc)"
-                    Visibility="{Binding IsEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                <ui:SymbolIcon Symbol="Dismiss16"/>
-            </Button>
+            <controls:Button Variant="Ghost"
+                             Icon="Edit16"
+                             Click="EditButton_Click"
+                             ToolTip="Edit hotkey"
+                             Visibility="{Binding IsNotEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                             
+            <controls:Button Variant="Ghost"
+                             Icon="Dismiss16"
+                             Click="CancelEdit_Click"
+                             ToolTip="Cancel (Esc)"
+                             Visibility="{Binding IsEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
 
             <!-- Clear -->
-            <Button Style="{DynamicResource IconButton}"
-                    Click="ClearButton_Click"
-                    Padding="4"
-                    ToolTip="Clear hotkey"
-                    Visibility="{Binding IsNotEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                <ui:SymbolIcon Symbol="Delete16"/>
-            </Button>
+            <controls:Button Variant="Ghost"
+                             Icon="Delete16"
+                             ColorMode="Danger"
+                             Click="ClearButton_Click"
+                             ToolTip="Clear hotkey"
+                             Visibility="{Binding IsNotEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
         </StackPanel>
     </Grid>
 </UserControl>

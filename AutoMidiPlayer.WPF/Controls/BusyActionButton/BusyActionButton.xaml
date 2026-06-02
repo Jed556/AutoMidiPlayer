@@ -11,16 +11,15 @@
                                       MinimumVisibleDuration="{Binding MinimumVisibleDuration, ElementName=Root}"
                                       Visibility="Collapsed"/>
 
-        <Button Style="{DynamicResource IconButton}"
-                Command="{Binding Command, ElementName=Root}"
-                CommandParameter="{Binding CommandParameter, ElementName=Root}"
-                Padding="{Binding ButtonPadding, ElementName=Root}"
-                ToolTip="{Binding ButtonToolTip, ElementName=Root}"
-                Visibility="{Binding IsVisibleBusy, ElementName=BusyState, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}">
-            <ui:SymbolIcon Symbol="{Binding IconSymbol, ElementName=Root}"
-                           FontSize="{Binding IconFontSize, ElementName=Root}"
-                           Filled="{Binding IconFilled, ElementName=Root}"/>
-        </Button>
+        <controls:Button Variant="Ghost"
+                         Icon="{Binding IconSymbol, ElementName=Root}"
+                         IconFontSize="{Binding IconFontSize, ElementName=Root}"
+                         IconFilled="{Binding IconFilled, ElementName=Root}"
+                         Command="{Binding Command, ElementName=Root}"
+                         CommandParameter="{Binding CommandParameter, ElementName=Root}"
+                         Padding="{Binding ButtonPadding, ElementName=Root}"
+                         ToolTip="{Binding ButtonToolTip, ElementName=Root}"
+                         Visibility="{Binding IsVisibleBusy, ElementName=BusyState, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}"/>
 
         <ui:ProgressRing IsIndeterminate="True"
                          Width="{Binding IndicatorSize, ElementName=Root}"

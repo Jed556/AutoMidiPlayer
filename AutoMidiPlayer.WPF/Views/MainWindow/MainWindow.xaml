@@ -649,40 +649,36 @@
                                     HorizontalAlignment="Right"
                                     VerticalAlignment="Center"
                                     Margin="0">
-                            <controls:IconButton Style="{DynamicResource IconButton}"
-                                    controls:IconButtonProperties.IsGhost="False"
-                                    controls:IconButtonProperties.UseAccentColor="True"
-                                    Command="{s:Action NavigateToSettings}"
-                                    ToolTip="Update available"
-                                    Visibility="{Binding ShowUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
-                                    Margin="0,0,6,0"
-                                    shell:WindowChrome.IsHitTestVisibleInChrome="True">
-                                <ui:SymbolIcon Symbol="ArrowDownload16"
-                                               FontSize="18"/>
-                            </controls:IconButton>
+                            <controls:Button Variant="Filled"
+                                             ColorMode="Accent"
+                                             Icon="ArrowDownload16"
+                                             IconFontSize="18"
+                                             Command="{s:Action NavigateToSettings}"
+                                             ToolTip="Update available"
+                                             Visibility="{Binding ShowUpdate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                             Margin="0,0,6,0"
+                                             shell:WindowChrome.IsHitTestVisibleInChrome="True"/>
 
-                            <Button Style="{DynamicResource IconButton}"
-                                    Command="{s:Action ToggleTheme}"
-                                    ToolTip="Toggle theme"
-                                    Padding="8,4"
-                                    Margin="0,0,8,0"
-                                    shell:WindowChrome.IsHitTestVisibleInChrome="True">
-                                <ui:SymbolIcon Symbol="DarkTheme24"
-                                               FontSize="18"/>
-                            </Button>
+                            <controls:Button Variant="Ghost"
+                                             Icon="DarkTheme24"
+                                             IconFontSize="18"
+                                             Command="{s:Action ToggleTheme}"
+                                             ToolTip="Toggle theme"
+                                             Padding="8,4"
+                                             Margin="0,0,8,0"
+                                             shell:WindowChrome.IsHitTestVisibleInChrome="True"/>
 
-                            <Button Style="{DynamicResource IconButton}"
-                                    Command="{s:Action NavigateToAbout}"
-                                    ToolTip="About Auto MIDI Player"
-                                    Padding="8,4"
-                                    Margin="0,0,8,0"
-                                    shell:WindowChrome.IsHitTestVisibleInChrome="True">
-                                <ui:SymbolIcon Symbol="Info24"
-                                               FontSize="18"/>
-                            </Button>
+                            <controls:Button Variant="Ghost"
+                                             Icon="Info24"
+                                             IconFontSize="18"
+                                             Command="{s:Action NavigateToAbout}"
+                                             ToolTip="About Auto MIDI Player"
+                                             Padding="8,4"
+                                             Margin="0,0,8,0"
+                                             shell:WindowChrome.IsHitTestVisibleInChrome="True"/>
 
                             <!-- Let's have a pin / always on top button some time here -->
-                            <!-- <Button Style="{DynamicResource IconButton}"
+                            <!-- <controls:Button Variant="Ghost"
                                     Command="{s:Action PinWindow}"
                                     ToolTip="Pin window"
                                     Padding="8,4"
@@ -1077,31 +1073,31 @@
                                                        Orientation="Horizontal"
                                                        HorizontalAlignment="Right"
                                                        Spacing="12">
-                                <Button Style="{DynamicResource IconButton}"
-                                        s:View.ActionTarget="{Binding TrackView.Queue}"
-                                        Command="{s:Action ToggleShuffle}"
-                                        controls:IconButtonProperties.IsActive="{Binding TrackView.Queue.Shuffle}"
-                                        Padding="8"
-                                        ToolTip="Shuffle">
+                                <controls:Button Variant="GhostDimmed"
+                                                 s:View.ActionTarget="{Binding TrackView.Queue}"
+                                                 Command="{s:Action ToggleShuffle}"
+                                                 IsActive="{Binding TrackView.Queue.Shuffle}"
+                                                 Padding="8"
+                                                 ToolTip="Shuffle">
                                     <Path Data="{StaticResource ShuffleIconGeometry}"
                                           Fill="{Binding TrackView.Queue.ShuffleStateColor}"
                                           Style="{StaticResource PlayerControlIcon}"
                                           Width="14"
                                           Height="14"/>
-                                </Button>
+                                </controls:Button>
 
-                                <Button Style="{DynamicResource IconButton}"
-                                        s:View.ActionTarget="{Binding PlaybackControls}"
-                                        Command="{s:Action Previous}"
-                                        IsHitTestVisible="{Binding PlaybackControls.CanHitPrevious}"
-                                        Padding="8"
-                                        ToolTip="Previous">
+                                <controls:Button Variant="GhostDimmed"
+                                                 s:View.ActionTarget="{Binding PlaybackControls}"
+                                                 Command="{s:Action Previous}"
+                                                 IsHitTestVisible="{Binding PlaybackControls.CanHitPrevious}"
+                                                 Padding="8"
+                                                 ToolTip="Previous">
                                     <Path Data="{StaticResource PreviousIconGeometry}"
                                           Fill="{DynamicResource TextFillColorPrimaryBrush}"
                                           Stretch="Uniform"
                                           Width="14"
                                           Height="14"/>
-                                </Button>
+                                </controls:Button>
                             </controls:SimpleStackPanel>
 
                             <Button Grid.Column="1"
@@ -1123,56 +1119,41 @@
                                                        Orientation="Horizontal"
                                                        HorizontalAlignment="Left"
                                                        Spacing="12">
-                                <Button Style="{DynamicResource IconButton}"
-                                        s:View.ActionTarget="{Binding PlaybackControls}"
-                                        Command="{s:Action Next}"
-                                        IsHitTestVisible="{Binding PlaybackControls.CanHitNext}"
-                                        Padding="8"
-                                        ToolTip="Next">
+                                <controls:Button Variant="GhostDimmed"
+                                                 s:View.ActionTarget="{Binding PlaybackControls}"
+                                                 Command="{s:Action Next}"
+                                                 IsHitTestVisible="{Binding PlaybackControls.CanHitNext}"
+                                                 Padding="8"
+                                                 ToolTip="Next">
                                     <Path Data="{StaticResource NextIconGeometry}"
                                           Fill="{DynamicResource TextFillColorPrimaryBrush}"
                                           Stretch="Uniform"
                                           Width="14"
                                           Height="14"/>
-                                </Button>
+                                </controls:Button>
 
-                                <Button Style="{DynamicResource IconButton}"
-                                        s:View.ActionTarget="{Binding TrackView.Queue}"
-                                        Command="{s:Action ToggleLoop}"
-                                        controls:IconButtonProperties.IsActive="{Binding TrackView.Queue.IsLoopActive}"
-                                        Padding="8"
-                                        ToolTip="{Binding TrackView.Queue.LoopTooltip}">
+                                <controls:Button Variant="GhostDimmed"
+                                                 s:View.ActionTarget="{Binding TrackView.Queue}"
+                                                 Command="{s:Action ToggleLoop}"
+                                                 IsActive="{Binding TrackView.Queue.IsLoopActive}"
+                                                 Padding="8"
+                                                 ToolTip="{Binding TrackView.Queue.LoopTooltip}">
                                     <Path Data="{Binding TrackView.Queue.LoopGeometry}"
                                           Fill="{Binding TrackView.Queue.LoopStateColor}"
                                           Style="{StaticResource PlayerControlIcon}"
                                           VerticalAlignment="Bottom"
                                           Width="14"
                                           Height="14"/>
-                                </Button>
+                                </controls:Button>
 
-                                <Button Style="{DynamicResource IconButton}"
-                                        s:View.ActionTarget="{Binding PlaybackControls}"
-                                        Command="{s:Action ToggleListenMode}"
-                                        controls:IconButtonProperties.IsActive="{Binding PlaybackControls.IsListenModeEnabled}"
-                                        Padding="8"
-                                        ToolTip="{Binding PlaybackControls.ListenModeTooltip}">
-                                    <ui:SymbolIcon Symbol="Headphones24"
-                                                   FontSize="16">
-                                        <ui:SymbolIcon.Style>
-                                            <Style TargetType="ui:SymbolIcon">
-                                                <Setter Property="Foreground"
-                                                        Value="{DynamicResource TextFillColorTertiaryBrush}"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding PlaybackControls.IsListenModeEnabled}"
-                                                                 Value="True">
-                                                        <Setter Property="Foreground"
-                                                                Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </ui:SymbolIcon.Style>
-                                    </ui:SymbolIcon>
-                                </Button>
+                                <controls:Button Variant="GhostDimmed"
+                                                 s:View.ActionTarget="{Binding PlaybackControls}"
+                                                 Command="{s:Action ToggleListenMode}"
+                                                 IsActive="{Binding PlaybackControls.IsListenModeEnabled}"
+                                                 Padding="8"
+                                                 ToolTip="{Binding PlaybackControls.ListenModeTooltip}"
+                                                 Icon="Headphones24"
+                                                 IconFontSize="16"/>
                             </controls:SimpleStackPanel>
                         </Grid>
 

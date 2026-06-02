@@ -50,28 +50,29 @@
                                        Orientation="Horizontal"
                                        Spacing="4">
                 <!-- Remove selected items -->
-                <Button Style="{DynamicResource IconButton}"
-                        Command="{s:Action RemoveSong}"
-                        CommandParameter="{Binding ElementName=SongList, Path=SelectedFiles}"
-                        Padding="8"
-                        ToolTip="Remove selected from queue">
+                <controls:Button Variant="Ghost"
+                                 Command="{s:Action RemoveSong}"
+                                 CommandParameter="{Binding ElementName=SongList, Path=SelectedFiles}"
+                                 Padding="8"
+                                 ToolTip="Remove selected from queue">
                     <Path Data="{StaticResource RemoveCircleIconGeometry}"
                           Fill="{DynamicResource TextFillColorPrimaryBrush}"
                           Stretch="Uniform"
                           Width="16"
                           Height="16"/>
-                </Button>
+                </controls:Button>
                 <!-- Clear entire queue -->
-                <Button Style="{DynamicResource IconButton}"
-                        Command="{s:Action ClearQueue}"
-                        Padding="8"
-                        ToolTip="Clear queue">
+                <controls:Button Variant="Ghost"
+                                 ColorMode="Danger"
+                                 Command="{s:Action ClearQueue}"
+                                 Padding="8"
+                                 ToolTip="Clear queue">
                     <Path Data="{StaticResource DeleteIconGeometry}"
                           Fill="{DynamicResource TextFillColorPrimaryBrush}"
                           Stretch="Uniform"
                           Width="16"
                           Height="16"/>
-                </Button>
+                </controls:Button>
             </controls:SimpleStackPanel>
         </Grid>
 

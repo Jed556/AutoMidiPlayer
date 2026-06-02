@@ -6,15 +6,15 @@
              x:Name="Root"
              Focusable="False">
     <Grid ToolTip="{Binding ToolTip, ElementName=Root}">
-        <Button Style="{DynamicResource IconButton}"
-                x:Name="SelectorButton"
-                Margin="0,1,0,0"
-                Padding="7,3"
-                HorizontalAlignment="Center"
-                controls:IconButtonProperties.IsActive="{Binding IsActive, ElementName=Root}"
-                Click="SelectorButton_Click">
+        <controls:Button Variant="GhostDimmed"
+                         x:Name="SelectorButton"
+                         Margin="0,1,0,0"
+                         Padding="7,3"
+                         HorizontalAlignment="Center"
+                         IsActive="{Binding IsActive, ElementName=Root}"
+                         Click="SelectorButton_Click">
             <ContentPresenter Content="{Binding ButtonContent, ElementName=Root}"/>
-        </Button>
+        </controls:Button>
 
         <menu:SelectorMenuPopup x:Name="MenuPopup"
                                 PlacementTarget="{Binding ElementName=SelectorButton}"

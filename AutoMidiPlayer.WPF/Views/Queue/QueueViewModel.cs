@@ -90,7 +90,7 @@ public class QueueViewModel : Screen
 
     public SolidColorBrush ShuffleStateColor => Shuffle
         ? new SolidColorBrush(AccentColorHelper.GetAccentColor())
-        : (SolidColorBrush)Application.Current.FindResource("TextFillColorTertiaryBrush");
+        : (SolidColorBrush)Application.Current.FindResource("TextFillColorPrimaryBrush");
 
     public Stack<MidiFile> History { get; } = new();
 
@@ -122,7 +122,7 @@ public class QueueViewModel : Screen
     public SolidColorBrush LoopStateColor =>
         Loop switch
         {
-            LoopMode.Off => (SolidColorBrush)Application.Current.FindResource("TextFillColorTertiaryBrush"),
+            LoopMode.Off => (SolidColorBrush)Application.Current.FindResource("TextFillColorPrimaryBrush"),
             _ => new SolidColorBrush(AccentColorHelper.GetAccentColor())
         };
 

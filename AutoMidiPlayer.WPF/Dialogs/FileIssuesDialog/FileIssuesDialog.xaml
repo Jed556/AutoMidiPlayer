@@ -2,6 +2,7 @@
                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                   xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                  xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
                   Title="File Issues"
                   CloseButtonText="Close"
                   DefaultButton="Close">
@@ -46,15 +47,12 @@
                                                TextTrimming="CharacterEllipsis"
                                                Text="{Binding Title, FallbackValue=Unknown}"/>
 
-                                    <ui:Button Grid.Column="1"
-                                               Margin="8,0,0,0"
-                                               Padding="6,2,6,2"
-                                               Background="Transparent"
-                                               BorderThickness="0"
-                                               ToolTip="Remove from database"
-                                               Style="{DynamicResource IconButton}"
-                                               Content="✕"
-                                               Click="OnRemoveMissingSongClick"/>
+                                    <controls:Button Grid.Column="1"
+                                                     Margin="8,0,0,0"
+                                                     ToolTip="Remove from database"
+                                                     Variant="Ghost"
+                                                     Icon="Dismiss24"
+                                                     Click="OnRemoveMissingSongClick"/>
                                 </Grid>
                             </Border>
                         </DataTemplate>
@@ -99,15 +97,12 @@
                                                    TextTrimming="CharacterEllipsis"/>
                                     </StackPanel>
 
-                                    <ui:Button Grid.Column="1"
-                                               Margin="8,0,0,0"
-                                               Padding="6,2,6,2"
-                                               Background="Transparent"
-                                               BorderThickness="0"
-                                               ToolTip="Remove from database"
-                                               Style="{DynamicResource IconButton}"
-                                               Content="✕"
-                                               Click="OnRemoveBadMidiSongClick"/>
+                                    <controls:Button Grid.Column="1"
+                                                     Margin="8,0,0,0"
+                                                     ToolTip="Remove from database"
+                                                     Variant="Ghost"
+                                                     Icon="Dismiss24"
+                                                     Click="OnRemoveBadMidiSongClick"/>
                                 </Grid>
                             </Border>
                         </DataTemplate>
@@ -221,24 +216,17 @@
                                                 Margin="8,0,0,0"
                                                 VerticalAlignment="Center"
                                                 Orientation="Horizontal">
-                                        <ui:Button Padding="4"
-                                                   ToolTip="Restore this MIDI file to the song list"
-                                                   Background="Transparent"
-                                                   BorderThickness="0"
-                                                   Style="{DynamicResource IconButton}"
-                                                   Click="OnRestoreRemovedExistingClick">
-                                            <ui:SymbolIcon Symbol="ArrowClockwise24"/>
-                                        </ui:Button>
+                                        <controls:Button ToolTip="Restore this MIDI file to the song list"
+                                                         Variant="Ghost"
+                                                         Icon="ArrowClockwise24"
+                                                         Click="OnRestoreRemovedExistingClick"/>
 
-                                        <ui:Button Margin="6,0,0,0"
-                                                   Padding="4"
-                                                   ToolTip="Delete this MIDI file from disk"
-                                                   Background="Transparent"
-                                                   BorderThickness="0"
-                                                   Style="{DynamicResource IconButton}"
-                                                   Click="OnDeleteRemovedExistingClick">
-                                            <ui:SymbolIcon Symbol="Delete24"/>
-                                        </ui:Button>
+                                        <controls:Button Margin="6,0,0,0"
+                                                         ToolTip="Delete this MIDI file from disk"
+                                                         Variant="Ghost"
+                                                         Icon="Delete24"
+                                                         ColorMode="Danger"
+                                                         Click="OnDeleteRemovedExistingClick"/>
                                     </StackPanel>
                                 </Grid>
                             </Border>

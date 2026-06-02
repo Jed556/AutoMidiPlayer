@@ -175,105 +175,105 @@
                             </MultiTrigger.ExitActions>
                         </MultiTrigger>
 
-                        <!-- ===== TOGGLE: Checked ===== -->
-                        <EventTrigger RoutedEvent="ToggleButton.Checked">
-                            <BeginStoryboard>
-                                <Storyboard>
-                                    <ThicknessAnimation Storyboard.TargetName="ThumbContainer"
-                                                        Storyboard.TargetProperty="Margin"
-                                                        To="27,0,0,0" Duration="0:0:0.18">
-                                        <ThicknessAnimation.EasingFunction>
-                                            <CubicEase EasingMode="EaseOut"/>
-                                        </ThicknessAnimation.EasingFunction>
-                                    </ThicknessAnimation>
-                                    
-                                    <DoubleAnimation Storyboard.TargetName="FillChecked"
-                                                     Storyboard.TargetProperty="Opacity"
-                                                     To="1" Duration="0:0:0.25">
-                                        <DoubleAnimation.EasingFunction>
-                                            <CubicEase EasingMode="EaseOut"/>
-                                        </DoubleAnimation.EasingFunction>
-                                    </DoubleAnimation>
+                        <!-- ===== TOGGLE: Checked / Unchecked ===== -->
+                        <Trigger Property="IsChecked" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ThicknessAnimation Storyboard.TargetName="ThumbContainer"
+                                                            Storyboard.TargetProperty="Margin"
+                                                            To="27,0,0,0" Duration="0:0:0.18">
+                                            <ThicknessAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </ThicknessAnimation.EasingFunction>
+                                        </ThicknessAnimation>
+                                        
+                                        <DoubleAnimation Storyboard.TargetName="FillChecked"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="0:0:0.25">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
 
-                                    <DoubleAnimation Storyboard.TargetName="StrokeChecked"
-                                                     Storyboard.TargetProperty="Opacity"
-                                                     To="1" Duration="0:0:0.25">
-                                        <DoubleAnimation.EasingFunction>
-                                            <CubicEase EasingMode="EaseOut"/>
-                                        </DoubleAnimation.EasingFunction>
-                                    </DoubleAnimation>
+                                        <DoubleAnimation Storyboard.TargetName="StrokeChecked"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="0:0:0.25">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
 
-                                    <DoubleAnimation Storyboard.TargetName="ThumbChecked"
-                                                     Storyboard.TargetProperty="Opacity"
-                                                     To="1" Duration="0:0:0.25">
-                                        <DoubleAnimation.EasingFunction>
-                                            <CubicEase EasingMode="EaseOut"/>
-                                        </DoubleAnimation.EasingFunction>
-                                    </DoubleAnimation>
+                                        <DoubleAnimation Storyboard.TargetName="ThumbChecked"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="0:0:0.25">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
 
-                                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="ThumbScale"
-                                                                   Storyboard.TargetProperty="ScaleX"
-                                                                   Duration="0:0:0.25">
-                                        <LinearDoubleKeyFrame Value="1.4" KeyTime="0:0:0.08"/>
-                                        <LinearDoubleKeyFrame Value="1.0" KeyTime="0:0:0.25"/>
-                                    </DoubleAnimationUsingKeyFrames>
-                                </Storyboard>
-                            </BeginStoryboard>
-                        </EventTrigger>
+                                        <DoubleAnimationUsingKeyFrames Storyboard.TargetName="ThumbScale"
+                                                                       Storyboard.TargetProperty="ScaleX"
+                                                                       Duration="0:0:0.25">
+                                            <LinearDoubleKeyFrame Value="1.4" KeyTime="0:0:0.08"/>
+                                            <LinearDoubleKeyFrame Value="1.0" KeyTime="0:0:0.25"/>
+                                        </DoubleAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ThicknessAnimation Storyboard.TargetName="ThumbContainer"
+                                                            Storyboard.TargetProperty="Margin"
+                                                            To="4,0,0,0" Duration="0:0:0.18">
+                                            <ThicknessAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </ThicknessAnimation.EasingFunction>
+                                        </ThicknessAnimation>
+                                        
+                                        <DoubleAnimation Storyboard.TargetName="FillChecked"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="0:0:0.25">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
 
-                        <!-- ===== TOGGLE: Unchecked ===== -->
-                        <EventTrigger RoutedEvent="ToggleButton.Unchecked">
-                            <BeginStoryboard>
-                                <Storyboard>
-                                    <ThicknessAnimation Storyboard.TargetName="ThumbContainer"
-                                                        Storyboard.TargetProperty="Margin"
-                                                        To="4,0,0,0" Duration="0:0:0.18">
-                                        <ThicknessAnimation.EasingFunction>
-                                            <CubicEase EasingMode="EaseOut"/>
-                                        </ThicknessAnimation.EasingFunction>
-                                    </ThicknessAnimation>
-                                    
-                                    <DoubleAnimation Storyboard.TargetName="FillChecked"
-                                                     Storyboard.TargetProperty="Opacity"
-                                                     To="0" Duration="0:0:0.25">
-                                        <DoubleAnimation.EasingFunction>
-                                            <CubicEase EasingMode="EaseOut"/>
-                                        </DoubleAnimation.EasingFunction>
-                                    </DoubleAnimation>
+                                        <DoubleAnimation Storyboard.TargetName="StrokeChecked"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="0:0:0.25">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
 
-                                    <DoubleAnimation Storyboard.TargetName="StrokeChecked"
-                                                     Storyboard.TargetProperty="Opacity"
-                                                     To="0" Duration="0:0:0.25">
-                                        <DoubleAnimation.EasingFunction>
-                                            <CubicEase EasingMode="EaseOut"/>
-                                        </DoubleAnimation.EasingFunction>
-                                    </DoubleAnimation>
+                                        <DoubleAnimation Storyboard.TargetName="FillCheckedHover"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="0:0:0.25">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
 
-                                    <DoubleAnimation Storyboard.TargetName="FillCheckedHover"
-                                                     Storyboard.TargetProperty="Opacity"
-                                                     To="0" Duration="0:0:0.25">
-                                        <DoubleAnimation.EasingFunction>
-                                            <CubicEase EasingMode="EaseOut"/>
-                                        </DoubleAnimation.EasingFunction>
-                                    </DoubleAnimation>
-
-                                    <DoubleAnimation Storyboard.TargetName="ThumbChecked"
-                                                     Storyboard.TargetProperty="Opacity"
-                                                     To="0" Duration="0:0:0.25">
-                                        <DoubleAnimation.EasingFunction>
-                                            <CubicEase EasingMode="EaseOut"/>
-                                        </DoubleAnimation.EasingFunction>
-                                    </DoubleAnimation>
-                                    
-                                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="ThumbScale"
-                                                                   Storyboard.TargetProperty="ScaleX"
-                                                                   Duration="0:0:0.25">
-                                        <LinearDoubleKeyFrame Value="1.4" KeyTime="0:0:0.08"/>
-                                        <LinearDoubleKeyFrame Value="1.0" KeyTime="0:0:0.25"/>
-                                    </DoubleAnimationUsingKeyFrames>
-                                </Storyboard>
-                            </BeginStoryboard>
-                        </EventTrigger>
+                                        <DoubleAnimation Storyboard.TargetName="ThumbChecked"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="0:0:0.25">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                        
+                                        <DoubleAnimationUsingKeyFrames Storyboard.TargetName="ThumbScale"
+                                                                       Storyboard.TargetProperty="ScaleX"
+                                                                       Duration="0:0:0.25">
+                                            <LinearDoubleKeyFrame Value="1.4" KeyTime="0:0:0.08"/>
+                                            <LinearDoubleKeyFrame Value="1.0" KeyTime="0:0:0.25"/>
+                                        </DoubleAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
 
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.5"/>

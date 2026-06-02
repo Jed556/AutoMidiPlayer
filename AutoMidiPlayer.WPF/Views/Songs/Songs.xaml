@@ -40,16 +40,16 @@
                             Width="250"
                             Icon="Search12"
                             VerticalAlignment="Center"/>
-                <Button Style="{DynamicResource IconButton}"
-                        Command="{s:Action OpenFile}"
-                        Padding="8"
-                        ToolTip="Import MIDI files">
+                <controls:Button Variant="Ghost"
+                                 Command="{s:Action OpenFile}"
+                                 Padding="8"
+                                 ToolTip="Import MIDI files">
                     <Path Data="{StaticResource AddIconGeometry}"
                           Fill="{DynamicResource TextFillColorPrimaryBrush}"
                           Stretch="Uniform"
                           Width="16"
                           Height="16"/>
-                </Button>
+                </controls:Button>
                 <controls:BusyActionButton Width="36"
                                            Height="32"
                                            Visibility="{Binding CanManuallyScanMidiFolder, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
@@ -60,18 +60,18 @@
                                            ButtonToolTip="Refresh/Scan MIDI folder for new MIDI files"
                                            IconSymbol="FolderSync20"
                                            IconFontSize="17"/>
-                <Button Style="{DynamicResource IconButton}"
-                        Command="{s:Action ShowMissingFilesDialog}"
-                        Padding="8"
-                        ToolTip="{Binding FileIssuesButtonToolTip}"
-                        Visibility="{Binding HasFileErrors, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                <controls:Button Variant="Ghost"
+                                 Command="{s:Action ShowMissingFilesDialog}"
+                                 Padding="8"
+                                 ToolTip="{Binding FileIssuesButtonToolTip}"
+                                 Visibility="{Binding HasFileErrors, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
                     <ui:SymbolIcon Symbol="{Binding FileIssuesSymbol}"
                                    FontSize="{Binding FileIssuesIconSize}"
                                    Filled="{Binding FileIssuesIconFilled}">
                         <ui:SymbolIcon.Style>
                             <Style TargetType="ui:SymbolIcon">
                                 <Setter Property="Foreground"
-                                        Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+                                        Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=controls:Button}}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding HasNonDuplicateFileErrors}"
                                                  Value="True">
@@ -82,7 +82,7 @@
                             </Style>
                         </ui:SymbolIcon.Style>
                     </ui:SymbolIcon>
-                </Button>
+                </controls:Button>
                 <TextBlock Margin="10,0"
                            VerticalAlignment="Center"
                            Opacity="0.7">

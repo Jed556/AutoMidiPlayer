@@ -86,28 +86,20 @@
                 </GroupBox>
                 
                 <StackPanel VerticalAlignment="Top" Margin="0,8,0,0">
-                    <Button Style="{DynamicResource IconButton}"
-                            controls:IconButtonProperties.IsGhost="True"
-                            Command="{s:Action ShowLegend}"
-                            HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Left"
-                            Margin="0,0,0,4">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="Info24" Margin="0,0,8,0" />
-                            <TextBlock Text="Legend" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
-                    <Button Style="{DynamicResource IconButton}"
-                            controls:IconButtonProperties.IsGhost="True"
-                            controls:IconButtonProperties.IsDanger="True"
-                            Command="{s:Action ResetDefaults}"
-                            HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Left">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="ArrowClockwise24" Margin="0,0,8,0" />
-                            <TextBlock Text="Reset defaults" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
+                    <controls:Button Variant="Ghost"
+                                     Icon="Info24"
+                                     Command="{s:Action ShowLegend}"
+                                     HorizontalAlignment="Stretch"
+                                     HorizontalContentAlignment="Left"
+                                     Margin="0,0,0,4"
+                                     Content="Legend"/>
+                    <controls:Button Variant="Ghost"
+                                     ColorMode="Danger"
+                                     Icon="ArrowClockwise24"
+                                     Command="{s:Action ResetDefaults}"
+                                     HorizontalAlignment="Stretch"
+                                     HorizontalContentAlignment="Left"
+                                     Content="Reset defaults"/>
                 </StackPanel>
             </WrapPanel>
         </controls:SimpleStackPanel>

@@ -618,21 +618,6 @@ public static class DialogHelper
     {
         var dialog = new ActionDialog(request);
 
-        if (request.ConfirmButton is not null)
-        {
-            dialog.PrimaryButtonText = request.ConfirmButton.Text;
-            dialog.PrimaryButtonAppearance = request.ConfirmButton.Appearance;
-        }
-
-        if (request.CustomButton is not null)
-        {
-            dialog.SecondaryButtonText = request.CustomButton.Text;
-            dialog.SecondaryButtonAppearance = request.CustomButton.Appearance;
-        }
-
-        if (request.CancelButton is not null)
-            dialog.CloseButtonText = request.CancelButton.Text;
-
         var hostReady = await EnsureDialogHostAsync(dialog);
         if (!hostReady)
         {
@@ -642,9 +627,9 @@ public static class DialogHelper
             return DialogActionOutcome.Cancelled;
         }
 
-        var result = await dialog.ShowAsync();
+        await dialog.ShowAsync();
 
-        if (result == ContentDialogResult.Primary && request.ConfirmButton is not null)
+        if (dialog.Result == DialogActionOutcome.Confirmed && request.ConfirmButton is not null)
         {
             if (request.ConfirmButton.CallbackAsync is not null)
                 await request.ConfirmButton.CallbackAsync();
@@ -652,7 +637,7 @@ public static class DialogHelper
             return DialogActionOutcome.Confirmed;
         }
 
-        if (result == ContentDialogResult.Secondary && request.CustomButton is not null)
+        if (dialog.Result == DialogActionOutcome.Custom && request.CustomButton is not null)
         {
             if (request.CustomButton.CallbackAsync is not null)
                 await request.CustomButton.CallbackAsync();

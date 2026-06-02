@@ -25,7 +25,12 @@
                 <!-- Shared style dictionaries -->
                 <ResourceDictionary Source="/Theme/AccentHover.xaml"/>
                 <ResourceDictionary Source="/Theme/BaseStyles.xaml"/>
-                <ResourceDictionary Source="/Theme/IconButton.xaml"/>
+                <ResourceDictionary Source="/Theme/PlayerControls.xaml"/>
+                <ResourceDictionary Source="/Theme/Button/ButtonFilled.xaml"/>
+                <ResourceDictionary Source="/Theme/Button/ButtonOutlined.xaml"/>
+                <ResourceDictionary Source="/Theme/Button/ButtonGhost.xaml"/>
+                <ResourceDictionary Source="/Theme/Button/ButtonGhostDimmed.xaml"/>
+                <ResourceDictionary Source="/Theme/Button/WpfUiButtonOverride.xaml"/>
                 <ResourceDictionary Source="/Theme/ToggleSwitch.xaml"/>
                 <ResourceDictionary Source="/Controls/Hyperlink/Hyperlink.xaml"/>
 
