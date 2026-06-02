@@ -7,6 +7,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Data;
+using System.Windows.Shapes;
 using System.Windows.Threading;
 using Wpf.Ui.Appearance;
 
@@ -550,7 +551,98 @@ public partial class Slider : UserControl
             _thumb.DragStarted += OnThumbDragStarted;
             _thumb.DragDelta += OnThumbDragDelta;
             _thumb.DragCompleted += OnThumbDragCompleted;
+            ApplyAccentHoverThumbTemplate(_thumb);
         }
+    }
+
+    /// <summary>
+    /// Applies a custom thumb template with accent-color hover animation,
+    /// matching the shared pattern used by ToggleSwitch, Hyperlink, and IconButton.
+    /// </summary>
+    private void ApplyAccentHoverThumbTemplate(Thumb thumb)
+    {
+        if (TryFindResource("AccentHoverSliderThumbTemplate") is ControlTemplate resourceTemplate)
+        {
+            thumb.Template = resourceTemplate;
+            return;
+        }
+
+        var accentBrush = TryFindResource("SystemAccentColorPrimaryBrush") as Brush
+            ?? SystemColors.HighlightBrush;
+        var accentHoverBrush = TryFindResource("SystemAccentColorSecondaryBrush") as Brush
+            ?? accentBrush;
+        var theme = ApplicationThemeManager.GetAppTheme();
+        var outerFill = theme == ApplicationTheme.Dark
+            ? new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x2D))   // Mica dark background
+            : new SolidColorBrush(Color.FromRgb(0xF0, 0xF0, 0xF0));  // Mica light background
+
+        var template = new ControlTemplate(typeof(Thumb));
+
+        // Build visual tree: Grid > OuterEllipse + InnerDot + InnerDotHover
+        var gridFactory = new FrameworkElementFactory(typeof(Grid));
+        gridFactory.SetValue(Panel.BackgroundProperty, Brushes.Transparent);
+
+        // Background mask — full solid circle covers the slider track underneath
+        var bgMask = new FrameworkElementFactory(typeof(Ellipse));
+        bgMask.SetValue(FrameworkElement.WidthProperty, 20.0);
+        bgMask.SetValue(FrameworkElement.HeightProperty, 20.0);
+        bgMask.SetValue(Shape.FillProperty, outerFill);
+        bgMask.SetValue(Shape.StrokeThicknessProperty, 0.0);
+        bgMask.SetValue(UIElement.IsHitTestVisibleProperty, false);
+        gridFactory.AppendChild(bgMask);
+
+        // Inner dot — base accent
+        var innerDot = new FrameworkElementFactory(typeof(Ellipse));
+        innerDot.SetValue(FrameworkElement.WidthProperty, 12.0);
+        innerDot.SetValue(FrameworkElement.HeightProperty, 12.0);
+        innerDot.SetValue(Shape.FillProperty, accentBrush);
+        gridFactory.AppendChild(innerDot);
+
+        // Inner dot — hover overlay (lightened accent)
+        var innerDotHover = new FrameworkElementFactory(typeof(Ellipse), "InnerDotHover");
+        innerDotHover.SetValue(FrameworkElement.WidthProperty, 12.0);
+        innerDotHover.SetValue(FrameworkElement.HeightProperty, 12.0);
+        innerDotHover.SetValue(Shape.FillProperty, accentHoverBrush);
+        innerDotHover.SetValue(UIElement.OpacityProperty, 0.0);
+        gridFactory.AppendChild(innerDotHover);
+
+        template.VisualTree = gridFactory;
+
+        // Hover trigger with animated fade in/out
+        var hoverTrigger = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
+
+        var fadeIn = new Storyboard();
+        var fadeInAnim = new DoubleAnimation
+        {
+            To = 1.0,
+            Duration = TimeSpan.FromSeconds(0.22),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        Storyboard.SetTargetName(fadeInAnim, "InnerDotHover");
+        Storyboard.SetTargetProperty(fadeInAnim, new PropertyPath(UIElement.OpacityProperty));
+        fadeIn.Children.Add(fadeInAnim);
+
+        var fadeOut = new Storyboard();
+        var fadeOutAnim = new DoubleAnimation
+        {
+            To = 0.0,
+            Duration = TimeSpan.FromSeconds(0.28),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        Storyboard.SetTargetName(fadeOutAnim, "InnerDotHover");
+        Storyboard.SetTargetProperty(fadeOutAnim, new PropertyPath(UIElement.OpacityProperty));
+        fadeOut.Children.Add(fadeOutAnim);
+
+        hoverTrigger.EnterActions.Add(new BeginStoryboard { Storyboard = fadeIn });
+        hoverTrigger.ExitActions.Add(new BeginStoryboard { Storyboard = fadeOut });
+        template.Triggers.Add(hoverTrigger);
+
+        // Dragging trigger — show hover overlay immediately
+        var dragTrigger = new Trigger { Property = Thumb.IsDraggingProperty, Value = true };
+        dragTrigger.Setters.Add(new Setter(UIElement.OpacityProperty, 1.0) { TargetName = "InnerDotHover" });
+        template.Triggers.Add(dragTrigger);
+
+        thumb.Template = template;
     }
 
     private void OnThumbDragStarted(object? sender, DragStartedEventArgs e)

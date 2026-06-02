@@ -1,0 +1,43 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Shared accent-hover animation durations and easing.
+        
+        Usage pattern for controls that need accent-color hover:
+        Stack two elements (base + accent overlay), then animate the
+        overlay's Opacity using these consistent timing values.
+        
+        Enter:  0.22s  CubicEase EaseOut
+        Exit:   0.28s  CubicEase EaseOut
+    -->
+
+    <!-- Timing constants as system doubles -->
+    <system:Double x:Key="AccentHoverEnterSeconds"
+                   xmlns:system="clr-namespace:System;assembly=mscorlib">0.22</system:Double>
+    <system:Double x:Key="AccentHoverExitSeconds"
+                   xmlns:system="clr-namespace:System;assembly=mscorlib">0.28</system:Double>
+
+    <!-- Reusable storyboards for fading an accent overlay in/out.
+         Target must be set via Storyboard.TargetName on the BeginStoryboard.
+         The overlay element must have Opacity as the animated property. -->
+
+    <Storyboard x:Key="AccentHoverFadeIn">
+        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                         To="1" Duration="0:0:0.22">
+            <DoubleAnimation.EasingFunction>
+                <CubicEase EasingMode="EaseOut"/>
+            </DoubleAnimation.EasingFunction>
+        </DoubleAnimation>
+    </Storyboard>
+
+    <Storyboard x:Key="AccentHoverFadeOut">
+        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                         To="0" Duration="0:0:0.28">
+            <DoubleAnimation.EasingFunction>
+                <CubicEase EasingMode="EaseOut"/>
+            </DoubleAnimation.EasingFunction>
+        </DoubleAnimation>
+    </Storyboard>
+
+</ResourceDictionary>

@@ -33,7 +33,7 @@
                                          BorderThickness="0"
                                          Background="Transparent"
                                          MaxHeight="{Binding MaxPopupHeight, ElementName=Root}"
-                                         ScrollViewer.VerticalScrollBarVisibility="Visible"
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto"
                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                          ScrollViewer.CanContentScroll="False"
                                          VirtualizingPanel.IsVirtualizing="False"
@@ -59,9 +59,9 @@
                                                         <Setter Property="HorizontalContentAlignment"
                                                                 Value="Stretch"/>
                                                         <Setter Property="Padding"
-                                                                Value="8,6"/>
+                                                                Value="12,8"/>
                                                         <Setter Property="Margin"
-                                                                Value="0,1,4,1"/>
+                                                                Value="0,2,0,2"/>
                                                         <Setter Property="Background"
                                                                 Value="Transparent"/>
                                                         <Setter Property="BorderBrush"
@@ -73,35 +73,78 @@
                                                         <Setter Property="Template">
                                                                 <Setter.Value>
                                                                         <ControlTemplate TargetType="ListBoxItem">
-                                                                                <Border x:Name="ItemBorder"
-                                                                                        CornerRadius="8"
-                                                                                        Padding="{TemplateBinding Padding}"
-                                                                                        BorderThickness="{TemplateBinding BorderThickness}"
-                                                                                        BorderBrush="{TemplateBinding BorderBrush}"
-                                                                                        Background="{TemplateBinding Background}">
+                                                                                <Grid>
+                                                                                        <Border x:Name="ItemBorder"
+                                                                                                CornerRadius="8"
+                                                                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                                                                Background="{TemplateBinding Background}"/>
+                                                                                        
+                                                                                        <Border x:Name="HoverBorder"
+                                                                                                CornerRadius="8"
+                                                                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                                                                BorderBrush="Transparent"
+                                                                                                Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                                                                                Opacity="0"/>
+                                                                                                
+                                                                                        <Border x:Name="SelectedBorder"
+                                                                                                CornerRadius="8"
+                                                                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                                                                BorderBrush="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                                                                                Background="{DynamicResource SubtleFillColorTertiaryBrush}"
+                                                                                                Opacity="0"/>
+                                                                                                
                                                                                         <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                                                                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
-                                                                                </Border>
+                                                                                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                                                                          Margin="{TemplateBinding Padding}"/>
+                                                                                </Grid>
                                                                                 <ControlTemplate.Triggers>
                                                                                         <Trigger Property="IsMouseOver"
                                                                                                  Value="True">
-                                                                                                <Setter TargetName="ItemBorder"
-                                                                                                        Property="Background"
-                                                                                                        Value="{DynamicResource SubtleFillColorSecondaryBrush}"/>
+                                                                                                <Trigger.EnterActions>
+                                                                                                        <BeginStoryboard>
+                                                                                                                <Storyboard>
+                                                                                                                        <DoubleAnimation Storyboard.TargetName="HoverBorder"
+                                                                                                                                         Storyboard.TargetProperty="Opacity"
+                                                                                                                                         To="1"
+                                                                                                                                         Duration="0:0:0.25">
+                                                                                                                                <DoubleAnimation.EasingFunction>
+                                                                                                                                        <CubicEase EasingMode="EaseOut"/>
+                                                                                                                                </DoubleAnimation.EasingFunction>
+                                                                                                                        </DoubleAnimation>
+                                                                                                                </Storyboard>
+                                                                                                        </BeginStoryboard>
+                                                                                                </Trigger.EnterActions>
+                                                                                                <Trigger.ExitActions>
+                                                                                                        <BeginStoryboard>
+                                                                                                                <Storyboard>
+                                                                                                                        <DoubleAnimation Storyboard.TargetName="HoverBorder"
+                                                                                                                                         Storyboard.TargetProperty="Opacity"
+                                                                                                                                         To="0"
+                                                                                                                                         Duration="0:0:0.35">
+                                                                                                                                <DoubleAnimation.EasingFunction>
+                                                                                                                                        <CubicEase EasingMode="EaseOut"/>
+                                                                                                                                </DoubleAnimation.EasingFunction>
+                                                                                                                        </DoubleAnimation>
+                                                                                                                </Storyboard>
+                                                                                                        </BeginStoryboard>
+                                                                                                </Trigger.ExitActions>
                                                                                         </Trigger>
                                                                                         <Trigger Property="IsSelected"
                                                                                                  Value="True">
-                                                                                                <Setter TargetName="ItemBorder"
-                                                                                                        Property="BorderBrush"
-                                                                                                        Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
-                                                                                                <Setter TargetName="ItemBorder"
-                                                                                                        Property="Background"
-                                                                                                        Value="{DynamicResource SubtleFillColorTertiaryBrush}"/>
+                                                                                                <Setter TargetName="SelectedBorder"
+                                                                                                        Property="Opacity"
+                                                                                                        Value="1"/>
                                                                                         </Trigger>
                                                                                 </ControlTemplate.Triggers>
                                                                         </ControlTemplate>
                                                                 </Setter.Value>
                                                         </Setter>
+                                                        <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding ComputedVerticalScrollBarVisibility, RelativeSource={RelativeSource AncestorType=ScrollViewer}}" Value="Visible">
+                                                                        <Setter Property="Margin" Value="0,2,8,2"/>
+                                                                </DataTrigger>
+                                                        </Style.Triggers>
                                                 </Style>
                                         </ListBox.ItemContainerStyle>
                                 </ListBox>

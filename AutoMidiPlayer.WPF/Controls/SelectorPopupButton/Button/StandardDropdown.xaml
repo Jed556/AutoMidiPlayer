@@ -59,6 +59,72 @@
                 BorderThickness="1"
                 Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                 HorizontalContentAlignment="Stretch">
+            <Button.Template>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Border x:Name="BaseBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"/>
+                        <Border x:Name="HoverBorder"
+                                Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                Opacity="0"/>
+                        <Border x:Name="PressedBorder"
+                                Background="{DynamicResource ControlFillColorTertiaryBrush}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                Opacity="0"/>
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          Margin="{TemplateBinding Padding}"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverBorder"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1"
+                                                         Duration="0:0:0.25">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverBorder"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0"
+                                                         Duration="0:0:0.35">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="PressedBorder" Property="Opacity" Value="1"/>
+                            <Setter TargetName="HoverBorder" Property="Opacity" Value="0"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="BaseBorder" Property="Opacity" Value="0.5"/>
+                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Button.Template>
             <Grid>
                 <Grid.Resources>
                     <local:NullToBooleanConverter x:Key="NullToBooleanConverter"/>
@@ -67,6 +133,45 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
+                <ItemsControl Grid.Column="0"
+                              ItemsSource="{Binding ItemsSource, ElementName=Root}"
+                              Margin="0,0,16,0"
+                              Visibility="Hidden"
+                              IsHitTestVisible="False"
+                              Focusable="False">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Grid/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <ContentPresenter Content="{Binding}" VerticalAlignment="Center">
+                                <ContentPresenter.Resources>
+                                    <local:DisplayMemberConverter x:Key="DisplayMemberConverter"/>
+                                    <local:TemplateFallbackConverter x:Key="TemplateFallbackConverter"/>
+                                    <DataTemplate x:Key="DefaultTemplate">
+                                        <TextBlock VerticalAlignment="Center">
+                                            <TextBlock.Text>
+                                                <MultiBinding Converter="{StaticResource DisplayMemberConverter}">
+                                                    <Binding Path="."/>
+                                                    <Binding Path="DisplayMemberPath" RelativeSource="{RelativeSource AncestorType=local:StandardDropdown}"/>
+                                                </MultiBinding>
+                                            </TextBlock.Text>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ContentPresenter.Resources>
+                                <ContentPresenter.ContentTemplate>
+                                    <MultiBinding Converter="{StaticResource TemplateFallbackConverter}">
+                                        <Binding Path="SelectedItemTemplate" RelativeSource="{RelativeSource AncestorType=local:StandardDropdown}"/>
+                                        <Binding Path="ItemTemplate" RelativeSource="{RelativeSource AncestorType=local:StandardDropdown}"/>
+                                        <Binding Source="{StaticResource DefaultTemplate}"/>
+                                    </MultiBinding>
+                                </ContentPresenter.ContentTemplate>
+                            </ContentPresenter>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
                 <ContentPresenter Grid.Column="0"
                                   Content="{Binding ButtonContent, ElementName=Root}"
                                   VerticalAlignment="Center"

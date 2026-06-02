@@ -134,7 +134,7 @@ public partial class StandardDropdown : UserControl
         DependencyProperty.Register(nameof(SelectedItemTemplate), typeof(DataTemplate), typeof(StandardDropdown));
 
     public static readonly DependencyProperty PopupMaxWidthProperty =
-        DependencyProperty.Register(nameof(PopupMaxWidth), typeof(double), typeof(StandardDropdown), new PropertyMetadata(220.0));
+        DependencyProperty.Register(nameof(PopupMaxWidth), typeof(double), typeof(StandardDropdown), new PropertyMetadata(400.0));
 
     public static readonly DependencyProperty PopupMaxHeightProperty =
         DependencyProperty.Register(nameof(PopupMaxHeight), typeof(double), typeof(StandardDropdown), new PropertyMetadata(320.0));

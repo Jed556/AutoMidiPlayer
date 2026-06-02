@@ -23,6 +23,7 @@
                 <ResourceDictionary Source="/Resources/Icons.xaml"/>
 
                 <!-- Shared style dictionaries -->
+                <ResourceDictionary Source="/Theme/AccentHover.xaml"/>
                 <ResourceDictionary Source="/Theme/BaseStyles.xaml"/>
                 <ResourceDictionary Source="/Theme/IconButton.xaml"/>
                 <ResourceDictionary Source="/Theme/ToggleSwitch.xaml"/>
