@@ -81,27 +81,24 @@ public partial class AppStatusDialog : ContentDialog
         if (Application.Current.TryFindResource(typeof(ContentDialog)) is Style dialogStyle)
             Style = dialogStyle;
             
-        ButtonClicked += OnButtonClicked;
+        DialogHelper.HookButtonToPreventClose(this, Wpf.Ui.Controls.ContentDialogButton.Secondary, OnReleaseNotesPreviewClick);
     }
 
-    private void OnButtonClicked(ContentDialog sender, Wpf.Ui.Controls.ContentDialogButtonClickEventArgs args)
+    private void OnReleaseNotesPreviewClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (args.Button == Wpf.Ui.Controls.ContentDialogButton.Secondary)
-        {
-            args.Handled = true; // Prevent the dialog from closing
+        e.Handled = true; // Prevent the dialog from closing
 
-            try
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = "https://github.com/Jed556/AutoMidiPlayer/releases",
-                    UseShellExecute = true
-                });
-            }
-            catch (Exception ex)
-            {
-                Logger.LogException(ex);
-            }
+                FileName = "https://github.com/Jed556/AutoMidiPlayer/releases",
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException(ex);
         }
     }
 
@@ -144,7 +141,7 @@ public partial class AppStatusDialog : ContentDialog
             dialog.StatusIcon = SymbolRegular.ArrowDownload24;
             dialog.IsUpdateStatus = true;
             dialog.SecondaryButtonText = "Release Notes";
-            dialog.SecondaryButtonAppearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
+            dialog.SecondaryButtonAppearance = Wpf.Ui.Controls.ControlAppearance.Secondary;
             
             var updateIndex = status.IndexOf("UPDATE:", StringComparison.OrdinalIgnoreCase);
             if (updateIndex >= 0)

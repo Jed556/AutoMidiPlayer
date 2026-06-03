@@ -11,6 +11,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Interop;
 using System.Windows.Threading;
+using AutoMidiPlayer.Data;
 
 namespace AutoMidiPlayer.WPF.MessageBox;
 
@@ -99,6 +100,59 @@ public partial class CrashMessageBox : Wpf.Ui.Controls.MessageBox
         _ = messageBox.ShowDialogAsync(showAsDialog: true).GetAwaiter().GetResult();
     }
 
+    private void OnReportBugPreviewClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo("https://github.com/Jed556/AutoMidiPlayer/issues/new?template=bug_report.yml")
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.Log("Failed to open bug report URL.");
+            Logger.LogException(ex);
+        }
+
+        e.Handled = true;
+
+        if (sender is System.Windows.Controls.Primitives.ButtonBase btn)
+        {
+            var isPressedProperty = typeof(System.Windows.Controls.Primitives.ButtonBase).GetProperty("IsPressed", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+            if (isPressedProperty != null && isPressedProperty.CanWrite)
+            {
+                isPressedProperty.SetValue(btn, false);
+            }
+            else
+            {
+                var method = typeof(System.Windows.Controls.Primitives.ButtonBase).GetMethod("set_IsPressed", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                if (method != null)
+                    method.Invoke(btn, new object[] { false });
+            }
+        }
+    }
+
+    private static System.Windows.Controls.Button? FindPrimaryButton(DependencyObject root)
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            var child = VisualTreeHelper.GetChild(root, index);
+            if (child is System.Windows.Controls.Button button)
+            {
+                var text = button.Content?.ToString();
+                if (string.Equals(text, "Report Bug", StringComparison.OrdinalIgnoreCase))
+                    return button;
+            }
+
+            var nested = FindPrimaryButton(child);
+            if (nested != null)
+                return nested;
+        }
+
+        return null;
+    }
+
     private void ApplyHeightCap()
     {
         var maxDialogHeight = SystemParameters.WorkArea.Height * MaxDialogScreenRatio;
@@ -142,6 +196,13 @@ public partial class CrashMessageBox : Wpf.Ui.Controls.MessageBox
         ApplyFixedWindowStyle();
         ApplyWindowCornerPreference();
         RemoveTemplateTitleBarChrome(this);
+
+        var primaryButton = FindPrimaryButton(this);
+        if (primaryButton != null)
+        {
+            primaryButton.PreviewMouseLeftButtonUp += OnReportBugPreviewClick;
+        }
+
         Dispatcher.BeginInvoke(
             () =>
             {
@@ -149,6 +210,14 @@ public partial class CrashMessageBox : Wpf.Ui.Controls.MessageBox
                 ApplyFixedWindowStyle();
                 ApplyWindowCornerPreference();
                 RemoveTemplateTitleBarChrome(this);
+                
+                // Fallback in case the button wasn't built in the visual tree yet
+                if (primaryButton == null)
+                {
+                    primaryButton = FindPrimaryButton(this);
+                    if (primaryButton != null)
+                        primaryButton.PreviewMouseLeftButtonUp += OnReportBugPreviewClick;
+                }
             },
             DispatcherPriority.Render);
     }

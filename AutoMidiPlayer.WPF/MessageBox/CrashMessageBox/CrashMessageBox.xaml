@@ -5,6 +5,8 @@
                xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                Title=""
                ShowTitle="False"
+               PrimaryButtonText="Report Bug"
+               PrimaryButtonAppearance="Primary"
                CloseButtonText="OK"
                CloseButtonAppearance="Secondary"
                IsCloseButtonEnabled="True"

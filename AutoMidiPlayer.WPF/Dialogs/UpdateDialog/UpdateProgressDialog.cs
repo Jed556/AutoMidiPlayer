@@ -42,6 +42,22 @@ public partial class UpdateProgressDialog : ContentDialog, INotifyPropertyChange
             Style = dialogStyle;
             
         DataContext = this;
+
+        DialogHelper.HideActionButtonsArea(this);
+
+        Closing += (s, e) =>
+        {
+            if (!IsProgrammaticClose)
+                e.Cancel = true;
+        };
+    }
+
+    public bool IsProgrammaticClose { get; set; } = false;
+
+    public void CloseDialog()
+    {
+        IsProgrammaticClose = true;
+        this.Hide();
     }
 
     protected void OnPropertyChanged([CallerMemberName] string? name = null)

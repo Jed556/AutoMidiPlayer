@@ -650,4 +650,195 @@ public static class DialogHelper
 
         return DialogActionOutcome.Cancelled;
     }
+
+    /// <summary>
+    /// Hooks a ContentDialog's button to intercept its click event, preventing the dialog from closing.
+    /// You must set e.Handled = true inside your callback to successfully prevent closure.
+    /// </summary>
+    public static void HookButtonToPreventClose(ContentDialog dialog, ContentDialogButton buttonType, System.Windows.Input.MouseButtonEventHandler previewClickCallback)
+    {
+        void InternalHook(object? sender, EventArgs e)
+        {
+            var button = FindDialogButton(dialog, buttonType);
+            if (button != null)
+            {
+                button.PreviewMouseLeftButtonUp += (s, args) =>
+                {
+                    previewClickCallback(s, args);
+
+                    // Reset IsPressed state manually so animations aren't broken by swallowing the event
+                    if (args.Handled && s is System.Windows.Controls.Primitives.ButtonBase btn)
+                    {
+                        var isPressedProperty = typeof(System.Windows.Controls.Primitives.ButtonBase).GetProperty("IsPressed", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                        if (isPressedProperty != null && isPressedProperty.CanWrite)
+                        {
+                            isPressedProperty.SetValue(btn, false);
+                        }
+                        else
+                        {
+                            // Fallback using reflection for protected setter
+                            var method = typeof(System.Windows.Controls.Primitives.ButtonBase).GetMethod("set_IsPressed", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                            if (method != null)
+                                method.Invoke(btn, new object[] { false });
+                        }
+                    }
+                };
+            }
+        }
+
+        dialog.Loaded += (s, e) =>
+        {
+            InternalHook(s, e);
+            
+            // Fallback for late template application
+            dialog.Dispatcher.BeginInvoke(new Action(() => InternalHook(s, e)), DispatcherPriority.Loaded);
+        };
+    }
+
+    /// <summary>
+    /// Hides the entire action buttons area (footer) of a ContentDialog.
+    /// Useful for non-interactable dialogs like progress dialogs.
+    /// </summary>
+    public static void HideActionButtonsArea(ContentDialog dialog)
+    {
+        void InternalHide()
+        {
+            CollapseFooterElements(dialog);
+        }
+
+        dialog.Loaded += (s, e) =>
+        {
+            InternalHide();
+            dialog.Dispatcher.BeginInvoke(new Action(InternalHide), DispatcherPriority.Loaded);
+            dialog.Dispatcher.BeginInvoke(new Action(InternalHide), DispatcherPriority.Render);
+        };
+    }
+
+    private static void CollapseFooterElements(DependencyObject root)
+    {
+        int childCount = VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < childCount; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            
+            if (child is FrameworkElement fe)
+            {
+                // Look for the Grid that directly contains dialog buttons
+                // In WPF-UI v4.x, buttons are named "PrimaryButton", "SecondaryButton", "CloseButton"
+                if (fe is System.Windows.Controls.Panel panel && ContainsDialogButtons(panel))
+                {
+                    // Collapse the button grid itself
+                    panel.Visibility = Visibility.Collapsed;
+                    
+                    // Collapse the parent Border wrapper (the footer area)
+                    var parent = VisualTreeHelper.GetParent(panel) as FrameworkElement;
+                    if (parent != null)
+                    {
+                        parent.Visibility = Visibility.Collapsed;
+                    }
+                    return;
+                }
+            }
+            
+            CollapseFooterElements(child);
+        }
+    }
+
+    private static bool ContainsDialogButtons(System.Windows.Controls.Panel panel)
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(panel); i++)
+        {
+            var child = VisualTreeHelper.GetChild(panel, i);
+            if (child is System.Windows.Controls.Button btn && !string.IsNullOrEmpty(btn.Name))
+            {
+                // Match both v3 "PART_PrimaryButton" and v4 "PrimaryButton" naming
+                if (btn.Name is "PrimaryButton" or "SecondaryButton" or "CloseButton" or
+                    "PART_PrimaryButton" or "PART_SecondaryButton" or "PART_CloseButton")
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static System.Windows.Controls.Button? FindDialogButton(ContentDialog dialog, ContentDialogButton buttonType)
+    {
+        // WPF-UI v4.x uses plain names, v3.x uses PART_ prefixed names
+        var v4Name = buttonType switch
+        {
+            ContentDialogButton.Primary => "PrimaryButton",
+            ContentDialogButton.Secondary => "SecondaryButton",
+            ContentDialogButton.Close => "CloseButton",
+            _ => ""
+        };
+        
+        var v3Name = buttonType switch
+        {
+            ContentDialogButton.Primary => "PART_PrimaryButton",
+            ContentDialogButton.Secondary => "PART_SecondaryButton",
+            ContentDialogButton.Close => "PART_CloseButton",
+            _ => ""
+        };
+
+        // Try v4 name first
+        if (dialog.Template?.FindName(v4Name, dialog) is System.Windows.Controls.Button btn4)
+            return btn4;
+            
+        // Try v3 name
+        if (dialog.Template?.FindName(v3Name, dialog) is System.Windows.Controls.Button btn3)
+            return btn3;
+        
+        // Fall back to searching by name in the visual tree
+        var foundByName = FindButtonByName(dialog, v4Name) ?? FindButtonByName(dialog, v3Name);
+        if (foundByName != null)
+            return foundByName;
+
+        var expectedText = buttonType switch
+        {
+            ContentDialogButton.Primary => dialog.PrimaryButtonText,
+            ContentDialogButton.Secondary => dialog.SecondaryButtonText,
+            ContentDialogButton.Close => dialog.CloseButtonText,
+            _ => ""
+        };
+
+        if (string.IsNullOrEmpty(expectedText)) 
+            return null;
+
+        return FindButtonByText(dialog, expectedText);
+    }
+
+    private static System.Windows.Controls.Button? FindButtonByName(DependencyObject root, string name)
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            var child = VisualTreeHelper.GetChild(root, index);
+            if (child is System.Windows.Controls.Button button && button.Name == name)
+                return button;
+
+            var nested = FindButtonByName(child, name);
+            if (nested != null)
+                return nested;
+        }
+        return null;
+    }
+
+    private static System.Windows.Controls.Button? FindButtonByText(DependencyObject root, string text)
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            var child = VisualTreeHelper.GetChild(root, index);
+            if (child is System.Windows.Controls.Button button)
+            {
+                if (string.Equals(button.Content?.ToString(), text, StringComparison.OrdinalIgnoreCase))
+                    return button;
+            }
+
+            var nested = FindButtonByText(child, text);
+            if (nested != null)
+                return nested;
+        }
+
+        return null;
+    }
 }

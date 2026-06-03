@@ -94,28 +94,25 @@ public partial class UpdateDialog : ContentDialog, INotifyPropertyChanged
         );
     }
 
-    private void OnButtonClicked(ContentDialog sender, Wpf.Ui.Controls.ContentDialogButtonClickEventArgs args)
+    private void OnReleaseNotesPreviewClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (args.Button == Wpf.Ui.Controls.ContentDialogButton.Secondary)
+        e.Handled = true; // Prevent the dialog from closing
+        
+        try
         {
-            args.Handled = true; // Prevent the dialog from closing
-            
-            try
-            {
-                var url = "https://github.com/Jed556/AutoMidiPlayer/releases";
-                if (_latestVersion != null && !string.IsNullOrEmpty(_latestVersion.Url))
-                    url = _latestVersion.Url;
+            var url = "https://github.com/Jed556/AutoMidiPlayer/releases";
+            if (_latestVersion != null && !string.IsNullOrEmpty(_latestVersion.Url))
+                url = _latestVersion.Url;
 
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = url,
-                    UseShellExecute = true
-                });
-            }
-            catch (Exception ex)
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
-                Logger.LogException(ex);
-            }
+                FileName = url,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException(ex);
         }
     }
 
@@ -136,12 +133,12 @@ public partial class UpdateDialog : ContentDialog, INotifyPropertyChanged
         CloseButtonText = "Cancel";
 
         PrimaryButtonAppearance = Wpf.Ui.Controls.ControlAppearance.Primary;
-        SecondaryButtonAppearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
+        SecondaryButtonAppearance = Wpf.Ui.Controls.ControlAppearance.Secondary;
         CloseButtonAppearance = Wpf.Ui.Controls.ControlAppearance.Secondary;
 
         DefaultButton = Wpf.Ui.Controls.ContentDialogButton.Primary;
         
-        ButtonClicked += OnButtonClicked;
+        DialogHelper.HookButtonToPreventClose(this, Wpf.Ui.Controls.ContentDialogButton.Secondary, OnReleaseNotesPreviewClick);
         
         // Auto-detect default if possible (rudimentary check: if there is no setup/installer sign, assume portable)
         var exeName = Path.GetFileName(Environment.ProcessPath ?? "");
@@ -176,6 +173,7 @@ public partial class UpdateDialog : ContentDialog, INotifyPropertyChanged
 
     private async Task RunUpdateAsync()
     {
+        UpdateProgressDialog? progressDialog = null;
         try
         {
             var assetNameSearch = SelectedVersionType == "Portable" ? "win-x64-portable.zip" : "win-x64-net-install.zip";
@@ -189,7 +187,7 @@ public partial class UpdateDialog : ContentDialog, INotifyPropertyChanged
                 return;
             }
 
-            var progressDialog = new UpdateProgressDialog();
+            progressDialog = new UpdateProgressDialog();
             _ = progressDialog.ShowAsync();
 
             progressDialog.ProgressText = "Downloading update...";
@@ -258,7 +256,7 @@ public partial class UpdateDialog : ContentDialog, INotifyPropertyChanged
                 }
                 catch (Win32Exception)
                 {
-                    progressDialog.Hide();
+                    progressDialog?.CloseDialog();
                     System.Windows.MessageBox.Show("Failed to start PowerShell for update.", "Update Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                     IsUpdating = false;
                     return;
@@ -271,7 +269,7 @@ public partial class UpdateDialog : ContentDialog, INotifyPropertyChanged
         {
             Logger.LogException(ex);
             
-            // progressDialog might not be instantiated if it failed early, but we are inside the try where it is instantiated before most operations
+            progressDialog?.CloseDialog();
             System.Windows.MessageBox.Show("Update failed: " + ex.Message, "Update Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             IsUpdating = false;
         }
