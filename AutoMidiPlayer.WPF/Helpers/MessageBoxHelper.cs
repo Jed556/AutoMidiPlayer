@@ -1,6 +1,8 @@
 using System;
 using System.Linq;
+using System.Reflection;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Wpf.Ui.Controls;
 
@@ -65,8 +67,8 @@ public static class MessageBoxHelper
         System.Windows.MessageBoxButton button,
         System.Windows.MessageBoxImage image)
     {
-        var (appearance, iconSymbol) = ResolveVisualStyle(image);
-        var messageBox = CreateThemedMessageBox(message, title, button, appearance, iconSymbol);
+        var (appearance, iconSymbol, iconResourceKey) = ResolveVisualStyle(image);
+        var messageBox = CreateThemedMessageBox(message, title, button, appearance, iconSymbol, iconResourceKey);
 
         var owner = ResolveOwnerWindow();
         if (owner != null && owner != messageBox)
@@ -84,45 +86,37 @@ public static class MessageBoxHelper
         string title,
         System.Windows.MessageBoxButton button,
         ControlAppearance appearance,
-        SymbolRegular? iconSymbol)
+        SymbolRegular? iconSymbol,
+        string? iconResourceKey)
     {
+        var messageBox = new AutoMidiPlayer.WPF.MessageBox.StandardMessageBox
+        {
+            DialogTitle = title,
+            PrimaryButtonAppearance = appearance,
+            SecondaryButtonAppearance = ControlAppearance.Secondary,
+            CloseButtonAppearance = ControlAppearance.Secondary
+        };
+
+        if (iconResourceKey != null && Application.Current?.TryFindResource(iconResourceKey) is ImageSource imgSource)
+        {
+            messageBox.IconSource = imgSource;
+        }
+        else if (iconSymbol.HasValue)
+        {
+            messageBox.IconSymbol = iconSymbol.Value;
+        }
+
         var messageText = new System.Windows.Controls.TextBlock
         {
             Text = message,
             TextWrapping = TextWrapping.Wrap,
             MaxWidth = 640,
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Center,
+            FontSize = 14
         };
+        messageText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
 
-        object content = messageText;
-        if (iconSymbol.HasValue)
-        {
-            var contentPanel = new System.Windows.Controls.StackPanel
-            {
-                Orientation = System.Windows.Controls.Orientation.Horizontal
-            };
-
-            contentPanel.Children.Add(new SymbolIcon
-            {
-                Symbol = iconSymbol.Value,
-                FontSize = 24,
-                Filled = true,
-                Margin = new Thickness(0, 0, 12, 0),
-                VerticalAlignment = VerticalAlignment.Top
-            });
-            contentPanel.Children.Add(messageText);
-            content = contentPanel;
-        }
-
-        var messageBox = new Wpf.Ui.Controls.MessageBox
-        {
-            Title = title,
-            ShowTitle = true,
-            Content = content,
-            PrimaryButtonAppearance = appearance,
-            SecondaryButtonAppearance = ControlAppearance.Secondary,
-            CloseButtonAppearance = ControlAppearance.Secondary
-        };
+        messageBox.BodyContent = messageText;
 
         ConfigureButtons(messageBox, button, appearance);
         return messageBox;
@@ -145,8 +139,8 @@ public static class MessageBoxHelper
         {
             case System.Windows.MessageBoxButton.OK:
                 messageBox.IsCloseButtonEnabled = true;
-                messageBox.CloseButtonText = "OK";
-                messageBox.CloseButtonAppearance = emphasisAppearance;
+                messageBox.CloseButtonText = "Close";
+                messageBox.CloseButtonAppearance = ControlAppearance.Secondary;
                 break;
 
             case System.Windows.MessageBoxButton.OKCancel:
@@ -175,8 +169,8 @@ public static class MessageBoxHelper
 
             default:
                 messageBox.IsCloseButtonEnabled = true;
-                messageBox.CloseButtonText = "OK";
-                messageBox.CloseButtonAppearance = emphasisAppearance;
+                messageBox.CloseButtonText = "Close";
+                messageBox.CloseButtonAppearance = ControlAppearance.Secondary;
                 break;
         }
     }
@@ -194,16 +188,16 @@ public static class MessageBoxHelper
                ?? windows.FirstOrDefault();
     }
 
-    private static (ControlAppearance Appearance, SymbolRegular? IconSymbol) ResolveVisualStyle(
+    private static (ControlAppearance Appearance, SymbolRegular? IconSymbol, string? IconResourceKey) ResolveVisualStyle(
         System.Windows.MessageBoxImage image)
     {
         return image switch
         {
-            System.Windows.MessageBoxImage.Error => (ControlAppearance.Danger, SymbolRegular.ErrorCircle24),
-            System.Windows.MessageBoxImage.Warning => (ControlAppearance.Caution, SymbolRegular.Warning24),
-            System.Windows.MessageBoxImage.Information => (ControlAppearance.Info, SymbolRegular.Info24),
-            System.Windows.MessageBoxImage.Question => (ControlAppearance.Secondary, SymbolRegular.QuestionCircle24),
-            _ => (ControlAppearance.Secondary, null)
+            System.Windows.MessageBoxImage.Error => (ControlAppearance.Danger, null, "ErrorOctagonIcon"),
+            System.Windows.MessageBoxImage.Warning => (ControlAppearance.Caution, SymbolRegular.Warning24, null),
+            System.Windows.MessageBoxImage.Information => (ControlAppearance.Info, SymbolRegular.Info24, null),
+            System.Windows.MessageBoxImage.Question => (ControlAppearance.Secondary, SymbolRegular.QuestionCircle24, null),
+            _ => (ControlAppearance.Secondary, null, null)
         };
     }
 

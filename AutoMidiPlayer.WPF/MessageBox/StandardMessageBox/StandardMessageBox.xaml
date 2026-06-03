@@ -1,0 +1,73 @@
+<ui:MessageBox x:Class="AutoMidiPlayer.WPF.MessageBox.StandardMessageBox"
+               xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+               xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+               xmlns:local="clr-namespace:AutoMidiPlayer.WPF.MessageBox"
+               Title=""
+               ShowTitle="False"
+               CloseButtonText="OK"
+               CloseButtonAppearance="Secondary"
+               IsCloseButtonEnabled="True"
+               Width="520"
+               MinWidth="520"
+               MaxWidth="520"
+               SizeToContent="Height"
+               ResizeMode="NoResize"
+               WindowStyle="None"
+               x:Name="Root"
+               PreviewMouseLeftButtonDown="OnDialogPreviewMouseLeftButtonDown">
+
+    <ScrollViewer x:Name="BodyScrollViewer"
+                  Style="{DynamicResource {x:Type ScrollViewer}}"
+                  MaxHeight="420"
+                  Padding="0"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <Grid HorizontalAlignment="Stretch"
+              Margin="18,0,18,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0"
+                        HorizontalAlignment="Center"
+                        Margin="0,0,0,22">
+                <!-- Fallback to SymbolIcon if ImageSource is not provided -->
+                <Grid Margin="0,0,0,8" HorizontalAlignment="Center">
+                    <ui:SymbolIcon x:Name="IconSymbolElement"
+                                   Symbol="{Binding ElementName=Root, Path=IconSymbol}"
+                                   FontSize="34"
+                                   Filled="True"
+                                   Visibility="{Binding ElementName=Root, Path=IconSymbolVisibility}" />
+                    <Image x:Name="IconImageElement"
+                           Width="34"
+                           Height="34"
+                           Source="{Binding ElementName=Root, Path=IconSource}"
+                           Visibility="{Binding ElementName=Root, Path=IconSourceVisibility}" />
+                </Grid>
+
+                <TextBlock x:Name="TitleTextBlock"
+                           Text="{Binding ElementName=Root, Path=DialogTitle}"
+                           FontWeight="Bold"
+                           FontSize="24"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           Visibility="{Binding ElementName=Root, Path=DialogTitleVisibility}"/>
+
+                <TextBlock x:Name="SubtitleTextBlock"
+                           Text="{Binding ElementName=Root, Path=DialogSubtitle}"
+                           FontSize="12"
+                           Opacity="0.6"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           Margin="0,4,0,0"
+                           Visibility="{Binding ElementName=Root, Path=DialogSubtitleVisibility}"/>
+            </StackPanel>
+
+            <ContentPresenter Grid.Row="1"
+                              Content="{Binding ElementName=Root, Path=BodyContent}"
+                              HorizontalAlignment="Stretch" />
+        </Grid>
+    </ScrollViewer>
+</ui:MessageBox>
