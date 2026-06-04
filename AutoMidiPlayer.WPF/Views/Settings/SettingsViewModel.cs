@@ -795,13 +795,8 @@ public class SettingsPageViewModel : Screen
             Body = "This is a sample dialog rendered through DialogHelper.",
             ConfirmButton = new DialogActionButton
             {
-                Text = "Primary",
+                Text = "Ok",
                 Appearance = ControlAppearance.Primary
-            },
-            CustomButton = new DialogActionButton
-            {
-                Text = "Secondary",
-                Appearance = ControlAppearance.Secondary
             },
             CancelButton = new DialogActionButton
             {

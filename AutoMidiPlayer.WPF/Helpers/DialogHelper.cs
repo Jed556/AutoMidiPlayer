@@ -627,9 +627,15 @@ public static class DialogHelper
             return DialogActionOutcome.Cancelled;
         }
 
-        await dialog.ShowAsync();
+        var uiResult = await dialog.ShowAsync();
+        var outcome = uiResult switch
+        {
+            ContentDialogResult.Primary => DialogActionOutcome.Confirmed,
+            ContentDialogResult.Secondary => DialogActionOutcome.Custom,
+            _ => DialogActionOutcome.Cancelled
+        };
 
-        if (dialog.Result == DialogActionOutcome.Confirmed && request.ConfirmButton is not null)
+        if (outcome == DialogActionOutcome.Confirmed && request.ConfirmButton is not null)
         {
             if (request.ConfirmButton.CallbackAsync is not null)
                 await request.ConfirmButton.CallbackAsync();
@@ -637,7 +643,7 @@ public static class DialogHelper
             return DialogActionOutcome.Confirmed;
         }
 
-        if (dialog.Result == DialogActionOutcome.Custom && request.CustomButton is not null)
+        if (outcome == DialogActionOutcome.Custom && request.CustomButton is not null)
         {
             if (request.CustomButton.CallbackAsync is not null)
                 await request.CustomButton.CallbackAsync();

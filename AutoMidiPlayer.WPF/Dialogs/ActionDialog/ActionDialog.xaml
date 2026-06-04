@@ -1,48 +1,23 @@
 <ui:ContentDialog x:Class="AutoMidiPlayer.WPF.Dialogs.ActionDialog"
                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-                  xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls">
+                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
 
     <ui:ContentDialog.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
     </ui:ContentDialog.Resources>
 
     <StackPanel Background="Transparent"
-                Margin="0,0,12,0"
+                Margin="0,0,0,0"
                 TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
-        <StackPanel Orientation="Horizontal"
-                    Margin="0,0,0,10"
-                    Visibility="{Binding HasHeader, Converter={StaticResource BoolToVisibilityConverter}}">
-            <ui:SymbolIcon x:Name="HeaderIcon"
-                           Margin="0,0,8,0"
-                           Visibility="{Binding HasIcon, Converter={StaticResource BoolToVisibilityConverter}}"/>
-
-            <TextBlock Text="{Binding HeaderText}"
-                       VerticalAlignment="Center"
-                       FontWeight="SemiBold"
-                       TextWrapping="Wrap"/>
-        </StackPanel>
 
         <TextBlock Text="{Binding DialogBody}"
-                   Margin="0,0,0,12"
+                   Margin="0,0,0,0"
                    TextWrapping="Wrap"
                    Visibility="{Binding HasBody, Converter={StaticResource BoolToVisibilityConverter}}"/>
 
         <ContentPresenter Content="{Binding AdditionalContent}"
+                          Margin="0,12,0,0"
                           Visibility="{Binding HasAdditionalContent, Converter={StaticResource BoolToVisibilityConverter}}"/>
-
-        <!-- Custom buttons to replace ContentDialog's built-in buttons -->
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
-            <controls:Button x:Name="CustomBtn"
-                             Margin="0,0,8,0"/>
-            
-            <controls:Button x:Name="ConfirmBtn"
-                             Variant="Filled"
-                             ColorMode="Accent"
-                             Margin="0,0,8,0"/>
-            
-            <controls:Button x:Name="CancelBtn"/>
-        </StackPanel>
     </StackPanel>
 </ui:ContentDialog>

@@ -1,7 +1,9 @@
 using System;
 using System.Windows;
+using System.Windows.Controls;
 using AutoMidiPlayer.WPF.Helpers;
 using Wpf.Ui.Controls;
+using TextBlock = System.Windows.Controls.TextBlock;
 
 namespace AutoMidiPlayer.WPF.Dialogs;
 
@@ -26,59 +28,62 @@ public partial class ActionDialog : ContentDialog
         if (Application.Current.TryFindResource(typeof(ContentDialog)) is Style dialogStyle)
             Style = dialogStyle;
 
-        HeaderText = request.Title;
         DialogBody = request.Body;
         AdditionalContent = request.Content;
-        DialogIcon = request.Icon;
 
-        if (DialogIcon.HasValue)
-            HeaderIcon.Symbol = DialogIcon.Value;
+        var titlePanel = new StackPanel { Orientation = Orientation.Horizontal };
+        if (request.Icon.HasValue)
+        {
+            titlePanel.Children.Add(new SymbolIcon
+            {
+                Symbol = request.Icon.Value,
+                Margin = new Thickness(0, 0, 8, 0)
+            });
+        }
+        
+        if (!string.IsNullOrWhiteSpace(request.Title))
+        {
+            titlePanel.Children.Add(new TextBlock
+            {
+                Text = request.Title,
+                VerticalAlignment = VerticalAlignment.Center,
+                FontWeight = FontWeights.SemiBold,
+                TextWrapping = TextWrapping.Wrap
+            });
+        }
+        
+        if (titlePanel.Children.Count > 0)
+        {
+            Title = titlePanel;
+        }
 
         if (request.ConfirmButton is not null)
         {
-            ConfirmBtn.Content = request.ConfirmButton.Text;
-            ConfirmBtn.Visibility = Visibility.Visible;
-            ConfirmBtn.Click += (_, _) => { Result = DialogActionOutcome.Confirmed; Hide(); };
+            PrimaryButtonText = request.ConfirmButton.Text;
+            PrimaryButtonAppearance = request.ConfirmButton.Appearance;
         }
-        else
-            ConfirmBtn.Visibility = Visibility.Collapsed;
 
         if (request.CustomButton is not null)
         {
-            CustomBtn.Content = request.CustomButton.Text;
-            CustomBtn.Visibility = Visibility.Visible;
-            CustomBtn.Click += (_, _) => { Result = DialogActionOutcome.Custom; Hide(); };
+            SecondaryButtonText = request.CustomButton.Text;
+            SecondaryButtonAppearance = request.CustomButton.Appearance;
         }
-        else
-            CustomBtn.Visibility = Visibility.Collapsed;
 
         if (request.CancelButton is not null)
         {
-            CancelBtn.Content = request.CancelButton.Text;
-            CancelBtn.Visibility = Visibility.Visible;
-            CancelBtn.Click += (_, _) => { Result = DialogActionOutcome.Cancelled; Hide(); };
+            CloseButtonText = request.CancelButton.Text;
+            CloseButtonAppearance = request.CancelButton.Appearance;
         }
-        else
-            CancelBtn.Visibility = Visibility.Collapsed;
 
         DataContext = this;
     }
-
-    public DialogActionOutcome Result { get; private set; } = DialogActionOutcome.Cancelled;
-
-    public string HeaderText { get; }
 
     public string? DialogBody { get; }
 
     public object? AdditionalContent { get; }
 
-    public SymbolRegular? DialogIcon { get; }
-
-    public bool HasHeader => !string.IsNullOrWhiteSpace(HeaderText) || HasIcon;
-
     public bool HasBody => !string.IsNullOrWhiteSpace(DialogBody);
 
     public bool HasAdditionalContent => AdditionalContent is not null;
-
-    public bool HasIcon => DialogIcon.HasValue;
 }
+

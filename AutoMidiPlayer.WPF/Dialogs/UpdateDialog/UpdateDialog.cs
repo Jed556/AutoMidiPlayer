@@ -30,7 +30,23 @@ public partial class UpdateDialog : ContentDialog, INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public string UpdateMessage => $"This will restart the app and upgrade to v{_latestVersion.Version}.";
+    public string UpdateMessage
+    {
+        get
+        {
+            var assetNameSearch = SelectedVersionType == "Portable" ? "win-x64-portable.zip" : "win-x64-net-install.zip";
+            var asset = _latestVersion.Assets.FirstOrDefault(a => a.Name.Contains(assetNameSearch, StringComparison.OrdinalIgnoreCase));
+            
+            var msg = $"This will restart the app and update to v{_latestVersion.Version}.";
+            if (asset != null && asset.Size > 0)
+            {
+                var mb = asset.Size / 1024.0 / 1024.0;
+                msg += $"\n\nDownload size: {mb:F1} MB.";
+            }
+            msg += "\nIf you wish to download the update manually, click \"Release Notes\" below.";
+            return msg;
+        }
+    }
 
     public ObservableCollection<string> VersionTypes { get; } = new() { "Portable", "Net-Install" };
 
@@ -43,6 +59,7 @@ public partial class UpdateDialog : ContentDialog, INotifyPropertyChanged
             {
                 _selectedVersionType = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(UpdateMessage));
             }
         }
     }
@@ -218,7 +235,7 @@ public partial class UpdateDialog : ContentDialog, INotifyPropertyChanged
             Logger.LogException(ex);
             
             progressDialog?.CloseDialog();
-            MessageBoxHelper.ShowError("Update failed: " + ex.Message, "Update Error");
+            MessageBoxHelper.ShowError(ex.Message, "Update Error");
             IsUpdating = false;
         }
     }
