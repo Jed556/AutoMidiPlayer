@@ -240,7 +240,42 @@ public static class DialogHelper
         if (dialog.Template?.FindName("PART_ScrollViewer", dialog) is ScrollViewer partScrollViewer)
             return partScrollViewer;
 
-        return FindDescendant<ScrollViewer>(dialog);
+        // 1. The main ScrollViewer is often an ancestor of the dialog's Content (e.g. WPF UI wraps Content in a ScrollViewer).
+        if (dialog.Content is DependencyObject contentElement)
+        {
+            var current = VisualTreeHelper.GetParent(contentElement);
+            while (current != null && current != dialog)
+            {
+                if (current is ScrollViewer sv)
+                    return sv;
+                current = VisualTreeHelper.GetParent(current);
+            }
+        }
+
+        // 2. If not found, search the visual tree top-down but SKIP the Content subtree!
+        // This guarantees we don't accidentally find a ScrollViewer inside a TextBox.
+        var queue = new System.Collections.Generic.Queue<DependencyObject>();
+        queue.Enqueue(dialog);
+
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+            int count = VisualTreeHelper.GetChildrenCount(current);
+            for (int i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(current, i);
+                if (child is ScrollViewer viewer)
+                    return viewer;
+
+                // Skip traversing into the dialog's content subtree
+                if (child != dialog.Content as DependencyObject)
+                {
+                    queue.Enqueue(child);
+                }
+            }
+        }
+
+        return null;
     }
 
     private static void AttachOpenAnimation(ContentDialog dialog)

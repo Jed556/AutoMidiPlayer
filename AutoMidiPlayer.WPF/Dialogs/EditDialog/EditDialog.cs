@@ -168,21 +168,10 @@ public partial class EditDialog : ContentDialog
                 activeWindow.StateChanged -= stateChangedHandler;
             };
         }
-
-        Title = "Edit Song";
-        PrimaryButtonText = "Save";
-        CloseButtonText = "Cancel";
-        PrimaryButtonAppearance = ControlAppearance.Primary;
-        CloseButtonAppearance = ControlAppearance.Secondary;
-        DefaultButton = ContentDialogButton.Primary;
-        Loaded += (_, _) =>
-        {
-            ApplyPrimaryButtonAccent();
-            ApplyDialogButtonCursors(this);
-        };
+        Loaded += OnEditDialogLoaded;
 
         _midiFilePath = midiFilePath;
-        _hasBaseKeyRoot = baseKeyRoot.HasValue;
+        _hasBaseKeyRoot = baseKeyRoot.HasValue; 
         _baseKeyRoot = baseKeyRoot ?? 0;
         _songDateAdded = ResolveMidiDate(midiFilePath, defaultDateAdded);
         _nativeBpm = nativeBpm;
@@ -265,9 +254,40 @@ public partial class EditDialog : ContentDialog
         _mergeMillisecondsBox.IsEnabled = false;
     }
 
-    private void ResetDefaultsButton_Click(object sender, RoutedEventArgs e)
+    private void OnEditDialogLoaded(object sender, RoutedEventArgs e)
     {
-        ResetAndRescan();
+        ApplyPrimaryButtonAccent();
+        ApplyDialogButtonCursors(this);
+        HookResetButton();
+    }
+
+    private void HookResetButton()
+    {
+        var secondaryButton = FindDialogButtonByName(this, "SecondaryButton")
+                              ?? FindDialogButtonByName(this, "PART_SecondaryButton");
+        if (secondaryButton == null)
+            return;
+
+        secondaryButton.PreviewMouseLeftButtonDown += (s, args) =>
+        {
+            args.Handled = true;
+            Application.Current.Dispatcher.InvokeAsync(() => ResetAndRescan(), System.Windows.Threading.DispatcherPriority.Background);
+        };
+    }
+
+    private static System.Windows.Controls.Button? FindDialogButtonByName(DependencyObject root, string name)
+    {
+        var childCount = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < childCount; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is System.Windows.Controls.Button btn && btn.Name == name)
+                return btn;
+            var found = FindDialogButtonByName(child, name);
+            if (found != null)
+                return found;
+        }
+        return null;
     }
 
     private void PathHyperlink_Click(object sender, RoutedEventArgs e)
@@ -410,7 +430,7 @@ public partial class EditDialog : ContentDialog
     }
 
     private void UpdateDateText() =>
-        _dateText.Text = _songDateAdded.ToString("yyyy-MM-dd HH:mm");
+        _dateText.Text = _songDateAdded.ToString("yyyy-MM-dd hh:mm tt");
 
     private void UpdateNativeBpmText() =>
         _bpmBox.PlaceholderText = _nativeBpm.ToString("F1");
