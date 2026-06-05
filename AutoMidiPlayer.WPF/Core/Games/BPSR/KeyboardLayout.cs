@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace AutoMidiPlayer.WPF.Core.Instruments;
 
-internal static class RobloxKeyboardLayouts
+internal static class BPSRKeyboardLayouts
 {
 
     public static readonly KeyboardLayoutConfig QWERTY_61Key = new(
