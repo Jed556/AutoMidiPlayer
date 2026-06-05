@@ -41,7 +41,7 @@
     <StackPanel Background="Transparent"
                 Margin="0,0,12,0"
                 TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
-        <TextBlock Text="{Binding LicenseText}"
+        <TextBlock helpers:TextBlockLinkHelper.TextWithLinks="{Binding LicenseText}"
                    TextWrapping="Wrap"
                    FontFamily="Consolas"
                    FontSize="11"/>

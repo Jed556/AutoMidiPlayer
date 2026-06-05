@@ -2,21 +2,25 @@
   {
     "Name": "Release notes",
     "Url": "https://github.com/Jed556/AutoMidiPlayer/releases",
-    "Tooltip": "Open https://github.com/Jed556/AutoMidiPlayer/releases"
+    "Tooltip": "Open https://github.com/Jed556/AutoMidiPlayer/releases",
+    "Icon": "Notepad24"
   },
   {
     "Name": "Report a bug",
     "Url": "https://github.com/Jed556/AutoMidiPlayer/issues/new?template=bug_report.yml",
-    "Tooltip": "Open https://github.com/Jed556/AutoMidiPlayer/issues/new?template=bug_report.yml"
+    "Tooltip": "Open https://github.com/Jed556/AutoMidiPlayer/issues/new?template=bug_report.yml",
+    "Icon": "Bug24"
   },
   {
     "Name": "Feature request",
     "Url": "https://github.com/Jed556/AutoMidiPlayer/issues/new?template=feature_request.yml",
-    "Tooltip": "Open https://github.com/Jed556/AutoMidiPlayer/issues/new?template=feature_request.yml"
+    "Tooltip": "Open https://github.com/Jed556/AutoMidiPlayer/issues/new?template=feature_request.yml",
+    "Icon": "Flash24"
   },
   {
     "Name": "Wiki",
     "Url": "https://github.com/Jed556/AutoMidiPlayer/wiki",
-    "Tooltip": "Open https://github.com/Jed556/AutoMidiPlayer/wiki"
+    "Tooltip": "Open https://github.com/Jed556/AutoMidiPlayer/wiki",
+    "Icon": "Lightbulb28"
   }
 ]

@@ -14,12 +14,13 @@ namespace AutoMidiPlayer.WPF.ViewModels;
 
 public sealed class ThirdPartyLicense
 {
-    public ThirdPartyLicense(string name, string version, string licenseName, string licenseText)
+    public ThirdPartyLicense(string name, string version, string licenseName, string licenseText, string url = "")
     {
         Name = name;
         Version = version;
         LicenseName = licenseName;
         LicenseText = licenseText;
+        Url = url;
     }
 
     public string Name { get; }
@@ -29,6 +30,10 @@ public sealed class ThirdPartyLicense
     public string LicenseName { get; }
 
     public string LicenseText { get; }
+
+    public string Url { get; }
+
+    public bool HasUrl => !string.IsNullOrWhiteSpace(Url);
 
     public string DisplayName => string.IsNullOrWhiteSpace(Version) ? Name : $"{Name} {Version}";
 
@@ -58,6 +63,10 @@ public sealed class LinkItem
     public string Name { get; set; } = string.Empty;
     public string Url { get; set; } = string.Empty;
     public string Tooltip { get; set; } = string.Empty;
+    public string Icon { get; set; } = string.Empty;
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Wpf.Ui.Controls.SymbolRegular IconSymbol => Enum.TryParse<Wpf.Ui.Controls.SymbolRegular>(Icon, out var symbol) ? symbol : Wpf.Ui.Controls.SymbolRegular.Link24;
 }
 
 public class AboutViewModel : Screen
@@ -113,6 +122,36 @@ public class AboutViewModel : Screen
         {
             ThirdPartyLicenses.Add(new ThirdPartyLicense(AppDisplayName, SettingsPageViewModel.ProgramVersionDisplay, "GNU GPL v3.0", GetAppLicense()));
 
+            var referencedAssemblies = System.Reflection.Assembly.GetExecutingAssembly().GetReferencedAssemblies();
+            var packageVersions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            // Try to read .csproj for versions (especially for development-time only packages like Fody)
+            try
+            {
+                var searchPaths = new[]
+                {
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "AutoMidiPlayer.WPF.csproj"),
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "AutoMidiPlayer.WPF", "AutoMidiPlayer.WPF.csproj")
+                };
+
+                foreach (var csprojPath in searchPaths)
+                {
+                    if (File.Exists(csprojPath))
+                    {
+                        var csprojText = File.ReadAllText(csprojPath);
+                        var matches = System.Text.RegularExpressions.Regex.Matches(csprojText, @"<PackageReference\s+Include=""([^""]+)""\s+Version=""([^""]+)""");
+                        foreach (System.Text.RegularExpressions.Match match in matches)
+                        {
+                            if (match.Groups.Count >= 3)
+                            {
+                                packageVersions[match.Groups[1].Value] = match.Groups[2].Value;
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+
             var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "THIRD-PARTY-LICENSES.md");
             if (!File.Exists(path))
                 return;
@@ -121,6 +160,7 @@ public class AboutViewModel : Screen
             string currentName = string.Empty;
             string currentVersion = string.Empty;
             string currentLicenseName = "MIT License";
+            string currentUrl = string.Empty;
             List<string> currentText = new();
 
             void AddCurrentLicense()
@@ -136,7 +176,47 @@ public class AboutViewModel : Screen
                             break;
                         }
                     }
-                    ThirdPartyLicenses.Add(new ThirdPartyLicense(currentName, currentVersion, lName, string.Join("\n", currentText).Trim()));
+
+                    if (string.IsNullOrWhiteSpace(currentVersion))
+                    {
+                        var normalizedCurrentName = currentName.Replace(" ", "").Replace(".", "");
+                        
+                        // First try to find in referenced assemblies
+                        foreach (var asm in referencedAssemblies)
+                        {
+                            if (asm.Name == null) continue;
+                            var normalizedAsmName = asm.Name.Replace(" ", "").Replace(".", "");
+                            
+                            if (normalizedAsmName.Equals(normalizedCurrentName, StringComparison.OrdinalIgnoreCase) || 
+                                normalizedAsmName.Contains(normalizedCurrentName, StringComparison.OrdinalIgnoreCase) ||
+                                normalizedCurrentName.Contains(normalizedAsmName, StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (asm.Version != null)
+                                {
+                                    currentVersion = $"{asm.Version.Major}.{asm.Version.Minor}.{asm.Version.Build}";
+                                }
+                                break;
+                            }
+                        }
+
+                        // If still empty, try to find in parsed csproj packages
+                        if (string.IsNullOrWhiteSpace(currentVersion))
+                        {
+                            foreach (var pkg in packageVersions)
+                            {
+                                var normalizedPkgName = pkg.Key.Replace(" ", "").Replace(".", "");
+                                if (normalizedPkgName.Equals(normalizedCurrentName, StringComparison.OrdinalIgnoreCase) || 
+                                    normalizedPkgName.Contains(normalizedCurrentName, StringComparison.OrdinalIgnoreCase) ||
+                                    normalizedCurrentName.Contains(normalizedPkgName, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    currentVersion = pkg.Value;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    ThirdPartyLicenses.Add(new ThirdPartyLicense(currentName, currentVersion, lName, string.Join("\n", currentText).Trim(), currentUrl));
                 }
             }
 
@@ -150,6 +230,7 @@ public class AboutViewModel : Screen
                     currentName = title;
                     currentVersion = "";
                     currentLicenseName = "License";
+                    currentUrl = "";
                     currentText.Clear();
                 }
                 else if (line.StartsWith(">"))
@@ -161,6 +242,9 @@ public class AboutViewModel : Screen
                 {
                     var bracketStart = line.IndexOf('[');
                     var bracketEnd = line.IndexOf(']');
+                    var parenStart = line.IndexOf('(', bracketEnd);
+                    var parenEnd = line.IndexOf(')', parenStart);
+
                     if (bracketStart >= 0 && bracketEnd > bracketStart)
                     {
                         var extractedName = line.Substring(bracketStart + 1, bracketEnd - bracketStart - 1);
@@ -170,6 +254,12 @@ public class AboutViewModel : Screen
                             extractedName = slashParts[slashParts.Length - 1];
                         }
                         currentName = extractedName;
+
+                        if (parenStart > bracketEnd && parenEnd > parenStart)
+                        {
+                            currentUrl = line.Substring(parenStart + 1, parenEnd - parenStart - 1);
+                        }
+
                         var parts = line.Split(')');
                         if (parts.Length > 1)
                         {
