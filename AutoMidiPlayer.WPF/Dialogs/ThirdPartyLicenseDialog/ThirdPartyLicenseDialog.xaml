@@ -38,12 +38,13 @@
         </Grid>
     </ui:ContentDialog.Title>
 
-    <StackPanel Background="Transparent"
-                Margin="0,0,12,0"
-                TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+    <Grid x:Name="ContentGrid"
+          Background="Transparent"
+          Margin="0,0,12,0"
+          TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
         <TextBlock helpers:TextBlockLinkHelper.TextWithLinks="{Binding LicenseText}"
                    TextWrapping="Wrap"
                    FontFamily="Consolas"
                    FontSize="11"/>
-    </StackPanel>
+    </Grid>
 </ui:ContentDialog>

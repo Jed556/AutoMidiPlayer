@@ -18,7 +18,7 @@ public static class TextBlockLinkHelper
     public static void SetTextWithLinks(DependencyObject obj, string value) => obj.SetValue(TextWithLinksProperty, value);
 
     private static readonly Regex _urlRegex = new(
-        @"(https?:\/\/[^\s\)]+)",
+        @"(https?://[^\s\)>]*[^\s\)>.,;])",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static void OnTextWithLinksChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
