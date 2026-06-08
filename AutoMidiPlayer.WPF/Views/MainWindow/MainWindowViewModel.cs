@@ -121,15 +121,15 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         // Initialize ViewModels - order matters for dependencies
         SettingsView = new(ioc, this);
         AboutView = new();
-        InstrumentView = new(ioc, this);
+        InstrumentView = new(ioc, this, new Controls.NoSongPlaceholder.NoSongPlaceholderComponent(this));
 
         // TrackView only handles track list management
-        TrackView = new(ioc, this);
+        TrackView = new(ioc, this, new Controls.NoSongPlaceholder.NoSongPlaceholderComponent(this));
 
         // QueueView and SongsView depend on Playback being initialized
         QueueView = new(ioc, this);
         SongsView = new(ioc, this);
-        PianoSheetView = new(this);
+        PianoSheetView = new(this, new Controls.NoSongPlaceholder.NoSongPlaceholderComponent(this));
 
         var initialPage = NormalizePageName(Settings.LastViewedPage);
         BreadcrumbItems = [initialPage];
@@ -345,6 +345,42 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
             System.Windows.Threading.DispatcherPriority.Normal);
 
         Logger.LogPageVisit("Settings", source: "programmatic-navigation");
+    }
+
+    public void NavigateToSongs()
+    {
+        if (ActiveItem == SongsView) return;
+
+        ActivateItem(SongsView);
+        var songs = Navigation?.MenuItems
+            .OfType<NavigationViewItem>()
+            .FirstOrDefault(nav => nav.Tag == SongsView);
+        if (songs != null)
+        {
+            SetSelectedNavItem(songs);
+        }
+        BreadcrumbItems = ["Songs"];
+        Settings.LastViewedPage = "Songs";
+        Settings.Save();
+        Logger.LogPageVisit("Songs", source: "programmatic-navigation");
+    }
+
+    public void NavigateToQueue()
+    {
+        if (ActiveItem == QueueView) return;
+
+        ActivateItem(QueueView);
+        var queue = Navigation?.MenuItems
+            .OfType<NavigationViewItem>()
+            .FirstOrDefault(nav => nav.Tag == QueueView);
+        if (queue != null)
+        {
+            SetSelectedNavItem(queue);
+        }
+        BreadcrumbItems = ["Queue"];
+        Settings.LastViewedPage = "Queue";
+        Settings.Save();
+        Logger.LogPageVisit("Queue", source: "programmatic-navigation");
     }
 
     public void NavigateToAbout()

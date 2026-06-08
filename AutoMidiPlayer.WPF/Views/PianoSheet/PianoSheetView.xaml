@@ -10,6 +10,7 @@
     xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
     xmlns:button="clr-namespace:AutoMidiPlayer.WPF.Controls.SelectorPopupButton.Button"
     xmlns:s="https://github.com/canton7/Stylet"
+    xmlns:noSong="clr-namespace:AutoMidiPlayer.WPF.Controls.NoSongPlaceholder"
     d:DataContext="{d:DesignInstance Type=viewModels:PianoSheetViewModel}">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
@@ -110,6 +111,11 @@
                                       Delimiter="{Binding Delimiter, Mode=OneWay}"
                                       HorizontalScrollBarVisibility="Visible"
                                       VerticalScrollBarVisibility="Auto"
+                                      Visibility="{Binding HasSongOpen, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
                                       CopyToolTip="Copy sheet output"/>
+                                      
+        <ContentControl Grid.Row="1" Visibility="{Binding HasSongOpen, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}">
+            <noSong:NoSongPlaceholder DataContext="{Binding Placeholder}" />
+        </ContentControl>
     </Grid>
 </UserControl>

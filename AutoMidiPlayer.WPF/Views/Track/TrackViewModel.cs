@@ -30,9 +30,10 @@ public class TrackViewModel : Screen
 
     #region Constructor
 
-    public TrackViewModel(IContainer ioc, MainWindowViewModel main)
+    public TrackViewModel(IContainer ioc, MainWindowViewModel main, Controls.NoSongPlaceholder.NoSongPlaceholderComponent placeholder)
     {
         _main = main;
+        Placeholder = placeholder;
 
         // Subscribe to note played events from PlaybackService
         main.PlaybackEngine.NotePlayed += OnNotePlayed;
@@ -41,6 +42,8 @@ public class TrackViewModel : Screen
     #endregion
 
     #region Properties - Track List
+
+    public Controls.NoSongPlaceholder.NoSongPlaceholderComponent Placeholder { get; }
 
     public BindableCollection<MidiTrack> MidiTracks { get; } = new();
 

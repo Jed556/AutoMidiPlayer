@@ -1,0 +1,75 @@
+<UserControl x:Class="AutoMidiPlayer.WPF.Controls.NoSongPlaceholder.NoSongPlaceholder"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:s="https://github.com/canton7/Stylet"
+             xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
+             xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.Controls.NoSongPlaceholder"
+             mc:Ignorable="d" 
+             s:View.ActionTarget="{Binding}"
+             d:DataContext="{d:DesignInstance Type=viewModels:NoSongPlaceholderComponent}">
+    <StackPanel HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Opacity="0.5">
+        <ui:SymbolIcon Symbol="{Binding Icon}"
+                       FontSize="48"
+                       Margin="0,0,0,16"
+                       HorizontalAlignment="Center">
+            <ui:SymbolIcon.Style>
+                <Style TargetType="ui:SymbolIcon">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding DisplayMode}" Value="TextOnly">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ui:SymbolIcon.Style>
+        </ui:SymbolIcon>
+        <TextBlock Text="No song is playing."
+                   FontSize="16"
+                   FontWeight="SemiBold"
+                   HorizontalAlignment="Center"
+                   Margin="0,0,0,4">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding DisplayMode}" Value="Full">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
+        <TextBlock FontSize="14" HorizontalAlignment="Center">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Queue.Tracks.Count}" Value="0">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+            <Run Text="Add &amp; play songs from "/><InlineUIContainer BaselineAlignment="Center"><controls:Hyperlink Command="{s:Action NavigateToSongs}" Padding="0" Margin="0" BorderThickness="0" Background="Transparent" MinHeight="0"><TextBlock Text="songs" FontSize="14"/></controls:Hyperlink></InlineUIContainer><Run Text=" view."/>
+        </TextBlock>
+
+        <TextBlock FontSize="14" HorizontalAlignment="Center">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Queue.Tracks.Count}" Value="0">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+            <Run Text="Play songs from "/><InlineUIContainer BaselineAlignment="Center"><controls:Hyperlink Command="{s:Action NavigateToSongs}" Padding="0" Margin="0" BorderThickness="0" Background="Transparent" MinHeight="0"><TextBlock Text="songs" FontSize="14"/></controls:Hyperlink></InlineUIContainer><Run Text=" view or "/><InlineUIContainer BaselineAlignment="Center"><controls:Hyperlink Command="{s:Action NavigateToQueue}" Padding="0" Margin="0" BorderThickness="0" Background="Transparent" MinHeight="0"><TextBlock Text="queue" FontSize="14"/></controls:Hyperlink></InlineUIContainer><Run Text=" view."/>
+        </TextBlock>
+    </StackPanel>
+</UserControl>

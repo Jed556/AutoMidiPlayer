@@ -27,13 +27,21 @@ public class PianoSheetViewModel : Screen, IHandle<OpenedFileChangedNotification
     private int _shorten = 1;
     private string _result = string.Empty;
 
-    public PianoSheetViewModel(MainWindowViewModel main)
+    public PianoSheetViewModel(MainWindowViewModel main, Controls.NoSongPlaceholder.NoSongPlaceholderComponent placeholder)
     {
         _main = main;
         _events = _main.Ioc.Get<IEventAggregator>();
         _events.Subscribe(this);
         SongSettings.SettingsRebuildRequired += OnSongSettingsRebuildRequired;
+        
+        Placeholder = placeholder;
+        Placeholder.DisplayMode = Controls.NoSongPlaceholder.PlaceholderDisplayMode.TextAndIcon;
+        Placeholder.Icon = Wpf.Ui.Controls.SymbolRegular.ImmersiveReader16;
     }
+
+    public Controls.NoSongPlaceholder.NoSongPlaceholderComponent Placeholder { get; }
+
+    public bool HasSongOpen => QueueView.OpenedFile is not null;
 
     private string _delimiter = "_";
 
@@ -103,6 +111,8 @@ public class PianoSheetViewModel : Screen, IHandle<OpenedFileChangedNotification
 
     public void Update()
     {
+        NotifyOfPropertyChange(nameof(HasSongOpen));
+        
         var openedFile = QueueView.OpenedFile;
         if (openedFile is null)
         {
