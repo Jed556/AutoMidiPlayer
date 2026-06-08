@@ -6,9 +6,8 @@
              x:Name="Root">
     <UserControl.Resources>
         <Style x:Key="PassiveSelectableTextBoxStyle"
-               TargetType="TextBox"
-               BasedOn="{StaticResource {x:Type TextBox}}">
-            <Setter Property="TextBoxBase.IsReadOnlyCaretVisible"
+               TargetType="RichTextBox">
+            <Setter Property="IsReadOnlyCaretVisible"
                     Value="False"/>
             <Setter Property="CaretBrush"
                     Value="Transparent"/>
@@ -26,7 +25,7 @@
                     Value="False"/>
             <Setter Property="Template">
                 <Setter.Value>
-                    <ControlTemplate TargetType="TextBox">
+                    <ControlTemplate TargetType="RichTextBox">
                         <Border Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
@@ -50,37 +49,51 @@
           ClipToBounds="True"
           MouseEnter="OnRootGridMouseEnter"
           MouseLeave="OnRootGridMouseLeave">
-        <TextBox x:Name="MainTextBox"
-                 Text="{Binding Text, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                 Style="{StaticResource PassiveSelectableTextBoxStyle}"
-                 HorizontalAlignment="Stretch"
-                 IsReadOnly="{Binding IsReadOnly, ElementName=Root}"
-                 TextWrapping="{Binding TextWrapping, ElementName=Root}"
-                 VerticalScrollBarVisibility="{Binding VerticalScrollBarVisibility, ElementName=Root}"
-                 ScrollViewer.VerticalScrollBarVisibility="{Binding VerticalScrollBarVisibility, ElementName=Root}"
-                 HorizontalScrollBarVisibility="{Binding HorizontalScrollBarVisibility, ElementName=Root}"
-                 ScrollViewer.HorizontalScrollBarVisibility="{Binding HorizontalScrollBarVisibility, ElementName=Root}"
-                 MaxHeight="{Binding TextBoxMaxHeight, ElementName=Root}"
-                 AcceptsReturn="True"
-                 AcceptsTab="False"
-                 FontSize="{Binding FontSize, ElementName=Root}"
-                 Background="Transparent"
-                 BorderThickness="1"
-                 Padding="8,6,8,6"/>
+        <RichTextBox x:Name="MainRichTextBox"
+                     Style="{StaticResource PassiveSelectableTextBoxStyle}"
+                     HorizontalAlignment="Stretch"
+                     IsReadOnly="{Binding IsReadOnly, ElementName=Root}"
+                     VerticalScrollBarVisibility="{Binding VerticalScrollBarVisibility, ElementName=Root}"
+                     HorizontalScrollBarVisibility="{Binding HorizontalScrollBarVisibility, ElementName=Root}"
+                     MaxHeight="{Binding TextBoxMaxHeight, ElementName=Root}"
+                     AcceptsReturn="True"
+                     AcceptsTab="False"
+                     FontSize="{Binding FontSize, ElementName=Root}"
+                     Background="Transparent"
+                     BorderThickness="1"
+                     Padding="8,6,8,6">
+            <FlowDocument />
+        </RichTextBox>
 
-        <controls:Button x:Name="CopyButton"
-                         ToolTip="{Binding CopyToolTip, ElementName=Root}"
-                         Variant="Filled"
-                         Icon="Copy16"
-                         Opacity="0"
-                         Width="32"
-                         Height="32"
-                         Padding="8"
-                         HorizontalAlignment="Right"
-                         VerticalAlignment="Top"
-                         Margin="0,4,4,0"
-                         Click="OnCopyClick"
-                         MouseEnter="OnCopyButtonMouseEnter"
-                         MouseLeave="OnCopyButtonMouseLeave"/>
+        <Button x:Name="CopyButton"
+                ToolTip="{Binding CopyToolTip, ElementName=Root}"
+                Opacity="0"
+                Width="32"
+                Height="32"
+                Padding="6"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Margin="0,4,4,0"
+                Cursor="Hand"
+                Click="OnCopyClick"
+                MouseEnter="OnCopyButtonMouseEnter"
+                MouseLeave="OnCopyButtonMouseLeave">
+            <Button.Template>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="BgBorder" Background="{DynamicResource ControlFillColorDefaultBrush}" CornerRadius="4">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="BgBorder" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="BgBorder" Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Button.Template>
+            <ui:SymbolIcon Symbol="Copy16" FontSize="16" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Button>
     </Grid>
 </UserControl>

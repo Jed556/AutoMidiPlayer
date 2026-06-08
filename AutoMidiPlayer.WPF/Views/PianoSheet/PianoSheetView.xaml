@@ -104,7 +104,7 @@
             </WrapPanel>
         </controls:SimpleStackPanel>
 
-        <controls:CopyableRichTextBox Grid.Row="1"
+        <controls:CopyableTextBox Grid.Row="1"
                                       Margin="0,8,0,10"
                                       Text="{Binding Result, Mode=OneWay}"
                                       Delimiter="{Binding Delimiter, Mode=OneWay}"
