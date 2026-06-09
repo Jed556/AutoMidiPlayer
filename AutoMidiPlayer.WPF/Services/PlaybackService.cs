@@ -511,11 +511,8 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             Logger.LogStep("LISTEN_MODE_AUTO_ENABLED", $"song='{CurrentSongLabel}'");
         }
 
-        var selectedGameName = _main.SelectedGame?.Definition.DisplayName ?? "Selected game";
-        var gameLabel = $"{selectedGameName} is not running";
-
         var listenModeEnabled = Settings.UseSpeakers;
-        _main.ShowGameInactiveToast(gameLabel, listenModeEnabled);
+        _main.ShowGameInactiveToast(listenModeEnabled);
 
         Logger.LogStep("GAME_NOT_RUNNING_TOAST", $"song='{CurrentSongLabel}' | listenModeEnabled={listenModeEnabled}");
 
@@ -534,14 +531,11 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                     pb.Stop();
                     Queue.SaveCurrentSong(Controls.CurrentTime.TotalSeconds);
                     Controls.UpdateButtons();
+                    _main.ShowPlaybackStoppedGameNotRunningToast();
                 }
             }
             catch (ObjectDisposedException) { }
         }
-
-        var selectedGameName = _main.SelectedGame?.Definition.DisplayName ?? "Selected game";
-        var gameLabel = $"{selectedGameName} is not running";
-        _main.ShowPlaybackStoppedGameNotRunningToast(gameLabel);
     }
 
     private void HandleGameFocusLoss()
@@ -558,13 +552,11 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                     pb.Stop();
                     Queue.SaveCurrentSong(Controls.CurrentTime.TotalSeconds);
                     Controls.UpdateButtons();
+                    _main.ShowGameFocusLossToast();
                 }
             }
             catch (ObjectDisposedException) { }
         }
-
-        var selectedGameName = _main.SelectedGame?.Definition.DisplayName ?? "Selected game";
-        _main.ShowGameFocusLossToast(selectedGameName);
     }
 
     public async Task<bool> StartPlayback(Playback playback)

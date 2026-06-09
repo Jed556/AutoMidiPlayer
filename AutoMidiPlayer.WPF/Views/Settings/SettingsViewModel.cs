@@ -34,6 +34,7 @@ using Wpf.Ui.Appearance;
 using static AutoMidiPlayer.Data.Entities.Transpose;
 using WpfUiApplicationTheme = Wpf.Ui.Appearance.ApplicationTheme;
 using Wpf.Ui.Controls;
+using AutoMidiPlayer.WPF.Controls.Snackbar;
 
 namespace AutoMidiPlayer.WPF.ViewModels;
 
@@ -182,7 +183,7 @@ public class SettingsPageViewModel : Screen
         _selectedUpdateCheckFrequency = UpdateCheckFrequencyOptions.FirstOrDefault(o => o.Value == freqValue)
             ?? UpdateCheckFrequencyOptions.Last();
 
-        _updateService.UpdateAvailable += (s, newVersion) => 
+        _updateService.UpdateAvailable += (s, newVersion) =>
         {
             LatestVersion = newVersion;
             UpdateString = "(Update available!)";
@@ -808,6 +809,18 @@ public class SettingsPageViewModel : Screen
         Logger.LogStep("DEBUG_DIALOG_SAMPLE", $"result={result}");
     }
 
+    public async Task ShowDebugSnackbarSample()
+    {
+        var duration = TimeSpan.FromSeconds(15);
+        SnackbarService.Info("Info Toast", "This is an info toast", duration: duration);
+        await Task.Delay(100);
+        SnackbarService.Success("Success Toast", "This is a success toast", duration: duration);
+        await Task.Delay(100);
+        SnackbarService.Warning("Warning Toast", "This is a warning toast", duration: duration);
+        await Task.Delay(100);
+        SnackbarService.Danger("Danger Toast", "This is a danger toast", duration: duration);
+    }
+
     public async Task<bool> TryGetLocationAsync()
     {
         var foundAny = false;
@@ -864,27 +877,15 @@ public class SettingsPageViewModel : Screen
     {
         if (success)
         {
-            var snackbar = new Snackbar(MainWindowViewModel.SnackbarPresenter)
-            {
-                Title = "Update downloaded",
-                Content = $"Version {version} is ready to install.",
-                Appearance = ControlAppearance.Success,
-                Icon = new SymbolIcon { Symbol = SymbolRegular.Checkmark24 },
-                Timeout = TimeSpan.FromSeconds(5)
-            };
-            snackbar.Show();
+            SnackbarService.Success(
+                "Update downloaded",
+                $"Version {version} is ready to install.");
         }
         else
         {
-            var snackbar = new Snackbar(MainWindowViewModel.SnackbarPresenter)
-            {
-                Title = "Auto-download failed",
-                Content = string.IsNullOrEmpty(errorMsg) ? "Failed to auto-download update." : errorMsg,
-                Appearance = ControlAppearance.Danger,
-                Icon = new SymbolIcon { Symbol = SymbolRegular.ErrorCircle24 },
-                Timeout = TimeSpan.FromSeconds(8)
-            };
-            snackbar.Show();
+            SnackbarService.Danger(
+                "Auto-download failed",
+                string.IsNullOrEmpty(errorMsg) ? "Failed to auto-download update." : errorMsg);
         }
     }
 
