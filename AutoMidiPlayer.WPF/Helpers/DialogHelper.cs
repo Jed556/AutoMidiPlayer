@@ -215,6 +215,7 @@ public static class DialogHelper
         if (viewer is not null)
         {
             ScrollViewerAutoFadeBehavior.SetIsEnabled(viewer, true);
+            ScrollEdgeFadeBehavior.SetIsEnabled(viewer, true);
             return;
         }
 
@@ -230,6 +231,7 @@ public static class DialogHelper
                     return;
 
                 ScrollViewerAutoFadeBehavior.SetIsEnabled(deferredViewer, true);
+                ScrollEdgeFadeBehavior.SetIsEnabled(deferredViewer, true);
             }));
     }
 

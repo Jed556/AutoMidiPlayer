@@ -222,24 +222,92 @@ public class PianoSheetViewModel : Screen, IHandle<OpenedFileChangedNotification
         sb.AppendLine("^: Ctrl modifier");
         sb.AppendLine("Uppercase: Shift modifier");
         sb.AppendLine();
-        sb.AppendLine("Keystrokes:");
+        sb.Append("Keystrokes:");
 
         var layoutList = keys.ToList();
-        for (int i = 0; i < Math.Min(notes.Count, layoutList.Count); i++)
+        int count = Math.Min(notes.Count, layoutList.Count);
+        
+        int numLanes = 4;
+        if (count <= 24) numLanes = 2;
+        else if (count <= 36) numLanes = 3;
+
+        int rows = (int)Math.Ceiling((double)count / numLanes);
+        if (rows == 0) rows = 1;
+
+        var grid = new System.Windows.Controls.Grid
         {
-            var noteId = notes[i];
-            var keyStroke = layoutList[i];
-            var noteName = Melanchall.DryWetMidi.MusicTheory.Note.Get((Melanchall.DryWetMidi.Common.SevenBitNumber)noteId).ToString();
-            sb.AppendLine($"{Keyboard.KeyStrokeToDisplayString(keyStroke)} : {noteName}");
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 8, 0, 0)
+        };
+
+        for (int lane = 0; lane < numLanes; lane++)
+        {
+            if (lane > 0)
+            {
+                grid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(56) });
+            }
+
+            grid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(32) });
+            grid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = GridLength.Auto });
+        }
+
+        for (int i = 0; i < rows; i++)
+        {
+            grid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = GridLength.Auto });
+        }
+
+        for (int lane = 0; lane < numLanes; lane++)
+        {
+            int dividerCol = lane * 4 + 1;
+            
+            var line = new System.Windows.Shapes.Rectangle
+            {
+                Width = 1,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 0, 0, 4)
+            };
+            line.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "DividerStrokeColorDefaultBrush");
+            System.Windows.Controls.Grid.SetRowSpan(line, rows);
+            System.Windows.Controls.Grid.SetColumn(line, dividerCol);
+            grid.Children.Add(line);
+        }
+
+        for (int r = 0; r < rows; r++)
+        {
+            for (int lane = 0; lane < numLanes; lane++)
+            {
+                int index = r + lane * rows;
+                if (index < count)
+                {
+                    var noteId = notes[index];
+                    var keyStroke = layoutList[index];
+                    var noteName = Melanchall.DryWetMidi.MusicTheory.Note.Get((Melanchall.DryWetMidi.Common.SevenBitNumber)noteId).ToString();
+                    
+                    int keyCol = lane * 4;
+                    int noteCol = lane * 4 + 2;
+
+                    var keyTb = new System.Windows.Controls.TextBlock { Text = Keyboard.KeyStrokeToDisplayString(keyStroke), HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 0, 0, 4) };
+                    System.Windows.Controls.Grid.SetRow(keyTb, r);
+                    System.Windows.Controls.Grid.SetColumn(keyTb, keyCol);
+                    grid.Children.Add(keyTb);
+
+                    var noteTb = new System.Windows.Controls.TextBlock { Text = noteName, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 4) };
+                    System.Windows.Controls.Grid.SetRow(noteTb, r);
+                    System.Windows.Controls.Grid.SetColumn(noteTb, noteCol);
+                    grid.Children.Add(noteTb);
+                }
+            }
         }
 
         var request = new DialogActionRequest
         {
             Title = "Legend",
             Body = sb.ToString(),
+            Content = grid,
             Icon = Wpf.Ui.Controls.SymbolRegular.Info20,
-            ConfirmButton = new DialogActionButton { Text = "Close", Appearance = Wpf.Ui.Controls.ControlAppearance.Primary },
-            CancelButton = null,
+            ConfirmButton = null,
+            CancelButton = new DialogActionButton { Text = "Close", Appearance = Wpf.Ui.Controls.ControlAppearance.Secondary },
         };
 
         await DialogHelper.ShowActionDialogAsync(request);
