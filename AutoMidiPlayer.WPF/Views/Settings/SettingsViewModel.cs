@@ -406,13 +406,13 @@ public class SettingsPageViewModel : Screen
     /// Sorted distinct key counts across all registered instruments.
     /// Drives the slider tick positions via CustomTicks binding.
     /// </summary>
-    public static int[] AutoCorrectThresholdTicks { get; } = Core.Keyboard.GetDistinctInstrumentKeyCounts();
+    public static int[] AutoCorrectThresholdTicks { get; } = new[] { 0 }.Concat(Core.Keyboard.GetDistinctInstrumentKeyCounts()).ToArray();
 
     /// <summary>
     /// Pipe-delimited labels for the slider thumb tooltip (one per tick).
     /// </summary>
     public string AutoCorrectThresholdToolTipOptions { get; } =
-        string.Join("|", AutoCorrectThresholdTicks.Select(k => $"{k} keys"));
+        string.Join("|", AutoCorrectThresholdTicks.Select(k => k == 0 ? "Off" : $"{k} keys"));
 
     private int _autoCorrectThresholdValue = AutoCorrectThresholdTicks
         .OrderBy(t => Math.Abs(t - Settings.AutoCorrectThreshold))
@@ -443,8 +443,9 @@ public class SettingsPageViewModel : Screen
     /// <summary>
     /// Human-readable description shown below the slider.
     /// </summary>
-    public string AutoCorrectThresholdDescription =>
-        $"Auto-correct pitch for instruments with ≤ {AutoCorrectThresholdValue} keys when Smart Transpose is active.";
+    public string AutoCorrectThresholdDescription => AutoCorrectThresholdValue == 0
+        ? "Auto-correct is disabled."
+        : $"Auto-correct pitch for instruments with ≤ {AutoCorrectThresholdValue} keys when Smart Transpose is active.";
 
     #endregion
 

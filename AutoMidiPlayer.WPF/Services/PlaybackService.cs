@@ -441,7 +441,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         var instrumentKeyCount = Keyboard.GetNotes(instrumentId).Count;
         var threshold = Settings.AutoCorrectThreshold;
 
-        if (instrumentKeyCount <= threshold)
+        if (threshold > 0 && instrumentKeyCount <= threshold)
         {
             // Auto-correct: apply full base key + relative offset
             noteId += SongSettings.GetEffectiveKeyOffset(Queue.OpenedFile?.Song);

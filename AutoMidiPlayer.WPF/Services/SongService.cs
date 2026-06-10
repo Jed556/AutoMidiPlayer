@@ -352,6 +352,10 @@ public class SongService(IContainer ioc) : PropertyChangedBase
     /// </summary>
     private bool IsAutoCorrectActiveForCurrentInstrument()
     {
+        var threshold = Settings.AutoCorrectThreshold;
+        if (threshold <= 0)
+            return false;
+
         // Auto-correction only applies when Smart transpose is selected
         if (TransposeMode != Smart)
             return false;
@@ -364,7 +368,6 @@ public class SongService(IContainer ioc) : PropertyChangedBase
             return false;
 
         var keyCount = Keyboard.GetNotes(instrumentId).Count;
-        var threshold = Settings.AutoCorrectThreshold;
         return keyCount <= threshold;
     }
 
