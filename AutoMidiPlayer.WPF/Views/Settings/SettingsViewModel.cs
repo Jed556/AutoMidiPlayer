@@ -821,23 +821,6 @@ public class SettingsPageViewModel : Screen
         SnackbarService.Danger("Danger Toast", "This is a danger toast", duration: duration);
     }
 
-    public async Task<bool> TryGetLocationAsync()
-    {
-        var foundAny = false;
-
-        foreach (var gameInfo in GameLocations)
-        {
-            var location = GameRegistry.TryFindGameLocation(gameInfo.Definition);
-            if (location != null)
-            {
-                gameInfo.Location = location;
-                foundAny = true;
-            }
-        }
-
-        return await Task.FromResult(foundAny);
-    }
-
     public async Task CheckForUpdate()
     {
         if (IsCheckingUpdate)
@@ -897,20 +880,6 @@ public class SettingsPageViewModel : Screen
         await UpdateDialog.ShowAsync(LatestVersion, _updateService);
     }
 
-    public async Task LocationMissing()
-    {
-        var missingGames = GameLocations
-            .Where(g => !File.Exists(g.Location))
-            .Select(g => g.DisplayName)
-            .ToList();
-
-        if (missingGames.Count == 0) return;
-
-        var navigateToSettings = await MissingGameLocationsDialog.ShowForMissingGamesAsync(missingGames);
-        if (navigateToSettings)
-            _main.NavigateToSettings();
-    }
-
     /// <summary>
     /// Browse for a game executable location. Called from settings view via Stylet action.
     /// </summary>
@@ -966,6 +935,8 @@ public class SettingsPageViewModel : Screen
         var startedAt = DateTime.UtcNow;
         Logger.LogStep("MIDI_SCAN_BEGIN", $"folder='{folderPath}'");
 
+        var trackCountBefore = _main.SongsView.Tracks.Count;
+
         IsScanningMidiFolder = true;
         try
         {
@@ -975,7 +946,14 @@ public class SettingsPageViewModel : Screen
         {
             IsScanningMidiFolder = false;
             var elapsedMs = (DateTime.UtcNow - startedAt).TotalMilliseconds;
-            Logger.LogStep("MIDI_SCAN_END", $"folder='{folderPath}' | elapsedMs={elapsedMs:F0}");
+            var newSongCount = _main.SongsView.Tracks.Count - trackCountBefore;
+            Logger.LogStep("MIDI_SCAN_END", $"folder='{folderPath}' | newSongs={newSongCount} | elapsedMs={elapsedMs:F0}");
+
+            if (newSongCount > 0)
+            {
+                var label = newSongCount == 1 ? "song" : "songs";
+                SnackbarService.Success("New songs found", $"{newSongCount} new {label} added to library");
+            }
         }
     }
 

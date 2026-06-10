@@ -563,9 +563,6 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
                 Logger.LogPageVisit(lastPage, source: "startup-restore");
             }
 
-            ReportStartupProgress(14, "Checking game locations...");
-
-            if (!await SettingsView.TryGetLocationAsync()) _ = SettingsView.LocationMissing();
             if (SettingsView.AutoCheckUpdates)
             {
                 _ = SettingsView.CheckForUpdate()

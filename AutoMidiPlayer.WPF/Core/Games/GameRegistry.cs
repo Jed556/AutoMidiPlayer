@@ -37,18 +37,6 @@ public static class GameRegistry
             instrumentGameName: "Genshin Impact",
             imageResourcePath: "pack://application:,,,/Resources/Images/Games/Genshin_Impact.png",
             processNames: ["GenshinImpact", "YuanShen"],
-            defaultExeName: "GenshinImpact.exe",
-            defaultSearchPaths:
-            [
-                @"C:\Program Files\Genshin Impact\Genshin Impact Game\GenshinImpact.exe",
-                @"C:\Program Files\Genshin Impact\Genshin Impact Game\YuanShen.exe",
-                @"D:\Genshin Impact\Genshin Impact Game\GenshinImpact.exe",
-                @"D:\Genshin Impact\Genshin Impact Game\YuanShen.exe",
-                @"E:\Genshin Impact\Genshin Impact Game\GenshinImpact.exe",
-                @"E:\Genshin Impact\Genshin Impact Game\YuanShen.exe",
-                @"F:\Genshin Impact\Genshin Impact Game\GenshinImpact.exe",
-                @"F:\Genshin Impact\Genshin Impact Game\YuanShen.exe",
-            ],
             getLocation: () => Settings.GenshinLocation,
             setLocation: v => Settings.Modify(s => s.GenshinLocation = v),
             getIsActive: () => Settings.ActiveGenshin,
@@ -60,15 +48,6 @@ public static class GameRegistry
             instrumentGameName: "Neverness to Everness",
             imageResourcePath: "pack://application:,,,/Resources/Images/Games/NTE.png",
             processNames: ["HTGame"],
-            defaultExeName: "HTGame.exe",
-            defaultSearchPaths:
-            [
-                @"C:\Program Files\Neverness To Everness\Client\WindowsNoEditor\HT\Binaries\Win64\HTGame.exe",
-                @"D:\Neverness To Everness\Client\WindowsNoEditor\HT\Binaries\Win64\HTGame.exe",
-                @"E:\Neverness To Everness\Client\WindowsNoEditor\HT\Binaries\Win64\HTGame.exe",
-                @"F:\Neverness To Everness\Client\WindowsNoEditor\HT\Binaries\Win64\HTGame.exe",
-                @"G:\Neverness To Everness\Client\WindowsNoEditor\HT\Binaries\Win64\HTGame.exe",
-            ],
             getLocation: () => Settings.NTELocation,
             setLocation: v => Settings.Modify(s => s.NTELocation = v),
             getIsActive: () => Settings.ActiveNTE,
@@ -80,21 +59,6 @@ public static class GameRegistry
             instrumentGameName: "Heartopia",
             imageResourcePath: "pack://application:,,,/Resources/Images/Games/Heartopia.png",
             processNames: ["xdt"],
-            defaultExeName: "xdt.exe",
-            defaultSearchPaths:
-            [
-                @"C:\Program Files (x86)\Steam\steamapps\common\Heartopia\xdt.exe",
-                @"C:\Program Files\Steam\steamapps\common\Heartopia\xdt.exe",
-                @"D:\Steam\steamapps\common\Heartopia\xdt.exe",
-                @"D:\SteamLibrary\steamapps\common\Heartopia\xdt.exe",
-                @"E:\Steam\steamapps\common\Heartopia\xdt.exe",
-                @"E:\SteamLibrary\steamapps\common\Heartopia\xdt.exe",
-                @"F:\Steam\steamapps\common\Heartopia\xdt.exe",
-                @"F:\SteamLibrary\steamapps\common\Heartopia\xdt.exe",
-                @"G:\Steam\steamapps\common\Heartopia\xdt.exe",
-                @"G:\SteamLibrary\steamapps\common\Heartopia\xdt.exe",
-                @"G:\GAMES\Steam\steamapps\common\Heartopia\xdt.exe",
-            ],
             getLocation: () => Settings.HeartopiaLocation,
             setLocation: v => Settings.Modify(s => s.HeartopiaLocation = v),
             getIsActive: () => Settings.ActiveHeartopia,
@@ -106,12 +70,6 @@ public static class GameRegistry
             instrumentGameName: "Roblox",
             imageResourcePath: "pack://application:,,,/Resources/Images/Games/Roblox.png",
             processNames: ["RobloxPlayerBeta", "Roblox"],
-            defaultExeName: "RobloxPlayerBeta.exe",
-            defaultSearchPaths:
-            [
-                @"C:\Program Files (x86)\Roblox\Versions\version-unknown\RobloxPlayerBeta.exe",
-                @"C:\Program Files\Roblox\Versions\version-unknown\RobloxPlayerBeta.exe",
-            ],
             getLocation: () => Settings.RobloxLocation,
             setLocation: v => Settings.Modify(s => s.RobloxLocation = v),
             getIsActive: () => Settings.ActiveRoblox,
@@ -123,20 +81,6 @@ public static class GameRegistry
             instrumentGameName: "Sky",
             imageResourcePath: "pack://application:,,,/Resources/Images/Games/Sky.png",
             processNames: ["Sky"],
-            defaultExeName: "Sky.exe",
-            defaultSearchPaths:
-            [
-                @"C:\Program Files (x86)\Steam\steamapps\common\Sky Children of the Light\Sky.exe",
-                @"C:\Program Files\Steam\steamapps\common\Sky Children of the Light\Sky.exe",
-                @"D:\Steam\steamapps\common\Sky Children of the Light\Sky.exe",
-                @"D:\SteamLibrary\steamapps\common\Sky Children of the Light\Sky.exe",
-                @"E:\Steam\steamapps\common\Sky Children of the Light\Sky.exe",
-                @"E:\SteamLibrary\steamapps\common\Sky Children of the Light\Sky.exe",
-                @"F:\Steam\steamapps\common\Sky Children of the Light\Sky.exe",
-                @"F:\SteamLibrary\steamapps\common\Sky Children of the Light\Sky.exe",
-                @"G:\Steam\steamapps\common\Sky Children of the Light\Sky.exe",
-                @"G:\SteamLibrary\steamapps\common\Sky Children of the Light\Sky.exe",
-            ],
             getLocation: () => Settings.SkyLocation,
             setLocation: v => Settings.Modify(s => s.SkyLocation = v),
             getIsActive: () => Settings.ActiveSky,
@@ -160,110 +104,6 @@ public static class GameRegistry
     /// <summary>Get a game definition by its instrument game name (matches InstrumentConfig.Game)</summary>
     public static GameDefinition? GetByInstrumentGameName(string gameName) =>
         AllGames.FirstOrDefault(g => string.Equals(g.InstrumentGameName, gameName, StringComparison.OrdinalIgnoreCase));
-
-    /// <summary>
-    /// Try to auto-detect game locations by searching default paths and registry.
-    /// Returns true if at least one game was found.
-    /// </summary>
-    public static bool TryAutoDetectLocations()
-    {
-        var found = false;
-        foreach (var game in AllGames)
-        {
-            var location = TryFindGameLocation(game);
-            if (location != null)
-            {
-                game.SetLocation(location);
-                found = true;
-            }
-        }
-        return found;
-    }
-
-    /// <summary>
-    /// Try to find a specific game's executable by searching configured path,
-    /// default search paths, registry hints, and relative paths.
-    /// Returns the path if found, null otherwise.
-    /// </summary>
-    public static string? TryFindGameLocation(GameDefinition game)
-    {
-        // 1. Check current configured location
-        var currentLocation = game.GetLocation();
-        if (File.Exists(currentLocation))
-            return currentLocation;
-
-        // 2. Check registry-based Genshin launcher path
-        var registryInstallPath = WindowHelper.InstallLocation;
-        if (!string.IsNullOrWhiteSpace(registryInstallPath))
-        {
-            var registryPath = Path.Combine(registryInstallPath, "Genshin Impact Game", game.DefaultExeName);
-            if (File.Exists(registryPath))
-                return registryPath;
-        }
-
-        // 3. Search all known paths
-        foreach (var path in GetSearchPaths(game))
-        {
-            if (File.Exists(path))
-                return path;
-        }
-
-        // 4. Check relative to application directory
-        var relativePath = Path.Combine(AppContext.BaseDirectory, game.DefaultExeName);
-        if (File.Exists(relativePath))
-            return relativePath;
-
-        return null;
-    }
-
-    private static IEnumerable<string> GetSearchPaths(GameDefinition game)
-    {
-        foreach (var path in game.DefaultSearchPaths)
-        {
-            if (!string.IsNullOrWhiteSpace(path) && !path.Contains("version-unknown", StringComparison.OrdinalIgnoreCase))
-                yield return path;
-        }
-
-        if (!string.Equals(game.Id, "Roblox", StringComparison.OrdinalIgnoreCase))
-            yield break;
-
-        var localRobloxVersions = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Roblox",
-            "Versions");
-
-        foreach (var path in EnumerateRobloxVersionExecutables(localRobloxVersions))
-            yield return path;
-
-        foreach (var baseDir in new[]
-                 {
-                     @"C:\Program Files (x86)\Roblox\Versions",
-                     @"C:\Program Files\Roblox\Versions"
-                 })
-        {
-            foreach (var path in EnumerateRobloxVersionExecutables(baseDir))
-                yield return path;
-        }
-    }
-
-    private static IEnumerable<string> EnumerateRobloxVersionExecutables(string versionsDir)
-    {
-        if (!Directory.Exists(versionsDir))
-            yield break;
-
-        IEnumerable<string> dirs;
-        try
-        {
-            dirs = Directory.GetDirectories(versionsDir);
-        }
-        catch
-        {
-            yield break;
-        }
-
-        foreach (var dir in dirs)
-            yield return Path.Combine(dir, "RobloxPlayerBeta.exe");
-    }
 
     /// <summary>
     /// Check if a game process is currently running.
@@ -327,3 +167,4 @@ public static class GameRegistry
 
     #endregion
 }
+

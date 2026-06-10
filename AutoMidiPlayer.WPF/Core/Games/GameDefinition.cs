@@ -14,8 +14,6 @@ public class GameDefinition(
     string instrumentGameName,
     string imageResourcePath,
     IReadOnlyList<string> processNames,
-    string defaultExeName,
-    IReadOnlyList<string> defaultSearchPaths,
     Func<string> getLocation,
     Action<string> setLocation,
     Func<bool> getIsActive,
@@ -35,12 +33,6 @@ public class GameDefinition(
 
     /// <summary>Process names to check for running state detection</summary>
     public IReadOnlyList<string> ProcessNames { get; } = processNames;
-
-    /// <summary>Default executable filename (e.g., "GenshinImpact.exe")</summary>
-    public string DefaultExeName { get; } = defaultExeName;
-
-    /// <summary>List of default file system paths to search for the game executable on fresh start</summary>
-    public IReadOnlyList<string> DefaultSearchPaths { get; } = defaultSearchPaths;
 
     /// <summary>Getter for the persisted location setting</summary>
     public Func<string> GetLocation { get; } = getLocation;
