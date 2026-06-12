@@ -112,7 +112,8 @@ public partial class AppStatusDialog : ContentDialog
         string status = string.Empty;
         try
         {
-            status = File.ReadAllText(AppPaths.AppStatusFilePath).Trim();
+            var encryptedStatus = File.ReadAllText(AppPaths.AppStatusFilePath).Trim();
+            status = Crypt.DecryptFromBase64(encryptedStatus);
             File.Delete(AppPaths.AppStatusFilePath);
         }
         catch (IOException ex)

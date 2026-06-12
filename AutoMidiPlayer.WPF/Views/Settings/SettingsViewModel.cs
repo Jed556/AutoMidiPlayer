@@ -1105,12 +1105,13 @@ public class SettingsPageViewModel : Screen
         var escapedStatusFilePath = AppPaths.AppStatusFilePath.Replace("'", "''");
 
         var resetStatusString = $"[{DateTime.Now:HH:mm:ss}] RESET";
+        var encryptedStatusString = Crypt.EncryptToBase64(resetStatusString);
 
         var resetCommand = $"Start-Sleep -Milliseconds 400; " +
                            $"Wait-Process -Id {currentProcessId}; " +
                            $"Remove-Item -LiteralPath '{escapedAppDataPath}' -Recurse -Force -ErrorAction SilentlyContinue; " +
                            $"New-Item -ItemType Directory -Path '{escapedAppDataPath}' -Force | Out-Null; " +
-                           $"Set-Content -Path '{escapedStatusFilePath}' -Value '{resetStatusString}' -Force; " +
+                           $"Set-Content -Path '{escapedStatusFilePath}' -Value '{encryptedStatusString}' -Force; " +
                            $"Start-Process -FilePath '{escapedExecutablePath}'";
 
         var arguments = $"-NoProfile -WindowStyle Hidden -Command \"{resetCommand}\"";

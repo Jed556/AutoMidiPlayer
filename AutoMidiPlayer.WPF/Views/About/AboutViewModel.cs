@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.WPF.Dialogs;
 using Stylet;
+using AutoMidiPlayer.WPF.Helpers;
 
 namespace AutoMidiPlayer.WPF.ViewModels;
 
@@ -312,6 +313,8 @@ public class AboutViewModel : Screen
                 if (!Directory.Exists(avatarCacheDir))
                     Directory.CreateDirectory(avatarCacheDir);
 
+                var contributorsListForCache = new List<object>();
+
                 foreach (var element in doc.RootElement.EnumerateArray())
                 {
                     var login = element.GetProperty("login").GetString() ?? "Unknown";
@@ -327,6 +330,7 @@ public class AboutViewModel : Screen
 
                     var contributor = new Contributor(login, htmlUrl, avatarUrl);
                     Contributors.Add(contributor);
+                    contributorsListForCache.Add(new { Name = login, ProfileUrl = htmlUrl, AvatarUrl = avatarUrl });
 
                     if (!string.IsNullOrWhiteSpace(avatarUrl))
                     {
@@ -350,6 +354,17 @@ public class AboutViewModel : Screen
                         }
                     }
                 }
+
+                try
+                {
+                    var contributorsFile = Path.Combine(avatarCacheDir, "contributors");
+                    var serializedJson = JsonSerializer.Serialize(contributorsListForCache);
+                    await File.WriteAllBytesAsync(contributorsFile, Crypt.Encrypt(serializedJson));
+                }
+                catch (Exception e)
+                {
+                    Logger.LogException(e);
+                }
             }
             else
             {
@@ -368,10 +383,40 @@ public class AboutViewModel : Screen
 
     private void AddFallbackContributors()
     {
+        var avatarCacheDir = Path.Combine(AppPaths.AppDataDirectory, "cache", "avatars");
+        var contributorsFile = Path.Combine(avatarCacheDir, "contributors");
+
+        if (File.Exists(contributorsFile))
+        {
+            try
+            {
+                var encryptedBytes = File.ReadAllBytes(contributorsFile);
+                var json = Crypt.Decrypt(encryptedBytes);
+                using var doc = JsonDocument.Parse(json);
+                foreach (var element in doc.RootElement.EnumerateArray())
+                {
+                    var name = element.GetProperty("Name").GetString() ?? "";
+                    var profileUrl = element.GetProperty("ProfileUrl").GetString() ?? "";
+                    var avatarUrl = element.GetProperty("AvatarUrl").GetString() ?? "";
+
+                    var contributor = new Contributor(name, profileUrl, avatarUrl);
+                    var avatarPath = Path.Combine(avatarCacheDir, $"{name}.png");
+                    if (File.Exists(avatarPath))
+                        contributor.AvatarPath = avatarPath;
+
+                    Contributors.Add(contributor);
+                }
+                return;
+            }
+            catch (Exception e)
+            {
+                Logger.LogException(e);
+            }
+        }
+
         Contributors.Add(new Contributor("sabihoshi", "https://github.com/sabihoshi", ""));
         Contributors.Add(new Contributor("Jed556", "https://github.com/Jed556", ""));
 
-        var avatarCacheDir = Path.Combine(AppPaths.AppDataDirectory, "cache", "avatars");
         foreach (var c in Contributors)
         {
             var avatarPath = Path.Combine(avatarCacheDir, $"{c.Name}.png");
@@ -392,9 +437,9 @@ public class AboutViewModel : Screen
                 UseShellExecute = true
             });
         }
-        catch (Exception error)
+        catch (Exception ex)
         {
-            Logger.LogException(error);
+            Logger.LogException(ex);
         }
     }
 
