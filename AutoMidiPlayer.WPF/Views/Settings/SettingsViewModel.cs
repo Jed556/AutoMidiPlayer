@@ -35,6 +35,7 @@ using static AutoMidiPlayer.Data.Entities.Transpose;
 using WpfUiApplicationTheme = Wpf.Ui.Appearance.ApplicationTheme;
 using Wpf.Ui.Controls;
 using AutoMidiPlayer.WPF.Controls.Snackbar;
+using Sentry;
 
 namespace AutoMidiPlayer.WPF.ViewModels;
 
@@ -333,6 +334,8 @@ public class SettingsPageViewModel : Screen
     }
 
     public bool DebugModeEnabled { get; set; } = Settings.DebugModeEnabled;
+
+    public bool TelemetryOptIn { get; set; } = Settings.TelemetryOptIn;
 
     public bool PageCaching { get; set; } = Settings.PageCaching;
 
@@ -634,7 +637,17 @@ public class SettingsPageViewModel : Screen
     [UsedImplicitly] public CancellationTokenSource? PlayTimerToken { get; private set; }
 
     public static CaptionedObject<Transition>? Transition { get; set; } =
-        TransitionCollection.Transitions[Settings.SelectedTransition];
+        GetSafeTransition();
+
+    private static CaptionedObject<Transition>? GetSafeTransition()
+    {
+        var idx = Settings.SelectedTransition;
+        if (idx < 0 || idx >= TransitionCollection.Transitions.Count)
+        {
+            idx = 1; // Default Entrance
+        }
+        return TransitionCollection.Transitions[idx];
+    }
 
     public DateTime DateTime { get; set; } = DateTime.Now;
 
@@ -820,6 +833,45 @@ public class SettingsPageViewModel : Screen
         SnackbarService.Warning("Warning Toast", "This is a warning toast", duration: duration);
         await Task.Delay(100);
         SnackbarService.Danger("Danger Toast", "This is a danger toast", duration: duration);
+    }
+
+    private static readonly TimeSpan SentryTestCooldown = TimeSpan.FromMinutes(10);
+    private static DateTime _lastSentryTestSentAt = DateTime.MinValue;
+
+    public void SendSentryTestMessage()
+    {
+#if DEBUG
+        var elapsed = DateTime.UtcNow - _lastSentryTestSentAt;
+        if (elapsed < SentryTestCooldown)
+        {
+            var remaining = SentryTestCooldown - elapsed;
+            var minutes = (int)remaining.TotalMinutes;
+            var seconds = remaining.Seconds;
+            SnackbarService.Warning(
+                "Sentry test on cooldown",
+                $"Please wait {minutes}m {seconds}s before sending another test message.");
+            return;
+        }
+
+        try
+        {
+            using (SentrySdk.PushScope())
+            {
+                SentrySdk.ConfigureScope(scope => scope.Environment = "debug");
+                SentrySdk.CaptureMessage("Test Message", SentryLevel.Info);
+            }
+            _lastSentryTestSentAt = DateTime.UtcNow;
+            SnackbarService.Success("Sentry test sent", "An info-level test message was sent to Sentry.");
+            Logger.LogStep("SENTRY_TEST", "sent");
+        }
+        catch (Exception ex)
+        {
+            SnackbarService.Danger("Sentry test failed", $"Could not send test message: {ex.Message}");
+            Logger.LogStep("SENTRY_TEST", $"failed: {ex.Message}");
+        }
+#else
+        SnackbarService.Warning("Test disabled", "Only debug builds can send Sentry test messages.");
+#endif
     }
 
     public async Task CheckForUpdate()
@@ -1392,6 +1444,12 @@ public class SettingsPageViewModel : Screen
     protected override void OnActivate()
     {
         Logger.LogPageVisit("Settings", source: "screen-activate");
+
+        if (TelemetryOptIn != Settings.TelemetryOptIn)
+        {
+            TelemetryOptIn = Settings.TelemetryOptIn;
+            NotifyOfPropertyChange(() => TelemetryOptIn);
+        }
     }
 
     protected override void OnDeactivate()
@@ -1412,6 +1470,22 @@ public class SettingsPageViewModel : Screen
     {
         Settings.Modify(s => s.DebugModeEnabled = DebugModeEnabled);
         NotifyOfPropertyChange(nameof(CrashLogVerbosityDescription));
+    }
+
+    private void OnTelemetryOptInChanged()
+    {
+        Settings.Modify(s => s.TelemetryOptIn = TelemetryOptIn);
+
+        try
+        {
+            var sentryService = _ioc.Get<AutoMidiPlayer.WPF.Services.ISentryService>();
+            if (sentryService != null)
+                sentryService.SetTelemetryEnabled(TelemetryOptIn);
+        }
+        catch
+        {
+            // IoC might not be fully built during early startup
+        }
     }
 
     [UsedImplicitly]

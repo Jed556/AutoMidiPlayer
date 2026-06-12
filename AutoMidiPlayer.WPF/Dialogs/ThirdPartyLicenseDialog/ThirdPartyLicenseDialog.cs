@@ -40,7 +40,8 @@ public partial class ThirdPartyLicenseDialog : ContentDialog
                 DialogMaxHeight = maxHeight;
                 DialogMaxWidth = maxWidth;
                 MaxHeight = maxHeight;
-                ContentGrid.Width = Math.Max(0, maxWidth - 48);
+                MaxWidth = maxWidth;
+                Width = maxWidth;
                 DialogMargin = new Thickness(24);
             }
 

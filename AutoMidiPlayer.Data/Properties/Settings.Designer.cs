@@ -1112,5 +1112,49 @@ namespace AutoMidiPlayer.Data.Properties
                 this["PageCaching"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool TelemetryOptIn
+        {
+            get
+            {
+                return ((bool)(this["TelemetryOptIn"]));
+            }
+            set
+            {
+                this["TelemetryOptIn"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool HasShownFirstLaunch
+        {
+            get
+            {
+                return ((bool)(this["HasShownFirstLaunch"]));
+            }
+            set
+            {
+                this["HasShownFirstLaunch"] = value;
+            }
+        }
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool HasReportedMachineInfo
+        {
+            get
+            {
+                return ((bool)(this["HasReportedMachineInfo"]));
+            }
+            set
+            {
+                this["HasReportedMachineInfo"] = value;
+            }
+        }
     }
 }

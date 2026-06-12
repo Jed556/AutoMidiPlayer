@@ -540,6 +540,9 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
         await ShowResetSuccessDialogIfNeededAsync();
 
+        // Show welcome/telemetry opt-in dialog on first launch
+        await WelcomeDialog.ShowIfFirstLaunchAsync();
+
         try
         {
             // Restore last viewed page (default to Songs if not set)

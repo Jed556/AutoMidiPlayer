@@ -54,13 +54,26 @@ public static class Logger
 
     public static void LogException(Exception ex, [CallerMemberName] string? caller = null, [CallerFilePath] string? file = null, [CallerLineNumber] int line = 0)
     {
-        var stackTrace = string.IsNullOrWhiteSpace(ex.StackTrace)
-            ? string.Empty
-            : $"\n{ex.StackTrace}";
+        var currentEx = ex;
+        while (currentEx != null)
+        {
+            var msg = $"EXCEPTION: {currentEx.GetType().Name}: {currentEx.Message}";
+            WriteLogLine(ErrorsLogPath, msg, caller, file, line);
+            WriteLogLine(AppLogPath, msg, caller, file, line);
 
-        var exceptionMessage = $"EXCEPTION: {ex.GetType().Name}: {ex.Message}{stackTrace}";
-        WriteLogLine(ErrorsLogPath, exceptionMessage, caller, file, line);
-        WriteLogLine(AppLogPath, exceptionMessage, caller, file, line);
+            if (currentEx.StackTrace != null)
+            {
+                WriteLogLine(ErrorsLogPath, currentEx.StackTrace, caller, file, line);
+                WriteLogLine(AppLogPath, currentEx.StackTrace, caller, file, line);
+            }
+            
+            currentEx = currentEx.InnerException;
+            if (currentEx != null)
+            {
+                WriteLogLine(ErrorsLogPath, "--- INNER EXCEPTION ---", caller, file, line);
+                WriteLogLine(AppLogPath, "--- INNER EXCEPTION ---", caller, file, line);
+            }
+        }
     }
 
     public static void LogStep(string step, string? details = null, [CallerMemberName] string? caller = null, [CallerFilePath] string? file = null, [CallerLineNumber] int line = 0)

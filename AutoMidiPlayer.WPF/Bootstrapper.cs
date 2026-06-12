@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
@@ -13,6 +15,8 @@ using AutoMidiPlayer.WPF.MessageBox;
 using AutoMidiPlayer.WPF.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Sentry;
+using Sentry.Profiling;
 using Stylet;
 using StyletIoC;
 using System.Reflection;
@@ -42,6 +46,8 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
     public Bootstrapper()
     {
         // Suppress benign Storyboard animation warnings from WPF-UI (idk why this happens XD)
+        System.Diagnostics.PresentationTraceSources.DataBindingSource.Switch.Level = System.Diagnostics.SourceLevels.Critical;
+        System.Diagnostics.PresentationTraceSources.ResourceDictionarySource.Switch.Level = System.Diagnostics.SourceLevels.Critical;
         System.Diagnostics.PresentationTraceSources.AnimationSource.Switch.Level = System.Diagnostics.SourceLevels.Critical;
 
         // ensure version retrieval helper is available by referencing Reflection
@@ -54,9 +60,10 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         Logger.ClearLog();
 
         // log application start along with the product name and current version
-        Logger.LogStartup(GetProductName(), GetAppVersion());
+        string productName = GetProductName();
+        string appVersionDisplay = GetAppVersion();
+        Logger.LogStartup(productName, appVersionDisplay);
         Logger.LogApp($"Logs directory: {Logger.GetLogsDirectoryPath()}");
-
         AppDomain.CurrentDomain.ProcessExit += (_, _) =>
         {
             Logger.LogApp($"{GetProductName()} v{GetAppVersion()} Stopping");
@@ -66,6 +73,9 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
                 AutoMidiPlayer.WPF.Services.SystemThemeService.Stop();
             }
             catch { }
+
+            // Flush Sentry events and shut down cleanly
+            SentrySdk.Close();
         };
 
         // Handle unhandled exceptions
@@ -73,6 +83,22 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
 
+    }
+
+    protected override void OnLaunch()
+    {
+        base.OnLaunch();
+
+        // Initialize Sentry early, after DI container is fully built and app is launching
+        try
+        {
+            var sentryService = Container.Get<AutoMidiPlayer.WPF.Services.ISentryService>();
+            sentryService.Initialize();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException(ex);
+        }
     }
 
     private static void EnsureQueueLoopModeSetting()
@@ -226,6 +252,10 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
     {
         Logger.Log("=== DISPATCHER UNHANDLED EXCEPTION ===");
         Logger.LogException(e.Exception);
+        SentrySdk.CaptureException(e.Exception);
+
+        // Flush to ensure the crash event reaches Sentry before the app may terminate
+        SentrySdk.FlushAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
 
         try
         {
@@ -244,19 +274,28 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
     {
         Logger.Log("=== UNHANDLED EXCEPTION ===");
         if (e.ExceptionObject is Exception ex)
+        {
             Logger.LogException(ex);
+            SentrySdk.CaptureException(ex);
+        }
         else
             Logger.Log($"Non-exception object: {e.ExceptionObject}");
+
+        // Terminal crash — flush synchronously before the process dies
+        SentrySdk.FlushAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
     }
 
     private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
     {
         Logger.Log("=== UNOBSERVED TASK EXCEPTION ===");
         Logger.LogException(e.Exception);
+        SentrySdk.CaptureException(e.Exception);
     }
 
     protected override void ConfigureIoC(IStyletIoCBuilder builder)
     {
+        // Bind Sentry service first
+        builder.Bind<AutoMidiPlayer.WPF.Services.ISentryService>().To<AutoMidiPlayer.WPF.Services.SentryService>().InSingletonScope();
         // Use centralized app data path
         AppPaths.EnsureDirectoryExists();
 
