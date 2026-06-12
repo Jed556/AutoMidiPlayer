@@ -128,6 +128,8 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         SongsView = new(ioc, this);
         PianoSheetView = new(this, new Controls.NoSongPlaceholder.NoSongPlaceholderComponent(this));
 
+        _ = AboutViewModel.GetContributorsAsync();
+
         var initialPage = NormalizePageName(Settings.LastViewedPage);
         BreadcrumbItems = [initialPage];
         ActiveItem = ResolveViewFromName(initialPage);

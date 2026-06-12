@@ -91,7 +91,10 @@ public class AboutViewModel : Screen
 
         LoadLinks();
         LoadLicenses();
-        await LoadContributorsAsync();
+        
+        var contributors = await GetContributorsAsync();
+        Contributors.Clear();
+        Contributors.AddRange(contributors);
     }
 
     private void LoadLinks()
@@ -181,14 +184,14 @@ public class AboutViewModel : Screen
                     if (string.IsNullOrWhiteSpace(currentVersion))
                     {
                         var normalizedCurrentName = currentName.Replace(" ", "").Replace(".", "");
-                        
+
                         // First try to find in referenced assemblies
                         foreach (var asm in referencedAssemblies)
                         {
                             if (asm.Name == null) continue;
                             var normalizedAsmName = asm.Name.Replace(" ", "").Replace(".", "");
-                            
-                            if (normalizedAsmName.Equals(normalizedCurrentName, StringComparison.OrdinalIgnoreCase) || 
+
+                            if (normalizedAsmName.Equals(normalizedCurrentName, StringComparison.OrdinalIgnoreCase) ||
                                 normalizedAsmName.Contains(normalizedCurrentName, StringComparison.OrdinalIgnoreCase) ||
                                 normalizedCurrentName.Contains(normalizedAsmName, StringComparison.OrdinalIgnoreCase))
                             {
@@ -206,7 +209,7 @@ public class AboutViewModel : Screen
                             foreach (var pkg in packageVersions)
                             {
                                 var normalizedPkgName = pkg.Key.Replace(" ", "").Replace(".", "");
-                                if (normalizedPkgName.Equals(normalizedCurrentName, StringComparison.OrdinalIgnoreCase) || 
+                                if (normalizedPkgName.Equals(normalizedCurrentName, StringComparison.OrdinalIgnoreCase) ||
                                     normalizedPkgName.Contains(normalizedCurrentName, StringComparison.OrdinalIgnoreCase) ||
                                     normalizedCurrentName.Contains(normalizedPkgName, StringComparison.OrdinalIgnoreCase))
                                 {
@@ -295,9 +298,13 @@ public class AboutViewModel : Screen
         return "GNU General Public License v3.0\n\nPlease see the LICENSE file or visit https://www.gnu.org/licenses/gpl-3.0.html";
     }
 
-    private async Task LoadContributorsAsync()
+    public static async Task<List<Contributor>> GetContributorsAsync()
     {
-        Contributors.Clear();
+        var result = new List<Contributor>();
+        var avatarCacheDir = Path.Combine(AppPaths.AppDataDirectory, "cache", "avatars");
+        if (!Directory.Exists(avatarCacheDir))
+            Directory.CreateDirectory(avatarCacheDir);
+
         try
         {
             var request = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/repos/Jed556/AutoMidiPlayer/contributors");
@@ -307,11 +314,7 @@ public class AboutViewModel : Screen
             if (response.IsSuccessStatusCode)
             {
                 var json = await response.Content.ReadAsStringAsync();
-                var doc = JsonDocument.Parse(json);
-
-                var avatarCacheDir = Path.Combine(AppPaths.AppDataDirectory, "cache", "avatars");
-                if (!Directory.Exists(avatarCacheDir))
-                    Directory.CreateDirectory(avatarCacheDir);
+                using var doc = JsonDocument.Parse(json);
 
                 var contributorsListForCache = new List<object>();
 
@@ -319,7 +322,7 @@ public class AboutViewModel : Screen
                 {
                     var login = element.GetProperty("login").GetString() ?? "Unknown";
 
-                    if (login.Equals("dependabot[bot]", StringComparison.OrdinalIgnoreCase) || 
+                    if (login.Equals("dependabot[bot]", StringComparison.OrdinalIgnoreCase) ||
                         login.Equals("github-actions[bot]", StringComparison.OrdinalIgnoreCase))
                     {
                         continue;
@@ -329,7 +332,7 @@ public class AboutViewModel : Screen
                     var avatarUrl = element.GetProperty("avatar_url").GetString() ?? "";
 
                     var contributor = new Contributor(login, htmlUrl, avatarUrl);
-                    Contributors.Add(contributor);
+                    result.Add(contributor);
                     contributorsListForCache.Add(new { Name = login, ProfileUrl = htmlUrl, AvatarUrl = avatarUrl });
 
                     if (!string.IsNullOrWhiteSpace(avatarUrl))
@@ -365,32 +368,21 @@ public class AboutViewModel : Screen
                 {
                     Logger.LogException(e);
                 }
-            }
-            else
-            {
-                AddFallbackContributors();
+
+                return result;
             }
         }
         catch (Exception ex)
         {
             Logger.LogException(ex);
-            if (Contributors.Count == 0)
-            {
-                AddFallbackContributors();
-            }
         }
-    }
 
-    private void AddFallbackContributors()
-    {
-        var avatarCacheDir = Path.Combine(AppPaths.AppDataDirectory, "cache", "avatars");
-        var contributorsFile = Path.Combine(avatarCacheDir, "contributors");
-
-        if (File.Exists(contributorsFile))
+        var contributorsCacheFile = Path.Combine(avatarCacheDir, "contributors");
+        if (File.Exists(contributorsCacheFile))
         {
             try
             {
-                var encryptedBytes = File.ReadAllBytes(contributorsFile);
+                var encryptedBytes = await File.ReadAllBytesAsync(contributorsCacheFile);
                 var json = Crypt.Decrypt(encryptedBytes);
                 using var doc = JsonDocument.Parse(json);
                 foreach (var element in doc.RootElement.EnumerateArray())
@@ -404,9 +396,9 @@ public class AboutViewModel : Screen
                     if (File.Exists(avatarPath))
                         contributor.AvatarPath = avatarPath;
 
-                    Contributors.Add(contributor);
+                    result.Add(contributor);
                 }
-                return;
+                return result;
             }
             catch (Exception e)
             {
@@ -414,15 +406,17 @@ public class AboutViewModel : Screen
             }
         }
 
-        Contributors.Add(new Contributor("sabihoshi", "https://github.com/sabihoshi", ""));
-        Contributors.Add(new Contributor("Jed556", "https://github.com/Jed556", ""));
+        result.Add(new Contributor("Jed556", "https://github.com/Jed556", ""));
+        result.Add(new Contributor("sabihoshi", "https://github.com/sabihoshi", ""));
 
-        foreach (var c in Contributors)
+        foreach (var c in result)
         {
             var avatarPath = Path.Combine(avatarCacheDir, $"{c.Name}.png");
             if (File.Exists(avatarPath))
                 c.AvatarPath = avatarPath;
         }
+
+        return result;
     }
 
     public void OpenUrl(string url)
