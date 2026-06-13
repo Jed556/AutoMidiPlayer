@@ -780,7 +780,7 @@
                     <controls:Section Title="Crash Reporting &amp; Analytics"
                                       Margin="0,16,0,0">
                         <controls:SimpleStackPanel>
-                            <TextBlock Text="Automatically send basic system specifications and logs when crashes occur. No personal data is collected."
+                            <TextBlock Text="Automatically send machine information and logs when crashes occur. No personal data is collected."
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                        Margin="0,-6,0,12"/>

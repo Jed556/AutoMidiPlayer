@@ -54,6 +54,29 @@ public static class GameRegistry
             setIsActive: v => Settings.Modify(s => s.ActiveNTE = v)
         ),
         new GameDefinition(
+            id: "Sky",
+            displayName: "Sky: Children of the Light",
+            instrumentGameName: "Sky",
+            imageResourcePath: "pack://application:,,,/Resources/Images/Games/Sky.png",
+            processNames: ["Sky"],
+            getLocation: () => Settings.SkyLocation,
+            setLocation: v => Settings.Modify(s => s.SkyLocation = v),
+            getIsActive: () => Settings.ActiveSky,
+            setIsActive: v => Settings.Modify(s => s.ActiveSky = v)
+        ),
+        new GameDefinition(
+            id: "Roblox",
+            displayName: "Roblox",
+            instrumentGameName: "Roblox",
+            imageResourcePath: "pack://application:,,,/Resources/Images/Games/Roblox.png",
+            processNames: ["Roblox Game Client"],
+            windowNames: ["Roblox"],
+            getLocation: () => Settings.RobloxLocation,
+            setLocation: v => Settings.Modify(s => s.RobloxLocation = v),
+            getIsActive: () => Settings.ActiveRoblox,
+            setIsActive: v => Settings.Modify(s => s.ActiveRoblox = v)
+        ),
+        new GameDefinition(
             id: "Heartopia",
             displayName: "Heartopia",
             instrumentGameName: "Heartopia",
@@ -65,26 +88,16 @@ public static class GameRegistry
             setIsActive: v => Settings.Modify(s => s.ActiveHeartopia = v)
         ),
         new GameDefinition(
-            id: "Roblox",
-            displayName: "Roblox",
-            instrumentGameName: "Roblox",
-            imageResourcePath: "pack://application:,,,/Resources/Images/Games/Roblox.png",
-            processNames: ["RobloxPlayerBeta", "Roblox"],
-            getLocation: () => Settings.RobloxLocation,
-            setLocation: v => Settings.Modify(s => s.RobloxLocation = v),
-            getIsActive: () => Settings.ActiveRoblox,
-            setIsActive: v => Settings.Modify(s => s.ActiveRoblox = v)
-        ),
-        new GameDefinition(
-            id: "Sky",
-            displayName: "Sky: Children of the Light",
-            instrumentGameName: "Sky",
-            imageResourcePath: "pack://application:,,,/Resources/Images/Games/Sky.png",
-            processNames: ["Sky"],
-            getLocation: () => Settings.SkyLocation,
-            setLocation: v => Settings.Modify(s => s.SkyLocation = v),
-            getIsActive: () => Settings.ActiveSky,
-            setIsActive: v => Settings.Modify(s => s.ActiveSky = v)
+            id: "HPMA",
+            displayName: "Harry Potter: Magic Awakened",
+            instrumentGameName: "HPMA",
+            imageResourcePath: "pack://application:,,,/Resources/Images/Games/HPMA.png",
+            processNames: ["launcher"],
+            windowNames: ["Harry Potter: Magic Awakened"],
+            getLocation: () => Settings.HPMALocation,
+            setLocation: v => Settings.Modify(s => s.HPMALocation = v),
+            getIsActive: () => Settings.ActiveHPMA,
+            setIsActive: v => Settings.Modify(s => s.ActiveHPMA = v)
         )
     ];
 
@@ -149,7 +162,17 @@ public static class GameRegistry
                 using (process)
                 {
                     if (processNames.Contains(process.ProcessName))
-                        return true;
+                    {
+                        if (game.WindowNames.Count > 0)
+                        {
+                            if (game.WindowNames.Any(w => string.Equals(w, process.MainWindowTitle, StringComparison.OrdinalIgnoreCase)))
+                                return true;
+                        }
+                        else
+                        {
+                            return true;
+                        }
+                    }
                 }
             }
 
@@ -167,4 +190,3 @@ public static class GameRegistry
 
     #endregion
 }
-

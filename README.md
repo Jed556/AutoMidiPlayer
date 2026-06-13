@@ -25,6 +25,7 @@ https://github.com/user-attachments/assets/8e7d8dec-33c4-4d2b-a268-4abd1dbac405
 - **Roblox** - Piano (61-key & 88-key)
 - **Sky: Children of the Light** - All available Sky instruments as of Feb 2026
 - **Neverness to Everness (NTE)** - Piano (21-key & 36-key)
+- **Harry Potter: Magic Awakened (HPMA)** - Piano (14-key & 36-key)
 
 See the [Support wiki page][wiki-support] for details on supported games, instruments, and keyboard layouts.
 
