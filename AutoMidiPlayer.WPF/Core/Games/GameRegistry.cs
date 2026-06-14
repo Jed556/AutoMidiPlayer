@@ -88,6 +88,17 @@ public static class GameRegistry
             setIsActive: v => Settings.Modify(s => s.ActiveHeartopia = v)
         ),
         new GameDefinition(
+            id: "BPSR",
+            displayName: "Blue Protocol: Star Resonance",
+            instrumentGameName: "BPSR",
+            imageResourcePath: "pack://application:,,,/Resources/Images/Games/BPSR.png",
+            processNames: ["BPSR"],
+            getLocation: () => Settings.BPSRLocation,
+            setLocation: v => Settings.Modify(s => s.BPSRLocation = v),
+            getIsActive: () => Settings.ActiveBPSR,
+            setIsActive: v => Settings.Modify(s => s.ActiveBPSR = v)
+        ),
+        new GameDefinition(
             id: "HPMA",
             displayName: "Harry Potter: Magic Awakened",
             instrumentGameName: "HPMA",

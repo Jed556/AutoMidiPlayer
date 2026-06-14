@@ -101,6 +101,9 @@
     <Setting Name="HeartopiaLocation" Type="System.String" Scope="User">
       <Value Profile="(Default)">xdt.exe</Value>
     </Setting>
+    <Setting Name="BPSRLocation" Type="System.String" Scope="User">
+      <Value Profile="(Default)">BPSR.exe</Value>
+    </Setting>
     <Setting Name="HPMALocation" Type="System.String" Scope="User">
       <Value Profile="(Default)">Harry Potter Magic Awakened.exe</Value>
     </Setting>
@@ -117,6 +120,9 @@
       <Value Profile="(Default)">True</Value>
     </Setting>
     <Setting Name="ActiveHeartopia" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="ActiveBPSR" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>
     <Setting Name="ActiveHPMA" Type="System.Boolean" Scope="User">

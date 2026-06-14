@@ -417,7 +417,19 @@ namespace AutoMidiPlayer.Data.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("HarryPotterMagicAwakened.exe")]
+        [global::System.Configuration.DefaultSettingValueAttribute("BPSR.exe")]
+        public string BPSRLocation {
+            get {
+                return ((string)(this["BPSRLocation"]));
+            }
+            set {
+                this["BPSRLocation"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("Harry Potter Magic Awakened.exe")]
         public string HPMALocation {
             get {
                 return ((string)(this["HPMALocation"]));
@@ -484,6 +496,18 @@ namespace AutoMidiPlayer.Data.Properties {
             }
             set {
                 this["ActiveHeartopia"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool ActiveBPSR {
+            get {
+                return ((bool)(this["ActiveBPSR"]));
+            }
+            set {
+                this["ActiveBPSR"] = value;
             }
         }
         
