@@ -12,6 +12,7 @@
     xmlns:button="clr-namespace:AutoMidiPlayer.WPF.Controls.SelectorPopupButton.Button"
     xmlns:helpers="clr-namespace:AutoMidiPlayer.WPF.Helpers"
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
+    xmlns:noSong="clr-namespace:AutoMidiPlayer.WPF.Controls.NoSongPlaceholder"
     xmlns:properties="clr-namespace:AutoMidiPlayer.Data.Properties;assembly=AutoMidiPlayer.Data"
     d:DataContext="{d:DesignInstance Type=viewModels:InstrumentViewModel}">
     <UserControl.Resources>
@@ -113,10 +114,11 @@
                 <!-- Notes Section -->
                 <controls:Section Title="Notes">
                     <controls:SimpleStackPanel>
-                        <TextBlock Text="Open a song to configure these settings"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   Visibility="{Binding HasSongOpen, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}"
-                                   Margin="0,0,0,8"/>
+                        <ContentControl Visibility="{Binding HasSongOpen, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}"
+                                        Margin="0,0,0,8"
+                                        HorizontalAlignment="Left">
+                            <noSong:NoSongPlaceholder DataContext="{Binding Placeholder}"/>
+                        </ContentControl>
 
                         <controls:SimpleStackPanel Orientation="Horizontal"
                                                    Spacing="20"

@@ -34,6 +34,8 @@ using Wpf.Ui.Appearance;
 using static AutoMidiPlayer.Data.Entities.Transpose;
 using WpfUiApplicationTheme = Wpf.Ui.Appearance.ApplicationTheme;
 using Wpf.Ui.Controls;
+using AutoMidiPlayer.WPF.Controls.Snackbar;
+using Sentry;
 
 namespace AutoMidiPlayer.WPF.ViewModels;
 
@@ -182,7 +184,7 @@ public class SettingsPageViewModel : Screen
         _selectedUpdateCheckFrequency = UpdateCheckFrequencyOptions.FirstOrDefault(o => o.Value == freqValue)
             ?? UpdateCheckFrequencyOptions.Last();
 
-        _updateService.UpdateAvailable += (s, newVersion) => 
+        _updateService.UpdateAvailable += (s, newVersion) =>
         {
             LatestVersion = newVersion;
             UpdateString = "(Update available!)";
@@ -333,6 +335,8 @@ public class SettingsPageViewModel : Screen
 
     public bool DebugModeEnabled { get; set; } = Settings.DebugModeEnabled;
 
+    public bool TelemetryOptIn { get; set; } = Settings.TelemetryOptIn;
+
     public bool PageCaching { get; set; } = Settings.PageCaching;
 
     public bool LogPlayedNotes { get; set; } = Settings.LogPlayedNotes;
@@ -405,13 +409,13 @@ public class SettingsPageViewModel : Screen
     /// Sorted distinct key counts across all registered instruments.
     /// Drives the slider tick positions via CustomTicks binding.
     /// </summary>
-    public static int[] AutoCorrectThresholdTicks { get; } = Core.Keyboard.GetDistinctInstrumentKeyCounts();
+    public static int[] AutoCorrectThresholdTicks { get; } = new[] { 0 }.Concat(Core.Keyboard.GetDistinctInstrumentKeyCounts()).ToArray();
 
     /// <summary>
     /// Pipe-delimited labels for the slider thumb tooltip (one per tick).
     /// </summary>
     public string AutoCorrectThresholdToolTipOptions { get; } =
-        string.Join("|", AutoCorrectThresholdTicks.Select(k => $"{k} keys"));
+        string.Join("|", AutoCorrectThresholdTicks.Select(k => k == 0 ? "Off" : $"{k} keys"));
 
     private int _autoCorrectThresholdValue = AutoCorrectThresholdTicks
         .OrderBy(t => Math.Abs(t - Settings.AutoCorrectThreshold))
@@ -442,8 +446,9 @@ public class SettingsPageViewModel : Screen
     /// <summary>
     /// Human-readable description shown below the slider.
     /// </summary>
-    public string AutoCorrectThresholdDescription =>
-        $"Auto-correct pitch for instruments with ≤ {AutoCorrectThresholdValue} keys when Smart Transpose is active.";
+    public string AutoCorrectThresholdDescription => AutoCorrectThresholdValue == 0
+        ? "Auto-correct is disabled."
+        : $"Auto-correct pitch for instruments with ≤ {AutoCorrectThresholdValue} keys when Smart Transpose is active.";
 
     #endregion
 
@@ -632,7 +637,17 @@ public class SettingsPageViewModel : Screen
     [UsedImplicitly] public CancellationTokenSource? PlayTimerToken { get; private set; }
 
     public static CaptionedObject<Transition>? Transition { get; set; } =
-        TransitionCollection.Transitions[Settings.SelectedTransition];
+        GetSafeTransition();
+
+    private static CaptionedObject<Transition>? GetSafeTransition()
+    {
+        var idx = Settings.SelectedTransition;
+        if (idx < 0 || idx >= TransitionCollection.Transitions.Count)
+        {
+            idx = 1; // Default Entrance
+        }
+        return TransitionCollection.Transitions[idx];
+    }
 
     public DateTime DateTime { get; set; } = DateTime.Now;
 
@@ -808,21 +823,55 @@ public class SettingsPageViewModel : Screen
         Logger.LogStep("DEBUG_DIALOG_SAMPLE", $"result={result}");
     }
 
-    public async Task<bool> TryGetLocationAsync()
+    public async Task ShowDebugSnackbarSample()
     {
-        var foundAny = false;
+        var duration = TimeSpan.FromSeconds(15);
+        SnackbarService.Info("Info Toast", "This is an info toast", duration: duration);
+        await Task.Delay(100);
+        SnackbarService.Success("Success Toast", "This is a success toast", duration: duration);
+        await Task.Delay(100);
+        SnackbarService.Warning("Warning Toast", "This is a warning toast", duration: duration);
+        await Task.Delay(100);
+        SnackbarService.Danger("Danger Toast", "This is a danger toast", duration: duration);
+    }
 
-        foreach (var gameInfo in GameLocations)
+    private static readonly TimeSpan SentryTestCooldown = TimeSpan.FromMinutes(10);
+    private static DateTime _lastSentryTestSentAt = DateTime.MinValue;
+
+    public void SendSentryTestMessage()
+    {
+#if DEBUG
+        var elapsed = DateTime.UtcNow - _lastSentryTestSentAt;
+        if (elapsed < SentryTestCooldown)
         {
-            var location = GameRegistry.TryFindGameLocation(gameInfo.Definition);
-            if (location != null)
-            {
-                gameInfo.Location = location;
-                foundAny = true;
-            }
+            var remaining = SentryTestCooldown - elapsed;
+            var minutes = (int)remaining.TotalMinutes;
+            var seconds = remaining.Seconds;
+            SnackbarService.Warning(
+                "Sentry test on cooldown",
+                $"Please wait {minutes}m {seconds}s before sending another test message.");
+            return;
         }
 
-        return await Task.FromResult(foundAny);
+        try
+        {
+            using (SentrySdk.PushScope())
+            {
+                SentrySdk.ConfigureScope(scope => scope.Environment = "debug");
+                SentrySdk.CaptureMessage("Test Message", SentryLevel.Info);
+            }
+            _lastSentryTestSentAt = DateTime.UtcNow;
+            SnackbarService.Success("Sentry test sent", "An info-level test message was sent to Sentry.");
+            Logger.LogStep("SENTRY_TEST", "sent");
+        }
+        catch (Exception ex)
+        {
+            SnackbarService.Danger("Sentry test failed", $"Could not send test message: {ex.Message}");
+            Logger.LogStep("SENTRY_TEST", $"failed: {ex.Message}");
+        }
+#else
+        SnackbarService.Warning("Test disabled", "Only debug builds can send Sentry test messages.");
+#endif
     }
 
     public async Task CheckForUpdate()
@@ -864,27 +913,15 @@ public class SettingsPageViewModel : Screen
     {
         if (success)
         {
-            var snackbar = new Snackbar(MainWindowViewModel.SnackbarPresenter)
-            {
-                Title = "Update downloaded",
-                Content = $"Version {version} is ready to install.",
-                Appearance = ControlAppearance.Success,
-                Icon = new SymbolIcon { Symbol = SymbolRegular.Checkmark24 },
-                Timeout = TimeSpan.FromSeconds(5)
-            };
-            snackbar.Show();
+            SnackbarService.Success(
+                "Update downloaded",
+                $"Version {version} is ready to install.");
         }
         else
         {
-            var snackbar = new Snackbar(MainWindowViewModel.SnackbarPresenter)
-            {
-                Title = "Auto-download failed",
-                Content = string.IsNullOrEmpty(errorMsg) ? "Failed to auto-download update." : errorMsg,
-                Appearance = ControlAppearance.Danger,
-                Icon = new SymbolIcon { Symbol = SymbolRegular.ErrorCircle24 },
-                Timeout = TimeSpan.FromSeconds(8)
-            };
-            snackbar.Show();
+            SnackbarService.Danger(
+                "Auto-download failed",
+                string.IsNullOrEmpty(errorMsg) ? "Failed to auto-download update." : errorMsg);
         }
     }
 
@@ -894,20 +931,6 @@ public class SettingsPageViewModel : Screen
             return;
 
         await UpdateDialog.ShowAsync(LatestVersion, _updateService);
-    }
-
-    public async Task LocationMissing()
-    {
-        var missingGames = GameLocations
-            .Where(g => !File.Exists(g.Location))
-            .Select(g => g.DisplayName)
-            .ToList();
-
-        if (missingGames.Count == 0) return;
-
-        var navigateToSettings = await MissingGameLocationsDialog.ShowForMissingGamesAsync(missingGames);
-        if (navigateToSettings)
-            _main.NavigateToSettings();
     }
 
     /// <summary>
@@ -965,6 +988,8 @@ public class SettingsPageViewModel : Screen
         var startedAt = DateTime.UtcNow;
         Logger.LogStep("MIDI_SCAN_BEGIN", $"folder='{folderPath}'");
 
+        var trackCountBefore = _main.SongsView.Tracks.Count;
+
         IsScanningMidiFolder = true;
         try
         {
@@ -974,7 +999,14 @@ public class SettingsPageViewModel : Screen
         {
             IsScanningMidiFolder = false;
             var elapsedMs = (DateTime.UtcNow - startedAt).TotalMilliseconds;
-            Logger.LogStep("MIDI_SCAN_END", $"folder='{folderPath}' | elapsedMs={elapsedMs:F0}");
+            var newSongCount = _main.SongsView.Tracks.Count - trackCountBefore;
+            Logger.LogStep("MIDI_SCAN_END", $"folder='{folderPath}' | newSongs={newSongCount} | elapsedMs={elapsedMs:F0}");
+
+            if (newSongCount > 0)
+            {
+                var label = newSongCount == 1 ? "song" : "songs";
+                SnackbarService.Success("New songs found", $"{newSongCount} new {label} added to library");
+            }
         }
     }
 
@@ -1073,12 +1105,13 @@ public class SettingsPageViewModel : Screen
         var escapedStatusFilePath = AppPaths.AppStatusFilePath.Replace("'", "''");
 
         var resetStatusString = $"[{DateTime.Now:HH:mm:ss}] RESET";
+        var encryptedStatusString = Crypt.EncryptToBase64(resetStatusString);
 
         var resetCommand = $"Start-Sleep -Milliseconds 400; " +
                            $"Wait-Process -Id {currentProcessId}; " +
                            $"Remove-Item -LiteralPath '{escapedAppDataPath}' -Recurse -Force -ErrorAction SilentlyContinue; " +
                            $"New-Item -ItemType Directory -Path '{escapedAppDataPath}' -Force | Out-Null; " +
-                           $"Set-Content -Path '{escapedStatusFilePath}' -Value '{resetStatusString}' -Force; " +
+                           $"Set-Content -Path '{escapedStatusFilePath}' -Value '{encryptedStatusString}' -Force; " +
                            $"Start-Process -FilePath '{escapedExecutablePath}'";
 
         var arguments = $"-NoProfile -WindowStyle Hidden -Command \"{resetCommand}\"";
@@ -1412,6 +1445,12 @@ public class SettingsPageViewModel : Screen
     protected override void OnActivate()
     {
         Logger.LogPageVisit("Settings", source: "screen-activate");
+
+        if (TelemetryOptIn != Settings.TelemetryOptIn)
+        {
+            TelemetryOptIn = Settings.TelemetryOptIn;
+            NotifyOfPropertyChange(() => TelemetryOptIn);
+        }
     }
 
     protected override void OnDeactivate()
@@ -1432,6 +1471,22 @@ public class SettingsPageViewModel : Screen
     {
         Settings.Modify(s => s.DebugModeEnabled = DebugModeEnabled);
         NotifyOfPropertyChange(nameof(CrashLogVerbosityDescription));
+    }
+
+    private void OnTelemetryOptInChanged()
+    {
+        Settings.Modify(s => s.TelemetryOptIn = TelemetryOptIn);
+
+        try
+        {
+            var sentryService = _ioc.Get<AutoMidiPlayer.WPF.Services.ISentryService>();
+            if (sentryService != null)
+                sentryService.SetTelemetryEnabled(TelemetryOptIn);
+        }
+        catch
+        {
+            // IoC might not be fully built during early startup
+        }
     }
 
     [UsedImplicitly]

@@ -172,17 +172,131 @@ public partial class SongListControl : UserControl
 
     #endregion
 
+    // Spacing applied only when the scrollbar is visible
+    private const double ScrollbarLeftGap = 12;   // gap between content and scrollbar
+    private const double ScrollbarRightGap = 10;  // gap between scrollbar and right edge
+
+    private ScrollViewer? _scrollViewer;
+
     public SongListControl()
     {
         InitializeComponent();
         // Keep a stable reference to the owning control for ContextMenu bindings.
         TrackListView.Tag = this;
+
+        TrackListView.Loaded += TrackListView_Loaded;
     }
 
     /// <summary>
     /// Get the internal ListView for drag-drop setup
     /// </summary>
     public ListView ListView => TrackListView;
+
+    private void TrackListView_Loaded(object sender, RoutedEventArgs e)
+    {
+        _scrollViewer = FindScrollViewer(TrackListView);
+        if (_scrollViewer != null)
+        {
+            // Override the global 12px right padding — we control this dynamically
+            _scrollViewer.Padding = new Thickness(0);
+            _scrollViewer.ScrollChanged += OnScrollChanged;
+            _scrollViewer.SizeChanged += (_, _) => SyncScrollbarSpacing();
+        }
+
+        // Defer until after layout so ActualWidth/ViewportWidth are valid
+        Dispatcher.BeginInvoke(DispatcherPriority.Background,
+            new Action(SyncScrollbarSpacing));
+    }
+
+    /// <summary>
+    /// Walk the visual tree to find the ScrollViewer inside the ListView
+    /// </summary>
+    private static ScrollViewer? FindScrollViewer(DependencyObject parent)
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is ScrollViewer sv)
+                return sv;
+
+            var result = FindScrollViewer(child);
+            if (result != null)
+                return result;
+        }
+
+        return null;
+    }
+
+    private void OnScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (e.ExtentHeightChange != 0 || e.ViewportHeightChange != 0 || e.ViewportWidthChange != 0)
+            SyncScrollbarSpacing();
+    }
+
+    /// <summary>
+    /// Set ScrollViewer, ListView, and header right padding based on
+    /// whether the list content overflows.
+    ///   • Not scrollable → all three are 0, rows fill the full width.
+    ///   • Scrollable     → SV padding reserves gap before the scrollbar,
+    ///     LV padding reserves gap after, and header matches the total.
+    /// </summary>
+    private void SyncScrollbarSpacing()
+    {
+        if (_scrollViewer == null || _scrollViewer.ActualWidth < 1) return;
+
+        bool isScrollable = _scrollViewer.ExtentHeight > _scrollViewer.ViewportHeight;
+
+        double svRight = isScrollable ? ScrollbarLeftGap : 0;
+        double lvRight = isScrollable ? ScrollbarRightGap : 0;
+
+        bool paddingChanged = false;
+
+        // ScrollViewer padding (gap between row content and scrollbar)
+        var svPad = _scrollViewer.Padding;
+        if (Math.Abs(svPad.Right - svRight) > 0.5)
+        {
+            _scrollViewer.Padding = new Thickness(svPad.Left, svPad.Top, svRight, svPad.Bottom);
+            paddingChanged = true;
+        }
+
+        // ListView padding (gap between scrollbar and right edge)
+        var lvPad = TrackListView.Padding;
+        if (Math.Abs(lvPad.Right - lvRight) > 0.5)
+        {
+            TrackListView.Padding = new Thickness(lvPad.Left, lvPad.Top, lvRight, lvPad.Bottom);
+            paddingChanged = true;
+        }
+
+        if (paddingChanged)
+        {
+            // Padding changes need a layout pass before ViewportWidth updates,
+            // so defer the header sync.
+            Dispatcher.BeginInvoke(DispatcherPriority.Background,
+                new Action(SyncHeaderToRows));
+        }
+        else
+        {
+            SyncHeaderToRows();
+        }
+    }
+
+    /// <summary>
+    /// Forcibly sync the header grid's width to exactly match the 
+    /// viewport width of the ListView's inner ScrollViewer.
+    /// This mathematically guarantees perfect column alignment
+    /// regardless of padding, margins, or scrollbar visibility.
+    /// </summary>
+    private void SyncHeaderToRows()
+    {
+        if (_scrollViewer == null || _scrollViewer.ActualWidth < 1) return;
+
+        // By forcing the HeaderGrid to match the exact pixel width of the Viewport,
+        // the '*' column (Title) will compute to the exact same width in both grids.
+        if (double.IsNaN(HeaderGrid.Width) || Math.Abs(HeaderGrid.Width - _scrollViewer.ViewportWidth) > 0.5)
+        {
+            HeaderGrid.Width = _scrollViewer.ViewportWidth;
+        }
+    }
 
     /// <summary>
     /// Ensure PlacementTarget is correctly set when ContextMenu opens

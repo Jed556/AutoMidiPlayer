@@ -97,8 +97,6 @@
 
     <Style x:Key="AppScrollBarThumbStyle"
            TargetType="Thumb">
-        <Setter Property="MinHeight"
-                Value="36"/>
         <Setter Property="Opacity"
                 Value="0.4"/>
         <Setter Property="Template">

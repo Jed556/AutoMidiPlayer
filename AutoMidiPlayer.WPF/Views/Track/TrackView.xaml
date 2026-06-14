@@ -10,6 +10,7 @@
     xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
     xmlns:helpers="clr-namespace:AutoMidiPlayer.WPF.Helpers"
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
+    xmlns:noSong="clr-namespace:AutoMidiPlayer.WPF.Controls.NoSongPlaceholder"
     d:DataContext="{d:DesignInstance Type=viewModels:TrackViewModel}">
     <Grid>
         <Grid.RowDefinitions>
@@ -158,5 +159,12 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </ScrollViewer>
+
+        <!-- Empty State -->
+        <noSong:NoSongPlaceholder Grid.Row="1"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        DataContext="{Binding Placeholder}"
+                        Visibility="{Binding Queue.OpenedFile, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}" />
     </Grid>
 </UserControl>

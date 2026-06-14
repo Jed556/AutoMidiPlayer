@@ -82,8 +82,7 @@
             <ColumnDefinition Width="Auto"
                               MinWidth="120"
                               SharedSizeGroup="HotkeyChips"/>
-            <ColumnDefinition Width="Auto"
-                              SharedSizeGroup="HotkeyActions"/>
+            <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
         <!-- Action Name -->
@@ -136,6 +135,7 @@
         <StackPanel Grid.Column="2"
                     Orientation="Horizontal"
                     Margin="8,0,0,0"
+                    HorizontalAlignment="Right"
                     VerticalAlignment="Center">
             <!-- Edit / Cancel -->
             <controls:Button Variant="Ghost"

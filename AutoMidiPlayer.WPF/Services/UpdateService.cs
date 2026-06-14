@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Git;
+using AutoMidiPlayer.WPF.Helpers;
 
 namespace AutoMidiPlayer.WPF.Services;
 
@@ -154,7 +155,7 @@ public class UpdateService
             client.DefaultRequestHeaders.UserAgent.Add(productInfo);
             
             var checksumContent = await client.GetStringAsync(checksumAsset.DownloadUrl);
-            await File.WriteAllTextAsync(checksumPath, checksumContent);
+            await File.WriteAllTextAsync(checksumPath, Crypt.EncryptToBase64(checksumContent));
 
             using var response = await client.GetAsync(asset.DownloadUrl, HttpCompletionOption.ResponseHeadersRead);
             response.EnsureSuccessStatusCode();
@@ -189,7 +190,9 @@ public class UpdateService
     private string? GetHashFromChecksumFile(string checksumPath, string assetNameSearch)
     {
         if (!File.Exists(checksumPath)) return null;
-        var lines = File.ReadAllLines(checksumPath);
+        var encryptedContent = File.ReadAllText(checksumPath);
+        var decryptedContent = Crypt.DecryptFromBase64(encryptedContent);
+        var lines = decryptedContent.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
         foreach (var line in lines)
         {
             if (line.Contains(assetNameSearch, StringComparison.OrdinalIgnoreCase))
@@ -246,7 +249,7 @@ public class UpdateService
             }
 
             var checksumContent = await client.GetStringAsync(checksumAsset.DownloadUrl);
-            await File.WriteAllTextAsync(checksumPath, checksumContent);
+            await File.WriteAllTextAsync(checksumPath, Crypt.EncryptToBase64(checksumContent));
 
             progress?.Report(new UpdateProgressInfo { ProgressText = "Downloading update...", ProgressDetailText = "", ProgressPercentage = 0 });
         
@@ -387,6 +390,7 @@ public class UpdateService
             : "";
 
         var updateStatusString = $"[{DateTime.Now:HH:mm:ss}] UPDATE: v{currentVersion} -> v{latestVersion.Version}";
+        var encryptedStatusString = Crypt.EncryptToBase64(updateStatusString);
 
         var updateCommand = $"Start-Sleep -Seconds 1; " +
                             $"Wait-Process -Id {currentProcessId} -ErrorAction SilentlyContinue; " +
@@ -394,7 +398,7 @@ public class UpdateService
                             clearDataCommand +
                             $"Copy-Item -Path '{escapedTempPath}\\*' -Destination '{escapedAppPath}' -Recurse -Force; " +
                             $"New-Item -ItemType Directory -Path '{escapedAppDataPath}' -Force -ErrorAction SilentlyContinue | Out-Null; " +
-                            $"Set-Content -Path '{escapedStatusFilePath}' -Value '{updateStatusString}' -Force; " +
+                            $"Set-Content -Path '{escapedStatusFilePath}' -Value '{encryptedStatusString}' -Force; " +
                             $"Start-Process -FilePath '{escapedExecutablePath}'; " +
                             $"Start-Sleep -Seconds 2; " +
                             $"Remove-Item -LiteralPath '{escapedTempPath}' -Recurse -Force -ErrorAction SilentlyContinue;";

@@ -9,17 +9,19 @@ using System.Threading.Tasks;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.WPF.Dialogs;
 using Stylet;
+using AutoMidiPlayer.WPF.Helpers;
 
 namespace AutoMidiPlayer.WPF.ViewModels;
 
 public sealed class ThirdPartyLicense
 {
-    public ThirdPartyLicense(string name, string version, string licenseName, string licenseText)
+    public ThirdPartyLicense(string name, string version, string licenseName, string licenseText, string url = "")
     {
         Name = name;
         Version = version;
         LicenseName = licenseName;
         LicenseText = licenseText;
+        Url = url;
     }
 
     public string Name { get; }
@@ -29,6 +31,10 @@ public sealed class ThirdPartyLicense
     public string LicenseName { get; }
 
     public string LicenseText { get; }
+
+    public string Url { get; }
+
+    public bool HasUrl => !string.IsNullOrWhiteSpace(Url);
 
     public string DisplayName => string.IsNullOrWhiteSpace(Version) ? Name : $"{Name} {Version}";
 
@@ -58,6 +64,10 @@ public sealed class LinkItem
     public string Name { get; set; } = string.Empty;
     public string Url { get; set; } = string.Empty;
     public string Tooltip { get; set; } = string.Empty;
+    public string Icon { get; set; } = string.Empty;
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Wpf.Ui.Controls.SymbolRegular IconSymbol => Enum.TryParse<Wpf.Ui.Controls.SymbolRegular>(Icon, out var symbol) ? symbol : Wpf.Ui.Controls.SymbolRegular.Link24;
 }
 
 public class AboutViewModel : Screen
@@ -81,7 +91,10 @@ public class AboutViewModel : Screen
 
         LoadLinks();
         LoadLicenses();
-        await LoadContributorsAsync();
+        
+        var contributors = await GetContributorsAsync();
+        Contributors.Clear();
+        Contributors.AddRange(contributors);
     }
 
     private void LoadLinks()
@@ -113,6 +126,36 @@ public class AboutViewModel : Screen
         {
             ThirdPartyLicenses.Add(new ThirdPartyLicense(AppDisplayName, SettingsPageViewModel.ProgramVersionDisplay, "GNU GPL v3.0", GetAppLicense()));
 
+            var referencedAssemblies = System.Reflection.Assembly.GetExecutingAssembly().GetReferencedAssemblies();
+            var packageVersions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            // Try to read .csproj for versions (especially for development-time only packages like Fody)
+            try
+            {
+                var searchPaths = new[]
+                {
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "AutoMidiPlayer.WPF.csproj"),
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "AutoMidiPlayer.WPF", "AutoMidiPlayer.WPF.csproj")
+                };
+
+                foreach (var csprojPath in searchPaths)
+                {
+                    if (File.Exists(csprojPath))
+                    {
+                        var csprojText = File.ReadAllText(csprojPath);
+                        var matches = System.Text.RegularExpressions.Regex.Matches(csprojText, @"<PackageReference\s+Include=""([^""]+)""\s+Version=""([^""]+)""");
+                        foreach (System.Text.RegularExpressions.Match match in matches)
+                        {
+                            if (match.Groups.Count >= 3)
+                            {
+                                packageVersions[match.Groups[1].Value] = match.Groups[2].Value;
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+
             var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "THIRD-PARTY-LICENSES.md");
             if (!File.Exists(path))
                 return;
@@ -121,6 +164,7 @@ public class AboutViewModel : Screen
             string currentName = string.Empty;
             string currentVersion = string.Empty;
             string currentLicenseName = "MIT License";
+            string currentUrl = string.Empty;
             List<string> currentText = new();
 
             void AddCurrentLicense()
@@ -136,7 +180,47 @@ public class AboutViewModel : Screen
                             break;
                         }
                     }
-                    ThirdPartyLicenses.Add(new ThirdPartyLicense(currentName, currentVersion, lName, string.Join("\n", currentText).Trim()));
+
+                    if (string.IsNullOrWhiteSpace(currentVersion))
+                    {
+                        var normalizedCurrentName = currentName.Replace(" ", "").Replace(".", "");
+
+                        // First try to find in referenced assemblies
+                        foreach (var asm in referencedAssemblies)
+                        {
+                            if (asm.Name == null) continue;
+                            var normalizedAsmName = asm.Name.Replace(" ", "").Replace(".", "");
+
+                            if (normalizedAsmName.Equals(normalizedCurrentName, StringComparison.OrdinalIgnoreCase) ||
+                                normalizedAsmName.Contains(normalizedCurrentName, StringComparison.OrdinalIgnoreCase) ||
+                                normalizedCurrentName.Contains(normalizedAsmName, StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (asm.Version != null)
+                                {
+                                    currentVersion = $"{asm.Version.Major}.{asm.Version.Minor}.{asm.Version.Build}";
+                                }
+                                break;
+                            }
+                        }
+
+                        // If still empty, try to find in parsed csproj packages
+                        if (string.IsNullOrWhiteSpace(currentVersion))
+                        {
+                            foreach (var pkg in packageVersions)
+                            {
+                                var normalizedPkgName = pkg.Key.Replace(" ", "").Replace(".", "");
+                                if (normalizedPkgName.Equals(normalizedCurrentName, StringComparison.OrdinalIgnoreCase) ||
+                                    normalizedPkgName.Contains(normalizedCurrentName, StringComparison.OrdinalIgnoreCase) ||
+                                    normalizedCurrentName.Contains(normalizedPkgName, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    currentVersion = pkg.Value;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    ThirdPartyLicenses.Add(new ThirdPartyLicense(currentName, currentVersion, lName, string.Join("\n", currentText).Trim(), currentUrl));
                 }
             }
 
@@ -150,6 +234,7 @@ public class AboutViewModel : Screen
                     currentName = title;
                     currentVersion = "";
                     currentLicenseName = "License";
+                    currentUrl = "";
                     currentText.Clear();
                 }
                 else if (line.StartsWith(">"))
@@ -161,6 +246,9 @@ public class AboutViewModel : Screen
                 {
                     var bracketStart = line.IndexOf('[');
                     var bracketEnd = line.IndexOf(']');
+                    var parenStart = line.IndexOf('(', bracketEnd);
+                    var parenEnd = line.IndexOf(')', parenStart);
+
                     if (bracketStart >= 0 && bracketEnd > bracketStart)
                     {
                         var extractedName = line.Substring(bracketStart + 1, bracketEnd - bracketStart - 1);
@@ -170,6 +258,12 @@ public class AboutViewModel : Screen
                             extractedName = slashParts[slashParts.Length - 1];
                         }
                         currentName = extractedName;
+
+                        if (parenStart > bracketEnd && parenEnd > parenStart)
+                        {
+                            currentUrl = line.Substring(parenStart + 1, parenEnd - parenStart - 1);
+                        }
+
                         var parts = line.Split(')');
                         if (parts.Length > 1)
                         {
@@ -204,9 +298,13 @@ public class AboutViewModel : Screen
         return "GNU General Public License v3.0\n\nPlease see the LICENSE file or visit https://www.gnu.org/licenses/gpl-3.0.html";
     }
 
-    private async Task LoadContributorsAsync()
+    public static async Task<List<Contributor>> GetContributorsAsync()
     {
-        Contributors.Clear();
+        var result = new List<Contributor>();
+        var avatarCacheDir = Path.Combine(AppPaths.AppDataDirectory, "cache", "avatars");
+        if (!Directory.Exists(avatarCacheDir))
+            Directory.CreateDirectory(avatarCacheDir);
+
         try
         {
             var request = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/repos/Jed556/AutoMidiPlayer/contributors");
@@ -216,17 +314,15 @@ public class AboutViewModel : Screen
             if (response.IsSuccessStatusCode)
             {
                 var json = await response.Content.ReadAsStringAsync();
-                var doc = JsonDocument.Parse(json);
+                using var doc = JsonDocument.Parse(json);
 
-                var avatarCacheDir = Path.Combine(AppPaths.AppDataDirectory, "cache", "avatars");
-                if (!Directory.Exists(avatarCacheDir))
-                    Directory.CreateDirectory(avatarCacheDir);
+                var contributorsListForCache = new List<object>();
 
                 foreach (var element in doc.RootElement.EnumerateArray())
                 {
                     var login = element.GetProperty("login").GetString() ?? "Unknown";
 
-                    if (login.Equals("dependabot[bot]", StringComparison.OrdinalIgnoreCase) || 
+                    if (login.Equals("dependabot[bot]", StringComparison.OrdinalIgnoreCase) ||
                         login.Equals("github-actions[bot]", StringComparison.OrdinalIgnoreCase))
                     {
                         continue;
@@ -236,7 +332,8 @@ public class AboutViewModel : Screen
                     var avatarUrl = element.GetProperty("avatar_url").GetString() ?? "";
 
                     var contributor = new Contributor(login, htmlUrl, avatarUrl);
-                    Contributors.Add(contributor);
+                    result.Add(contributor);
+                    contributorsListForCache.Add(new { Name = login, ProfileUrl = htmlUrl, AvatarUrl = avatarUrl });
 
                     if (!string.IsNullOrWhiteSpace(avatarUrl))
                     {
@@ -260,34 +357,66 @@ public class AboutViewModel : Screen
                         }
                     }
                 }
-            }
-            else
-            {
-                AddFallbackContributors();
+
+                try
+                {
+                    var contributorsFile = Path.Combine(avatarCacheDir, "contributors");
+                    var serializedJson = JsonSerializer.Serialize(contributorsListForCache);
+                    await File.WriteAllBytesAsync(contributorsFile, Crypt.Encrypt(serializedJson));
+                }
+                catch (Exception e)
+                {
+                    Logger.LogException(e);
+                }
+
+                return result;
             }
         }
         catch (Exception ex)
         {
             Logger.LogException(ex);
-            if (Contributors.Count == 0)
+        }
+
+        var contributorsCacheFile = Path.Combine(avatarCacheDir, "contributors");
+        if (File.Exists(contributorsCacheFile))
+        {
+            try
             {
-                AddFallbackContributors();
+                var encryptedBytes = await File.ReadAllBytesAsync(contributorsCacheFile);
+                var json = Crypt.Decrypt(encryptedBytes);
+                using var doc = JsonDocument.Parse(json);
+                foreach (var element in doc.RootElement.EnumerateArray())
+                {
+                    var name = element.GetProperty("Name").GetString() ?? "";
+                    var profileUrl = element.GetProperty("ProfileUrl").GetString() ?? "";
+                    var avatarUrl = element.GetProperty("AvatarUrl").GetString() ?? "";
+
+                    var contributor = new Contributor(name, profileUrl, avatarUrl);
+                    var avatarPath = Path.Combine(avatarCacheDir, $"{name}.png");
+                    if (File.Exists(avatarPath))
+                        contributor.AvatarPath = avatarPath;
+
+                    result.Add(contributor);
+                }
+                return result;
+            }
+            catch (Exception e)
+            {
+                Logger.LogException(e);
             }
         }
-    }
 
-    private void AddFallbackContributors()
-    {
-        Contributors.Add(new Contributor("sabihoshi", "https://github.com/sabihoshi", ""));
-        Contributors.Add(new Contributor("Jed556", "https://github.com/Jed556", ""));
+        result.Add(new Contributor("Jed556", "https://github.com/Jed556", ""));
+        result.Add(new Contributor("sabihoshi", "https://github.com/sabihoshi", ""));
 
-        var avatarCacheDir = Path.Combine(AppPaths.AppDataDirectory, "cache", "avatars");
-        foreach (var c in Contributors)
+        foreach (var c in result)
         {
             var avatarPath = Path.Combine(avatarCacheDir, $"{c.Name}.png");
             if (File.Exists(avatarPath))
                 c.AvatarPath = avatarPath;
         }
+
+        return result;
     }
 
     public void OpenUrl(string url)
@@ -302,9 +431,9 @@ public class AboutViewModel : Screen
                 UseShellExecute = true
             });
         }
-        catch (Exception error)
+        catch (Exception ex)
         {
-            Logger.LogException(error);
+            Logger.LogException(ex);
         }
     }
 

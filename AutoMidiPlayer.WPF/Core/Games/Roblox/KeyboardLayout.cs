@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using AutoMidiPlayer.WPF.Core;
 
 namespace AutoMidiPlayer.WPF.Core.Instruments;
 
@@ -14,7 +15,9 @@ internal static class RobloxKeyboardLayouts
         "s", "S", "d", "D", "f", "g", "G", "h", "H", "j", "J", "k",
         "l", "L", "z", "Z", "x", "c", "C", "v", "V", "b", "B", "n",
         "m",
-    ]);
+    ],
+        sustainKey: VirtualKeyCode.SPACE
+    );
 
     public static readonly KeyboardLayoutConfig QWERTY_88Key = new(
         name: "QWERTY",
@@ -28,5 +31,8 @@ internal static class RobloxKeyboardLayouts
         "l", "L", "z", "Z", "x", "c", "C", "v", "V", "b", "B", "n",
         "m", "^y", "^u", "^i", "^o", "^p", "^a", "^s", "^d", "^f", "^g", "^h",
         "^j"
-    ]);
+    ],
+        sustainKey: VirtualKeyCode.SPACE
+    );
 }
+

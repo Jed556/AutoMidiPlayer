@@ -35,10 +35,13 @@ public partial class ThirdPartyLicenseDialog : ContentDialog
         {
             void UpdateDialogBounds()
             {
-                var maxHeight = Math.Max(0, activeWindow.ActualHeight - 120);
-                var maxWidth = Math.Max(0, activeWindow.ActualWidth - 120);
+                var maxHeight = Math.Max(0, activeWindow.ActualHeight * 0.80);
+                var maxWidth = Math.Max(0, activeWindow.ActualWidth * 0.60);
                 DialogMaxHeight = maxHeight;
                 DialogMaxWidth = maxWidth;
+                MaxHeight = maxHeight;
+                MaxWidth = maxWidth;
+                Width = maxWidth;
                 DialogMargin = new Thickness(24);
             }
 

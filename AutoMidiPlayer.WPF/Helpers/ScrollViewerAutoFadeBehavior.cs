@@ -162,7 +162,8 @@ public static class ScrollViewerAutoFadeBehavior
             }
 
             // Check if mouse is over an open popup
-            if (IsMouseOverOpenPopup())
+            bool isMouseOverPopup = IsMouseOverOpenPopup();
+            if (isMouseOverPopup)
             {
                 // Mark as handled to prevent parent scrolling when cursor is over popup
                 e.Handled = true;
@@ -175,7 +176,8 @@ public static class ScrollViewerAutoFadeBehavior
             if (_viewer.ScrollableHeight <= 0)
                 return;
 
-            if (!IsSmoothScrollingEnabled())
+            bool smoothEnabled = IsSmoothScrollingEnabled();
+            if (!smoothEnabled)
             {
                 _smoothScrollAnimator.Stop();
                 _smoothScrollAnimator.SyncTargetToCurrentOffset();
@@ -186,7 +188,8 @@ public static class ScrollViewerAutoFadeBehavior
 
             e.Handled = true;
 
-            if (IsLogicalScrollMode())
+            bool isLogical = IsLogicalScrollMode();
+            if (isLogical)
             {
                 _smoothScrollAnimator.Stop();
 
@@ -864,7 +867,23 @@ public static class ScrollViewerAutoFadeBehavior
             if (_viewer.TemplatedParent is ItemsControl templatedItemsControl)
                 return templatedItemsControl;
 
-            var itemsHost = FindDescendant<Panel>(_viewer, panel => ItemsControl.GetItemsOwner(panel) is not null);
+            var itemsHost = FindDescendant<Panel>(_viewer, panel => 
+            {
+                var owner = ItemsControl.GetItemsOwner(panel);
+                if (owner == null) return false;
+
+                if (owner == _viewer.TemplatedParent) return true;
+
+                DependencyObject current = VisualTreeHelper.GetParent(_viewer);
+                while (current != null)
+                {
+                    if (current == owner) return true;
+                    current = VisualTreeHelper.GetParent(current);
+                }
+
+                return false;
+            });
+
             if (itemsHost is null)
                 return null;
 

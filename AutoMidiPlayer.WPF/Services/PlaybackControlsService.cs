@@ -459,9 +459,7 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
                 var pausedPlayback = SetListenMode(false, pausePlaybackOnChange: true);
                 if (pausedPlayback)
                 {
-                    var selectedGameName = _main.SelectedGame?.Definition.DisplayName ?? "Selected game";
-                    var gameLabel = $"{selectedGameName} is not running";
-                    _main.ShowPlaybackStoppedGameNotRunningToast(gameLabel);
+                    _main.ShowPlaybackStoppedGameNotRunningToast();
                 }
 
                 return;

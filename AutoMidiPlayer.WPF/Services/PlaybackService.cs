@@ -48,6 +48,8 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
     private long _scheduledEventTicks;
     private bool _loggedSongContextForNotes;
     private readonly Dictionary<int, (int SourceNote, int OutputNote, string KeyName, int Velocity, long StartMs)> _activeNotes = new();
+    private readonly HashSet<FourBitNumber> _channelsWithSustainDown = new();
+    private bool _sustainKeyCurrentlyHeldInGame;
 
     #endregion
 
@@ -168,6 +170,8 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
     /// </summary>
     public void ResetPlayback()
     {
+        ReleaseSustainIfActive();
+
         var old = Playback;
         Playback = null;
 
@@ -232,6 +236,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         playback.InterruptNotesOnStop = true;
         _scheduledEventTicks = 0;
         _activeNotes.Clear();
+        _channelsWithSustainDown.Clear();
         _loggedSongContextForNotes = false;
         playback.Finished += (_, _) =>
         {
@@ -239,6 +244,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             // naturally — only Finished is raised. Stop the time watcher here so
             // it doesn't keep overriding the slider position after the song ends.
             _timeWatcher.Stop();
+            ReleaseSustainIfActive();
 
             // Marshal to UI thread to avoid cross-thread issues
             // Only auto-next if this playback is still the current one
@@ -255,7 +261,42 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             _playbackStartedAtUtc = DateTime.UtcNow;
             _scheduledEventTicks = 0;
             _activeNotes.Clear();
+            _channelsWithSustainDown.Clear();
             _loggedSongContextForNotes = false;
+
+            var layout = InstrumentPage.SelectedLayout.Key;
+            var instrument = InstrumentPage.SelectedInstrument.Key;
+            var sustainKey = Keyboard.GetLayoutConfig(layout, instrument)?.SustainKey;
+            if (sustainKey is not null)
+            {
+                // Force a key up to clear any potentially stuck state
+                KeyboardPlayer.SustainUp(sustainKey.Value);
+                _sustainKeyCurrentlyHeldInGame = false;
+
+                var midi = Queue.OpenedFile?.Midi;
+                var tempoMap = Queue.OpenedFile?.OriginalTempoMap;
+                if (midi != null && tempoMap != null)
+                {
+                    try
+                    {
+                        var currentTime = new MetricTimeSpan(Controls.CurrentTime);
+                        var ccEvents = midi.GetTimedEvents()
+                            .Where(e => e.TimeAs<MetricTimeSpan>(tempoMap) <= currentTime)
+                            .Select(e => e.Event)
+                            .OfType<ControlChangeEvent>()
+                            .Where(e => e.ControlNumber == 64);
+
+                        foreach (var ccEvent in ccEvents)
+                        {
+                            if (ccEvent.ControlValue >= 64)
+                                _channelsWithSustainDown.Add(ccEvent.Channel);
+                            else
+                                _channelsWithSustainDown.Remove(ccEvent.Channel);
+                        }
+                    }
+                    catch { } // Ignore metric conversion errors
+                }
+            }
 
             _timeWatcher.RemoveAllPlaybacks();
             _timeWatcher.AddPlayback(playback, TimeSpanType.Metric);
@@ -270,6 +311,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         playback.Stopped += (_, _) =>
         {
             _timeWatcher.Stop();
+            ReleaseSustainIfActive();
             Controls.UpdateButtons();
             Controls.NotifyPlaybackStateChanged();
 
@@ -329,10 +371,115 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
     {
         _scheduledEventTicks += (long)e.Event.DeltaTime;
 
-        if (e.Event is not NoteEvent noteEvent)
+        ReconcileSustainState();
+
+        switch (e.Event)
+        {
+            case NoteEvent noteEvent:
+                PlayNote(noteEvent);
+                break;
+            case ControlChangeEvent ccEvent:
+                HandleControlChange(ccEvent);
+                break;
+        }
+    }
+
+    private void HandleControlChange(ControlChangeEvent ccEvent)
+    {
+        // Only handle CC 64 (Damper/Sustain Pedal)
+        if (ccEvent.ControlNumber != 64)
             return;
 
-        PlayNote(noteEvent);
+        var layout = InstrumentPage.SelectedLayout.Key;
+        var instrument = InstrumentPage.SelectedInstrument.Key;
+        var layoutConfig = Keyboard.GetLayoutConfig(layout, instrument);
+        var sustainKey = layoutConfig?.SustainKey;
+        if (sustainKey is null)
+            return;
+
+        var isPedalDown = ccEvent.ControlValue >= 64;
+
+        // Forward CC 64 to speakers when layout supports sustain
+        if (Settings.UseSpeakers)
+        {
+            _speakers?.SendEvent(ccEvent);
+
+            if (ShouldLogPlayedNotes)
+                Logger.LogInputOutput($"{(isPedalDown ? "SUSTAIN_DOWN" : "SUSTAIN_UP")} mode=speakers");
+            return;
+        }
+
+        var selectedGame = _main.SelectedGame?.Definition;
+        var isGameRunning = selectedGame is not null && GameRegistry.IsGameRunning(selectedGame);
+
+        if (!isGameRunning)
+        {
+            // Auto-listen fallback: forward to speakers if available
+            if (Settings.AutoEnableListenMode || Settings.UseSpeakers)
+                _speakers?.SendEvent(ccEvent);
+            return;
+        }
+
+        // Track CC state unconditionally so we don't lose sync during focus loss
+        if (isPedalDown)
+            _channelsWithSustainDown.Add(ccEvent.Channel);
+        else
+            _channelsWithSustainDown.Remove(ccEvent.Channel);
+
+        ReconcileSustainState();
+    }
+
+    private void ReconcileSustainState()
+    {
+        var shouldBeDown = _channelsWithSustainDown.Count > 0;
+        if (shouldBeDown == _sustainKeyCurrentlyHeldInGame)
+            return;
+
+        var layout = InstrumentPage.SelectedLayout.Key;
+        var instrument = InstrumentPage.SelectedInstrument.Key;
+        var sustainKey = Keyboard.GetLayoutConfig(layout, instrument)?.SustainKey;
+        if (sustainKey is null || Settings.UseSpeakers)
+            return;
+
+        var isFocused = KeyboardPlayer.UseWindowMessage || WindowHelper.IsGameFocused();
+        if (!isFocused)
+            return;
+
+        if (shouldBeDown && !_sustainKeyCurrentlyHeldInGame)
+        {
+            _sustainKeyCurrentlyHeldInGame = true;
+            KeyboardPlayer.SustainDown(sustainKey.Value);
+            if (ShouldLogPlayedNotes)
+                Logger.LogInputOutput($"SUSTAIN_DOWN (reconcile) key={sustainKey.Value}");
+        }
+        else if (!shouldBeDown && _sustainKeyCurrentlyHeldInGame)
+        {
+            _sustainKeyCurrentlyHeldInGame = false;
+            KeyboardPlayer.SustainUp(sustainKey.Value);
+            if (ShouldLogPlayedNotes)
+                Logger.LogInputOutput($"SUSTAIN_UP (reconcile) key={sustainKey.Value}");
+        }
+    }
+
+    private void ReleaseSustainIfActive()
+    {
+        _channelsWithSustainDown.Clear();
+
+        var layout = InstrumentPage.SelectedLayout.Key;
+        var instrument = InstrumentPage.SelectedInstrument.Key;
+        var sustainKey = Keyboard.GetLayoutConfig(layout, instrument)?.SustainKey;
+        
+        if (sustainKey is not null && _sustainKeyCurrentlyHeldInGame)
+        {
+            // If focused or using window messages, release cleanly
+            if (KeyboardPlayer.UseWindowMessage || WindowHelper.IsGameFocused())
+            {
+                KeyboardPlayer.SustainUp(sustainKey.Value);
+                _sustainKeyCurrentlyHeldInGame = false;
+            }
+            // If unfocused, we leave _sustainKeyCurrentlyHeldInGame = true
+            // Next time ReconcileSustainState runs or playback Starts, it will force a clean release.
+        }
     }
 
     private void PlayNote(NoteEvent noteEvent)
@@ -441,7 +588,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         var instrumentKeyCount = Keyboard.GetNotes(instrumentId).Count;
         var threshold = Settings.AutoCorrectThreshold;
 
-        if (instrumentKeyCount <= threshold)
+        if (threshold > 0 && instrumentKeyCount <= threshold)
         {
             // Auto-correct: apply full base key + relative offset
             noteId += SongSettings.GetEffectiveKeyOffset(Queue.OpenedFile?.Song);
@@ -511,11 +658,8 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             Logger.LogStep("LISTEN_MODE_AUTO_ENABLED", $"song='{CurrentSongLabel}'");
         }
 
-        var selectedGameName = _main.SelectedGame?.Definition.DisplayName ?? "Selected game";
-        var gameLabel = $"{selectedGameName} is not running";
-
         var listenModeEnabled = Settings.UseSpeakers;
-        _main.ShowGameInactiveToast(gameLabel, listenModeEnabled);
+        _main.ShowGameInactiveToast(listenModeEnabled);
 
         Logger.LogStep("GAME_NOT_RUNNING_TOAST", $"song='{CurrentSongLabel}' | listenModeEnabled={listenModeEnabled}");
 
@@ -534,14 +678,11 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                     pb.Stop();
                     Queue.SaveCurrentSong(Controls.CurrentTime.TotalSeconds);
                     Controls.UpdateButtons();
+                    _main.ShowPlaybackStoppedGameNotRunningToast();
                 }
             }
             catch (ObjectDisposedException) { }
         }
-
-        var selectedGameName = _main.SelectedGame?.Definition.DisplayName ?? "Selected game";
-        var gameLabel = $"{selectedGameName} is not running";
-        _main.ShowPlaybackStoppedGameNotRunningToast(gameLabel);
     }
 
     private void HandleGameFocusLoss()
@@ -558,13 +699,11 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                     pb.Stop();
                     Queue.SaveCurrentSong(Controls.CurrentTime.TotalSeconds);
                     Controls.UpdateButtons();
+                    _main.ShowGameFocusLossToast();
                 }
             }
             catch (ObjectDisposedException) { }
         }
-
-        var selectedGameName = _main.SelectedGame?.Definition.DisplayName ?? "Selected game";
-        _main.ShowGameFocusLossToast(selectedGameName);
     }
 
     public async Task<bool> StartPlayback(Playback playback)
@@ -633,6 +772,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         _loggedSongContextForNotes = false;
         _scheduledEventTicks = 0;
         _activeNotes.Clear();
+        _channelsWithSustainDown.Clear();
 
         Logger.LogStep(
             "PLAYBACK_LOAD_REQUEST",

@@ -6,7 +6,7 @@
              xmlns:menu="clr-namespace:AutoMidiPlayer.WPF.Controls.SelectorPopupButton.Menu"
              x:Name="Root"
              Focusable="False">
-    <Grid ToolTip="{Binding ToolTip, ElementName=Root}">
+    <Grid ToolTip="{Binding ToolTip, ElementName=Root}" VerticalAlignment="Center">
         <Border x:Name="GlowBorder"
                 BorderThickness="1"
                 CornerRadius="6"

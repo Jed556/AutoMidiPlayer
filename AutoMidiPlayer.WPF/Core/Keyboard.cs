@@ -464,6 +464,22 @@ public static class Keyboard
     }
 
     /// <summary>
+    /// Get the full layout configuration for the specified layout and instrument.
+    /// Returns null if no layout is found.
+    /// </summary>
+    public static KeyboardLayoutConfig? GetLayoutConfig(string? layoutName, string? instrumentId)
+    {
+        var config = GetInstrumentConfig(instrumentId);
+
+        if (config.KeyboardLayouts.Count == 0)
+            return null;
+
+        return config.KeyboardLayouts
+            .FirstOrDefault(l => string.Equals(l.Name, layoutName, StringComparison.OrdinalIgnoreCase))
+            ?? config.KeyboardLayouts[0];
+    }
+
+    /// <summary>
     /// Get the MIDI notes for the specified instrument id
     /// </summary>
     public static IList<int> GetNotes(string? instrumentId)

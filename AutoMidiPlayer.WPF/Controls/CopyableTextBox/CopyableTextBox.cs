@@ -1,6 +1,8 @@
 using System;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media.Animation;
 
@@ -15,7 +17,13 @@ public partial class CopyableTextBox : UserControl
         nameof(Text),
         typeof(string),
         typeof(CopyableTextBox),
-        new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+        new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnTextChanged));
+
+    public static readonly DependencyProperty DelimiterProperty = DependencyProperty.Register(
+        nameof(Delimiter),
+        typeof(string),
+        typeof(CopyableTextBox),
+        new PropertyMetadata("_", OnDelimiterChanged));
 
     public static readonly DependencyProperty IsReadOnlyProperty = DependencyProperty.Register(
         nameof(IsReadOnly),
@@ -27,7 +35,7 @@ public partial class CopyableTextBox : UserControl
         nameof(TextWrapping),
         typeof(TextWrapping),
         typeof(CopyableTextBox),
-        new PropertyMetadata(System.Windows.TextWrapping.NoWrap));
+        new PropertyMetadata(System.Windows.TextWrapping.NoWrap, OnTextWrappingChanged));
 
     public static readonly DependencyProperty VerticalScrollBarVisibilityProperty = DependencyProperty.Register(
         nameof(VerticalScrollBarVisibility),
@@ -61,14 +69,15 @@ public partial class CopyableTextBox : UserControl
 
     private void OnLayoutUpdated(object? sender, EventArgs e)
     {
-        if (MainTextBox is null || CopyButton is null)
+        if (MainRichTextBox is null || CopyButton is null)
             return;
 
-        bool isScrollbarVisible = MainTextBox.VerticalScrollBarVisibility == ScrollBarVisibility.Visible ||
-                                 (MainTextBox.VerticalScrollBarVisibility == ScrollBarVisibility.Auto &&
-                                  MainTextBox.ExtentHeight > MainTextBox.ViewportHeight);
+        bool isScrollbarVisible = MainRichTextBox.VerticalScrollBarVisibility == ScrollBarVisibility.Visible ||
+                                 (MainRichTextBox.VerticalScrollBarVisibility == ScrollBarVisibility.Auto &&
+                                  MainRichTextBox.ExtentHeight > MainRichTextBox.ViewportHeight);
 
-        double targetRightMargin = isScrollbarVisible ? SystemParameters.VerticalScrollBarWidth + 4 : 4;
+        // WPF UI scrollbars are thinner than the standard system scrollbars (10px width)
+        double targetRightMargin = isScrollbarVisible ? 16 : 4;
 
         if (Math.Abs(CopyButton.Margin.Right - targetRightMargin) > 0.1)
         {
@@ -80,6 +89,12 @@ public partial class CopyableTextBox : UserControl
     {
         get => (string)GetValue(TextProperty);
         set => SetValue(TextProperty, value);
+    }
+
+    public string Delimiter
+    {
+        get => (string)GetValue(DelimiterProperty);
+        set => SetValue(DelimiterProperty, value);
     }
 
     public bool IsReadOnly
@@ -116,6 +131,99 @@ public partial class CopyableTextBox : UserControl
     {
         get => GetValue(CopyToolTipProperty);
         set => SetValue(CopyToolTipProperty, value);
+    }
+
+    private static void OnTextChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is CopyableTextBox control)
+        {
+            control.UpdateDocument();
+        }
+    }
+
+    private static void OnDelimiterChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is CopyableTextBox control)
+        {
+            control.UpdateDocument();
+        }
+    }
+
+    private static void OnTextWrappingChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is CopyableTextBox control)
+        {
+            control.UpdateDocument();
+        }
+    }
+
+    private void UpdateDocument()
+    {
+        if (MainRichTextBox == null) return;
+
+        var text = Text ?? string.Empty;
+        var delimiterStr = Delimiter;
+
+        var doc = new FlowDocument();
+        
+        if (TextWrapping == TextWrapping.NoWrap)
+            doc.PageWidth = 10000;
+        else
+            doc.PageWidth = double.NaN;
+
+        doc.PagePadding = new Thickness(0);
+        var paragraph = new Paragraph { Margin = new Thickness(0) };
+
+        if (!string.IsNullOrEmpty(text))
+        {
+            if (!string.IsNullOrEmpty(delimiterStr))
+            {
+                var delimiter = delimiterStr[0];
+                var currentRun = new StringBuilder();
+                bool isDelimiterRun = false;
+
+                for (int i = 0; i < text.Length; i++)
+                {
+                    bool isDelimiter = text[i] == delimiter;
+
+                    if (i == 0)
+                    {
+                        isDelimiterRun = isDelimiter;
+                    }
+                    else if (isDelimiter != isDelimiterRun)
+                    {
+                        var run = new Run(currentRun.ToString());
+                        if (isDelimiterRun)
+                        {
+                            run.SetResourceReference(TextElement.ForegroundProperty, "TextFillColorDisabledBrush");
+                        }
+                        paragraph.Inlines.Add(run);
+
+                        currentRun.Clear();
+                        isDelimiterRun = isDelimiter;
+                    }
+
+                    currentRun.Append(text[i]);
+                }
+
+                if (currentRun.Length > 0)
+                {
+                    var run = new Run(currentRun.ToString());
+                    if (isDelimiterRun)
+                    {
+                        run.SetResourceReference(TextElement.ForegroundProperty, "TextFillColorDisabledBrush");
+                    }
+                    paragraph.Inlines.Add(run);
+                }
+            }
+            else
+            {
+                paragraph.Inlines.Add(new Run(text));
+            }
+        }
+
+        doc.Blocks.Add(paragraph);
+        MainRichTextBox.Document = doc;
     }
 
     private void OnCopyClick(object sender, RoutedEventArgs e)

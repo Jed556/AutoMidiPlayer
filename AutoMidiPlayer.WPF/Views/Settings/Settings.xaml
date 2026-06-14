@@ -692,7 +692,7 @@
 
                             <WrapPanel>
                                 <GroupBox Header="Auto-Check Updates"
-                                        Margin="0,0,16,8">
+                                          Margin="0,0,16,8">
                                     <controls:SimpleStackPanel Spacing="8">
                                         <ui:ToggleSwitch Content="Auto-check"
                                                          IsChecked="{Binding AutoCheckUpdates}"/>
@@ -704,7 +704,7 @@
                                     </controls:SimpleStackPanel>
                                 </GroupBox>
                                 <GroupBox Header="Auto-Download Updates"
-                                        Margin="0,0,16,8">
+                                          Margin="0,0,16,8">
                                     <controls:SimpleStackPanel Spacing="8">
                                         <ui:ToggleSwitch Content="Auto-download"
                                                          IsChecked="{Binding AutoDownloadUpdates}"/>
@@ -716,7 +716,7 @@
                                     </controls:SimpleStackPanel>
                                 </GroupBox>
                                 <GroupBox Header="Include Beta Updates"
-                                        Margin="0,0,16,8">
+                                          Margin="0,0,16,8">
                                     <ui:ToggleSwitch Content="Beta Updates"
                                                      IsChecked="{Binding IncludeBetaUpdates}"/>
                                 </GroupBox>
@@ -776,6 +776,34 @@
                         </WrapPanel>
                     </controls:Section>
 
+                    <!-- Telemetry Section -->
+                    <controls:Section Title="Crash Reporting &amp; Analytics"
+                                      Margin="0,16,0,0">
+                        <controls:SimpleStackPanel>
+                            <TextBlock Text="Automatically send machine information and logs when crashes occur. No personal data is collected."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       Margin="0,-6,0,12"/>
+                            <ui:ToggleSwitch IsChecked="{Binding TelemetryOptIn}"
+                                             Margin="0,0,0,8">
+                            <ui:ToggleSwitch.Style>
+                                <Style TargetType="ui:ToggleSwitch"
+                                       BasedOn="{StaticResource {x:Type ui:ToggleSwitch}}">
+                                    <Setter Property="Content"
+                                            Value="Opted-out"/>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsChecked"
+                                                 Value="True">
+                                            <Setter Property="Content"
+                                                    Value="Opted-in"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:ToggleSwitch.Style>
+                        </ui:ToggleSwitch>
+                        </controls:SimpleStackPanel>
+                    </controls:Section>
+
                     <!-- Debug Section -->
                     <controls:Section Title="Debug"
                                       Margin="0,16,0,0">
@@ -797,15 +825,25 @@
 
                         <Border Style="{StaticResource DebugSectionContentContainerStyle}">
                             <controls:SimpleStackPanel>
-                                <controls:SimpleStackPanel Orientation="Horizontal"
-                                                           Spacing="8">
+                                <WrapPanel>
                                     <controls:Button Variant="Outlined"
+                                                     Content="Show MessageBox"
                                                      Command="{s:Action ShowDebugMessageBoxSample}"
-                                                     Content="Sample MessageBox"/>
+                                                     Margin="0,0,8,8"/>
                                     <controls:Button Variant="Outlined"
+                                                     Content="Show Dialog"
                                                      Command="{s:Action ShowDebugDialogSample}"
-                                                     Content="Sample DialogBox"/>
-                                </controls:SimpleStackPanel>
+                                                     Margin="0,0,8,8"/>
+                                    <controls:Button Variant="Outlined"
+                                                     Content="Show Snackbars"
+                                                     Command="{s:Action ShowDebugSnackbarSample}"
+                                                     Margin="0,0,8,8"/>
+                                    <controls:Button Variant="Outlined"
+                                                     Content="Send Sentry Test"
+                                                     Command="{s:Action SendSentryTestMessage}"
+                                                     ToolTip="Send a test message to Sentry (10 min cooldown)"
+                                                     Margin="0,0,0,8"/>
+                                </WrapPanel>
 
                                 <GroupBox Header="Crash Log Verbosity"
                                           Margin="0,8,0,0">

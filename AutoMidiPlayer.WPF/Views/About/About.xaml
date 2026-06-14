@@ -276,21 +276,7 @@
                            TextAlignment="Center"
                            TextWrapping="Wrap"
                            Margin="0,8,0,0">
-                    <Run Text="If you like the app, consider "/>
-                    <InlineUIContainer BaselineAlignment="Center">
-                        <controls:Hyperlink NavigateUri="https://github.com/Jed556/AutoMidiPlayer/blob/main/CONTRIBUTING.md">
-                            <TextBlock Text="contributing"
-                                       FontSize="12"/>
-                        </controls:Hyperlink>
-                    </InlineUIContainer>
-                    <Run Text=" or giving a 🌟 star on "/>
-                    <InlineUIContainer BaselineAlignment="Center">
-                        <controls:Hyperlink NavigateUri="https://github.com/Jed556/AutoMidiPlayer">
-                            <TextBlock Text="GitHub"
-                                       FontSize="12"/>
-                        </controls:Hyperlink>
-                    </InlineUIContainer>
-                    <Run Text=". Thank you~"/>
+                    <Run Text="If you like the app, consider "/><InlineUIContainer BaselineAlignment="Center"><controls:Hyperlink NavigateUri="https://github.com/Jed556/AutoMidiPlayer/blob/main/CONTRIBUTING.md" Padding="0" Margin="0" BorderThickness="0" Background="Transparent" MinHeight="0"><TextBlock Text="contributing" FontSize="12"/></controls:Hyperlink></InlineUIContainer><Run Text=" or giving a 🌟 star on "/><InlineUIContainer BaselineAlignment="Center"><controls:Hyperlink NavigateUri="https://github.com/Jed556/AutoMidiPlayer" Padding="0" Margin="0" BorderThickness="0" Background="Transparent" MinHeight="0"><TextBlock Text="GitHub" FontSize="12"/></controls:Hyperlink></InlineUIContainer><Run Text=". Thank you~"/>
                 </TextBlock>
             </StackPanel>
 
@@ -314,8 +300,11 @@
                                                    TextTrimming="CharacterEllipsis"
                                                    MaxWidth="380"/>
                                     </Button.ToolTip>
-                                    <TextBlock Text="{Binding Name}"
-                                               VerticalAlignment="Center"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="{Binding IconSymbol, Mode=OneWay}" Margin="0,0,8,0" FontSize="16" />
+                                        <TextBlock Text="{Binding Name}"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
                                 </Button>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -327,8 +316,7 @@
                 <controls:SimpleStackPanel Spacing="8">
                     <TextBlock TextWrapping="Wrap"
                                FontSize="12">
-                        This project was originally forked from <InlineUIContainer BaselineAlignment="Center"><controls:Hyperlink NavigateUri="https://github.com/sabihoshi/GenshinLyreMidiPlayer"><TextBlock Text="sabihoshi/GenshinLyreMidiPlayer"
-                                                                                                                                                                                                              FontSize="12"/></controls:Hyperlink></InlineUIContainer> v4.0.5 and later detached into its own repository to enable multi-game support and features that do not fit the original Genshin Impact-only design. Huge thanks for the original work!
+                        This project was originally forked from <InlineUIContainer BaselineAlignment="Center"><controls:Hyperlink NavigateUri="https://github.com/sabihoshi/GenshinLyreMidiPlayer" Padding="0" Margin="0" BorderThickness="0" Background="Transparent" MinHeight="0"><TextBlock Text="sabihoshi/GenshinLyreMidiPlayer" FontSize="12"/></controls:Hyperlink></InlineUIContainer> v4.0.5 and later detached into its own repository to enable multi-game support and features that do not fit the original Genshin Impact-only design. Huge thanks for the original work!
                     </TextBlock>
 
                     <TextBlock Text="Contributors"

@@ -31,11 +31,14 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
     private InputDevice? _inputDevice;
     private readonly Dictionary<string, string> _selectedInstrumentByGame;
 
+    public Controls.NoSongPlaceholder.NoSongPlaceholderComponent Placeholder { get; }
 
-    public InstrumentViewModel(IContainer ioc, MainWindowViewModel main)
+    public InstrumentViewModel(IContainer ioc, MainWindowViewModel main, Controls.NoSongPlaceholder.NoSongPlaceholderComponent placeholder)
     {
         _ioc = ioc;
         _main = main;
+        Placeholder = placeholder;
+        Placeholder.DisplayMode = Controls.NoSongPlaceholder.PlaceholderDisplayMode.TextOnly;
         _events = ioc.Get<IEventAggregator>();
         _events.Subscribe(this);
         _selectedInstrumentByGame = LoadSelectedInstrumentsByGame();

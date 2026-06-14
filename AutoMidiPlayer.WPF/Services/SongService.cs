@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Entities;
 using AutoMidiPlayer.Data.Properties;
+using AutoMidiPlayer.WPF.Controls.Snackbar;
 using AutoMidiPlayer.WPF.Core;
 using AutoMidiPlayer.WPF.Dialogs;
 using AutoMidiPlayer.WPF.ViewModels;
@@ -351,6 +352,10 @@ public class SongService(IContainer ioc) : PropertyChangedBase
     /// </summary>
     private bool IsAutoCorrectActiveForCurrentInstrument()
     {
+        var threshold = Settings.AutoCorrectThreshold;
+        if (threshold <= 0)
+            return false;
+
         // Auto-correction only applies when Smart transpose is selected
         if (TransposeMode != Smart)
             return false;
@@ -363,7 +368,6 @@ public class SongService(IContainer ioc) : PropertyChangedBase
             return false;
 
         var keyCount = Keyboard.GetNotes(instrumentId).Count;
-        var threshold = Settings.AutoCorrectThreshold;
         return keyCount <= threshold;
     }
 
@@ -488,11 +492,22 @@ public class SongService(IContainer ioc) : PropertyChangedBase
         file.Song.HoldNotes = dialog.SongHoldNotes;
         file.Song.Speed = dialog.SongSpeed;
 
-        await using var db = _ioc.Get<PlayerContext>();
-        db.Songs.Update(file.Song);
-        await db.SaveChangesAsync();
+        try
+        {
+            await using var db = _ioc.Get<PlayerContext>();
+            db.Songs.Update(file.Song);
+            await db.SaveChangesAsync();
 
-        Logger.LogStep("SONG_EDIT_DIALOG_SAVE_COMPLETED", $"source={source} | title='{updatedTitle}' | songId={file.Song.Id}");
+            Logger.LogStep("SONG_EDIT_DIALOG_SAVE_COMPLETED", $"source={source} | title='{updatedTitle}' | songId={file.Song.Id}");
+            SnackbarService.Success("Song saved", $"{updatedTitle}");
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Failed to save song: {updatedTitle}");
+            Logger.LogException(ex);
+            SnackbarService.Danger("Failed to save song", $"{updatedTitle}");
+            return;
+        }
 
         if (_main.QueueView.OpenedFile?.Song.Id == file.Song.Id)
         {

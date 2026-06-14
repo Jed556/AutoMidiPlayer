@@ -142,8 +142,8 @@ jobs:
 
           Copy-Item $portableExe $stagedExe -Force
           if (Test-Path $portableArchive) { Remove-Item $portableArchive -Force }
-          7z a $portableArchive "`"$stagedExe`"" -mx9
-          Remove-Item "`"$stagedExe`"" -Force
+          7z a $portableArchive "$stagedExe" -mx9
+          Remove-Item "$stagedExe" -Force
 
       - name: Upload portable artifact
         uses: actions/upload-artifact@v7.0.1

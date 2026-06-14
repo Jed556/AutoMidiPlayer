@@ -12,16 +12,25 @@ public class KeyboardLayoutConfig
 
     public IReadOnlyList<VirtualKeyCode> Keys => KeyStrokes.Select(k => k.Key).ToArray();
 
-    public KeyboardLayoutConfig(string name, IReadOnlyList<VirtualKeyCode> keyCodes)
+    /// <summary>
+    /// Optional virtual key code for the sustain pedal in this layout.
+    /// When set, MIDI CC 64 (Damper Pedal) events will press/release this key.
+    /// For Roblox, this is typically VirtualKeyCode.SPACE.
+    /// </summary>
+    public VirtualKeyCode? SustainKey { get; }
+
+    public KeyboardLayoutConfig(string name, IReadOnlyList<VirtualKeyCode> keyCodes, VirtualKeyCode? sustainKey = null)
     {
         Name = name;
         KeyStrokes = keyCodes.Select(key => new Keyboard.KeyStroke(key)).ToArray();
+        SustainKey = sustainKey;
     }
 
-    public KeyboardLayoutConfig(string name, IReadOnlyList<Keyboard.KeyStroke> keyStrokes)
+    public KeyboardLayoutConfig(string name, IReadOnlyList<Keyboard.KeyStroke> keyStrokes, VirtualKeyCode? sustainKey = null)
     {
         Name = name;
         KeyStrokes = keyStrokes;
+        SustainKey = sustainKey;
     }
 
     /// <summary>
@@ -38,9 +47,10 @@ public class KeyboardLayoutConfig
     ///   new KeyboardLayoutConfig("Extended", ["^n", "^m", "^,", "^.", "^/", "^h", "^j", "^k", "^l", "^;", "^y", "^u", "^i", "^o", "^p"])
     ///   new KeyboardLayoutConfig("Mixed", ["n", "^n", "m", "^m", ...])
     /// </summary>
-    public KeyboardLayoutConfig(string name, IReadOnlyList<string> keys)
+    public KeyboardLayoutConfig(string name, IReadOnlyList<string> keys, VirtualKeyCode? sustainKey = null)
     {
         Name = name;
         KeyStrokes = Keyboard.ParseLayoutKeys(keys);
+        SustainKey = sustainKey;
     }
 }
