@@ -89,37 +89,43 @@
     <Setting Name="GenshinLocation" Type="System.String" Scope="User">
       <Value Profile="(Default)">GenshinImpact.exe</Value>
     </Setting>
-    <Setting Name="HeartopiaLocation" Type="System.String" Scope="User">
-      <Value Profile="(Default)">xdt.exe</Value>
+    <Setting Name="NTELocation" Type="System.String" Scope="User">
+      <Value Profile="(Default)">HTGame.exe</Value>
     </Setting>
     <Setting Name="RobloxLocation" Type="System.String" Scope="User">
       <Value Profile="(Default)">RobloxPlayerBeta.exe</Value>
     </Setting>
-    <Setting Name="NTELocation" Type="System.String" Scope="User">
-      <Value Profile="(Default)">HTGame.exe</Value>
+    <Setting Name="SkyLocation" Type="System.String" Scope="User">
+      <Value Profile="(Default)">Sky.exe</Value>
+    </Setting>
+    <Setting Name="HeartopiaLocation" Type="System.String" Scope="User">
+      <Value Profile="(Default)">xdt.exe</Value>
     </Setting>
     <Setting Name="BPSRLocation" Type="System.String" Scope="User">
       <Value Profile="(Default)">BPSR.exe</Value>
     </Setting>
+    <Setting Name="HPMALocation" Type="System.String" Scope="User">
+      <Value Profile="(Default)">Harry Potter Magic Awakened.exe</Value>
+    </Setting>
     <Setting Name="ActiveGenshin" Type="System.Boolean" Scope="User">
-      <Value Profile="(Default)">True</Value>
-    </Setting>
-    <Setting Name="ActiveHeartopia" Type="System.Boolean" Scope="User">
-      <Value Profile="(Default)">True</Value>
-    </Setting>
-    <Setting Name="ActiveRoblox" Type="System.Boolean" Scope="User">
-      <Value Profile="(Default)">True</Value>
-    </Setting>
-    <Setting Name="SkyLocation" Type="System.String" Scope="User">
-      <Value Profile="(Default)">Sky.exe</Value>
-    </Setting>
-    <Setting Name="ActiveSky" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>
     <Setting Name="ActiveNTE" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>
+    <Setting Name="ActiveRoblox" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="ActiveSky" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="ActiveHeartopia" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
     <Setting Name="ActiveBPSR" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="ActiveHPMA" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>
     <Setting Name="SelectedInstrument" Type="System.Int32" Scope="User">
@@ -215,13 +221,6 @@
     <Setting Name="LogPlayedNotes" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">False</Value>
     </Setting>
-    <Setting Name="SqliteConnection" Type="(Connection string)" Scope="Application">
-      <DesignTimeValue Profile="(Default)">&lt;?xml version="1.0" encoding="utf-16"?&gt;
-&lt;SerializableConnectionString xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"&gt;
-  &lt;ConnectionString&gt;history.db&lt;/ConnectionString&gt;
-&lt;/SerializableConnectionString&gt;</DesignTimeValue>
-      <Value Profile="(Default)">history.db</Value>
-    </Setting>
     <Setting Name="SelectedTransition" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">1</Value>
     </Setting>
@@ -230,6 +229,22 @@
     </Setting>
     <Setting Name="PageCaching" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="TelemetryOptIn" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="HasShownFirstLaunch" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="HasReportedMachineInfo" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="SqliteConnection" Type="(Connection string)" Scope="Application">
+      <DesignTimeValue Profile="(Default)">&lt;?xml version="1.0" encoding="utf-16"?&gt;
+&lt;SerializableConnectionString xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"&gt;
+  &lt;ConnectionString&gt;history.db&lt;/ConnectionString&gt;
+&lt;/SerializableConnectionString&gt;</DesignTimeValue>
+      <Value Profile="(Default)">history.db</Value>
     </Setting>
   </Settings>
 </SettingsFile>
