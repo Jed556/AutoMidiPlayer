@@ -47,9 +47,33 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
     private DateTime _playbackStartedAtUtc = DateTime.MinValue;
     private long _scheduledEventTicks;
     private bool _loggedSongContextForNotes;
+    private bool _pedalStateNeedsResync;
     private readonly Dictionary<int, (int SourceNote, int OutputNote, string KeyName, int Velocity, long StartMs)> _activeNotes = new();
-    private readonly HashSet<FourBitNumber> _channelsWithSustainDown = new();
-    private bool _sustainKeyCurrentlyHeldInGame;
+
+    private class PedalState
+    {
+        public string Name { get; }
+        public int CcNumber { get; }
+        public HashSet<FourBitNumber> ChannelsDown { get; } = new();
+        public bool IsCurrentlyHeldInGame { get; set; }
+
+        public PedalState(string name, int ccNumber)
+        {
+            Name = name;
+            CcNumber = ccNumber;
+        }
+
+        public void Clear()
+        {
+            ChannelsDown.Clear();
+            // Do not clear IsCurrentlyHeldInGame here, as it tracks physical state!
+        }
+    }
+
+    private readonly PedalState _sustain = new("Sustain", 64);
+    private readonly PedalState _sostenuto = new("Sostenuto", 66);
+    private readonly PedalState _unaCorda = new("Una Corda", 67);
+    private PedalState[] AllPedals => new[] { _sustain, _sostenuto, _unaCorda };
 
     #endregion
 
@@ -236,7 +260,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         playback.InterruptNotesOnStop = true;
         _scheduledEventTicks = 0;
         _activeNotes.Clear();
-        _channelsWithSustainDown.Clear();
+        foreach (var pedal in AllPedals) pedal.Clear();
         _loggedSongContextForNotes = false;
         playback.Finished += (_, _) =>
         {
@@ -261,40 +285,44 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             _playbackStartedAtUtc = DateTime.UtcNow;
             _scheduledEventTicks = 0;
             _activeNotes.Clear();
-            _channelsWithSustainDown.Clear();
+            foreach (var pedal in AllPedals) pedal.Clear();
             _loggedSongContextForNotes = false;
 
-            var layout = InstrumentPage.SelectedLayout.Key;
-            var instrument = InstrumentPage.SelectedInstrument.Key;
-            var sustainKey = Keyboard.GetLayoutConfig(layout, instrument)?.SustainKey;
-            if (sustainKey is not null)
+            var midi = Queue.OpenedFile?.Midi;
+            var tempoMap = Queue.OpenedFile?.OriginalTempoMap;
+            if (midi != null && tempoMap != null)
             {
-                // Force a key up to clear any potentially stuck state
-                KeyboardPlayer.SustainUp(sustainKey.Value);
-                _sustainKeyCurrentlyHeldInGame = false;
-
-                var midi = Queue.OpenedFile?.Midi;
-                var tempoMap = Queue.OpenedFile?.OriginalTempoMap;
-                if (midi != null && tempoMap != null)
+                try
                 {
-                    try
-                    {
-                        var currentTime = new MetricTimeSpan(Controls.CurrentTime);
-                        var ccEvents = midi.GetTimedEvents()
-                            .Where(e => e.TimeAs<MetricTimeSpan>(tempoMap) <= currentTime)
-                            .Select(e => e.Event)
-                            .OfType<ControlChangeEvent>()
-                            .Where(e => e.ControlNumber == 64);
+                    var currentTime = new MetricTimeSpan(Controls.CurrentTime);
+                    var ccEvents = midi.GetTimedEvents()
+                        .Where(e => e.TimeAs<MetricTimeSpan>(tempoMap) <= currentTime)
+                        .Select(e => e.Event)
+                        .OfType<ControlChangeEvent>()
+                        .Where(e => e.ControlNumber == 64 || e.ControlNumber == 66 || e.ControlNumber == 67);
 
-                        foreach (var ccEvent in ccEvents)
+                    foreach (var ccEvent in ccEvents)
+                    {
+                        var pedal = AllPedals.FirstOrDefault(p => p.CcNumber == ccEvent.ControlNumber);
+                        if (pedal != null)
                         {
                             if (ccEvent.ControlValue >= 64)
-                                _channelsWithSustainDown.Add(ccEvent.Channel);
+                                pedal.ChannelsDown.Add(ccEvent.Channel);
                             else
-                                _channelsWithSustainDown.Remove(ccEvent.Channel);
+                                pedal.ChannelsDown.Remove(ccEvent.Channel);
                         }
                     }
-                    catch { } // Ignore metric conversion errors
+
+                    // Flag that we need a resync. This will be processed by ReconcilePedalStates
+                    // on the very first note event that occurs while the game is focused!
+                    // This reliably clears any stuck keys caused by the user alt-tabbing while holding Space.
+                    _pedalStateNeedsResync = true;
+
+                    ReconcilePedalStates();
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogException(ex, "Failed to reconstruct pedal state during playback start/seek.");
                 }
             }
 
@@ -371,41 +399,59 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
     {
         _scheduledEventTicks += (long)e.Event.DeltaTime;
 
-        ReconcileSustainState();
+        ReconcilePedalStates();
+
+        if (e.Event is ControlChangeEvent ccEvent && (ccEvent.ControlNumber == 64 || ccEvent.ControlNumber == 66 || ccEvent.ControlNumber == 67))
+        {
+            HandlePedalEvent(ccEvent);
+            return;
+        }
 
         switch (e.Event)
         {
             case NoteEvent noteEvent:
                 PlayNote(noteEvent);
                 break;
-            case ControlChangeEvent ccEvent:
-                HandleControlChange(ccEvent);
-                break;
         }
     }
 
-    private void HandleControlChange(ControlChangeEvent ccEvent)
+    private void HandlePedalEvent(ControlChangeEvent ccEvent)
     {
-        // Only handle CC 64 (Damper/Sustain Pedal)
-        if (ccEvent.ControlNumber != 64)
-            return;
+        var pedal = AllPedals.FirstOrDefault(p => p.CcNumber == ccEvent.ControlNumber);
+        if (pedal == null) return;
 
         var layout = InstrumentPage.SelectedLayout.Key;
         var instrument = InstrumentPage.SelectedInstrument.Key;
         var layoutConfig = Keyboard.GetLayoutConfig(layout, instrument);
-        var sustainKey = layoutConfig?.SustainKey;
-        if (sustainKey is null)
+        if (layoutConfig == null) return;
+
+        VirtualKeyCode? pedalKey = pedal.CcNumber switch
+        {
+            64 => layoutConfig.SustainKey,
+            66 => layoutConfig.SostenutoKey,
+            67 => layoutConfig.UnaCordaKey,
+            _ => null
+        };
+
+        if (pedalKey is null)
             return;
 
         var isPedalDown = ccEvent.ControlValue >= 64;
 
-        // Forward CC 64 to speakers when layout supports sustain
+        // Track CC state unconditionally so UI pedal indicators always work
+        if (isPedalDown)
+            pedal.ChannelsDown.Add(ccEvent.Channel);
+        else
+            pedal.ChannelsDown.Remove(ccEvent.Channel);
+
+        // Forward CC to speakers when layout supports the pedal
         if (Settings.UseSpeakers)
         {
             _speakers?.SendEvent(ccEvent);
 
             if (ShouldLogPlayedNotes)
-                Logger.LogInputOutput($"{(isPedalDown ? "SUSTAIN_DOWN" : "SUSTAIN_UP")} mode=speakers");
+                Logger.LogInputOutput($"{(isPedalDown ? $"{pedal.Name.ToUpper()}_DOWN" : $"{pedal.Name.ToUpper()}_UP")} mode=speakers");
+            SyncPedalStatesToUI();
             return;
         }
 
@@ -417,69 +463,111 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             // Auto-listen fallback: forward to speakers if available
             if (Settings.AutoEnableListenMode || Settings.UseSpeakers)
                 _speakers?.SendEvent(ccEvent);
+            SyncPedalStatesToUI();
             return;
         }
 
-        // Track CC state unconditionally so we don't lose sync during focus loss
-        if (isPedalDown)
-            _channelsWithSustainDown.Add(ccEvent.Channel);
-        else
-            _channelsWithSustainDown.Remove(ccEvent.Channel);
-
-        ReconcileSustainState();
+        ReconcilePedalStates();
     }
 
-    private void ReconcileSustainState()
+    private void ReconcilePedalStates()
     {
-        var shouldBeDown = _channelsWithSustainDown.Count > 0;
-        if (shouldBeDown == _sustainKeyCurrentlyHeldInGame)
-            return;
-
         var layout = InstrumentPage.SelectedLayout.Key;
         var instrument = InstrumentPage.SelectedInstrument.Key;
-        var sustainKey = Keyboard.GetLayoutConfig(layout, instrument)?.SustainKey;
-        if (sustainKey is null || Settings.UseSpeakers)
+        var layoutConfig = Keyboard.GetLayoutConfig(layout, instrument);
+        if (layoutConfig == null || Settings.UseSpeakers)
             return;
 
         var isFocused = KeyboardPlayer.UseWindowMessage || WindowHelper.IsGameFocused();
         if (!isFocused)
             return;
 
-        if (shouldBeDown && !_sustainKeyCurrentlyHeldInGame)
+        if (_pedalStateNeedsResync)
         {
-            _sustainKeyCurrentlyHeldInGame = true;
-            KeyboardPlayer.SustainDown(sustainKey.Value);
-            if (ShouldLogPlayedNotes)
-                Logger.LogInputOutput($"SUSTAIN_DOWN (reconcile) key={sustainKey.Value}");
+            foreach (var pedal in AllPedals)
+            {
+                var shouldBeDown = pedal.ChannelsDown.Count > 0;
+                pedal.IsCurrentlyHeldInGame = !shouldBeDown;
+            }
+            _pedalStateNeedsResync = false;
         }
-        else if (!shouldBeDown && _sustainKeyCurrentlyHeldInGame)
+
+        foreach (var pedal in AllPedals)
         {
-            _sustainKeyCurrentlyHeldInGame = false;
-            KeyboardPlayer.SustainUp(sustainKey.Value);
-            if (ShouldLogPlayedNotes)
-                Logger.LogInputOutput($"SUSTAIN_UP (reconcile) key={sustainKey.Value}");
+            VirtualKeyCode? pedalKey = pedal.CcNumber switch
+            {
+                64 => layoutConfig.SustainKey,
+                66 => layoutConfig.SostenutoKey,
+                67 => layoutConfig.UnaCordaKey,
+                _ => null
+            };
+
+            if (pedalKey is null) continue;
+
+            var shouldBeDown = InstrumentPage.EnableSustainForGame && pedal.ChannelsDown.Count > 0;
+            if (shouldBeDown == pedal.IsCurrentlyHeldInGame)
+                continue;
+
+            if (shouldBeDown && !pedal.IsCurrentlyHeldInGame)
+            {
+                pedal.IsCurrentlyHeldInGame = true;
+                KeyboardPlayer.PedalDown(pedalKey.Value);
+                if (ShouldLogPlayedNotes)
+                    Logger.LogInputOutput($"{pedal.Name.ToUpper()}_DOWN (reconcile) key={pedalKey.Value}");
+            }
+            else if (!shouldBeDown && pedal.IsCurrentlyHeldInGame)
+            {
+                pedal.IsCurrentlyHeldInGame = false;
+                KeyboardPlayer.PedalUp(pedalKey.Value);
+                if (ShouldLogPlayedNotes)
+                    Logger.LogInputOutput($"{pedal.Name.ToUpper()}_UP (reconcile) key={pedalKey.Value}");
+            }
         }
+        SyncPedalStatesToUI();
+    }
+
+    private void SyncPedalStatesToUI()
+    {
+        if (Controls == null) return;
+        Controls.IsSustainHeld = _sustain.IsCurrentlyHeldInGame || _sustain.ChannelsDown.Count > 0;
+        Controls.IsSostenutoHeld = _sostenuto.IsCurrentlyHeldInGame || _sostenuto.ChannelsDown.Count > 0;
+        Controls.IsUnaCordaHeld = _unaCorda.IsCurrentlyHeldInGame || _unaCorda.ChannelsDown.Count > 0;
     }
 
     private void ReleaseSustainIfActive()
     {
-        _channelsWithSustainDown.Clear();
-
         var layout = InstrumentPage.SelectedLayout.Key;
         var instrument = InstrumentPage.SelectedInstrument.Key;
-        var sustainKey = Keyboard.GetLayoutConfig(layout, instrument)?.SustainKey;
-        
-        if (sustainKey is not null && _sustainKeyCurrentlyHeldInGame)
+        var layoutConfig = Keyboard.GetLayoutConfig(layout, instrument);
+
+        foreach (var pedal in AllPedals)
         {
-            // If focused or using window messages, release cleanly
-            if (KeyboardPlayer.UseWindowMessage || WindowHelper.IsGameFocused())
+            pedal.ChannelsDown.Clear();
+
+            if (layoutConfig == null) continue;
+
+            VirtualKeyCode? pedalKey = pedal.CcNumber switch
             {
-                KeyboardPlayer.SustainUp(sustainKey.Value);
-                _sustainKeyCurrentlyHeldInGame = false;
+                64 => layoutConfig.SustainKey,
+                66 => layoutConfig.SostenutoKey,
+                67 => layoutConfig.UnaCordaKey,
+                _ => null
+            };
+            
+            if (pedalKey is not null && pedal.IsCurrentlyHeldInGame)
+            {
+                // If focused or using window messages, release cleanly
+                if (KeyboardPlayer.UseWindowMessage || WindowHelper.IsGameFocused())
+                {
+                    KeyboardPlayer.PedalUp(pedalKey.Value);
+                }
+                
+                // Reset internal state. We don't need to try and preserve it across focus loss anymore,
+                // because Playback.Started will now forcefully resync the state upon resuming!
+                pedal.IsCurrentlyHeldInGame = false;
             }
-            // If unfocused, we leave _sustainKeyCurrentlyHeldInGame = true
-            // Next time ReconcileSustainState runs or playback Starts, it will force a clean release.
         }
+        SyncPedalStatesToUI();
     }
 
     private void PlayNote(NoteEvent noteEvent)
@@ -772,7 +860,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         _loggedSongContextForNotes = false;
         _scheduledEventTicks = 0;
         _activeNotes.Clear();
-        _channelsWithSustainDown.Clear();
+        foreach (var pedal in AllPedals) pedal.Clear();
 
         Logger.LogStep(
             "PLAYBACK_LOAD_REQUEST",

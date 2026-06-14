@@ -42,6 +42,28 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
     private TimeSpan _songPosition;
     private TimeSpan _displaySongPosition;
     private int _savePositionCounter;
+    
+    private bool _isSustainHeld;
+    private bool _isSostenutoHeld;
+    private bool _isUnaCordaHeld;
+
+    public bool IsSustainHeld
+    {
+        get => _isSustainHeld;
+        set => SetAndNotify(ref _isSustainHeld, value);
+    }
+
+    public bool IsSostenutoHeld
+    {
+        get => _isSostenutoHeld;
+        set => SetAndNotify(ref _isSostenutoHeld, value);
+    }
+
+    public bool IsUnaCordaHeld
+    {
+        get => _isUnaCordaHeld;
+        set => SetAndNotify(ref _isUnaCordaHeld, value);
+    }
 
     #endregion
 

@@ -236,37 +236,37 @@
                             <controls:SimpleStackPanel Spacing="8"
                                                        Grid.IsSharedSizeScope="True"
                                                        Visibility="{Binding HotkeysEnabled, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                                <controls:HotkeyEditControl
+                                <controls:KeyEditControl
                                     HotkeyBinding="{Binding PlayPauseHotkey}"
                                     HotkeyChanged="OnHotkeyChanged"
                                     HotkeyCleared="OnHotkeyCleared"
                                     EditStarted="OnHotkeyEditStarted"
                                     EditEnded="OnHotkeyEditEnded"/>
-                                <controls:HotkeyEditControl
+                                <controls:KeyEditControl
                                     HotkeyBinding="{Binding NextHotkey}"
                                     HotkeyChanged="OnHotkeyChanged"
                                     HotkeyCleared="OnHotkeyCleared"
                                     EditStarted="OnHotkeyEditStarted"
                                     EditEnded="OnHotkeyEditEnded"/>
-                                <controls:HotkeyEditControl
+                                <controls:KeyEditControl
                                     HotkeyBinding="{Binding PreviousHotkey}"
                                     HotkeyChanged="OnHotkeyChanged"
                                     HotkeyCleared="OnHotkeyCleared"
                                     EditStarted="OnHotkeyEditStarted"
                                     EditEnded="OnHotkeyEditEnded"/>
-                                <controls:HotkeyEditControl
+                                <controls:KeyEditControl
                                     HotkeyBinding="{Binding SpeedUpHotkey}"
                                     HotkeyChanged="OnHotkeyChanged"
                                     HotkeyCleared="OnHotkeyCleared"
                                     EditStarted="OnHotkeyEditStarted"
                                     EditEnded="OnHotkeyEditEnded"/>
-                                <controls:HotkeyEditControl
+                                <controls:KeyEditControl
                                     HotkeyBinding="{Binding SpeedDownHotkey}"
                                     HotkeyChanged="OnHotkeyChanged"
                                     HotkeyCleared="OnHotkeyCleared"
                                     EditStarted="OnHotkeyEditStarted"
                                     EditEnded="OnHotkeyEditEnded"/>
-                                <controls:HotkeyEditControl
+                                <controls:KeyEditControl
                                     HotkeyBinding="{Binding PanicHotkey}"
                                     HotkeyChanged="OnHotkeyChanged"
                                     HotkeyCleared="OnHotkeyCleared"

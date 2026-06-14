@@ -22,6 +22,31 @@
                                        Orientation="Horizontal"
                                        HorizontalAlignment="Right"
                                        Spacing="12">
+                    <Grid>
+                        <controls:Button x:Name="PedalButton" Variant="GhostDimmed"
+                                         s:View.ActionTarget="{Binding InstrumentView}"
+                                         Command="{s:Action ToggleEnableSustainForGame}"
+                                         IsActive="{Binding InstrumentView.EnableSustainForGame}"
+                                         Padding="8"
+                                         MouseEnter="PedalButton_MouseEnter"
+                                         MouseLeave="PedalButton_MouseLeave">
+                            <Viewbox Width="15" Height="15" Style="{StaticResource PlayerControlViewboxIcon}">
+                                <controls:PedalIcon AccentStrokeThickness="14"
+                                                    IsSoftActive="{Binding DataContext.PlaybackControls.IsUnaCordaHeld, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    IsSostenutoActive="{Binding DataContext.PlaybackControls.IsSostenutoHeld, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    IsSustainActive="{Binding DataContext.PlaybackControls.IsSustainHeld, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                            </Viewbox>
+                        </controls:Button>
+
+                        <Popup x:Name="PedalPopup" PlacementTarget="{Binding ElementName=PedalButton}" Placement="Top" HorizontalOffset="-22" VerticalOffset="6" AllowsTransparency="True" PopupAnimation="None">
+                            <controls:PedalStatusPopup x:Name="PedalPopupContent"
+                                                       IsSoftActive="{Binding DataContext.PlaybackControls.IsUnaCordaHeld, ElementName=PedalButton}"
+                                                       IsSostenutoActive="{Binding DataContext.PlaybackControls.IsSostenutoHeld, ElementName=PedalButton}"
+                                                       IsSustainActive="{Binding DataContext.PlaybackControls.IsSustainHeld, ElementName=PedalButton}"
+                                                       IsActive="{Binding IsActive, ElementName=PedalButton}" />
+                        </Popup>
+                    </Grid>
+
                 <controls:Button Variant="GhostDimmed"
                                  s:View.ActionTarget="{Binding TrackView.Queue}"
                                  Command="{s:Action ToggleShuffle}"

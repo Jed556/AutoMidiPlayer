@@ -32,40 +32,53 @@
 
                 <!-- Instrument Section -->
                 <controls:Section Title="Game Instrument">
-                    <button:StandardDropdown
-                        ItemsSource="{Binding AvailableInstruments}"
-                        SelectedItem="{Binding SelectedInstrument}"
-                        DisplayMemberPath="Value"
-                        HorizontalAlignment="Left"
-                        Margin="2,0,0,0"
-                        MinWidth="200"/>
+                    <controls:SimpleStackPanel>
+                        <button:StandardDropdown
+                            ItemsSource="{Binding AvailableInstruments}"
+                            SelectedItem="{Binding SelectedInstrument}"
+                            DisplayMemberPath="Value"
+                            HorizontalAlignment="Left"
+                            Margin="2,0,0,0"
+                            MinWidth="200"/>
+                        <ui:ToggleSwitch
+                            Content="Enable sustain pedal for this game"
+                            IsChecked="{Binding EnableSustainForGame, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            Margin="2,8,0,0"/>
+                    </controls:SimpleStackPanel>
                 </controls:Section>
 
                 <controls:Section Title="Keyboard Layout"
                                   Margin="0,16,0,0">
-                    <button:StandardDropdown
-                        ItemsSource="{Binding AvailableLayouts}"
-                        SelectedItem="{Binding SelectedLayout}"
-                        DisplayMemberPath="Value"
-                        HorizontalAlignment="Left"
-                        Margin="2,0,0,0"
-                        MinWidth="200"/>
+                    <controls:SimpleStackPanel>
+                        <button:StandardDropdown
+                            ItemsSource="{Binding AvailableLayouts}"
+                            SelectedItem="{Binding SelectedLayout}"
+                            DisplayMemberPath="Value"
+                            HorizontalAlignment="Left"
+                            Margin="2,0,0,0"
+                            MinWidth="200"/>
+                    </controls:SimpleStackPanel>
                 </controls:Section>
 
-                <controls:Section Title="Listening"
+                <!-- Pedal Bindings Section -->
+                <controls:Section Title="Pedal Bindings"
                                   Margin="0,16,0,0">
-                    <controls:SimpleStackPanel>
-                        <ui:ToggleSwitch
-                            Content="Listen Mode"
-                            ToolTip="Play MIDI to speakers"
-                            IsChecked="{Binding UseSpeakers, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-
-                        <ui:ToggleSwitch
-                            Content="Play unplayable notes in listen mode"
-                            ToolTip="Play unplayable notes in listen mode when transposition is set to ignore"
-                            IsChecked="{Binding PlayUnplayableOnIgnore, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                            Margin="0,0,0,0"/>
-                    </controls:SimpleStackPanel>
+                    <controls:Section.HeaderContent>
+                        <controls:Button Variant="Ghost"
+                                         ColorMode="Danger"
+                                         Command="{s:Action ResetPedals}"
+                                         ToolTip="Reset pedal bindings to layout defaults"
+                                         Icon="ArrowClockwise24"
+                                         IconFontSize="18"/>
+                    </controls:Section.HeaderContent>
+                    
+                    <Grid Grid.IsSharedSizeScope="True" Margin="2,0,0,0">
+                        <StackPanel>
+                            <controls:KeyEditControl MaxKeysAccepted="1" KeyBinding="{Binding SustainKey, Mode=TwoWay}" Title="Sustain"/>
+                            <controls:KeyEditControl MaxKeysAccepted="1" KeyBinding="{Binding SostenutoKey, Mode=TwoWay}" Title="Sostenuto"/>
+                            <controls:KeyEditControl MaxKeysAccepted="1" KeyBinding="{Binding UnaCordaKey, Mode=TwoWay}" Title="Una Corda"/>
+                        </StackPanel>
+                    </Grid>
                 </controls:Section>
 
                 <!-- Scheduled Playback Section -->
@@ -111,8 +124,24 @@
             <controls:SimpleStackPanel Grid.Column="1"
                                        Margin="10,0,0,0">
 
+                <controls:Section Title="Listening">
+                    <controls:SimpleStackPanel>
+                        <ui:ToggleSwitch
+                            Content="Listen Mode"
+                            ToolTip="Play MIDI to speakers"
+                            IsChecked="{Binding UseSpeakers, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                        <ui:ToggleSwitch
+                            Content="Play unplayable notes in listen mode"
+                            ToolTip="Play unplayable notes in listen mode when transposition is set to ignore"
+                            IsChecked="{Binding PlayUnplayableOnIgnore, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            Margin="0,0,0,0"/>
+                    </controls:SimpleStackPanel>
+                </controls:Section>
+
                 <!-- Notes Section -->
-                <controls:Section Title="Notes">
+                <controls:Section Title="Notes"
+                                  Margin="0,16,0,0">
                     <controls:SimpleStackPanel>
                         <ContentControl Visibility="{Binding HasSongOpen, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}"
                                         Margin="0,0,0,8"

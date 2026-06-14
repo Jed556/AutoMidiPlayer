@@ -1,0 +1,48 @@
+<UserControl x:Class="AutoMidiPlayer.WPF.Controls.PedalStatusPopup"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
+             x:Name="Root">
+
+    <UserControl.RenderTransformOrigin>
+        <Point X="0.5" Y="1.0" />
+    </UserControl.RenderTransformOrigin>
+    <UserControl.RenderTransform>
+        <TransformGroup>
+            <ScaleTransform x:Name="EntranceScale" ScaleX="0.85" ScaleY="0.85"/>
+            <TranslateTransform x:Name="EntranceTranslate" Y="8"/>
+        </TransformGroup>
+    </UserControl.RenderTransform>
+
+    <!-- Transparent outer container to pad the popup contents away from the button without triggering MouseLeave -->
+    <Border Padding="0,0,0,4" Background="Transparent">
+        <Border Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{DynamicResource SurfaceStrokeColorDefaultBrush}"
+                BorderThickness="1" CornerRadius="8"
+                Padding="16,14,16,12">
+            <StackPanel>
+                <controls:PedalIcon Width="60" Height="60" HorizontalAlignment="Center" Margin="0,0,0,10"
+                                    AccentStrokeThickness="14"
+                                    IsSoftActive="{Binding IsSoftActive, ElementName=Root}"
+                                    IsSostenutoActive="{Binding IsSostenutoActive, ElementName=Root}"
+                                    IsSustainActive="{Binding IsSustainActive, ElementName=Root}" />
+                <!-- Status Indicator -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <Ellipse Width="8" Height="8" Margin="0,0,6,0">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Setter Property="Fill" Value="{DynamicResource ControlStrongFillColorDefaultBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsActive, ElementName=Root}" Value="True">
+                                        <Setter Property="Fill" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+                    <TextBlock Text="Pedals" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" Opacity="0.8" VerticalAlignment="Center" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Border>
+</UserControl>

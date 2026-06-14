@@ -463,11 +463,7 @@ public static class Keyboard
         return (match ?? config.KeyboardLayouts[0]).KeyStrokes;
     }
 
-    /// <summary>
-    /// Get the full layout configuration for the specified layout and instrument.
-    /// Returns null if no layout is found.
-    /// </summary>
-    public static KeyboardLayoutConfig? GetLayoutConfig(string? layoutName, string? instrumentId)
+    public static KeyboardLayoutConfig? GetBaseLayoutConfig(string? layoutName, string? instrumentId)
     {
         var config = GetInstrumentConfig(instrumentId);
 
@@ -477,6 +473,47 @@ public static class Keyboard
         return config.KeyboardLayouts
             .FirstOrDefault(l => string.Equals(l.Name, layoutName, StringComparison.OrdinalIgnoreCase))
             ?? config.KeyboardLayouts[0];
+    }
+
+    /// <summary>
+    /// Get the full layout configuration for the specified layout and instrument,
+    /// merged with user-defined pedal key overrides from settings.
+    /// Returns null if no layout is found.
+    /// </summary>
+    public static KeyboardLayoutConfig? GetLayoutConfig(string? layoutName, string? instrumentId)
+    {
+        var layout = GetBaseLayoutConfig(layoutName, instrumentId);
+        if (layout == null) return null;
+
+        // Apply user overrides
+        var sustainKey = GetOverriddenPedalKey(layout.Name, AutoMidiPlayer.Data.Properties.Settings.Default.SustainKeyByLayout, layout.SustainKey);
+        var sostenutoKey = GetOverriddenPedalKey(layout.Name, AutoMidiPlayer.Data.Properties.Settings.Default.SostenutoKeyByLayout, layout.SostenutoKey);
+        var unaCordaKey = GetOverriddenPedalKey(layout.Name, AutoMidiPlayer.Data.Properties.Settings.Default.UnaCordaKeyByLayout, layout.UnaCordaKey);
+
+        return new KeyboardLayoutConfig(
+            layout.Name,
+            layout.KeyStrokes,
+            sustainKey,
+            sostenutoKey,
+            unaCordaKey
+        );
+    }
+
+    private static VirtualKeyCode? GetOverriddenPedalKey(string layoutName, string jsonDict, VirtualKeyCode? defaultKey)
+    {
+        if (string.IsNullOrWhiteSpace(jsonDict)) return defaultKey;
+        try
+        {
+            var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, VirtualKeyCode?>>(jsonDict);
+            if (dict != null && dict.TryGetValue(layoutName, out var overrideKey))
+            {
+                // If it exists in the dictionary, it overrides the default (even if it's explicitly set to null/unassigned)
+                return overrideKey;
+            }
+        }
+        catch { /* Ignore invalid JSON */ }
+        
+        return defaultKey;
     }
 
     /// <summary>

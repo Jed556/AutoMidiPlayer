@@ -1,10 +1,10 @@
-<UserControl x:Class="AutoMidiPlayer.WPF.Controls.HotkeyEditControl"
+<UserControl x:Class="AutoMidiPlayer.WPF.Controls.KeyEditControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:s="https://github.com/canton7/Stylet"
              xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
-             x:Name="HotkeyControl">
+             x:Name="KeyControl">
 
     <UserControl.Resources>
         <DataTemplate x:Key="HotkeyChipTemplate">
@@ -32,7 +32,7 @@
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsGlowActive, ElementName=HotkeyControl}"
+                                    <DataTrigger Binding="{Binding IsGlowActive, ElementName=KeyControl}"
                                                  Value="True">
                                         <DataTrigger.EnterActions>
                                             <BeginStoryboard>
@@ -82,12 +82,12 @@
             <ColumnDefinition Width="Auto"
                               MinWidth="120"
                               SharedSizeGroup="HotkeyChips"/>
-            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
 
         <!-- Action Name -->
         <TextBlock Grid.Column="0"
-                   Text="{Binding HotkeyBinding.DisplayName, ElementName=HotkeyControl}"
+                   Text="{Binding Title, ElementName=KeyControl}"
                    VerticalAlignment="Center"
                    FontWeight="Medium"/>
 
@@ -97,8 +97,8 @@
                     VerticalAlignment="Center"
                     Margin="4,0"
                     MinHeight="24"
-                    Visibility="{Binding IsNotEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-            <ItemsControl ItemsSource="{Binding HotkeyBinding.DisplayParts, ElementName=HotkeyControl}"
+                    Visibility="{Binding IsNotEditing, ElementName=KeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+            <ItemsControl ItemsSource="{Binding DisplayParts, ElementName=KeyControl}"
                           ItemTemplate="{StaticResource HotkeyChipTemplate}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -117,11 +117,11 @@
                 Margin="4,0"
                 MinHeight="24"
                 VerticalAlignment="Center"
-                Visibility="{Binding IsEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                Visibility="{Binding IsEditing, ElementName=KeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
                 Focusable="True"
                 KeyDown="EditBorder_KeyDown"
                 PreviewKeyDown="EditBorder_PreviewKeyDown">
-            <ItemsControl ItemsSource="{Binding EditingParts, ElementName=HotkeyControl}"
+            <ItemsControl ItemsSource="{Binding EditingParts, ElementName=KeyControl}"
                           ItemTemplate="{StaticResource HotkeyChipTemplate}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -135,28 +135,28 @@
         <StackPanel Grid.Column="2"
                     Orientation="Horizontal"
                     Margin="8,0,0,0"
-                    HorizontalAlignment="Right"
+                    HorizontalAlignment="Left"
                     VerticalAlignment="Center">
             <!-- Edit / Cancel -->
             <controls:Button Variant="Ghost"
                              Icon="Edit16"
                              Click="EditButton_Click"
-                             ToolTip="Edit hotkey"
-                             Visibility="{Binding IsNotEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                             ToolTip="Edit key"
+                             Visibility="{Binding IsNotEditing, ElementName=KeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
                              
             <controls:Button Variant="Ghost"
                              Icon="Dismiss16"
                              Click="CancelEdit_Click"
                              ToolTip="Cancel (Esc)"
-                             Visibility="{Binding IsEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                             Visibility="{Binding IsEditing, ElementName=KeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
 
             <!-- Clear -->
             <controls:Button Variant="Ghost"
                              Icon="Delete16"
                              ColorMode="Danger"
                              Click="ClearButton_Click"
-                             ToolTip="Clear hotkey"
-                             Visibility="{Binding IsNotEditing, ElementName=HotkeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                             ToolTip="Clear key"
+                             Visibility="{Binding IsNotEditing, ElementName=KeyControl, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
         </StackPanel>
     </Grid>
 </UserControl>

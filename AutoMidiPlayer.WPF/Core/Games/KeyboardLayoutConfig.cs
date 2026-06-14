@@ -19,18 +19,42 @@ public class KeyboardLayoutConfig
     /// </summary>
     public VirtualKeyCode? SustainKey { get; }
 
-    public KeyboardLayoutConfig(string name, IReadOnlyList<VirtualKeyCode> keyCodes, VirtualKeyCode? sustainKey = null)
+    /// <summary>
+    /// Optional virtual key code for the sostenuto pedal (CC 66).
+    /// </summary>
+    public VirtualKeyCode? SostenutoKey { get; }
+
+    /// <summary>
+    /// Optional virtual key code for the una corda / soft pedal (CC 67).
+    /// </summary>
+    public VirtualKeyCode? UnaCordaKey { get; }
+
+    public KeyboardLayoutConfig(
+        string name, 
+        IReadOnlyList<VirtualKeyCode> keyCodes, 
+        VirtualKeyCode? sustainKey = null,
+        VirtualKeyCode? sostenutoKey = null,
+        VirtualKeyCode? unaCordaKey = null)
     {
         Name = name;
         KeyStrokes = keyCodes.Select(key => new Keyboard.KeyStroke(key)).ToArray();
         SustainKey = sustainKey;
+        SostenutoKey = sostenutoKey;
+        UnaCordaKey = unaCordaKey;
     }
 
-    public KeyboardLayoutConfig(string name, IReadOnlyList<Keyboard.KeyStroke> keyStrokes, VirtualKeyCode? sustainKey = null)
+    public KeyboardLayoutConfig(
+        string name, 
+        IReadOnlyList<Keyboard.KeyStroke> keyStrokes, 
+        VirtualKeyCode? sustainKey = null,
+        VirtualKeyCode? sostenutoKey = null,
+        VirtualKeyCode? unaCordaKey = null)
     {
         Name = name;
         KeyStrokes = keyStrokes;
         SustainKey = sustainKey;
+        SostenutoKey = sostenutoKey;
+        UnaCordaKey = unaCordaKey;
     }
 
     /// <summary>
@@ -47,10 +71,17 @@ public class KeyboardLayoutConfig
     ///   new KeyboardLayoutConfig("Extended", ["^n", "^m", "^,", "^.", "^/", "^h", "^j", "^k", "^l", "^;", "^y", "^u", "^i", "^o", "^p"])
     ///   new KeyboardLayoutConfig("Mixed", ["n", "^n", "m", "^m", ...])
     /// </summary>
-    public KeyboardLayoutConfig(string name, IReadOnlyList<string> keys, VirtualKeyCode? sustainKey = null)
+    public KeyboardLayoutConfig(
+        string name, 
+        IReadOnlyList<string> keys, 
+        VirtualKeyCode? sustainKey = null,
+        VirtualKeyCode? sostenutoKey = null,
+        VirtualKeyCode? unaCordaKey = null)
     {
         Name = name;
         KeyStrokes = Keyboard.ParseLayoutKeys(keys);
         SustainKey = sustainKey;
+        SostenutoKey = sostenutoKey;
+        UnaCordaKey = unaCordaKey;
     }
 }

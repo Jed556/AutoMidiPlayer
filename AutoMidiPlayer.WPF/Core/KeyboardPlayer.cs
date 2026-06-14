@@ -441,7 +441,7 @@ public static class KeyboardPlayer
     /// <summary>
     /// Press and hold the sustain key (e.g. Space for Roblox piano pedal).
     /// </summary>
-    public static void SustainDown(VirtualKeyCode sustainKey)
+    public static void PedalDown(VirtualKeyCode pedalKey)
     {
         if (UseWindowMessage)
         {
@@ -449,19 +449,19 @@ public static class KeyboardPlayer
             if (hWnd.HasValue && hWnd.Value != IntPtr.Zero)
             {
                 SendKeyStrokeWindow(
-                    new Keyboard.KeyStroke(sustainKey),
+                    new Keyboard.KeyStroke(pedalKey),
                     hWnd.Value, KeyAction.Down);
                 return;
             }
         }
 
-        SendKeyStrokeDirect(new Keyboard.KeyStroke(sustainKey), KeyAction.Down);
+        SendKeyStrokeDirect(new Keyboard.KeyStroke(pedalKey), KeyAction.Down);
     }
 
     /// <summary>
-    /// Release the sustain key.
+    /// Release the pedal key.
     /// </summary>
-    public static void SustainUp(VirtualKeyCode sustainKey)
+    public static void PedalUp(VirtualKeyCode pedalKey)
     {
         if (UseWindowMessage)
         {
@@ -469,13 +469,13 @@ public static class KeyboardPlayer
             if (hWnd.HasValue && hWnd.Value != IntPtr.Zero)
             {
                 SendKeyStrokeWindow(
-                    new Keyboard.KeyStroke(sustainKey),
+                    new Keyboard.KeyStroke(pedalKey),
                     hWnd.Value, KeyAction.Up);
                 return;
             }
         }
 
-        SendKeyStrokeDirect(new Keyboard.KeyStroke(sustainKey), KeyAction.Up);
+        SendKeyStrokeDirect(new Keyboard.KeyStroke(pedalKey), KeyAction.Up);
     }
 }
 

@@ -42,6 +42,12 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
         _events = ioc.Get<IEventAggregator>();
         _events.Subscribe(this);
         _selectedInstrumentByGame = LoadSelectedInstrumentsByGame();
+        
+        _sustainEnabledByGame = LoadJsonDictionary<bool>(Settings.SustainEnabledByGame) ?? new Dictionary<string, bool>();
+        _sustainKeyByLayout = LoadJsonDictionary<VirtualKeyCode?>(Settings.SustainKeyByLayout) ?? new Dictionary<string, VirtualKeyCode?>();
+        _sostenutoKeyByLayout = LoadJsonDictionary<VirtualKeyCode?>(Settings.SostenutoKeyByLayout) ?? new Dictionary<string, VirtualKeyCode?>();
+        _unaCordaKeyByLayout = LoadJsonDictionary<VirtualKeyCode?>(Settings.UnaCordaKeyByLayout) ?? new Dictionary<string, VirtualKeyCode?>();
+
         _timerTargetShouldPlay = !_main.PlaybackControls.IsPlaying;
 
         _main.ActiveGamesChanged += HandleActiveGamesChanged;
@@ -175,6 +181,93 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
     public BindableCollection<KeyValuePair<string, string>> AvailableInstruments { get; } = new();
 
     public BindableCollection<KeyValuePair<string, string>> AvailableLayouts { get; } = new();
+
+    private readonly Dictionary<string, bool> _sustainEnabledByGame;
+    private readonly Dictionary<string, VirtualKeyCode?> _sustainKeyByLayout;
+    private readonly Dictionary<string, VirtualKeyCode?> _sostenutoKeyByLayout;
+    private readonly Dictionary<string, VirtualKeyCode?> _unaCordaKeyByLayout;
+
+    public bool EnableSustainForGame
+    {
+        get
+        {
+            var gameId = GetActiveGameId();
+            if (string.IsNullOrEmpty(gameId)) return true;
+            return _sustainEnabledByGame.TryGetValue(gameId, out var enabled) ? enabled : true;
+        }
+        set
+        {
+            var gameId = GetActiveGameId();
+            if (string.IsNullOrEmpty(gameId)) return;
+            
+            if (_sustainEnabledByGame.TryGetValue(gameId, out var current) && current == value) return;
+            
+            _sustainEnabledByGame[gameId] = value;
+            var json = JsonSerializer.Serialize(_sustainEnabledByGame);
+            Settings.Modify(s => s.SustainEnabledByGame = json);
+            NotifyOfPropertyChange();
+        }
+    }
+
+    public VirtualKeyCode? SustainKey
+    {
+        get => GetLayoutPedalKey(_sustainKeyByLayout);
+        set => SetLayoutPedalKey(_sustainKeyByLayout, value, s => s.SustainKeyByLayout = JsonSerializer.Serialize(_sustainKeyByLayout));
+    }
+
+    public VirtualKeyCode? SostenutoKey
+    {
+        get => GetLayoutPedalKey(_sostenutoKeyByLayout);
+        set => SetLayoutPedalKey(_sostenutoKeyByLayout, value, s => s.SostenutoKeyByLayout = JsonSerializer.Serialize(_sostenutoKeyByLayout));
+    }
+
+    public VirtualKeyCode? UnaCordaKey
+    {
+        get => GetLayoutPedalKey(_unaCordaKeyByLayout);
+        set => SetLayoutPedalKey(_unaCordaKeyByLayout, value, s => s.UnaCordaKeyByLayout = JsonSerializer.Serialize(_unaCordaKeyByLayout));
+    }
+
+    public void ResetPedals()
+    {
+        if (SelectedLayout.Equals(default(KeyValuePair<string, string>))) return;
+
+        _sustainKeyByLayout.Remove(SelectedLayout.Key);
+        _sostenutoKeyByLayout.Remove(SelectedLayout.Key);
+        _unaCordaKeyByLayout.Remove(SelectedLayout.Key);
+
+        Settings.Modify(s =>
+        {
+            s.SustainKeyByLayout = JsonSerializer.Serialize(_sustainKeyByLayout);
+            s.SostenutoKeyByLayout = JsonSerializer.Serialize(_sostenutoKeyByLayout);
+            s.UnaCordaKeyByLayout = JsonSerializer.Serialize(_unaCordaKeyByLayout);
+        });
+
+        NotifyOfPropertyChange(nameof(SustainKey));
+        NotifyOfPropertyChange(nameof(SostenutoKey));
+        NotifyOfPropertyChange(nameof(UnaCordaKey));
+    }
+
+    private VirtualKeyCode? GetLayoutPedalKey(Dictionary<string, VirtualKeyCode?> dict)
+    {
+        if (SelectedLayout.Equals(default(KeyValuePair<string, string>))) return null;
+        if (dict.TryGetValue(SelectedLayout.Key, out var key)) return key;
+        
+        var config = Keyboard.GetBaseLayoutConfig(SelectedLayout.Key, SelectedInstrument.Key);
+        if (dict == _sustainKeyByLayout) return config?.SustainKey;
+        if (dict == _sostenutoKeyByLayout) return config?.SostenutoKey;
+        if (dict == _unaCordaKeyByLayout) return config?.UnaCordaKey;
+        return null;
+    }
+
+    private void SetLayoutPedalKey(Dictionary<string, VirtualKeyCode?> dict, VirtualKeyCode? value, Action<Settings> saveAction, [System.Runtime.CompilerServices.CallerMemberName] string propertyName = "")
+    {
+        if (SelectedLayout.Equals(default(KeyValuePair<string, string>))) return;
+        
+        dict[SelectedLayout.Key] = value;
+        
+        Settings.Modify(saveAction);
+        NotifyOfPropertyChange(propertyName);
+    }
 
     public bool MergeNotes { get; set; }
 
@@ -371,7 +464,12 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
         // Deferred notify so WPF re-reads the final SelectedLayout after collection changes settle
         System.Windows.Application.Current.Dispatcher.BeginInvoke(
             System.Windows.Threading.DispatcherPriority.DataBind,
-            () => NotifyOfPropertyChange(nameof(SelectedLayout)));
+            () => {
+                NotifyOfPropertyChange(nameof(SelectedLayout));
+                NotifyOfPropertyChange(nameof(SustainKey));
+                NotifyOfPropertyChange(nameof(SostenutoKey));
+                NotifyOfPropertyChange(nameof(UnaCordaKey));
+            });
 
         var index = AvailableInstruments.ToList().FindIndex(i =>
             string.Equals(i.Key, SelectedInstrument.Key, StringComparison.OrdinalIgnoreCase));
@@ -395,6 +493,9 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
             s.SelectedLayout = index;
             s.SelectedLayoutName = SelectedLayout.Key;
         });
+        NotifyOfPropertyChange(nameof(SustainKey));
+        NotifyOfPropertyChange(nameof(SostenutoKey));
+        NotifyOfPropertyChange(nameof(UnaCordaKey));
         _events.Publish(this);
     }
 
@@ -413,6 +514,11 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
             AvailableLayouts.Add(layout);
 
         NotifyOfPropertyChange(nameof(AvailableLayouts));
+    }
+
+    public void ToggleEnableSustainForGame()
+    {
+        EnableSustainForGame = !EnableSustainForGame;
     }
 
     private void RefreshAvailableInstruments()
@@ -485,6 +591,7 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
             {
                 NotifyOfPropertyChange(nameof(SelectedInstrument));
                 NotifyOfPropertyChange(nameof(SelectedLayout));
+                NotifyOfPropertyChange(nameof(EnableSustainForGame));
             });
 
         _events.Publish(this);
@@ -542,6 +649,21 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
         {
             return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
+    }
+
+    private static Dictionary<string, T>? LoadJsonDictionary<T>(string json)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(json)) return new Dictionary<string, T>(StringComparer.OrdinalIgnoreCase);
+            var map = JsonSerializer.Deserialize<Dictionary<string, T>>(json);
+            if (map != null)
+            {
+                return new Dictionary<string, T>(map, StringComparer.OrdinalIgnoreCase);
+            }
+        }
+        catch { /* ignored */ }
+        return new Dictionary<string, T>(StringComparer.OrdinalIgnoreCase);
     }
 
     private KeyValuePair<string, string> ResolvePreferredLayout(string? preferredLayoutName)

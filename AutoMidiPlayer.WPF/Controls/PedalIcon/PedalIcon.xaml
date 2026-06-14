@@ -1,0 +1,67 @@
+<UserControl x:Class="AutoMidiPlayer.WPF.Controls.PedalIcon"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root">
+    <Viewbox Stretch="Uniform">
+        <Canvas Width="366.42" Height="358.14">
+            <!-- Main Outline -->
+            <Path Opacity="{Binding OutlineOpacity, ElementName=Root}"
+                  Fill="{DynamicResource TextFillColorPrimaryBrush}"
+                  Data="F0 M336.82,134.2c15.68-1.85,29.5-17.29,29.55-33.26.07-23.83.08-47.66,0-71.49C366.32,14.32,352.02,0,337.17,0c-51.32,0-102.64,0-153.96,0s-102.64,0-153.96,0C14.41,0,.11,14.32.06,29.45c-.08,23.83-.07,47.66,0,71.49.05,15.97,13.87,31.42,29.55,33.26.87.1,1.9.17,1.89,1.38-.22,20.94.98,41.91-.75,62.82-1.16,13.97-11.13,24.16-16.54,36.31-12.38,27.77-15.56,55.73,1.47,82.73,18.89,29.94,60.34,32.65,84.98,6.91,13.84-14.46,19.66-31.19,19.6-50.75-.15-45.41-.04-90.82-.08-136.23,0-1.7.26-2.17,2.15-2.1,5.62.22,11.25.11,16.87.07,1.16,0,1.55.46,1.55,1.56-.07,59.36-.28,118.73-.11,178.09.07,23.83,17.71,41.73,41.44,43.11.38.02.76.03,1.14.04.38-.01.76-.02,1.14-.04,23.74-1.38,41.37-19.27,41.44-43.11.18-59.36-.04-118.72-.11-178.09,0-1.09.39-1.56,1.55-1.56,5.62.03,11.25.14,16.87-.07,1.89-.07,2.15.4,2.15,2.1-.04,45.41.06,90.82-.08,136.23-.06,19.56,5.75,36.29,19.6,50.75,24.64,25.74,66.1,23.03,84.98-6.91,17.03-27,13.84-54.96,1.47-82.73-5.42-12.16-15.39-22.34-16.54-36.31-1.73-20.9-.53-41.88-.75-62.82-.01-1.21,1.02-1.27,1.89-1.38Zm-238.81,140.17c-.01,12.02-3.92,22.67-12.1,31.54-8.86,9.61-19.42,15.38-32.92,12.09-13.17-3.21-20.18-12.72-23.66-25.16-4.27-15.25-2.03-30.13,3.44-44.64,4.19-11.12,12.44-20.08,16.76-31.2,6.52-16.77,4.14-34.27,4.68-49.52,0-11.55.03-21.09-.03-30.63,0-1.41.43-1.7,1.79-1.69,13.36.06,26.73.08,40.09.01,1.51,0,2,.25,2,1.85-.04,45.78-.01,91.57-.05,137.35Zm105.14,41.55c-.07,9.26-2.96,17.51-12.29,21.72-2.59,1.17-5.15,1.83-7.64,1.98-2.49-.16-5.05-.81-7.64-1.98-9.33-4.21-12.23-12.46-12.29-21.72-.21-29.78-.08-59.56-.08-89.34,0-29.91,0-59.81,0-89.72,0-.79-.26-1.71,1.13-1.7,6.29.04,12.59.05,18.88.08,6.29-.03,12.59-.04,18.88-.08,1.4,0,1.13.91,1.13,1.7,0,29.91,0,59.81,0,89.72,0,29.78.13,59.56-.08,89.34Zm133.95-23.08c-3.48,12.44-10.49,21.95-23.66,25.16-13.5,3.29-24.06-2.48-32.92-12.09-8.18-8.87-12.09-19.52-12.1-31.54-.04-45.78,0-91.57-.05-137.35,0-1.6.48-1.86,2-1.85,13.36.07,26.73.05,40.09-.01,1.36,0,1.8.28,1.79,1.69-.06,9.54-.03,19.08-.03,30.63.54,15.25-1.83,32.75,4.68,49.52,4.32,11.12,12.57,20.08,16.76,31.2,5.47,14.52,7.71,29.39,3.44,44.64Zm-6.55-180.64c-31.89.13-63.78.12-95.66.16-17.22.02-34.45.06-51.67.08-17.22-.02-34.45-.06-51.67-.08-31.89-.04-63.78-.02-95.66-.16-6.83-.03-12.64-6.14-12.65-12.88-.03-22.41-.13-44.83.06-67.24.04-5.39,3.09-8.87,8.86-8.88,50.28-.04,100.56-.02,150.85-.02h.44c50.28,0,100.56-.02,150.85.02,5.77,0,8.82,3.49,8.86,8.88.18,22.41.09,44.82.06,67.24-.01,6.74-5.82,12.85-12.65,12.88Z" />
+
+            <!-- Left Pedal Fill (Soft / Una Corda) -->
+            <Path Data="M 98.01,274.37 c-.01,12.02-3.92,22.67-12.1,31.54-8.86,9.61-19.42,15.38-32.92,12.09-13.17-3.21-20.18-12.72-23.66-25.16-4.27-15.25-2.03-30.13,3.44-44.64,4.19-11.12,12.44-20.08,16.76-31.2,6.52-16.77,4.14-34.27,4.68-49.52,0-11.55.03-21.09-.03-30.63,0-1.41.43-1.7,1.79-1.69,13.36.06,26.73.08,40.09.01,1.51,0,2,.25,2,1.85-.04,45.78-.01,91.57-.05,137.35Z">
+                <Path.Style>
+                    <Style TargetType="Path">
+                        <Setter Property="Fill" Value="Transparent"/>
+                        <Setter Property="Stroke" Value="Transparent"/>
+                        <Setter Property="StrokeThickness" Value="0"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsSoftActive, ElementName=Root}" Value="True">
+                                <Setter Property="Fill" Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
+                                <Setter Property="Stroke" Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
+                                <Setter Property="StrokeThickness" Value="{Binding AccentStrokeThickness, ElementName=Root}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Path.Style>
+            </Path>
+
+            <!-- Middle Pedal Fill (Sostenuto) -->
+            <Path Data="M 203.15,315.92 c-.07,9.26-2.96,17.51-12.29,21.72-2.59,1.17-5.15,1.83-7.64,1.98-2.49-.16-5.05-.81-7.64-1.98-9.33-4.21-12.23-12.46-12.29-21.72-.21-29.78-.08-59.56-.08-89.34,0-29.91,0-59.81,0-89.72,0-.79-.26-1.71,1.13-1.7,6.29.04,12.59.05,18.88.08,6.29-.03,12.59-.04,18.88-.08,1.4,0,1.13.91,1.13,1.7,0,29.91,0,59.81,0,89.72,0,29.78.13,59.56-.08,89.34Z">
+                <Path.Style>
+                    <Style TargetType="Path">
+                        <Setter Property="Fill" Value="Transparent"/>
+                        <Setter Property="Stroke" Value="Transparent"/>
+                        <Setter Property="StrokeThickness" Value="0"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsSostenutoActive, ElementName=Root}" Value="True">
+                                <Setter Property="Fill" Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
+                                <Setter Property="Stroke" Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
+                                <Setter Property="StrokeThickness" Value="{Binding AccentStrokeThickness, ElementName=Root}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Path.Style>
+            </Path>
+
+            <!-- Right Pedal Fill (Sustain) -->
+            <Path Data="M 337.10,292.84 c-3.48,12.44-10.49,21.95-23.66,25.16-13.5,3.29-24.06-2.48-32.92-12.09-8.18-8.87-12.09-19.52-12.1-31.54-.04-45.78,0-91.57-.05-137.35,0-1.6.48-1.86,2-1.85,13.36.07,26.73.05,40.09-.01,1.36,0,1.8.28,1.79,1.69-.06,9.54-.03,19.08-.03,30.63.54,15.25-1.83,32.75,4.68,49.52,4.32,11.12,12.57,20.08,16.76,31.2,5.47,14.52,7.71,29.39,3.44,44.64Z">
+                <Path.Style>
+                    <Style TargetType="Path">
+                        <Setter Property="Fill" Value="Transparent"/>
+                        <Setter Property="Stroke" Value="Transparent"/>
+                        <Setter Property="StrokeThickness" Value="0"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsSustainActive, ElementName=Root}" Value="True">
+                                <Setter Property="Fill" Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
+                                <Setter Property="Stroke" Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
+                                <Setter Property="StrokeThickness" Value="{Binding AccentStrokeThickness, ElementName=Root}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Path.Style>
+            </Path>
+        </Canvas>
+    </Viewbox>
+</UserControl>
