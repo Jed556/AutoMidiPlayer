@@ -437,4 +437,45 @@ public static class KeyboardPlayer
             }
         });
     }
+
+    /// <summary>
+    /// Press and hold the sustain key (e.g. Space for Roblox piano pedal).
+    /// </summary>
+    public static void SustainDown(VirtualKeyCode sustainKey)
+    {
+        if (UseWindowMessage)
+        {
+            var hWnd = WindowHelper.GetActiveGameWindowHandle();
+            if (hWnd.HasValue && hWnd.Value != IntPtr.Zero)
+            {
+                SendKeyStrokeWindow(
+                    new Keyboard.KeyStroke(sustainKey),
+                    hWnd.Value, KeyAction.Down);
+                return;
+            }
+        }
+
+        SendKeyStrokeDirect(new Keyboard.KeyStroke(sustainKey), KeyAction.Down);
+    }
+
+    /// <summary>
+    /// Release the sustain key.
+    /// </summary>
+    public static void SustainUp(VirtualKeyCode sustainKey)
+    {
+        if (UseWindowMessage)
+        {
+            var hWnd = WindowHelper.GetActiveGameWindowHandle();
+            if (hWnd.HasValue && hWnd.Value != IntPtr.Zero)
+            {
+                SendKeyStrokeWindow(
+                    new Keyboard.KeyStroke(sustainKey),
+                    hWnd.Value, KeyAction.Up);
+                return;
+            }
+        }
+
+        SendKeyStrokeDirect(new Keyboard.KeyStroke(sustainKey), KeyAction.Up);
+    }
 }
+
