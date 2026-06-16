@@ -248,8 +248,8 @@
     <Setting Name="UnaCordaKeyByLayout" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
-    <Setting Name="HasReportedMachineInfo" Type="System.Boolean" Scope="User">
-      <Value Profile="(Default)">False</Value>
+    <Setting Name="ReportedOptEventStatus" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">0</Value>
     </Setting>
     <Setting Name="SqliteConnection" Type="(Connection string)" Scope="Application">
       <DesignTimeValue Profile="(Default)">&lt;?xml version="1.0" encoding="utf-16"?&gt;

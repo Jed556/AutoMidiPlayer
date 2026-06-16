@@ -58,7 +58,21 @@ public class SentryService : ISentryService
     {
         if (Settings.Default.TelemetryOptIn && Settings.Default.HasShownFirstLaunch)
         {
-            StartSentry();
+            if (Settings.Default.ReportedOptEventStatus != 1)
+            {
+                StartSentry(); // StartSentry will handle sending "opted in"
+            }
+            else
+            {
+                StartSentry(); // Start it anyway without sending the "opted in" event if it was already sent
+            }
+        }
+        else if (!Settings.Default.TelemetryOptIn && Settings.Default.HasShownFirstLaunch)
+        {
+            if (Settings.Default.ReportedOptEventStatus != 2)
+            {
+                ReportOptOut();
+            }
         }
     }
 
@@ -68,10 +82,54 @@ public class SentryService : ISentryService
         {
             StartSentry();
         }
-        else if (!enabled && SentrySdk.IsEnabled)
+        else if (!enabled)
         {
-            SentrySdk.Close();
+            if (Settings.Default.ReportedOptEventStatus != 2)
+            {
+                ReportOptOut();
+            }
+
+            if (SentrySdk.IsEnabled)
+            {
+                SentrySdk.Close();
+            }
         }
+    }
+
+    private void ReportOptOut()
+    {
+        using var _ = SentrySdk.Init(options =>
+        {
+            options.Dsn = "https://b023bd031b673f35306771bae355120d@o4511550890967040.ingest.us.sentry.io/4511550899355648";
+            options.Release = $"auto-midi-player@{GetAppVersion()}";
+#if DEBUG
+            options.Environment = "debug";
+#else
+            options.Environment = "production";
+#endif
+            options.SendDefaultPii = false;
+
+            // Strip out additional context
+            options.SetBeforeSend((sentryEvent, hint) =>
+            {
+                sentryEvent.Contexts.Clear();
+
+                if (sentryEvent.User == null)
+                    sentryEvent.User = new SentryUser();
+                sentryEvent.User.IpAddress = "0.0.0.0";
+
+                sentryEvent.ServerName = null;
+                sentryEvent.Release = null;
+                sentryEvent.Environment = null;
+                return sentryEvent;
+            });
+        });
+        
+        SentrySdk.CaptureMessage("User opted out of telemetry", SentryLevel.Info);
+        SentrySdk.FlushAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
+        
+        Settings.Default.ReportedOptEventStatus = 2;
+        Settings.Default.Save();
     }
 
     private void StartSentry()
@@ -127,10 +185,10 @@ public class SentryService : ISentryService
             });
         });
 
-        if (!Settings.Default.HasReportedMachineInfo)
+        if (Settings.Default.ReportedOptEventStatus != 1)
         {
             SentrySdk.CaptureMessage("User opted into telemetry", SentryLevel.Info);
-            Settings.Default.HasReportedMachineInfo = true;
+            Settings.Default.ReportedOptEventStatus = 1;
             Settings.Default.Save();
         }
     }

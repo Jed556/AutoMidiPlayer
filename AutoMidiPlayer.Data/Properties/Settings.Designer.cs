@@ -1005,13 +1005,13 @@ namespace AutoMidiPlayer.Data.Properties {
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("False")]
-        public bool HasReportedMachineInfo {
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int ReportedOptEventStatus {
             get {
-                return ((bool)(this["HasReportedMachineInfo"]));
+                return ((int)(this["ReportedOptEventStatus"]));
             }
             set {
-                this["HasReportedMachineInfo"] = value;
+                this["ReportedOptEventStatus"] = value;
             }
         }
         

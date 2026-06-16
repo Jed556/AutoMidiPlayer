@@ -29,15 +29,32 @@ public sealed class DialogActionButton
     public Func<Task>? CallbackAsync { get; init; }
 }
 
+public sealed class DialogTopRightButton
+{
+    public SymbolRegular Icon { get; init; } = SymbolRegular.Dismiss24;
+    
+    public Func<Task>? CallbackAsync { get; init; }
+}
+
 public sealed class DialogActionRequest
 {
     public string Title { get; init; } = string.Empty;
 
     public SymbolRegular? Icon { get; init; }
 
+    public string? Subtitle { get; init; }
+
     public string? Body { get; init; }
 
     public object? Content { get; init; }
+
+    public double? DialogMaxWidth { get; init; }
+
+    public double? DialogMaxHeight { get; init; }
+
+    public bool HideFooter { get; init; }
+
+    public DialogTopRightButton? TopRightButton { get; init; } = new DialogTopRightButton();
 
     public DialogActionButton? ConfirmButton { get; init; } = new()
     {
@@ -92,6 +109,13 @@ public static class DialogHelper
             typeof(DialogHelper),
             new PropertyMetadata(true));
 
+    private static readonly DependencyProperty IsCloseAnimationPlayedProperty =
+        DependencyProperty.RegisterAttached(
+            "IsCloseAnimationPlayed",
+            typeof(bool),
+            typeof(DialogHelper),
+            new PropertyMetadata(false));
+
     private enum DialogEntranceAnimationMode
     {
         None,
@@ -117,6 +141,10 @@ public static class DialogHelper
     private static bool GetEnableScrollAutoFade(DependencyObject obj) => (bool)obj.GetValue(EnableScrollAutoFadeProperty);
 
     private static void SetEnableScrollAutoFade(DependencyObject obj, bool value) => obj.SetValue(EnableScrollAutoFadeProperty, value);
+
+    private static bool GetIsCloseAnimationPlayed(DependencyObject obj) => (bool)obj.GetValue(IsCloseAnimationPlayedProperty);
+
+    private static void SetIsCloseAnimationPlayed(DependencyObject obj, bool value) => obj.SetValue(IsCloseAnimationPlayedProperty, value);
 
     /// <summary>
     /// Creates a new ContentDialog with the DialogHostEx property already set.
@@ -294,6 +322,27 @@ public static class DialogHelper
         }
 
         dialog.Opened += OnDialogOpened;
+        dialog.Closing += OnDialogClosing;
+    }
+
+    private static async void OnDialogClosing(ContentDialog sender, ContentDialogClosingEventArgs args)
+    {
+        if (GetIsCloseAnimationPlayed(sender))
+            return;
+
+        var animationMode = ResolveDialogEntranceAnimationMode();
+        if (animationMode == DialogEntranceAnimationMode.None)
+            return;
+
+        args.Cancel = true;
+        SetIsCloseAnimationPlayed(sender, true);
+
+        var duration = GetDialogAnimationDuration(animationMode);
+        AnimateDialogClose(sender, animationMode);
+        AnimateBackdropClose(sender, true);
+
+        await Task.Delay(duration);
+        sender.Hide();
     }
 
     private static void OnDialogIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -446,6 +495,63 @@ public static class DialogHelper
         dialog.BeginAnimation(UIElement.OpacityProperty, opacityAnimation, HandoffBehavior.SnapshotAndReplace);
     }
 
+    private static void AnimateDialogClose(ContentDialog dialog, DialogEntranceAnimationMode mode)
+    {
+        var (scale, translate) = EnsureDialogTransforms(dialog);
+        StopDialogAnimations(dialog, scale, translate);
+
+        var duration = GetDialogAnimationDuration(mode);
+        var shrinkEase = new CubicEase { EasingMode = EasingMode.EaseIn };
+        var moveEase = new CubicEase { EasingMode = EasingMode.EaseIn };
+        var fadeEase = new QuadraticEase { EasingMode = EasingMode.EaseIn };
+
+        var toScaleX = 1.0;
+        var toScaleY = 1.0;
+        var toTranslateX = 0.0;
+        var toTranslateY = 0.0;
+
+        switch (mode)
+        {
+            case DialogEntranceAnimationMode.Entrance:
+                toScaleX = 0.965;
+                toScaleY = 0.965;
+                toTranslateY = 24; 
+                break;
+            case DialogEntranceAnimationMode.DrillIn:
+                toScaleX = 0.9;
+                toScaleY = 0.9;
+                toTranslateY = 0;
+                break;
+            case DialogEntranceAnimationMode.SlideFromBottom:
+                toTranslateY = 40;
+                break;
+            case DialogEntranceAnimationMode.SlideFromLeft:
+                toTranslateX = -40;
+                break;
+            case DialogEntranceAnimationMode.SlideFromRight:
+                toTranslateX = 40;
+                break;
+        }
+
+        var scaleXAnimation = new DoubleAnimation(scale.ScaleX, toScaleX, duration) { EasingFunction = shrinkEase, FillBehavior = FillBehavior.Stop };
+        var scaleYAnimation = new DoubleAnimation(scale.ScaleY, toScaleY, duration) { EasingFunction = shrinkEase, FillBehavior = FillBehavior.Stop };
+        var translateXAnimation = new DoubleAnimation(translate.X, toTranslateX, duration) { EasingFunction = moveEase, FillBehavior = FillBehavior.Stop };
+        var translateYAnimation = new DoubleAnimation(translate.Y, toTranslateY, duration) { EasingFunction = moveEase, FillBehavior = FillBehavior.Stop };
+        var opacityAnimation = new DoubleAnimation(dialog.Opacity, 0, TimeSpan.FromMilliseconds(Math.Max(140, duration.TotalMilliseconds - 20))) { EasingFunction = fadeEase, FillBehavior = FillBehavior.Stop };
+
+        scaleXAnimation.Completed += (_, _) => scale.ScaleX = toScaleX;
+        scaleYAnimation.Completed += (_, _) => scale.ScaleY = toScaleY;
+        translateXAnimation.Completed += (_, _) => translate.X = toTranslateX;
+        translateYAnimation.Completed += (_, _) => translate.Y = toTranslateY;
+        opacityAnimation.Completed += (_, _) => dialog.Opacity = 0;
+
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleXAnimation, HandoffBehavior.SnapshotAndReplace);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleYAnimation, HandoffBehavior.SnapshotAndReplace);
+        translate.BeginAnimation(TranslateTransform.XProperty, translateXAnimation, HandoffBehavior.SnapshotAndReplace);
+        translate.BeginAnimation(TranslateTransform.YProperty, translateYAnimation, HandoffBehavior.SnapshotAndReplace);
+        dialog.BeginAnimation(UIElement.OpacityProperty, opacityAnimation, HandoffBehavior.SnapshotAndReplace);
+    }
+
     private static TimeSpan GetDialogAnimationDuration(DialogEntranceAnimationMode mode)
     {
         return mode switch
@@ -557,6 +663,30 @@ public static class DialogHelper
             FillBehavior = FillBehavior.Stop
         };
         backdropFadeAnimation.Completed += (_, _) => backdrop.Opacity = targetOpacity;
+
+        backdrop.BeginAnimation(UIElement.OpacityProperty, backdropFadeAnimation, HandoffBehavior.SnapshotAndReplace);
+    }
+
+    private static void AnimateBackdropClose(ContentDialog dialog, bool shouldAnimate)
+    {
+        var backdrop = FindBackdropElement(dialog);
+        if (backdrop is null)
+            return;
+
+        backdrop.BeginAnimation(UIElement.OpacityProperty, null);
+
+        if (!shouldAnimate)
+        {
+            backdrop.Opacity = 0;
+            return;
+        }
+
+        var backdropFadeAnimation = new DoubleAnimation(backdrop.Opacity, 0, TimeSpan.FromMilliseconds(220))
+        {
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn },
+            FillBehavior = FillBehavior.Stop
+        };
+        backdropFadeAnimation.Completed += (_, _) => backdrop.Opacity = 0;
 
         backdrop.BeginAnimation(UIElement.OpacityProperty, backdropFadeAnimation, HandoffBehavior.SnapshotAndReplace);
     }

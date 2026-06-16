@@ -637,7 +637,11 @@ public class SongService(IContainer ioc) : PropertyChangedBase
             _main.QueueView.SelectedFile = null;
 
         if (_main.QueueView.OpenedFile is not null && songIds.Contains(_main.QueueView.OpenedFile.Song.Id))
-            _main.QueueView.OpenedFile = null;
+        {
+            _main.PlaybackControls.CloseFile();
+            _main.QueueView.ClearSavedSong();
+            _main.PlaybackControls.UpdateButtons();
+        }
 
         _main.QueueView.RemoveSongsFromHistory(songIds);
     }

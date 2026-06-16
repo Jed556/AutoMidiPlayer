@@ -1,7 +1,10 @@
 <ui:ContentDialog x:Class="AutoMidiPlayer.WPF.Dialogs.ActionDialog"
                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                  xmlns:helpers="clr-namespace:AutoMidiPlayer.WPF.Helpers"
+                  ScrollViewer.VerticalScrollBarVisibility="Auto"
+                  ScrollViewer.HorizontalScrollBarVisibility="Disabled">
 
     <ui:ContentDialog.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>

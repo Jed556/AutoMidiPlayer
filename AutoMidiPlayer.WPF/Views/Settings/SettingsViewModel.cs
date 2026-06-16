@@ -806,8 +806,11 @@ public class SettingsPageViewModel : Screen
         var result = await DialogHelper.ShowActionDialogAsync(new DialogActionRequest
         {
             Title = "Debug Dialog Sample",
+            Subtitle = "This is a secondary text subtitle",
             Icon = SymbolRegular.Info24,
-            Body = "This is a sample dialog rendered through DialogHelper.",
+            TopRightButton = new DialogTopRightButton(),
+            DialogMaxHeight = 250,
+            Body = "This is a sample dialog rendered through DialogHelper.\n\nIt features a very long body to demonstrate the newly integrated smooth scrolling capabilities and the custom scrollbars.\n\n" + string.Join("\n\n", Enumerable.Repeat("Line of text to pad the content...", 20)),
             ConfirmButton = new DialogActionButton
             {
                 Text = "Ok",
@@ -1442,14 +1445,18 @@ public class SettingsPageViewModel : Screen
     [UsedImplicitly]
     public void SetTimeToNow() => DateTime = DateTime.Now;
 
+    private bool _isUpdatingTelemetry = false;
+
     protected override void OnActivate()
     {
         Logger.LogPageVisit("Settings", source: "screen-activate");
 
         if (TelemetryOptIn != Settings.TelemetryOptIn)
         {
+            _isUpdatingTelemetry = true;
             TelemetryOptIn = Settings.TelemetryOptIn;
             NotifyOfPropertyChange(() => TelemetryOptIn);
+            _isUpdatingTelemetry = false;
         }
     }
 
@@ -1473,8 +1480,69 @@ public class SettingsPageViewModel : Screen
         NotifyOfPropertyChange(nameof(CrashLogVerbosityDescription));
     }
 
-    private void OnTelemetryOptInChanged()
+    private async void OnTelemetryOptInChanged()
     {
+        if (_isUpdatingTelemetry) return;
+
+        if (TelemetryOptIn)
+        {
+            var result = await DialogHelper.ShowActionDialogAsync(new DialogActionRequest
+            {
+                Title = "Enable Telemetry",
+                Body = "By opting in, crash reports and anonymous usage data will be sent to help improve the app. Note that if you opt out later, historical data collected while opted in will not be cleared.\n\nDo you want to proceed?",
+                Icon = SymbolRegular.QuestionCircle24,
+                DialogMaxWidth = 420,
+                ConfirmButton = new DialogActionButton
+                {
+                    Text = "Enable",
+                    Appearance = ControlAppearance.Primary
+                },
+                CancelButton = new DialogActionButton
+                {
+                    Text = "Cancel",
+                    Appearance = ControlAppearance.Secondary
+                }
+            });
+
+            if (result != DialogActionOutcome.Confirmed)
+            {
+                _isUpdatingTelemetry = true;
+                TelemetryOptIn = false;
+                NotifyOfPropertyChange(() => TelemetryOptIn);
+                _isUpdatingTelemetry = false;
+                return;
+            }
+        }
+        else
+        {
+            var result = await DialogHelper.ShowActionDialogAsync(new DialogActionRequest
+            {
+                Title = "Disable Telemetry",
+                Body = "Are you sure you want to opt out of telemetry? No future data will be sent, but please note that any previous data already sent will remain.\n\nDo you want to proceed?",
+                Icon = SymbolRegular.Warning24,
+                DialogMaxWidth = 420,
+                ConfirmButton = new DialogActionButton
+                {
+                    Text = "Disable",
+                    Appearance = ControlAppearance.Danger
+                },
+                CancelButton = new DialogActionButton
+                {
+                    Text = "Cancel",
+                    Appearance = ControlAppearance.Secondary
+                }
+            });
+
+            if (result != DialogActionOutcome.Confirmed)
+            {
+                _isUpdatingTelemetry = true;
+                TelemetryOptIn = true;
+                NotifyOfPropertyChange(() => TelemetryOptIn);
+                _isUpdatingTelemetry = false;
+                return;
+            }
+        }
+
         Settings.Modify(s => s.TelemetryOptIn = TelemetryOptIn);
 
         try

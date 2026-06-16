@@ -403,10 +403,23 @@ public static class ScrollEdgeFadeBehavior
 
                 if (bestCandidate is not null)
                     return bestCandidate;
+
+                // If layout hasn't happened yet, ActualWidth/Height are 0, so fallback to first non-scrollbar child
+                for (var i = 0; i < childCount; i++)
+                {
+                    if (parentPanel.Children[i] is FrameworkElement child && !ReferenceEquals(child, verticalBar) && child is not ScrollBar)
+                        return child;
+                }
             }
 
             FrameworkElement? presenter = FindDescendant<ScrollContentPresenter>(viewer);
-            return presenter ?? viewer;
+            if (presenter is not null)
+                return presenter;
+
+            if (VisualTreeHelper.GetChildrenCount(viewer) > 0 && VisualTreeHelper.GetChild(viewer, 0) is FrameworkElement firstChild)
+                return firstChild;
+
+            return viewer;
         }
 
         private static ScrollBar? ResolveVerticalScrollBar(ScrollViewer viewer)
