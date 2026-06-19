@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Entities;
 using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Controls.Snackbar;
 using AutoMidiPlayer.WPF.Core;
 using AutoMidiPlayer.WPF.Dialogs;
+using AutoMidiPlayer.WPF.Helpers;
 using AutoMidiPlayer.WPF.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using Stylet;
@@ -447,7 +449,7 @@ public class SongService(IContainer ioc) : PropertyChangedBase
 
         var nativeBpm = file.GetNativeBpm();
 
-        var dialog = new EditDialog(
+        var view = new EditDialogView(
             file.Song.Title ?? Path.GetFileNameWithoutExtension(file.Path),
             file.Path,
             file.Song.Key,
@@ -463,34 +465,62 @@ public class SongService(IContainer ioc) : PropertyChangedBase
             file.Song.HoldNotes,
             file.Song.Speed);
 
-        var result = await dialog.ShowAsync();
-        if (result != ContentDialogResult.Primary)
+        var request = new DialogActionRequest
         {
-            Logger.LogStep("SONG_EDIT_DIALOG_CANCEL", $"source={source} | result={result} | title='{currentTitle}' | path='{file.Path}'");
+            Title = "Edit Song",
+            Icon = Wpf.Ui.Controls.SymbolRegular.Edit32,
+            Content = view,
+            ConfirmButton = new DialogActionButton
+            {
+                Text = "Save",
+                Appearance = Wpf.Ui.Controls.ControlAppearance.Primary,
+                CallbackAsync = () => Task.FromResult(true) // validation success
+            },
+            CustomButton = new DialogActionButton
+            {
+                Text = "Reset Defaults",
+                Appearance = Wpf.Ui.Controls.ControlAppearance.Danger,
+                CallbackAsync = async () =>
+                {
+                    Application.Current.Dispatcher.InvokeAsync(() => view.ResetAndRescan(), System.Windows.Threading.DispatcherPriority.Background);
+                    return false; // keep open
+                }
+            },
+            CancelButton = new DialogActionButton
+            {
+                Text = "Cancel",
+                Appearance = Wpf.Ui.Controls.ControlAppearance.Secondary
+            }
+        };
+
+        var outcome = await DialogHelper.ShowActionDialogAsync(request);
+        if (outcome != DialogActionOutcome.Confirmed)
+        {
+            Logger.LogStep("SONG_EDIT_DIALOG_CANCEL", $"source={source} | result={outcome} | title='{currentTitle}' | path='{file.Path}'");
             return;
         }
 
-        var updatedTitle = string.IsNullOrWhiteSpace(dialog.SongTitle)
+        var updatedTitle = string.IsNullOrWhiteSpace(view.SongTitle)
             ? Path.GetFileNameWithoutExtension(file.Path)
-            : dialog.SongTitle;
+            : view.SongTitle;
 
         Logger.LogStep(
             "SONG_EDIT_DIALOG_SAVE",
-            $"source={source} | oldTitle='{currentTitle}' | newTitle='{updatedTitle}' | path='{file.Path}' | key={dialog.SongKey} | transpose={dialog.SongTranspose} | bpm={dialog.SongBpm:0.###} | speed={dialog.SongSpeed:0.###}");
+            $"source={source} | oldTitle='{currentTitle}' | newTitle='{updatedTitle}' | path='{file.Path}' | key={view.SongKey} | transpose={view.SongTranspose} | bpm={view.SongBpm:0.###} | speed={view.SongSpeed:0.###}");
 
         file.Song.Title = updatedTitle;
-        file.Song.Artist = string.IsNullOrWhiteSpace(dialog.SongArtist) ? null : dialog.SongArtist;
-        file.Song.Album = string.IsNullOrWhiteSpace(dialog.SongAlbum) ? null : dialog.SongAlbum;
-        file.Song.DateAdded = dialog.SongDateAdded;
+        file.Song.Artist = string.IsNullOrWhiteSpace(view.SongArtist) ? null : view.SongArtist;
+        file.Song.Album = string.IsNullOrWhiteSpace(view.SongAlbum) ? null : view.SongAlbum;
+        file.Song.DateAdded = view.SongDateAdded;
         // Preserve the existing song-specific base key unless the dialog provides a detected value.
-        file.Song.BaseKey = dialog.SongBaseKey ?? file.Song.BaseKey;
-        file.Song.Key = dialog.SongKey;
-        file.Song.Transpose = dialog.SongTranspose;
-        file.Song.Bpm = dialog.SongBpm;
-        file.Song.MergeNotes = dialog.SongMergeNotes;
-        file.Song.MergeMilliseconds = dialog.SongMergeMilliseconds;
-        file.Song.HoldNotes = dialog.SongHoldNotes;
-        file.Song.Speed = dialog.SongSpeed;
+        file.Song.BaseKey = view.SongBaseKey ?? file.Song.BaseKey;
+        file.Song.Key = view.SongKey;
+        file.Song.Transpose = view.SongTranspose;
+        file.Song.Bpm = view.SongBpm;
+        file.Song.MergeNotes = view.SongMergeNotes;
+        file.Song.MergeMilliseconds = view.SongMergeMilliseconds;
+        file.Song.HoldNotes = view.SongHoldNotes;
+        file.Song.Speed = view.SongSpeed;
 
         try
         {

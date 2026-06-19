@@ -6,15 +6,15 @@ using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using System.Windows.Controls;
 using AutoMidiPlayer.Data.Entities;
 using AutoMidiPlayer.WPF.Helpers;
 using AutoMidiPlayer.WPF.Services;
 using AutoMidiPlayer.WPF.ViewModels;
-using Wpf.Ui.Controls;
 
 namespace AutoMidiPlayer.WPF.Dialogs;
 
-public partial class FileIssuesDialog : ContentDialog, INotifyPropertyChanged
+public partial class FileIssuesView : UserControl, INotifyPropertyChanged
 {
     public sealed class DuplicateOptionViewModel
     {
@@ -45,16 +45,7 @@ public partial class FileIssuesDialog : ContentDialog, INotifyPropertyChanged
 
     private List<SongsViewModel.DuplicateMidiFileEntry> _duplicateEntries = new();
 
-    static FileIssuesDialog()
-    {
-        DefaultStyleKeyProperty.OverrideMetadata(
-            typeof(FileIssuesDialog),
-            new FrameworkPropertyMetadata(typeof(ContentDialog))
-        );
-    }
-
-    public FileIssuesDialog(
-        bool hasDatabaseFileErrors,
+    public FileIssuesView(
         Func<Song, Task> removeMissingSongAsync,
         Func<SongsViewModel.BadMidiFileEntry, Task> removeBadMidiSongAsync,
         Func<FileService.RemovedExistingMidiFileEntry, Task> restoreRemovedExistingAsync,
@@ -65,23 +56,9 @@ public partial class FileIssuesDialog : ContentDialog, INotifyPropertyChanged
         _restoreRemovedExistingAsync = restoreRemovedExistingAsync;
         _deleteRemovedExistingAsync = deleteRemovedExistingAsync;
 
-        DialogHelper.SetupDialogHost(this, new DialogHostSetupOptions
-        {
-            EnableScrollAutoFade = false
-        });
-
         InitializeComponent();
 
         DataContext = this;
-
-        if (Application.Current.TryFindResource(typeof(ContentDialog)) is Style dialogStyle)
-            Style = dialogStyle;
-
-        if (!hasDatabaseFileErrors)
-            return;
-
-        PrimaryButtonText = "Remove All";
-        PrimaryButtonAppearance = ControlAppearance.Danger;
     }
 
     public ObservableCollection<Song> MissingSongs { get; } = new();

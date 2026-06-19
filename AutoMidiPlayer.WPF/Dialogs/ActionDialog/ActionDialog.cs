@@ -143,7 +143,8 @@ public partial class ActionDialog : ContentDialog
             {
                 if (request.TopRightButton.CallbackAsync is not null)
                 {
-                    await request.TopRightButton.CallbackAsync();
+                    bool shouldClose = await request.TopRightButton.CallbackAsync();
+                    if (!shouldClose) return;
                 }
                 Hide();
             };
@@ -154,10 +155,17 @@ public partial class ActionDialog : ContentDialog
 
         Title = titleGrid;
 
+        var buttonsToHide = new System.Collections.Generic.List<ContentDialogButton>();
+
         if (request.ConfirmButton is not null && !request.HideFooter)
         {
             PrimaryButtonText = request.ConfirmButton.Text;
             PrimaryButtonAppearance = request.ConfirmButton.Appearance;
+        }
+        else
+        {
+            PrimaryButtonText = string.Empty;
+            buttonsToHide.Add(ContentDialogButton.Primary);
         }
 
         if (request.CustomButton is not null && !request.HideFooter)
@@ -165,11 +173,30 @@ public partial class ActionDialog : ContentDialog
             SecondaryButtonText = request.CustomButton.Text;
             SecondaryButtonAppearance = request.CustomButton.Appearance;
         }
+        else
+        {
+            SecondaryButtonText = string.Empty;
+            buttonsToHide.Add(ContentDialogButton.Secondary);
+        }
 
         if (request.CancelButton is not null && !request.HideFooter)
         {
             CloseButtonText = request.CancelButton.Text;
             CloseButtonAppearance = request.CancelButton.Appearance;
+        }
+        else
+        {
+            CloseButtonText = string.Empty;
+            buttonsToHide.Add(ContentDialogButton.Close);
+        }
+
+        if (buttonsToHide.Count > 0)
+        {
+            Loaded += (_, _) =>
+            {
+                foreach (var buttonType in buttonsToHide)
+                    DialogHelper.CollapseDialogButton(this, buttonType);
+            };
         }
 
         DataContext = this;

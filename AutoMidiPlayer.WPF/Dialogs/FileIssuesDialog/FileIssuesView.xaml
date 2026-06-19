@@ -1,15 +1,12 @@
-<ui:ContentDialog x:Class="AutoMidiPlayer.WPF.Dialogs.FileIssuesDialog"
-                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-                  xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
-                  Title="File Issues"
-                  CloseButtonText="Close"
-                  DefaultButton="Close">
+<UserControl x:Class="AutoMidiPlayer.WPF.Dialogs.FileIssuesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls">
 
-    <ui:ContentDialog.Resources>
+    <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
-    </ui:ContentDialog.Resources>
+    </UserControl.Resources>
 
     <StackPanel MinWidth="460"
                 Background="Transparent"
@@ -236,4 +233,4 @@
             </ScrollViewer>
         </StackPanel>
     </StackPanel>
-</ui:ContentDialog>
+</UserControl>

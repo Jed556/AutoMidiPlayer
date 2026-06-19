@@ -543,7 +543,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         await ShowResetSuccessDialogIfNeededAsync();
 
         // Show welcome/telemetry opt-in dialog on first launch
-        await WelcomeDialog.ShowIfFirstLaunchAsync();
+        await WelcomeView.ShowIfFirstLaunchAsync();
 
         try
         {
@@ -709,7 +709,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
     private static async Task ShowResetSuccessDialogIfNeededAsync()
     {
-        await AppStatusDialog.ShowIfStatusMarkerExistsAsync();
+        await AppStatusView.ShowIfStatusMarkerExistsAsync();
     }
     public void ShowGameInactiveToast(bool listenModeEnabled)
     {

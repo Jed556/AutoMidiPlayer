@@ -10,6 +10,7 @@ using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Git;
 using AutoMidiPlayer.WPF.Helpers;
@@ -18,7 +19,7 @@ using Wpf.Ui.Controls;
 
 namespace AutoMidiPlayer.WPF.Dialogs;
 
-public partial class UpdateDialog : ContentDialog, INotifyPropertyChanged
+public partial class UpdateView : UserControl, INotifyPropertyChanged
 {
     private readonly GitVersion _latestVersion;
     private readonly UpdateService _updateService;
@@ -121,18 +122,8 @@ public partial class UpdateDialog : ContentDialog, INotifyPropertyChanged
         }
     }
 
-    static UpdateDialog()
+    public void OpenReleaseNotes()
     {
-        DefaultStyleKeyProperty.OverrideMetadata(
-            typeof(UpdateDialog),
-            new FrameworkPropertyMetadata(typeof(ContentDialog))
-        );
-    }
-
-    private void OnReleaseNotesPreviewClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
-    {
-        e.Handled = true; // Prevent the dialog from closing
-        
         try
         {
             var url = "https://github.com/Jed556/AutoMidiPlayer/releases";
@@ -151,30 +142,13 @@ public partial class UpdateDialog : ContentDialog, INotifyPropertyChanged
         }
     }
 
-    public UpdateDialog(GitVersion latestVersion, UpdateService updateService)
+    public UpdateView(GitVersion latestVersion, UpdateService updateService)
     {
         _latestVersion = latestVersion;
         _updateService = updateService;
         InitializeComponent();
-
-        DialogHelper.SetupDialogHost(this);
-
-        if (System.Windows.Application.Current.TryFindResource(typeof(ContentDialog)) is Style dialogStyle)
-            Style = dialogStyle;
             
         DataContext = this;
-        
-        PrimaryButtonText = "Install update";
-        SecondaryButtonText = "Release Notes";
-        CloseButtonText = "Cancel";
-
-        PrimaryButtonAppearance = Wpf.Ui.Controls.ControlAppearance.Primary;
-        SecondaryButtonAppearance = Wpf.Ui.Controls.ControlAppearance.Secondary;
-        CloseButtonAppearance = Wpf.Ui.Controls.ControlAppearance.Secondary;
-
-        DefaultButton = Wpf.Ui.Controls.ContentDialogButton.Primary;
-        
-        DialogHelper.HookButtonToPreventClose(this, Wpf.Ui.Controls.ContentDialogButton.Secondary, OnReleaseNotesPreviewClick);
         
         // Auto-detect default if possible (rudimentary check: if there is no setup/installer sign, assume portable)
         var exeName = Path.GetFileName(Environment.ProcessPath ?? "");
@@ -186,16 +160,38 @@ public partial class UpdateDialog : ContentDialog, INotifyPropertyChanged
     {
         try
         {
-            var dialog = new UpdateDialog(latestVersion, updateService);
-
-            var hostReady = await DialogHelper.EnsureDialogHostAsync(dialog);
-            if (hostReady)
+            var view = new UpdateView(latestVersion, updateService);
+            var request = new DialogActionRequest
             {
-                var result = await dialog.ShowAsync();
-                if (result == ContentDialogResult.Primary)
+                Title = "Update Available",
+                Icon = SymbolRegular.ArrowDownload24,
+                Content = view,
+                ConfirmButton = new DialogActionButton
                 {
-                    await dialog.RunUpdateAsync();
+                    Text = "Install update",
+                    Appearance = ControlAppearance.Primary
+                },
+                CustomButton = new DialogActionButton
+                {
+                    Text = "Release Notes",
+                    Appearance = ControlAppearance.Secondary,
+                    CallbackAsync = () =>
+                    {
+                        view.OpenReleaseNotes();
+                        return Task.FromResult(false); // Don't close the dialog
+                    }
+                },
+                CancelButton = new DialogActionButton
+                {
+                    Text = "Cancel",
+                    Appearance = ControlAppearance.Secondary
                 }
+            };
+
+            var result = await DialogHelper.ShowActionDialogAsync(request);
+            if (result == DialogActionOutcome.Confirmed)
+            {
+                await view.RunUpdateAsync();
             }
         }
         catch (Exception dialogError)
@@ -204,8 +200,6 @@ public partial class UpdateDialog : ContentDialog, INotifyPropertyChanged
             Logger.LogException(dialogError);
         }
     }
-
-
 
     private async Task RunUpdateAsync()
     {

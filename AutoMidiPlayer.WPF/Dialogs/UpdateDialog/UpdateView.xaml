@@ -1,23 +1,13 @@
-<ui:ContentDialog x:Class="AutoMidiPlayer.WPF.Dialogs.UpdateDialog"
-                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-                  xmlns:s="https://github.com/canton7/Stylet"
-                  xmlns:button="clr-namespace:AutoMidiPlayer.WPF.Controls.SelectorPopupButton.Button"
-                  PrimaryButtonText="Update"
-                  CloseButtonText="Cancel"
-                  DefaultButton="Primary">
+<UserControl x:Class="AutoMidiPlayer.WPF.Dialogs.UpdateView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:s="https://github.com/canton7/Stylet"
+             xmlns:button="clr-namespace:AutoMidiPlayer.WPF.Controls.SelectorPopupButton.Button">
 
-    <ui:ContentDialog.Title>
-        <StackPanel Orientation="Horizontal">
-            <ui:SymbolIcon Symbol="ArrowDownload24" Margin="0,0,8,0" FontSize="20"/>
-            <TextBlock Text="Update Available" VerticalAlignment="Center"/>
-        </StackPanel>
-    </ui:ContentDialog.Title>
-
-    <ui:ContentDialog.Resources>
+    <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
-    </ui:ContentDialog.Resources>
+    </UserControl.Resources>
     
     <StackPanel Background="Transparent" Margin="0" Width="420">
         <WrapPanel Margin="0,0,0,8">
@@ -52,4 +42,4 @@
                    MaxWidth="640" TextWrapping="Wrap"/>
 
     </StackPanel>
-</ui:ContentDialog>
+</UserControl>

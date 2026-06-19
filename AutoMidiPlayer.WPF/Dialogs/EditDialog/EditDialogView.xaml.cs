@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using AutoMidiPlayer.Data;
@@ -14,18 +15,9 @@ using Wpf.Ui.Controls;
 
 namespace AutoMidiPlayer.WPF.Dialogs;
 
-public partial class EditDialog : ContentDialog
+public partial class EditDialogView : UserControl
 {
     private static readonly Settings UserSettings = Settings.Default;
-
-    static EditDialog()
-    {
-        // Ensure the base ContentDialog style is applied to this derived dialog.
-        DefaultStyleKeyProperty.OverrideMetadata(
-            typeof(EditDialog),
-            new FrameworkPropertyMetadata(typeof(ContentDialog))
-        );
-    }
 
     private Wpf.Ui.Controls.TextBox _titleBox => TitleBox;
     private Wpf.Ui.Controls.TextBox _artistBox => ArtistBox;
@@ -120,7 +112,7 @@ public partial class EditDialog : ContentDialog
     /// </summary>
     public bool SongHoldNotes => _holdNotesToggle.IsChecked == true;
 
-    public EditDialog(
+    public EditDialogView(
         string defaultTitle,
         string midiFilePath,
         int baseKey = 0,
@@ -136,39 +128,13 @@ public partial class EditDialog : ContentDialog
         bool? holdNotes = false,
         double? speed = null)
     {
-        DialogHelper.SetupDialogHost(this);
         InitializeComponent();
 
-        if (Application.Current.TryFindResource(typeof(ContentDialog)) is Style dialogStyle)
-            Style = dialogStyle;
-
-        var activeWindow = Application.Current.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive)
-                           ?? Application.Current.MainWindow;
-
-        if (activeWindow != null)
+        Loaded += (s, e) =>
         {
-            void UpdateDialogBounds()
-            {
-                var maxHeight = Math.Max(0, activeWindow.ActualHeight - 120);
-                var maxWidth = Math.Max(0, activeWindow.ActualWidth - 120);
-                DialogMaxHeight = maxHeight;
-                DialogMaxWidth = maxWidth;
-                DialogMargin = new Thickness(24);
-            }
-
-            UpdateDialogBounds();
-            SizeChangedEventHandler? sizeChangedHandler = (_, _) => UpdateDialogBounds();
-            activeWindow.SizeChanged += sizeChangedHandler;
-            EventHandler? stateChangedHandler = (_, _) => UpdateDialogBounds();
-            activeWindow.StateChanged += stateChangedHandler;
-
-            Closed += (_, _) =>
-            {
-                activeWindow.SizeChanged -= sizeChangedHandler;
-                activeWindow.StateChanged -= stateChangedHandler;
-            };
-        }
-        Loaded += OnEditDialogLoaded;
+            _titleBox.Focus();
+            _titleBox.SelectAll();
+        };
 
         _midiFilePath = midiFilePath;
         _hasBaseKeyRoot = baseKeyRoot.HasValue; 
@@ -254,89 +220,10 @@ public partial class EditDialog : ContentDialog
         _mergeMillisecondsBox.IsEnabled = false;
     }
 
-    private void OnEditDialogLoaded(object sender, RoutedEventArgs e)
-    {
-        ApplyPrimaryButtonAccent();
-        ApplyDialogButtonCursors(this);
-        HookResetButton();
-    }
-
-    private void HookResetButton()
-    {
-        var secondaryButton = FindDialogButtonByName(this, "SecondaryButton")
-                              ?? FindDialogButtonByName(this, "PART_SecondaryButton");
-        if (secondaryButton == null)
-            return;
-
-        secondaryButton.PreviewMouseLeftButtonDown += (s, args) =>
-        {
-            args.Handled = true;
-            Application.Current.Dispatcher.InvokeAsync(() => ResetAndRescan(), System.Windows.Threading.DispatcherPriority.Background);
-        };
-    }
-
-    private static System.Windows.Controls.Button? FindDialogButtonByName(DependencyObject root, string name)
-    {
-        var childCount = VisualTreeHelper.GetChildrenCount(root);
-        for (var i = 0; i < childCount; i++)
-        {
-            var child = VisualTreeHelper.GetChild(root, i);
-            if (child is System.Windows.Controls.Button btn && btn.Name == name)
-                return btn;
-            var found = FindDialogButtonByName(child, name);
-            if (found != null)
-                return found;
-        }
-        return null;
-    }
-
     private void PathHyperlink_Click(object sender, RoutedEventArgs e)
     {
         OpenMidiPathInExplorer();
         e.Handled = true;
-    }
-
-    private void ApplyPrimaryButtonAccent()
-    {
-        var primaryButton = FindPrimaryButton(this);
-        if (primaryButton == null)
-            return;
-
-        primaryButton.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, "SystemAccentColorPrimaryBrush");
-        primaryButton.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, "SystemAccentColorPrimaryBrush");
-        primaryButton.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextOnAccentFillColorPrimaryBrush");
-    }
-
-    private static void ApplyDialogButtonCursors(DependencyObject root)
-    {
-        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
-        {
-            var child = VisualTreeHelper.GetChild(root, index);
-            if (child is System.Windows.Controls.Button button)
-                button.Cursor = Cursors.Hand;
-
-            ApplyDialogButtonCursors(child);
-        }
-    }
-
-    private static System.Windows.Controls.Button? FindPrimaryButton(DependencyObject root)
-    {
-        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
-        {
-            var child = VisualTreeHelper.GetChild(root, index);
-            if (child is System.Windows.Controls.Button button)
-            {
-                var text = button.Content?.ToString();
-                if (string.Equals(text, "Save", StringComparison.OrdinalIgnoreCase))
-                    return button;
-            }
-
-            var nested = FindPrimaryButton(child);
-            if (nested != null)
-                return nested;
-        }
-
-        return null;
     }
 
     private void PopulateKeyOptions(int selectedKey)
@@ -443,7 +330,7 @@ public partial class EditDialog : ContentDialog
         return fallbackDate ?? DateTime.Now;
     }
 
-    private void ResetAndRescan()
+    public void ResetAndRescan()
     {
         ResetToInitialValues();
 

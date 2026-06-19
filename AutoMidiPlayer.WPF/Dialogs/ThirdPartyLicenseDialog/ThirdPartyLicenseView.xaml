@@ -1,0 +1,18 @@
+<UserControl x:Class="AutoMidiPlayer.WPF.Dialogs.ThirdPartyLicenseView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:helpers="clr-namespace:AutoMidiPlayer.WPF.Helpers"
+             xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
+             Padding="0,8,12,0">
+
+    <Grid x:Name="ContentGrid"
+          Background="Transparent"
+          Margin="0,0,12,0"
+          TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+        <TextBlock helpers:TextBlockLinkHelper.TextWithLinks="{Binding LicenseText}"
+                   TextWrapping="Wrap"
+                   FontFamily="Consolas"
+                   FontSize="11"/>
+    </Grid>
+</UserControl>

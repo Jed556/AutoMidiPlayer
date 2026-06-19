@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows;
+using System.Windows.Controls;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.WPF.Helpers;
 using Humanizer;
@@ -12,7 +12,7 @@ using Wpf.Ui.Controls;
 
 namespace AutoMidiPlayer.WPF.Dialogs;
 
-public partial class BadMidiReadDialog : ContentDialog
+public partial class BadMidiReadView : UserControl
 {
     private static readonly object DialogDedupLock = new();
     private static readonly HashSet<string> ShownErrorKeys = new(StringComparer.Ordinal);
@@ -74,26 +74,10 @@ public partial class BadMidiReadDialog : ContentDialog
         typeof(UnexpectedRunningStatusException)
     ];
 
-    static BadMidiReadDialog()
-    {
-        DefaultStyleKeyProperty.OverrideMetadata(
-            typeof(BadMidiReadDialog),
-            new FrameworkPropertyMetadata(typeof(ContentDialog))
-        );
-    }
-
-    public BadMidiReadDialog(string message, string primaryButtonText, string secondaryButtonText)
+    public BadMidiReadView(string message)
     {
         InitializeComponent();
-
-        DialogHelper.SetupDialogHost(this);
-
-        if (Application.Current.TryFindResource(typeof(ContentDialog)) is Style dialogStyle)
-            Style = dialogStyle;
-
         MessageTextBlock.Text = message;
-        PrimaryButtonText = primaryButtonText;
-        SecondaryButtonText = secondaryButtonText;
     }
 
     internal static async Task<bool> TryHandleAsync(Exception e, ReadingSettings settings, string? filePath = null)
@@ -111,23 +95,45 @@ public partial class BadMidiReadDialog : ContentDialog
         var command = ExceptionOptions
             .FirstOrDefault(type => type.Key.Equals(e.GetType())).Value;
 
-        var dialog = new BadMidiReadDialog(
-            BuildContent(e, filePath),
-            command?.ElementAtOrDefault(0)?.ToString()?.Humanize() ?? string.Empty,
-            command?.ElementAtOrDefault(1)?.ToString()?.Humanize() ?? string.Empty);
+        var view = new BadMidiReadView(BuildContent(e, filePath));
 
-        ContentDialogResult result;
+        string primaryButtonText = command?.ElementAtOrDefault(0)?.ToString()?.Humanize() ?? string.Empty;
+        string secondaryButtonText = command?.ElementAtOrDefault(1)?.ToString()?.Humanize() ?? string.Empty;
+
+        var request = new DialogActionRequest
+        {
+            Title = "Bad MIDI file",
+            Content = view,
+            CancelButton = new DialogActionButton
+            {
+                Text = "Skip",
+                Appearance = ControlAppearance.Secondary
+            }
+        };
+
+        if (!string.IsNullOrEmpty(primaryButtonText))
+        {
+            request.ConfirmButton = new DialogActionButton
+            {
+                Text = primaryButtonText,
+                Appearance = ControlAppearance.Primary
+            };
+        }
+
+        if (!string.IsNullOrEmpty(secondaryButtonText))
+        {
+            request.CustomButton = new DialogActionButton
+            {
+                Text = secondaryButtonText,
+                Appearance = ControlAppearance.Secondary
+            };
+        }
+
+        DialogActionOutcome result;
 
         try
         {
-            var hostReady = await DialogHelper.EnsureDialogHostAsync(dialog);
-            if (!hostReady)
-            {
-                Logger.Log("DialogHost was not ready for bad MIDI dialog; skipping file.");
-                return false;
-            }
-
-            result = await dialog.ShowAsync();
+            result = await DialogHelper.ShowActionDialogAsync(request);
         }
         catch (Exception dialogException)
         {
@@ -136,13 +142,13 @@ public partial class BadMidiReadDialog : ContentDialog
             return false;
         }
 
-        if (result == ContentDialogResult.None || FatalExceptions.Contains(e.GetType()))
+        if (result == DialogActionOutcome.Cancelled || FatalExceptions.Contains(e.GetType()))
             return false;
 
         var option = result switch
         {
-            ContentDialogResult.Primary => command?.ElementAtOrDefault(0),
-            ContentDialogResult.Secondary => command?.ElementAtOrDefault(1),
+            DialogActionOutcome.Confirmed => command?.ElementAtOrDefault(0),
+            DialogActionOutcome.Custom => command?.ElementAtOrDefault(1),
             _ => null
         };
 

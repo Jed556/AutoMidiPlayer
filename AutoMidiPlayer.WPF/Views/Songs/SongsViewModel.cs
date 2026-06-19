@@ -360,11 +360,11 @@ public class SongsViewModel : Screen
         var hasDatabaseFileErrors = MissingSongs.Count > 0 || BadMidiFiles.Count > 0;
         var dialogOpen = true;
         var refreshInProgress = false;
-        FileIssuesDialog? dialog = null;
+        FileIssuesView? view = null;
 
         async Task RefreshListsAsync(bool resolveDuplicateFallbacks = true)
         {
-            if (!dialogOpen || refreshInProgress || dialog is null)
+            if (!dialogOpen || refreshInProgress || view is null)
                 return;
 
             refreshInProgress = true;
@@ -373,7 +373,7 @@ public class SongsViewModel : Screen
             {
                 var refreshedRemovedExistingMidiFiles = await RefreshSourceListsAsync(resolveDuplicateFallbacks);
 
-                dialog.SetData(
+                view.SetData(
                     MissingSongs.ToList(),
                     BadMidiFiles.ToList(),
                     DuplicateMidiFiles.ToList(),
@@ -385,8 +385,7 @@ public class SongsViewModel : Screen
             }
         }
 
-        dialog = new FileIssuesDialog(
-            hasDatabaseFileErrors,
+        view = new FileIssuesView(
             async song =>
             {
                 await _main.FileService.RemoveMissingSong(song);
@@ -417,7 +416,7 @@ public class SongsViewModel : Screen
                         CallbackAsync = () =>
                         {
                             fileDeleted = _main.FileService.DeleteExcludedFileFromDisk(removedEntry.Path);
-                            return Task.CompletedTask;
+                            return Task.FromResult(true);
                         }
                     },
                     CancelButton = new DialogActionButton
@@ -432,10 +431,10 @@ public class SongsViewModel : Screen
                 await RefreshListsAsync(resolveDuplicateFallbacks: false);
 
                 if (!fileDeleted && System.IO.File.Exists(removedEntry.Path))
-                    await UnableToDeleteFileDialog.ShowDeleteFailedAsync();
+                    await UnableToDeleteFileView.ShowDeleteFailedAsync();
             });
 
-        dialog.SetData(
+        view.SetData(
             MissingSongs.ToList(),
             BadMidiFiles.ToList(),
             DuplicateMidiFiles.ToList(),
@@ -453,11 +452,31 @@ public class SongsViewModel : Screen
 
         liveRefreshTimer.Start();
 
-        ContentDialogResult result;
+        DialogActionOutcome result;
         try
         {
             await RefreshListsAsync();
-            result = await dialog.ShowAsync();
+
+            var request = new DialogActionRequest
+            {
+                Title = "File Issues",
+                Content = view,
+                CancelButton = new DialogActionButton
+                {
+                    Text = "Close"
+                }
+            };
+
+            if (hasDatabaseFileErrors)
+            {
+                request.ConfirmButton = new DialogActionButton
+                {
+                    Text = "Remove All",
+                    Appearance = ControlAppearance.Danger
+                };
+            }
+
+            result = await DialogHelper.ShowActionDialogAsync(request);
         }
         finally
         {
@@ -465,7 +484,7 @@ public class SongsViewModel : Screen
             liveRefreshTimer.Stop();
         }
 
-        if (hasDatabaseFileErrors && result == ContentDialogResult.Primary)
+        if (hasDatabaseFileErrors && result == DialogActionOutcome.Confirmed)
             await _main.FileService.RemoveAllFileErrors();
 
         if (DuplicateMidiFiles.Count > 0)

@@ -2,31 +2,32 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.WPF.Helpers;
 using Wpf.Ui.Controls;
 
 namespace AutoMidiPlayer.WPF.Dialogs;
 
-public partial class AppStatusDialog : ContentDialog
+public partial class AppStatusView : UserControl
 {
     public static readonly DependencyProperty StatusTitleProperty = DependencyProperty.Register(
-        nameof(StatusTitle), typeof(string), typeof(AppStatusDialog), new PropertyMetadata(string.Empty));
+        nameof(StatusTitle), typeof(string), typeof(AppStatusView), new PropertyMetadata(string.Empty));
 
     public static readonly DependencyProperty StatusMessageProperty = DependencyProperty.Register(
-        nameof(StatusMessage), typeof(string), typeof(AppStatusDialog), new PropertyMetadata(string.Empty));
+        nameof(StatusMessage), typeof(string), typeof(AppStatusView), new PropertyMetadata(string.Empty));
 
     public static readonly DependencyProperty StatusIconProperty = DependencyProperty.Register(
-        nameof(StatusIcon), typeof(SymbolRegular), typeof(AppStatusDialog), new PropertyMetadata(SymbolRegular.Checkmark24));
+        nameof(StatusIcon), typeof(SymbolRegular), typeof(AppStatusView), new PropertyMetadata(SymbolRegular.Checkmark24));
 
     public static readonly DependencyProperty IsUpdateStatusProperty = DependencyProperty.Register(
-        nameof(IsUpdateStatus), typeof(bool), typeof(AppStatusDialog), new PropertyMetadata(false));
+        nameof(IsUpdateStatus), typeof(bool), typeof(AppStatusView), new PropertyMetadata(false));
 
     public static readonly DependencyProperty OldVersionProperty = DependencyProperty.Register(
-        nameof(OldVersion), typeof(string), typeof(AppStatusDialog), new PropertyMetadata(string.Empty));
+        nameof(OldVersion), typeof(string), typeof(AppStatusView), new PropertyMetadata(string.Empty));
 
     public static readonly DependencyProperty NewVersionProperty = DependencyProperty.Register(
-        nameof(NewVersion), typeof(string), typeof(AppStatusDialog), new PropertyMetadata(string.Empty));
+        nameof(NewVersion), typeof(string), typeof(AppStatusView), new PropertyMetadata(string.Empty));
 
     public string StatusTitle
     {
@@ -64,45 +65,11 @@ public partial class AppStatusDialog : ContentDialog
         set => SetValue(NewVersionProperty, value);
     }
 
-    static AppStatusDialog()
-    {
-        DefaultStyleKeyProperty.OverrideMetadata(
-            typeof(AppStatusDialog),
-            new FrameworkPropertyMetadata(typeof(ContentDialog))
-        );
-    }
-
-    public AppStatusDialog()
+    public AppStatusView()
     {
         InitializeComponent();
-
-        DialogHelper.SetupDialogHost(this);
-
-        if (Application.Current.TryFindResource(typeof(ContentDialog)) is Style dialogStyle)
-            Style = dialogStyle;
-            
-        DialogHelper.HookButtonToPreventClose(this, Wpf.Ui.Controls.ContentDialogButton.Secondary, OnReleaseNotesPreviewClick);
+        DataContext = this;
     }
-
-    private void OnReleaseNotesPreviewClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
-    {
-        e.Handled = true; // Prevent the dialog from closing
-
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "https://github.com/Jed556/AutoMidiPlayer/releases",
-                UseShellExecute = true
-            });
-        }
-        catch (Exception ex)
-        {
-            Logger.LogException(ex);
-        }
-    }
-
-
 
     public static async Task ShowIfStatusMarkerExistsAsync()
     {
@@ -127,22 +94,43 @@ public partial class AppStatusDialog : ContentDialog
             return;
         }
 
-        var dialog = new AppStatusDialog();
+        var view = new AppStatusView();
+        DialogActionButton? secondaryAction = null;
 
         if (status.Contains("RESET", StringComparison.OrdinalIgnoreCase))
         {
-            dialog.StatusTitle = "Reset";
-            dialog.StatusMessage = "App Data cleared";
-            dialog.StatusIcon = SymbolRegular.ArrowClockwise24;
-            dialog.IsUpdateStatus = false;
+            view.StatusTitle = "Reset";
+            view.StatusMessage = "App Data cleared";
+            view.StatusIcon = SymbolRegular.ArrowClockwise24;
+            view.IsUpdateStatus = false;
         }
         else if (status.Contains("UPDATE", StringComparison.OrdinalIgnoreCase))
         {
-            dialog.StatusTitle = "Updated";
-            dialog.StatusIcon = SymbolRegular.ArrowDownload24;
-            dialog.IsUpdateStatus = true;
-            dialog.SecondaryButtonText = "Release Notes";
-            dialog.SecondaryButtonAppearance = Wpf.Ui.Controls.ControlAppearance.Secondary;
+            view.StatusTitle = "Updated";
+            view.StatusIcon = SymbolRegular.ArrowDownload24;
+            view.IsUpdateStatus = true;
+            
+            secondaryAction = new DialogActionButton
+            {
+                Text = "Release Notes",
+                Appearance = ControlAppearance.Secondary,
+                CallbackAsync = () =>
+                {
+                    try
+                    {
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = "https://github.com/Jed556/AutoMidiPlayer/releases",
+                            UseShellExecute = true
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogException(ex);
+                    }
+                    return Task.FromResult(false); // don't close
+                }
+            };
             
             var updateIndex = status.IndexOf("UPDATE:", StringComparison.OrdinalIgnoreCase);
             if (updateIndex >= 0)
@@ -152,19 +140,19 @@ public partial class AppStatusDialog : ContentDialog
                 var parts = versionText.Split("->");
                 if (parts.Length == 2)
                 {
-                    dialog.OldVersion = parts[0].Trim();
-                    dialog.NewVersion = parts[1].Trim();
+                    view.OldVersion = parts[0].Trim();
+                    view.NewVersion = parts[1].Trim();
                 }
                 else
                 {
-                    dialog.IsUpdateStatus = false;
-                    dialog.StatusMessage = versionText;
+                    view.IsUpdateStatus = false;
+                    view.StatusMessage = versionText;
                 }
             }
             else
             {
-                dialog.IsUpdateStatus = false;
-                dialog.StatusMessage = "The application was updated to the latest version.";
+                view.IsUpdateStatus = false;
+                view.StatusMessage = "The application was updated to the latest version.";
             }
         }
         else
@@ -174,21 +162,25 @@ public partial class AppStatusDialog : ContentDialog
 
         try
         {
-            var hostReady = await DialogHelper.EnsureDialogHostAsync(dialog);
-            if (hostReady)
+            var request = new DialogActionRequest
             {
-                await dialog.ShowAsync();
-                return;
-            }
+                Content = view,
+                ConfirmButton = null,
+                CancelButton = new DialogActionButton
+                {
+                    Text = "OK",
+                    Appearance = ControlAppearance.Primary
+                },
+                CustomButton = secondaryAction
+            };
 
-            Logger.Log("DialogHost was not ready while showing app status dialog. Falling back to MessageBox.");
-            MessageBoxHelper.ShowInformation(dialog.StatusMessage, dialog.StatusTitle);
+            await DialogHelper.ShowActionDialogAsync(request);
         }
         catch (Exception dialogError)
         {
             Logger.Log("Failed to display app status dialog.");
             Logger.LogException(dialogError);
-            MessageBoxHelper.ShowInformation(dialog.StatusMessage, dialog.StatusTitle);
+            MessageBoxHelper.ShowInformation(view.StatusMessage, view.StatusTitle);
         }
     }
 }

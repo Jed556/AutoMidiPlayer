@@ -1,0 +1,12 @@
+<UserControl x:Class="AutoMidiPlayer.WPF.Dialogs.BadMidiReadView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+
+    <StackPanel Background="Transparent"
+                Margin="0,0,12,0">
+        <TextBlock x:Name="MessageTextBlock"
+                   MaxWidth="640"
+                   TextWrapping="Wrap"/>
+    </StackPanel>
+</UserControl>

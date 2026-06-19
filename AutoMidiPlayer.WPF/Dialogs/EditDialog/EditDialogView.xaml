@@ -1,21 +1,12 @@
-<ui:ContentDialog x:Class="AutoMidiPlayer.WPF.Dialogs.EditDialog"
-                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                  xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
+<UserControl x:Class="AutoMidiPlayer.WPF.Dialogs.EditDialogView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
              xmlns:button="clr-namespace:AutoMidiPlayer.WPF.Controls.SelectorPopupButton.Button"
-                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-                  xmlns:helpers="clr-namespace:AutoMidiPlayer.WPF.Helpers"
-                  PrimaryButtonText="Save"
-                  SecondaryButtonText="Reset Defaults"
-                  CloseButtonText="Cancel"
-                  PrimaryButtonAppearance="Primary"
-                  SecondaryButtonAppearance="Danger"
-                  CloseButtonAppearance="Secondary"
-                  DefaultButton="Primary"
-                  ScrollViewer.VerticalScrollBarVisibility="Auto"
-                  helpers:ScrollEdgeFadeBehavior.IsEnabled="True">
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:helpers="clr-namespace:AutoMidiPlayer.WPF.Helpers">
 
-    <ui:ContentDialog.Resources>
+    <UserControl.Resources>
         <DataTemplate x:Key="OffsetNoteTemplate">
             <StackPanel Orientation="Horizontal">
                 <TextBlock MinWidth="24"
@@ -38,14 +29,7 @@
                        Text="{Binding Display}"
                        Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
         </DataTemplate>
-    </ui:ContentDialog.Resources>
-
-    <ui:ContentDialog.Title>
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-            <ui:SymbolIcon Symbol="Edit32" Margin="0,0,8,0" FontSize="16"/>
-            <TextBlock Text="Edit Song" />
-        </StackPanel>
-    </ui:ContentDialog.Title>
+    </UserControl.Resources>
 
     <StackPanel x:Name="DialogContentPanel"
                 Background="Transparent"
@@ -208,4 +192,4 @@
                    Opacity="0.7"
                    Foreground="#FFD2D2D2"/>
     </StackPanel>
-</ui:ContentDialog>
+</UserControl>

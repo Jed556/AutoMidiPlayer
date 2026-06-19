@@ -394,7 +394,7 @@ public class UpdateService
 
         var updateCommand = $"Start-Sleep -Seconds 1; " +
                             $"Wait-Process -Id {currentProcessId} -ErrorAction SilentlyContinue; " +
-                            $"Remove-Item -Path '{escapedTempPath}\\update.zip' -Force; " +
+                            $"Remove-Item -Path '{escapedTempPath}\\update.zip' -Force -ErrorAction SilentlyContinue; " +
                             clearDataCommand +
                             $"Copy-Item -Path '{escapedTempPath}\\*' -Destination '{escapedAppPath}' -Recurse -Force; " +
                             $"New-Item -ItemType Directory -Path '{escapedAppDataPath}' -Force -ErrorAction SilentlyContinue | Out-Null; " +

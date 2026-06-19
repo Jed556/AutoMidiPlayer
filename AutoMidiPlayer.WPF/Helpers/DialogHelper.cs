@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
@@ -16,6 +17,7 @@ namespace AutoMidiPlayer.WPF.Helpers;
 public enum DialogActionOutcome
 {
     Cancelled,
+    None,
     Confirmed,
     Custom
 }
@@ -26,49 +28,49 @@ public sealed class DialogActionButton
 
     public ControlAppearance Appearance { get; init; } = ControlAppearance.Secondary;
 
-    public Func<Task>? CallbackAsync { get; init; }
+    public Func<Task<bool>>? CallbackAsync { get; init; }
 }
 
 public sealed class DialogTopRightButton
 {
     public SymbolRegular Icon { get; init; } = SymbolRegular.Dismiss24;
     
-    public Func<Task>? CallbackAsync { get; init; }
+    public Func<Task<bool>>? CallbackAsync { get; set; }
 }
 
 public sealed class DialogActionRequest
 {
-    public string Title { get; init; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
 
-    public SymbolRegular? Icon { get; init; }
+    public SymbolRegular? Icon { get; set; }
 
-    public string? Subtitle { get; init; }
+    public string? Subtitle { get; set; }
 
-    public string? Body { get; init; }
+    public string? Body { get; set; }
 
-    public object? Content { get; init; }
+    public object? Content { get; set; }
 
-    public double? DialogMaxWidth { get; init; }
+    public double? DialogMaxWidth { get; set; }
 
-    public double? DialogMaxHeight { get; init; }
+    public double? DialogMaxHeight { get; set; }
 
-    public bool HideFooter { get; init; }
+    public bool HideFooter { get; set; }
 
-    public DialogTopRightButton? TopRightButton { get; init; } = new DialogTopRightButton();
+    public DialogTopRightButton? TopRightButton { get; set; } = new DialogTopRightButton();
 
-    public DialogActionButton? ConfirmButton { get; init; } = new()
+    public DialogActionButton? ConfirmButton { get; set; } = new()
     {
         Text = "Confirm",
         Appearance = ControlAppearance.Primary
     };
 
-    public DialogActionButton? CancelButton { get; init; } = new()
+    public DialogActionButton? CancelButton { get; set; } = new()
     {
         Text = "Cancel",
         Appearance = ControlAppearance.Secondary
     };
 
-    public DialogActionButton? CustomButton { get; init; }
+    public DialogActionButton? CustomButton { get; set; }
 }
 
 public sealed class DialogHostSetupOptions
@@ -791,37 +793,41 @@ public static class DialogHelper
             if (request.CancelButton?.CallbackAsync is not null)
                 await request.CancelButton.CallbackAsync();
 
-            return DialogActionOutcome.Cancelled;
+            return DialogActionOutcome.None;
         }
 
-        var uiResult = await dialog.ShowAsync();
-        var outcome = uiResult switch
-        {
-            ContentDialogResult.Primary => DialogActionOutcome.Confirmed,
-            ContentDialogResult.Secondary => DialogActionOutcome.Custom,
-            _ => DialogActionOutcome.Cancelled
-        };
+        var outcome = DialogActionOutcome.Cancelled;
 
-        if (outcome == DialogActionOutcome.Confirmed && request.ConfirmButton is not null)
+        void HookButton(ContentDialogButton buttonType, DialogActionButton? buttonDef, DialogActionOutcome successOutcome)
         {
-            if (request.ConfirmButton.CallbackAsync is not null)
-                await request.ConfirmButton.CallbackAsync();
-
-            return DialogActionOutcome.Confirmed;
+            if (buttonDef == null) return;
+            HookButtonToPreventClose(dialog, buttonType, async (s, args) =>
+            {
+                args.Handled = true;
+                if (buttonDef.CallbackAsync != null)
+                {
+                    bool success = await buttonDef.CallbackAsync();
+                    if (success)
+                    {
+                        outcome = successOutcome;
+                        dialog.Hide();
+                    }
+                }
+                else
+                {
+                    outcome = successOutcome;
+                    dialog.Hide();
+                }
+            });
         }
 
-        if (outcome == DialogActionOutcome.Custom && request.CustomButton is not null)
-        {
-            if (request.CustomButton.CallbackAsync is not null)
-                await request.CustomButton.CallbackAsync();
+        HookButton(ContentDialogButton.Primary, request.ConfirmButton, DialogActionOutcome.Confirmed);
+        HookButton(ContentDialogButton.Secondary, request.CustomButton, DialogActionOutcome.Custom);
+        HookButton(ContentDialogButton.Close, request.CancelButton, DialogActionOutcome.Cancelled);
 
-            return DialogActionOutcome.Custom;
-        }
+        await dialog.ShowAsync();
 
-        if (request.CancelButton?.CallbackAsync is not null)
-            await request.CancelButton.CallbackAsync();
-
-        return DialogActionOutcome.Cancelled;
+        return outcome;
     }
 
     /// <summary>
@@ -839,7 +845,9 @@ public static class DialogHelper
                 {
                     previewClickCallback(s, args);
 
-                    // Reset IsPressed state manually so animations aren't broken by swallowing the event
+                    // Reset IsPressed state manually so animations aren't broken by swallowing the event.
+                    // Also move focus away from the button to prevent it from being re-triggered
+                    // by subsequent clicks or key presses elsewhere in the dialog.
                     if (args.Handled && s is System.Windows.Controls.Primitives.ButtonBase btn)
                     {
                         var isPressedProperty = typeof(System.Windows.Controls.Primitives.ButtonBase).GetProperty("IsPressed", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
@@ -854,6 +862,14 @@ public static class DialogHelper
                             if (method != null)
                                 method.Invoke(btn, new object[] { false });
                         }
+
+                        // Move focus to the dialog content so the button doesn't retain
+                        // keyboard focus and re-fire on the next click anywhere.
+                        btn.Dispatcher.BeginInvoke(new Action(() =>
+                        {
+                            var focusTarget = FindFocusableContentElement(dialog) ?? (IInputElement)dialog;
+                            System.Windows.Input.Keyboard.Focus(focusTarget);
+                        }), DispatcherPriority.Input);
                     }
                 };
             }
@@ -866,6 +882,28 @@ public static class DialogHelper
             // Fallback for late template application
             dialog.Dispatcher.BeginInvoke(new Action(() => InternalHook(s, e)), DispatcherPriority.Loaded);
         };
+    }
+
+    /// <summary>
+    /// Collapses a specific action button in a ContentDialog so it is not visible.
+    /// Must be called after the dialog is loaded (i.e. from a Loaded handler).
+    /// </summary>
+    public static void CollapseDialogButton(ContentDialog dialog, ContentDialogButton buttonType)
+    {
+        var button = FindDialogButton(dialog, buttonType);
+        if (button != null)
+        {
+            button.Visibility = Visibility.Collapsed;
+            
+            if (VisualTreeHelper.GetParent(button) is System.Windows.Controls.Grid parentGrid)
+            {
+                int col = System.Windows.Controls.Grid.GetColumn(button);
+                if (col >= 0 && col < parentGrid.ColumnDefinitions.Count)
+                {
+                    parentGrid.ColumnDefinitions[col].Width = new GridLength(0);
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -1013,5 +1051,33 @@ public static class DialogHelper
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Finds a focusable element inside the dialog's content area to redirect keyboard focus
+    /// away from action buttons after a click is swallowed.
+    /// </summary>
+    private static IInputElement? FindFocusableContentElement(ContentDialog dialog)
+    {
+        if (dialog.Content is not DependencyObject content)
+            return null;
+
+        // Try to find the first focusable element in the content subtree
+        var queue = new System.Collections.Generic.Queue<DependencyObject>();
+        queue.Enqueue(content);
+
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+            if (current is UIElement { Focusable: true, IsEnabled: true, Visibility: Visibility.Visible } uie)
+                return uie;
+
+            var childCount = VisualTreeHelper.GetChildrenCount(current);
+            for (var i = 0; i < childCount; i++)
+                queue.Enqueue(VisualTreeHelper.GetChild(current, i));
+        }
+
+        // Fall back to the content element itself if it's an IInputElement
+        return content as IInputElement;
     }
 }

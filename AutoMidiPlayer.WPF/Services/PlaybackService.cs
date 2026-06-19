@@ -102,7 +102,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         {
             Logger.Log("Failed to initialize Microsoft GS Wavetable Synth.");
             Logger.LogException(e);
-            _ = AudioDeviceUnavailableDialog.ShowInitializationErrorAsync(e);
+            _ = AudioDeviceUnavailableView.ShowInitializationErrorAsync(e);
             Settings.Modify(s => s.UseSpeakers = false);
             _events.Publish(new ListenModeChangedNotification(false));
         }

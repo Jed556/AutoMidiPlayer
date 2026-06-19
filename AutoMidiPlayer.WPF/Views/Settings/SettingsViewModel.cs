@@ -933,7 +933,7 @@ public class SettingsPageViewModel : Screen
         if (LatestVersion == null || ProgramVersion >= LatestVersion.Version)
             return;
 
-        await UpdateDialog.ShowAsync(LatestVersion, _updateService);
+        await UpdateView.ShowAsync(LatestVersion, _updateService);
     }
 
     /// <summary>
@@ -954,7 +954,7 @@ public class SettingsPageViewModel : Screen
         var fileName = openFileDialog.FileName;
         if (Path.GetFileName(fileName).Equals("launcher.exe", StringComparison.OrdinalIgnoreCase))
         {
-            await IncorrectGameLocationDialog.ShowLauncherWarningAsync();
+            await IncorrectGameLocationView.ShowLauncherWarningAsync();
             return;
         }
 
@@ -1091,7 +1091,7 @@ public class SettingsPageViewModel : Screen
 
     public async Task ResetAppData()
     {
-        var shouldReset = await ResetAppDataConfirmationDialog.ConfirmAsync();
+        var shouldReset = await ResetAppDataConfirmationView.ConfirmAsync();
         if (!shouldReset)
             return;
 

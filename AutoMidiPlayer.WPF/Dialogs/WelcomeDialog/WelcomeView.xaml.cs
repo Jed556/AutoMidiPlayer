@@ -1,33 +1,22 @@
 using System;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Helpers;
 using Wpf.Ui.Controls;
 
 namespace AutoMidiPlayer.WPF.Dialogs;
 
-public partial class WelcomeDialog : ContentDialog
+public partial class WelcomeView : UserControl
 {
     public string AppVersion => $"Version {ViewModels.SettingsPageViewModel.ProgramVersionDisplay}";
 
-    static WelcomeDialog()
-    {
-        DefaultStyleKeyProperty.OverrideMetadata(
-            typeof(WelcomeDialog),
-            new FrameworkPropertyMetadata(typeof(ContentDialog))
-        );
-    }
-
-    public WelcomeDialog()
+    public WelcomeView()
     {
         InitializeComponent();
-
-        if (Application.Current.TryFindResource(typeof(ContentDialog)) is Style dialogStyle)
-            Style = dialogStyle;
-            
-        // Default to true as before
         TelemetryToggle.IsChecked = true;
     }
 
@@ -61,7 +50,6 @@ public partial class WelcomeDialog : ContentDialog
             PendingLicense = new ViewModels.ThirdPartyLicense("Auto MIDI Player", ViewModels.SettingsPageViewModel.ProgramVersionDisplay, "GNU GPL v3.0", licenseText);
             
             ReopenRequested = true;
-            this.Hide();
         }
         catch (Exception ex)
         {
@@ -69,46 +57,47 @@ public partial class WelcomeDialog : ContentDialog
         }
     }
 
-    private void OnStartPlayingClicked(object sender, RoutedEventArgs e)
-    {
-        this.Hide();
-    }
-
     /// <summary>
     /// Shows the Welcome dialog if it has not been shown before.
     /// Returns true if the dialog was shown, false if it was skipped.
     /// </summary>
-    public static async System.Threading.Tasks.Task<bool> ShowIfFirstLaunchAsync()
+    public static async Task<bool> ShowIfFirstLaunchAsync()
     {
         if (Settings.Default.HasShownFirstLaunch)
             return false;
 
-        var dialog = new WelcomeDialog();
-
-        // Ensure host is ready during early startup
-        if (!await DialogHelper.EnsureDialogHostAsync(dialog))
-        {
-            // If we can't show it, fall back to assuming they opted in (the default)
-            Settings.Default.HasShownFirstLaunch = true;
-            Settings.Default.Save();
-            return false;
-        }
+        var view = new WelcomeView();
 
         while (true)
         {
-            dialog.ReopenRequested = false;
-            await dialog.ShowAsync();
+            view.ReopenRequested = false;
 
-            if (dialog.ReopenRequested && dialog.PendingLicense != null)
+            var request = new DialogActionRequest
             {
-                await ThirdPartyLicenseDialog.ShowAsync(dialog.PendingLicense);
-                continue; // Loop back and await dialog.ShowAsync() again!
+                Content = view,
+                DialogMaxHeight = 600,
+                ConfirmButton = new DialogActionButton
+                {
+                    Text = "Start Playing!",
+                    Appearance = ControlAppearance.Primary,
+                    CallbackAsync = () => Task.FromResult(true) // success, allow close
+                },
+                CancelButton = null,
+                HideFooter = false
+            };
+
+            var outcome = await DialogHelper.ShowActionDialogAsync(request);
+
+            if (view.ReopenRequested && view.PendingLicense != null)
+            {
+                await ThirdPartyLicenseView.ShowAsync(view.PendingLicense);
+                continue;
             }
 
-            break; // The user clicked "Start Playing!" or otherwise closed the dialog
+            break;
         }
 
-        Settings.Default.TelemetryOptIn = dialog.TelemetryToggle.IsChecked ?? true;
+        Settings.Default.TelemetryOptIn = view.TelemetryToggle.IsChecked ?? true;
         Settings.Default.HasShownFirstLaunch = true;
         Settings.Default.Save();
 

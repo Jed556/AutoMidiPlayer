@@ -444,7 +444,7 @@ public class AboutViewModel : Screen
 
         try
         {
-            await ThirdPartyLicenseDialog.ShowAsync(license);
+            await ThirdPartyLicenseView.ShowAsync(license);
         }
         catch (Exception error)
         {

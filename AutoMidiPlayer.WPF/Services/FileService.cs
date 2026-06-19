@@ -101,7 +101,7 @@ public class FileService(IContainer ioc)
     /// </summary>
     public async Task HandleMissingSongFileAsync(MidiFile file)
     {
-        await MissingSongFileDialog.ShowMissingFileAsync(file.Path);
+        await MissingSongFileView.ShowMissingFileAsync(file.Path);
 
         if (_main is null) return;
 
@@ -790,7 +790,7 @@ public class FileService(IContainer ioc)
         catch (Exception e)
         {
             settings ??= new();
-            if (await BadMidiReadDialog.TryHandleAsync(e, settings, song.Path))
+            if (await BadMidiReadView.TryHandleAsync(e, settings, song.Path))
                 return await AddFile(
                     song,
                     settings,
