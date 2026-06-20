@@ -134,8 +134,13 @@ public sealed class OnlineMidiViewModel : Screen
 
     private async Task InitializeAsync()
     {
-        await TrySignInFromStoreAsync();
+        // Show the (public) listing first so MIDIs appear after a single round-trip, then sign
+        // in afterwards. Browsing/searching needs no auth — only download/preview do — so there
+        // is no reason to make the user wait for the login round-trips before seeing content.
+        // (LoginAsync starts from a fresh session anyway, so the anonymous browse cookies don't
+        // interfere.) The "signed in" badge updates a moment after the list renders.
         await LoadAsync();
+        await TrySignInFromStoreAsync();
     }
 
     #region Authentication
@@ -317,13 +322,18 @@ public sealed class OnlineMidiViewModel : Screen
 
     public async Task NextPage()
     {
+        // Debounce: ignore rapid repeat clicks while a page is still loading, so we don't
+        // queue a burst of requests or skip pages.
+        if (IsBusy)
+            return;
+
         CurrentPage++;
         await LoadAsync();
     }
 
     public async Task PreviousPage()
     {
-        if (CurrentPage <= 1)
+        if (IsBusy || CurrentPage <= 1)
             return;
 
         CurrentPage--;

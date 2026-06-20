@@ -35,6 +35,25 @@ public sealed class MidiShowClient : IDisposable
     private HttpClient _http = null!;
     private CookieContainer _cookies = null!;
 
+    // Politeness / anti-bot hygiene: serialize all requests through one gate and pace them with
+    // a token bucket so the client behaves like a human in a browser. A small burst is allowed
+    // instantly (so first-open = csrf+login+listing stays snappy), then SUSTAINED activity is
+    // throttled to ~1 request per MinRequestInterval — which is what actually looks like a bot.
+    // Also lets us honor 429/Retry-After.
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private static readonly TimeSpan MinRequestInterval = TimeSpan.FromMilliseconds(750);
+    private const int BurstCapacity = 4;   // instant requests before pacing kicks in (refills over time)
+    private double _tokens = BurstCapacity;
+    private DateTime _lastRefillUtc = DateTime.MinValue;
+    private const int MaxJitterMs = 400;
+    private const int MaxRetries = 3;
+    private static readonly TimeSpan MaxRetryAfter = TimeSpan.FromSeconds(30);
+
+    // Light per-session cache for listing/detail HTML so re-visiting a page (e.g. paging back
+    // and forth) doesn't re-hit the server. Download payloads are NEVER cached (per-request).
+    private readonly Dictionary<string, (string Html, DateTime At)> _pageCache = new();
+    private static readonly TimeSpan PageCacheTtl = TimeSpan.FromMinutes(5);
+
     public bool IsAuthenticated { get; private set; }
 
     /// <summary>Last login attempt diagnostic (shown to the user / logged to help debugging).</summary>
@@ -55,6 +74,10 @@ public sealed class MidiShowClient : IDisposable
     {
         _http?.Dispose();
         _cookies = new CookieContainer();
+
+        // Cached pages are session/auth-specific — drop them when the session is rebuilt.
+        lock (_pageCache)
+            _pageCache.Clear();
 
         var handler = new HttpClientHandler
         {
@@ -101,18 +124,21 @@ public sealed class MidiShowClient : IDisposable
                 ["login-button"] = ""
             };
 
-            using var request = new HttpRequestMessage(HttpMethod.Post, loginUrl)
+            using var response = await SendAsync(() =>
             {
-                Content = new FormUrlEncodedContent(form)
-            };
-            request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/x-www-form-urlencoded")
-            {
-                CharSet = "UTF-8"
-            };
-            request.Headers.TryAddWithoutValidation("Origin", Base);
-            request.Headers.Referrer = new Uri(loginUrl);
-
-            using var response = await _http.SendAsync(request, ct);
+                var request = new HttpRequestMessage(HttpMethod.Post, loginUrl)
+                {
+                    Content = new FormUrlEncodedContent(form)
+                };
+                request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/x-www-form-urlencoded")
+                {
+                    CharSet = "UTF-8"
+                };
+                request.Headers.TryAddWithoutValidation("Origin", Base);
+                request.Headers.Referrer = new Uri(loginUrl);
+                AddAcceptHeaders(request, xhr: false);
+                return request;
+            }, ct);
 
             // A successful login sets the "_identity" auth cookie (the post redirects to the
             // home page, which AllowAutoRedirect follows, so we can't rely on a 302 status).
@@ -167,7 +193,7 @@ public sealed class MidiShowClient : IDisposable
         if (!string.IsNullOrEmpty(sort))
             url += "&sort=" + sort;
 
-        var html = await GetStringAsync(url, referer: $"{Base}/en", ct: ct);
+        var html = await GetStringAsync(url, referer: $"{Base}/en", cache: true, ct: ct);
         return ParseItems(html);
     }
 
@@ -183,7 +209,7 @@ public sealed class MidiShowClient : IDisposable
         if (!string.IsNullOrEmpty(sort))
             url += "&sort=" + sort;
 
-        var html = await GetStringAsync(url, referer: $"{Base}/en", ct: ct);
+        var html = await GetStringAsync(url, referer: $"{Base}/en", cache: true, ct: ct);
         return ParseItems(html);
     }
 
@@ -196,7 +222,7 @@ public sealed class MidiShowClient : IDisposable
         string html;
         try
         {
-            html = await GetStringAsync(item.PageUrl, referer: $"{Base}/", ct: ct);
+            html = await GetStringAsync(item.PageUrl, referer: $"{Base}/", cache: true, ct: ct);
         }
         catch (Exception ex) when (ex is not MidiShowException)
         {
@@ -246,21 +272,24 @@ public sealed class MidiShowClient : IDisposable
         // First request: the obfuscated head segments + the ETag-derived alphabet tail.
         string text1;
         string etag;
-        using (var request1 = new HttpRequestMessage(HttpMethod.Post, $"{Base}/midi/new-file?id={id}")
         {
-            Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["id"] = id })
-        })
-        {
-            request1.Content.Headers.ContentType = new MediaTypeHeaderValue("application/x-www-form-urlencoded")
+            using var response1 = await SendAsync(() =>
             {
-                CharSet = "UTF-8"
-            };
-            request1.Headers.TryAddWithoutValidation("Origin", Base);
-            request1.Headers.Referrer = new Uri(pageUrl);
-            request1.Headers.TryAddWithoutValidation("X-Csrf-Token", csrf);
-            request1.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
-
-            using var response1 = await _http.SendAsync(request1, ct);
+                var request1 = new HttpRequestMessage(HttpMethod.Post, $"{Base}/midi/new-file?id={id}")
+                {
+                    Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["id"] = id })
+                };
+                request1.Content.Headers.ContentType = new MediaTypeHeaderValue("application/x-www-form-urlencoded")
+                {
+                    CharSet = "UTF-8"
+                };
+                request1.Headers.TryAddWithoutValidation("Origin", Base);
+                request1.Headers.Referrer = new Uri(pageUrl);
+                request1.Headers.TryAddWithoutValidation("X-Csrf-Token", csrf);
+                request1.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+                AddAcceptHeaders(request1, xhr: true);
+                return request1;
+            }, ct);
 
             if (response1.StatusCode == HttpStatusCode.Forbidden)
                 throw new MidiShowException(MidiShowDownloadError.NotAuthenticated,
@@ -286,7 +315,7 @@ public sealed class MidiShowClient : IDisposable
         string text2;
         try
         {
-            text2 = await GetStringAsync(assetUrl, referer: $"{Base}/", ct: ct);
+            text2 = await GetStringAsync(assetUrl, referer: $"{Base}/", xhr: true, ct: ct);
         }
         catch (Exception ex) when (ex is not MidiShowException)
         {
@@ -329,15 +358,136 @@ public sealed class MidiShowClient : IDisposable
 
     #region HTML / payload helpers
 
-    private async Task<string> GetStringAsync(string url, string? referer = null, CancellationToken ct = default)
+    private async Task<string> GetStringAsync(string url, string? referer = null, bool xhr = false, bool cache = false, CancellationToken ct = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        if (referer is not null)
-            request.Headers.Referrer = new Uri(referer);
+        if (cache)
+        {
+            lock (_pageCache)
+            {
+                if (_pageCache.TryGetValue(url, out var entry) && DateTime.UtcNow - entry.At < PageCacheTtl)
+                    return entry.Html;
+            }
+        }
 
-        using var response = await _http.SendAsync(request, ct);
+        using var response = await SendAsync(() =>
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            if (referer is not null)
+                request.Headers.Referrer = new Uri(referer);
+            AddAcceptHeaders(request, xhr);
+            return request;
+        }, ct);
+
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsStringAsync(ct);
+        var html = await response.Content.ReadAsStringAsync(ct);
+
+        if (cache)
+        {
+            lock (_pageCache)
+                _pageCache[url] = (html, DateTime.UtcNow);
+        }
+
+        return html;
+    }
+
+    /// <summary>
+    /// Sends a request through the throttle gate. Requests are serialized and spaced out by a
+    /// small randomized interval (human-like pacing, no bursts), and 429/503 responses are
+    /// retried with backoff honoring the server's Retry-After. The factory is re-invoked per
+    /// attempt because an <see cref="HttpRequestMessage"/> (and its content) can only be sent once.
+    /// </summary>
+    private async Task<HttpResponseMessage> SendAsync(Func<HttpRequestMessage> requestFactory, CancellationToken ct)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            for (var attempt = 1; ; attempt++)
+            {
+                await DelayForPacingAsync(ct);
+
+                using var request = requestFactory();
+                var response = await _http.SendAsync(request, ct);
+
+                var throttled = response.StatusCode == HttpStatusCode.TooManyRequests
+                                || response.StatusCode == HttpStatusCode.ServiceUnavailable;
+
+                if (throttled && attempt < MaxRetries)
+                {
+                    var wait = GetRetryAfter(response) ?? TimeSpan.FromSeconds(2 * attempt);
+                    if (wait > MaxRetryAfter) wait = MaxRetryAfter;
+                    response.Dispose();
+                    Logger.LogStep("MIDISHOW_BACKOFF", $"status={(int)response.StatusCode} attempt={attempt} waitMs={(int)wait.TotalMilliseconds}");
+                    await Task.Delay(wait, ct);
+                    continue;
+                }
+
+                return response;
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Token-bucket pacing. A burst of up to <see cref="BurstCapacity"/> requests passes with no
+    /// delay (keeps first-open and quick interactions snappy); tokens refill at one per
+    /// <see cref="MinRequestInterval"/>. Once the burst is spent, sustained requests wait for the
+    /// next token (plus a little jitter). Called inside the serialized gate, so token state is
+    /// only ever touched by one request at a time.
+    /// </summary>
+    private async Task DelayForPacingAsync(CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        if (_lastRefillUtc == DateTime.MinValue)
+            _lastRefillUtc = now;
+
+        // Refill tokens proportionally to the time elapsed since the last refill.
+        var refill = (now - _lastRefillUtc).TotalMilliseconds / MinRequestInterval.TotalMilliseconds;
+        if (refill > 0)
+        {
+            _tokens = Math.Min(BurstCapacity, _tokens + refill);
+            _lastRefillUtc = now;
+        }
+
+        if (_tokens >= 1)
+        {
+            _tokens -= 1;
+            return; // within burst allowance — no delay
+        }
+
+        // Bucket empty: wait for (most of) one token to refill, plus jitter.
+        var waitMs = (1 - _tokens) * MinRequestInterval.TotalMilliseconds + Random.Shared.Next(0, MaxJitterMs);
+        await Task.Delay(TimeSpan.FromMilliseconds(waitMs), ct);
+        _tokens = 0;
+        _lastRefillUtc = DateTime.UtcNow;
+    }
+
+    private static TimeSpan? GetRetryAfter(HttpResponseMessage response)
+    {
+        var retryAfter = response.Headers.RetryAfter;
+        if (retryAfter is null)
+            return null;
+
+        if (retryAfter.Delta is TimeSpan delta)
+            return delta > TimeSpan.Zero ? delta : TimeSpan.Zero;
+
+        if (retryAfter.Date is DateTimeOffset date)
+        {
+            var diff = date - DateTimeOffset.UtcNow;
+            return diff > TimeSpan.Zero ? diff : TimeSpan.Zero;
+        }
+
+        return null;
+    }
+
+    /// <summary>Adds a browser-like Accept header (document navigations vs. XHR/asset fetches).</summary>
+    private static void AddAcceptHeaders(HttpRequestMessage request, bool xhr)
+    {
+        request.Headers.TryAddWithoutValidation("Accept", xhr
+            ? "*/*"
+            : "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8");
     }
 
     private async Task<string> GetCsrfTokenAsync(string pageUrl, CancellationToken ct)
@@ -645,5 +795,9 @@ public sealed class MidiShowClient : IDisposable
 
     #endregion
 
-    public void Dispose() => _http.Dispose();
+    public void Dispose()
+    {
+        _http.Dispose();
+        _gate.Dispose();
+    }
 }
