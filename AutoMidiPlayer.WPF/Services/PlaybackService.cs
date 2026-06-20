@@ -42,6 +42,13 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
     private readonly OutputDevice? _speakers;
     private readonly PlaybackCurrentTimeWatcher _timeWatcher;
 
+    /// <summary>
+    /// The shared synth output device ("Microsoft GS Wavetable Synth"). Exposed so the
+    /// Online preview player can render through the SAME device — the synth allows only one
+    /// open handle, so a separate device would fail with MIDIERR_ALLOCATED.
+    /// </summary>
+    public OutputDevice? PreviewSynthDevice => _speakers;
+
     private int _loadEpoch;
     private DateTime _suppressFocusLossUntilUtc = DateTime.MinValue;
     private DateTime _playbackStartedAtUtc = DateTime.MinValue;

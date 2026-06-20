@@ -87,6 +87,17 @@ public static class AppPaths
     public static readonly string UpdateCacheDirectory = Path.Combine(AppDataDirectory, "cache", "update");
 
     /// <summary>
+    /// Directory where MIDI files downloaded from online sources (e.g. MidiShow) are stored.
+    /// These files are referenced by the song library, so the location must be persistent.
+    /// </summary>
+    public static readonly string OnlineMidiDirectory = Path.Combine(AppDataDirectory, "OnlineMidi");
+
+    /// <summary>
+    /// Path to the encrypted MidiShow account credentials file (per-user, DPAPI protected).
+    /// </summary>
+    public static readonly string MidiShowCredentialsPath = Path.Combine(AppDataDirectory, "midishow.cred");
+
+    /// <summary>
     /// Ensures the app data directory exists
     /// </summary>
     public static void EnsureDirectoryExists()
@@ -96,5 +107,16 @@ public static class AppPaths
 
         if (!Directory.Exists(LogsDirectory))
             Directory.CreateDirectory(LogsDirectory);
+    }
+
+    /// <summary>
+    /// Ensures the online MIDI download directory exists and returns its path.
+    /// </summary>
+    public static string EnsureOnlineMidiDirectory()
+    {
+        if (!Directory.Exists(OnlineMidiDirectory))
+            Directory.CreateDirectory(OnlineMidiDirectory);
+
+        return OnlineMidiDirectory;
     }
 }
