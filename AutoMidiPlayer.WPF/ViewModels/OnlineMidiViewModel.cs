@@ -30,6 +30,9 @@ public sealed class OnlineMidiViewModel : Screen
     private bool _initialized;
     private CancellationTokenSource? _loadCts;
 
+    /// <summary>True once a page load comes back empty (we've paged past the last page).</summary>
+    private bool _reachedEnd;
+
     public OnlineMidiViewModel(IContainer ioc, MainWindowViewModel main)
     {
         _ioc = ioc;
@@ -118,6 +121,7 @@ public sealed class OnlineMidiViewModel : Screen
 
     public bool IsNotBusy => !IsBusy;
     public bool CanGoToPreviousPage => CurrentPage > 1 && !IsBusy;
+    public bool CanGoToNextPage => !IsBusy && !_reachedEnd;
     public bool HasResults => Results.Count > 0;
     public bool ShowEmptyState => !IsBusy && Results.Count == 0;
 
@@ -323,8 +327,8 @@ public sealed class OnlineMidiViewModel : Screen
     public async Task NextPage()
     {
         // Debounce: ignore rapid repeat clicks while a page is still loading, so we don't
-        // queue a burst of requests or skip pages.
-        if (IsBusy)
+        // queue a burst of requests or skip pages. Also stop once we've hit the last page.
+        if (IsBusy || _reachedEnd)
             return;
 
         CurrentPage++;
@@ -364,6 +368,10 @@ public sealed class OnlineMidiViewModel : Screen
             Results.Clear();
             Results.AddRange(items);
 
+            // An empty page means we've run past the last page — stop "Next" from walking
+            // into endless empty pages. Any page-1 navigation (search/category/sort) resets this.
+            _reachedEnd = items.Count == 0 && CurrentPage > 1;
+
             var scope = isSearch
                 ? $" for \"{SearchQuery.Trim()}\""
                 : (string.IsNullOrEmpty(SelectedCategorySlug) ? "" : $" in {SelectedCategoryName}");
@@ -385,9 +393,13 @@ public sealed class OnlineMidiViewModel : Screen
         }
         finally
         {
+            // Only the current (newest) load owns the busy state. A superseded load reaching its
+            // finally must NOT clear IsBusy — the newer request is still in flight.
             if (_loadCts == cts)
+            {
                 _loadCts = null;
-            SetBusy(false);
+                SetBusy(false);
+            }
         }
     }
 
@@ -398,6 +410,7 @@ public sealed class OnlineMidiViewModel : Screen
         NotifyOfPropertyChange(nameof(IsNotBusy));
         NotifyOfPropertyChange(nameof(CurrentPage));
         NotifyOfPropertyChange(nameof(CanGoToPreviousPage));
+        NotifyOfPropertyChange(nameof(CanGoToNextPage));
         NotifyOfPropertyChange(nameof(HasResults));
         NotifyOfPropertyChange(nameof(ShowEmptyState));
     }
@@ -429,10 +442,20 @@ public sealed class OnlineMidiViewModel : Screen
 
         try
         {
-            SelectedDetails = await _client.GetDetailsAsync(item);
+            var details = await _client.GetDetailsAsync(item);
+
+            // If the user opened another track (or closed the panel) while this was loading,
+            // a stale response must not overwrite the newer one's details.
+            if (!ReferenceEquals(_detailItem, item))
+                return;
+
+            SelectedDetails = details;
         }
         catch (Exception ex)
         {
+            if (!ReferenceEquals(_detailItem, item))
+                return; // superseded — let the newer request own the UI
+
             Logger.LogException(ex);
             SnackbarService.Danger("Couldn't load details", "Could not load this MIDI's details.");
             CloseDetails();
@@ -440,10 +463,14 @@ public sealed class OnlineMidiViewModel : Screen
         }
         finally
         {
-            IsDetailLoading = false;
-            NotifyOfPropertyChange(nameof(SelectedDetails));
-        NotifyOfPropertyChange(nameof(HasDetails));
-            NotifyOfPropertyChange(nameof(IsDetailLoading));
+            // Only the most recent request clears the loading state / notifies.
+            if (ReferenceEquals(_detailItem, item))
+            {
+                IsDetailLoading = false;
+                NotifyOfPropertyChange(nameof(SelectedDetails));
+                NotifyOfPropertyChange(nameof(HasDetails));
+                NotifyOfPropertyChange(nameof(IsDetailLoading));
+            }
         }
     }
 
