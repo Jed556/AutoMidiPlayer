@@ -26,7 +26,7 @@ jobs:
       build_sha: ${{ steps.resolve_sha.outputs.BUILD_SHA }}
 
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -76,7 +76,7 @@ jobs:
     needs: prepare
 
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ needs.prepare.outputs.build_sha }}
@@ -113,7 +113,7 @@ jobs:
     needs: prepare
 
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ needs.prepare.outputs.build_sha }}
@@ -205,7 +205,7 @@ jobs:
           Get-ChildItem .\AutoMidiPlayer_*_win-x64_* | Select Name,Length
 
       - name: Create or update GitHub Release
-        uses: softprops/action-gh-release@v3.0.0
+        uses: softprops/action-gh-release@v3.0.1
         with:
           tag_name: ${{ needs.prepare.outputs.version }}
           target_commitish: ${{ needs.prepare.outputs.build_sha }}
