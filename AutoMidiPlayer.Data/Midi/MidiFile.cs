@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -18,7 +18,8 @@ public class MidiFile : Screen
 
     public MidiFile(Song song, ReadingSettings? settings = null)
     {
-        _settings = settings;
+        _settings = settings ?? new ReadingSettings();
+        _settings.TextEncoding = System.Text.Encoding.UTF8;
 
         Song = song;
         InitializeMidi();

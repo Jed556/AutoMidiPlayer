@@ -93,12 +93,36 @@
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
 
-                                    <!-- Toggle and Track Name -->
+                                    <!-- Toggle and Track Name + Instrument -->
                                     <ui:ToggleSwitch Grid.Column="0"
                                                      IsChecked="{Binding IsChecked}"
                                                      IsEnabled="{Binding CanBePlayed}"
-                                                     Content="{Binding TrackName, TargetNullValue=Unknown}"
                                                      MinWidth="180">
+                                        <ui:ToggleSwitch.Content>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding TrackName, TargetNullValue=Unknown}" 
+                                                           FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding InstrumentName}" 
+                                                           FontSize="11" 
+                                                           Opacity="0.7" 
+                                                           TextWrapping="Wrap" 
+                                                           MaxWidth="250">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding InstrumentName}" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding InstrumentName}" Value="">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </ui:ToggleSwitch.Content>
                                     </ui:ToggleSwitch>
 
                                     <!-- Statistics -->
