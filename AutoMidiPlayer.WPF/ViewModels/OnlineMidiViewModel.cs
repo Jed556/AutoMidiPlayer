@@ -546,17 +546,29 @@ public sealed class OnlineMidiViewModel : Screen
         }
         catch (MidiShowException ex)
         {
-            var secondary = ex.Reason switch
-            {
-                MidiShowDownloadError.NotAuthenticated => "Your MidiShow session expired. Sign in again.",
-                MidiShowDownloadError.NotFound => "This track is no longer available.",
-                _ => ex.Message
-            };
-
+            // Only a genuine auth failure should clear the saved session. A server-side feature
+            // outage or a quota limit leaves the user signed in — logging them out there is wrong
+            // and just sends them on a pointless re-login.
             if (ex.Reason == MidiShowDownloadError.NotAuthenticated)
                 SetSignedIn(false, SignedInUser);
 
-            SnackbarService.Danger("Couldn't add to Songs", secondary);
+            switch (ex.Reason)
+            {
+                case MidiShowDownloadError.Unavailable:
+                    SnackbarService.Warning("MidiShow downloads paused", ex.Message);
+                    break;
+                case MidiShowDownloadError.LimitReached:
+                    SnackbarService.Warning("Download limit reached", ex.Message);
+                    break;
+                default:
+                    SnackbarService.Danger("Couldn't add to Songs", ex.Reason switch
+                    {
+                        MidiShowDownloadError.NotAuthenticated => "Your MidiShow session expired. Sign in again.",
+                        MidiShowDownloadError.NotFound => "This track is no longer available.",
+                        _ => ex.Message
+                    });
+                    break;
+            }
         }
         catch (Exception ex)
         {
@@ -668,12 +680,24 @@ public sealed class OnlineMidiViewModel : Screen
         {
             await ResumeMainIfPreviewFailed(pausedMain);
 
+            // Same rule as downloads: only a real auth failure clears the session.
             if (ex.Reason == MidiShowDownloadError.NotAuthenticated)
                 SetSignedIn(false, SignedInUser);
 
-            SnackbarService.Danger("Preview failed", ex.Reason == MidiShowDownloadError.NotAuthenticated
-                ? "Your MidiShow session expired. Sign in again."
-                : ex.Message);
+            switch (ex.Reason)
+            {
+                case MidiShowDownloadError.Unavailable:
+                    SnackbarService.Warning("MidiShow previews paused", ex.Message);
+                    break;
+                case MidiShowDownloadError.LimitReached:
+                    SnackbarService.Warning("Download limit reached", ex.Message);
+                    break;
+                default:
+                    SnackbarService.Danger("Preview failed", ex.Reason == MidiShowDownloadError.NotAuthenticated
+                        ? "Your MidiShow session expired. Sign in again."
+                        : ex.Message);
+                    break;
+            }
         }
         catch (Exception ex)
         {

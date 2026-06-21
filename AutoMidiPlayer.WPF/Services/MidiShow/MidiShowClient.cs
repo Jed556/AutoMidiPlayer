@@ -325,11 +325,7 @@ public sealed class MidiShowClient : IDisposable
             {
                 var errorBody = await response1.Content.ReadAsStringAsync(ct);
                 Logger.Log($"MidiShow returned 403 Forbidden. Body: {errorBody}");
-
-                if (errorBody.Contains("limit", StringComparison.OrdinalIgnoreCase) || errorBody.Contains("points", StringComparison.OrdinalIgnoreCase) || errorBody.Contains("insufficient", StringComparison.OrdinalIgnoreCase) || errorBody.Contains("vip", StringComparison.OrdinalIgnoreCase))
-                    throw new MidiShowException(MidiShowDownloadError.NotAuthenticated, "MidiShow download limit reached or insufficient points.");
-                
-                throw new MidiShowException(MidiShowDownloadError.NotAuthenticated, "MidiShow requires you to be signed in to download.");
+                throw ClassifyForbidden(errorBody);
             }
 
             if (!response1.IsSuccessStatusCode)
@@ -392,6 +388,44 @@ public sealed class MidiShowClient : IDisposable
     }
 
     #endregion
+
+    /// <summary>
+    /// MidiShow answers the download endpoint with 403 in several unrelated situations, and the
+    /// (usually Chinese) body is what tells them apart:
+    ///   * the MIDI download/preview feature being temporarily turned off server-side as an
+    ///     anti-scraping measure — e.g. "由于近期存在大量恶意抓取，MIDI试听功能已暂时关闭，
+    ///     您可先通过OGG方式试听部分曲目。" This hits every user; signing in again does NOT help;
+    ///   * a per-account download quota / points / VIP requirement;
+    ///   * a genuinely unauthenticated request (the only case that warrants a re-login).
+    /// Reporting the first two as "session expired" (and clearing the saved login, as the old
+    /// catch-all NotAuthenticated did) is both wrong and a dead end for the user, so each gets
+    /// its own reason that leaves the session intact.
+    /// </summary>
+    private static MidiShowException ClassifyForbidden(string body)
+    {
+        body ??= string.Empty;
+        bool Has(params string[] needles) =>
+            needles.Any(n => body.Contains(n, StringComparison.OrdinalIgnoreCase));
+
+        // Feature temporarily disabled server-side (anti-scraping). Match the distinctive bits of
+        // the Chinese notice, plus English fallbacks in case the locale/wording changes.
+        if (Has("恶意抓取", "暂时关闭", "试听", "OGG", "scraping", "temporarily disabled"))
+            return new MidiShowException(MidiShowDownloadError.Unavailable,
+                "MidiShow has temporarily disabled MIDI downloads on their side (an anti-scraping " +
+                "measure). This is server-side and affects everyone — please try again later. " +
+                "Browsing and search still work.");
+
+        // Per-account quota / points / VIP. English keywords plus common Chinese equivalents:
+        // 积分 = points, 次数 = (download) count, 限制 = limit, 会员/VIP = membership, 余额 = balance.
+        if (Has("limit", "points", "insufficient", "vip", "积分", "次数", "限制", "会员", "余额"))
+            return new MidiShowException(MidiShowDownloadError.LimitReached,
+                "Your MidiShow download limit was reached, or this track needs more points / VIP on " +
+                "your account. Your sign-in is still valid.");
+
+        // Anything else: treat as a real authentication problem (re-login is the right fix).
+        return new MidiShowException(MidiShowDownloadError.NotAuthenticated,
+            "MidiShow requires you to be signed in to download.");
+    }
 
     #region HTML / payload helpers
 

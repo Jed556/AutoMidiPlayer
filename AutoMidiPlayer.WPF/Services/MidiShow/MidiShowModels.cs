@@ -114,7 +114,20 @@ public enum MidiShowDownloadError
     NotAuthenticated,
     NotFound,
     Network,
-    Decode
+    Decode,
+
+    /// <summary>
+    /// MidiShow has temporarily disabled MIDI downloads/previews server-side (e.g. an
+    /// anti-scraping measure). Affects everyone — the session is still valid and signing
+    /// in again does not help.
+    /// </summary>
+    Unavailable,
+
+    /// <summary>
+    /// The account's per-day download quota / points balance / VIP requirement blocked the
+    /// download. The session is still valid; it's a quota issue, not an auth failure.
+    /// </summary>
+    LimitReached
 }
 
 /// <summary>
