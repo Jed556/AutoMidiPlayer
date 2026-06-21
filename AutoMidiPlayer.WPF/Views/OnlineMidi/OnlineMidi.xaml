@@ -167,15 +167,16 @@
             </ui:Button>
             </StackPanel>
 
-            <!-- Account: a single toolbar button that opens a sign-in / profile popup,
-                 keeping the page body free for search + results. -->
+            <!-- Account: a toolbar button that opens an account-manager popup. The pool can hold
+                 several MidiShow accounts (password- or cookie-based); downloads rotate across
+                 them and fail over when one is limited. -->
             <Grid Grid.Row="0" Grid.Column="2" x:Name="AccountAnchor" Margin="8,0,0,0">
                 <ui:Button Appearance="Primary"
                            Padding="13,7"
                            VerticalAlignment="Center"
-                           ToolTip="Sign in to MidiShow"
+                           ToolTip="Add a MidiShow account"
                            Command="{s:Action ToggleAccountFlyout}"
-                           Visibility="{Binding IsSignedIn, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                           Visibility="{Binding HasAnyAccount, Converter={StaticResource InverseBoolToVisibilityConverter}}">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="PersonCircle24" FontSize="16" Margin="0,0,6,0"/>
                         <TextBlock Text="Sign in"/>
@@ -185,12 +186,12 @@
                 <ui:Button Appearance="Secondary"
                            Padding="11,7"
                            VerticalAlignment="Center"
-                           ToolTip="{Binding SignedInUser, StringFormat='Signed in as {0}'}"
+                           ToolTip="{Binding AccountSummary}"
                            Command="{s:Action ToggleAccountFlyout}"
-                           Visibility="{Binding IsSignedIn, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                           Visibility="{Binding HasAnyAccount, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
                     <StackPanel Orientation="Horizontal">
-                        <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="16" Foreground="#2EA043" Margin="0,0,6,0"/>
-                        <TextBlock Text="Account" Margin="0,0,6,0"/>
+                        <ui:SymbolIcon Symbol="PeopleTeam24" FontSize="16" Foreground="#2EA043" Margin="0,0,6,0"/>
+                        <TextBlock Text="{Binding AccountButtonText}" Margin="0,0,6,0"/>
                         <ui:SymbolIcon Symbol="ChevronDown12" FontSize="11" Opacity="0.7"/>
                     </StackPanel>
                 </ui:Button>
@@ -203,7 +204,7 @@
                        PopupAnimation="Fade"
                        StaysOpen="False"
                        IsOpen="{Binding IsAccountFlyoutOpen, Mode=TwoWay}">
-                    <Border Width="340"
+                    <Border Width="360"
                             Padding="18"
                             CornerRadius="10"
                             Background="{ui:ThemeResource ApplicationBackgroundBrush}"
@@ -213,111 +214,185 @@
                             <DropShadowEffect BlurRadius="18" ShadowDepth="3" Opacity="0.35" Color="Black"/>
                         </Border.Effect>
 
-                        <Grid>
-                        <!-- Signed OUT: sign-in form + how-to-register -->
-                        <StackPanel Visibility="{Binding IsSignedIn, Converter={StaticResource InverseBoolToVisibilityConverter}}">
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
-                                <ui:SymbolIcon Symbol="PersonLock24" FontSize="18" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Text="Sign in to MidiShow" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
+                        <ScrollViewer MaxHeight="540" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <!-- Header -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <ui:SymbolIcon Symbol="PeopleTeam24" FontSize="18" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Text="MidiShow accounts" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
                             </StackPanel>
+                            <TextBlock Text="{Binding AccountSummary}" Opacity="0.6" FontSize="12" Margin="0,0,0,12"/>
 
-                            <ui:TextBox Margin="0,0,0,8"
-                                        PlaceholderText="Email or username"
-                                        ClearButtonEnabled="False"
-                                        Text="{Binding LoginUsername, UpdateSourceTrigger=PropertyChanged}"/>
-                            <Grid Margin="0,0,0,8">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
+                            <!-- Configured accounts -->
+                            <ItemsControl ItemsSource="{Binding Accounts}"
+                                          Visibility="{Binding HasAnyAccount, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                          Margin="0,0,0,4">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type viewModels:MidiShowAccountRow}">
+                                        <Border Padding="10,8" Margin="0,0,0,6" CornerRadius="8"
+                                                Background="{ui:ThemeResource ControlFillColorSecondaryBrush}"
+                                                BorderBrush="{ui:ThemeResource ControlElevationBorderBrush}"
+                                                BorderThickness="1">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Ellipse Grid.Column="0" Width="9" Height="9" VerticalAlignment="Center"
+                                                         Margin="0,0,10,0" Fill="{Binding StatusBrush}"/>
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Username}" FontWeight="SemiBold" FontSize="13"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock FontSize="11" Opacity="0.6">
+                                                        <Run Text="{Binding TypeLabel, Mode=OneWay}"/>
+                                                        <Run Text="·"/>
+                                                        <Run Text="{Binding StatusText, Mode=OneWay}"/>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                                <ui:Button Grid.Column="2" Appearance="Secondary" Padding="7,5" Margin="0,0,6,0"
+                                                           ToolTip="Copy this account's session cookies"
+                                                           Visibility="{Binding CanCopyCookies, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                                           Click="CopyCookies_Click">
+                                                    <ui:SymbolIcon Symbol="Copy24" FontSize="14"/>
+                                                </ui:Button>
+                                                <ui:Button Grid.Column="3" Appearance="Secondary" Padding="7,5"
+                                                           ToolTip="Remove this account"
+                                                           Click="RemoveAccount_Click">
+                                                    <ui:SymbolIcon Symbol="Delete24" FontSize="14" Foreground="#E04F4F"/>
+                                                </ui:Button>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
 
-                                <!-- masked -->
-                                <ui:PasswordBox x:Name="PasswordBox"
-                                                Grid.Column="0"
+                            <Separator Margin="0,6,0,10"/>
+
+                            <!-- Add an account -->
+                            <CheckBox Content="Use cookies instead of a password"
+                                      IsChecked="{Binding IsAddingCookie}"
+                                      Margin="0,0,0,10"/>
+
+                            <!-- Password mode -->
+                            <StackPanel Visibility="{Binding IsAddingPassword, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                <ui:TextBox Margin="0,0,0,8"
+                                            PlaceholderText="Email or username"
+                                            ClearButtonEnabled="False"
+                                            Text="{Binding NewUsername, UpdateSourceTrigger=PropertyChanged}"/>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- masked -->
+                                    <ui:PasswordBox x:Name="PasswordBox"
+                                                    Grid.Column="0"
+                                                    PlaceholderText="Password"
+                                                    ClearButtonEnabled="False"
+                                                    RevealButtonEnabled="False"
+                                                    Password="{Binding NewPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                    KeyDown="PasswordBox_KeyDown"
+                                                    Visibility="{Binding IsPasswordRevealed, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
+                                    <!-- revealed (plain text) -->
+                                    <ui:TextBox Grid.Column="0"
                                                 PlaceholderText="Password"
                                                 ClearButtonEnabled="False"
-                                                RevealButtonEnabled="False"
-                                                Password="{Binding LoginPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                Text="{Binding NewPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                 KeyDown="PasswordBox_KeyDown"
-                                                Visibility="{Binding IsPasswordRevealed, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
-                                <!-- revealed (plain text) -->
-                                <ui:TextBox Grid.Column="0"
-                                            PlaceholderText="Password"
-                                            ClearButtonEnabled="False"
-                                            Text="{Binding LoginPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                            KeyDown="PasswordBox_KeyDown"
-                                            Visibility="{Binding IsPasswordRevealed, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                                                Visibility="{Binding IsPasswordRevealed, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
 
-                                <ui:Button Grid.Column="1"
-                                           Margin="6,0,0,0"
-                                           Padding="9,0"
-                                           VerticalAlignment="Stretch"
-                                           ToolTip="Show / hide password"
-                                           Command="{s:Action ToggleReveal}">
-                                    <Grid>
-                                        <ui:SymbolIcon Symbol="EyeLines24" FontSize="16" Opacity="0.75"
-                                                       Visibility="{Binding IsPasswordRevealed, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
-                                        <ui:SymbolIcon Symbol="EyeOff24" FontSize="16" Opacity="0.75"
-                                                       Visibility="{Binding IsPasswordRevealed, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
-                                    </Grid>
-                                </ui:Button>
-                            </Grid>
-                            <CheckBox Content="Remember me on this device"
-                                      IsChecked="{Binding RememberMe}"
-                                      Margin="0,2,0,12"/>
-                            <ui:Button Appearance="Primary"
-                                       HorizontalAlignment="Stretch"
-                                       Padding="0,9"
-                                       IsEnabled="{Binding IsNotBusy}"
-                                       Command="{s:Action SignIn}">
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                    <ui:SymbolIcon Symbol="ArrowEnter20" FontSize="15" Margin="0,0,6,0"/>
-                                    <TextBlock Text="Sign in"/>
-                                </StackPanel>
-                            </ui:Button>
-
-                            <Expander Margin="0,12,0,0"
-                                      Header="How to create a MidiShow account">
-                                <StackPanel Margin="2,10,2,2">
-                                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
-                                               Text="1.  Open the registration page below (or go to midishow.com)."/>
-                                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
-                                               Text="2.  Enter your email, a password (6+ characters) and the captcha. Accept the terms. (Google / Facebook sign-up also works.)"/>
-                                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
-                                               Text="3.  Confirm the verification email from MidiShow."/>
-                                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,10"
-                                               Text="4.  Come back and sign in with the same email and password."/>
-                                    <ui:Button Appearance="Secondary" HorizontalAlignment="Left" Padding="12,6" Command="{s:Action OpenRegisterPage}">
-                                        <StackPanel Orientation="Horizontal">
-                                            <ui:SymbolIcon Symbol="Globe28" FontSize="15" Margin="0,0,6,0"/>
-                                            <TextBlock Text="Open registration page"/>
-                                        </StackPanel>
+                                    <ui:Button Grid.Column="1"
+                                               Margin="6,0,0,0"
+                                               Padding="9,0"
+                                               VerticalAlignment="Stretch"
+                                               ToolTip="Show / hide password"
+                                               Command="{s:Action ToggleReveal}">
+                                        <Grid>
+                                            <ui:SymbolIcon Symbol="EyeLines24" FontSize="16" Opacity="0.75"
+                                                           Visibility="{Binding IsPasswordRevealed, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
+                                            <ui:SymbolIcon Symbol="EyeOff24" FontSize="16" Opacity="0.75"
+                                                           Visibility="{Binding IsPasswordRevealed, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                                        </Grid>
                                     </ui:Button>
-                                </StackPanel>
-                            </Expander>
-                        </StackPanel>
+                                </Grid>
+                                <ui:Button Appearance="Primary"
+                                           HorizontalAlignment="Stretch"
+                                           Padding="0,9"
+                                           IsEnabled="{Binding IsNotBusy}"
+                                           Command="{s:Action AddPasswordAccount}">
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                        <ui:SymbolIcon Symbol="PersonAdd24" FontSize="15" Margin="0,0,6,0"/>
+                                        <TextBlock Text="Add account"/>
+                                    </StackPanel>
+                                </ui:Button>
 
-                        <!-- Signed IN: profile + sign out -->
-                        <StackPanel Visibility="{Binding IsSignedIn, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="20" Foreground="#2EA043" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="Signed in" FontWeight="SemiBold"/>
-                                    <TextBlock Text="{Binding SignedInUser, Mode=OneWay}" Opacity="0.7" FontSize="12" TextTrimming="CharacterEllipsis" MaxWidth="260"/>
-                                </StackPanel>
+                                <Expander Margin="0,12,0,0"
+                                          Header="How to create a MidiShow account">
+                                    <StackPanel Margin="2,10,2,2">
+                                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
+                                                   Text="1.  Open the registration page below (or go to midishow.com)."/>
+                                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
+                                                   Text="2.  Enter your email, a password (6+ characters) and the captcha. Accept the terms. (Google / Facebook sign-up also works.)"/>
+                                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
+                                                   Text="3.  Confirm the verification email from MidiShow."/>
+                                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,10"
+                                                   Text="4.  Come back and add the account with the same email and password. Add several to spread the per-account download limit."/>
+                                        <ui:Button Appearance="Secondary" HorizontalAlignment="Left" Padding="12,6" Command="{s:Action OpenRegisterPage}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <ui:SymbolIcon Symbol="Globe28" FontSize="15" Margin="0,0,6,0"/>
+                                                <TextBlock Text="Open registration page"/>
+                                            </StackPanel>
+                                        </ui:Button>
+                                    </StackPanel>
+                                </Expander>
                             </StackPanel>
-                            <TextBlock Text="Tracks you add go straight into your Songs library."
-                                       Opacity="0.55" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,14"/>
-                            <ui:Button Appearance="Secondary" HorizontalAlignment="Stretch"
-                                       Padding="0,9"
-                                       Command="{s:Action SignOut}">
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                    <ui:SymbolIcon Symbol="SignOut24" FontSize="15" Margin="0,0,6,0"/>
-                                    <TextBlock Text="Sign out"/>
-                                </StackPanel>
-                            </ui:Button>
+
+                            <!-- Cookie mode -->
+                            <StackPanel Visibility="{Binding IsAddingCookie, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                <ui:TextBox Margin="0,0,0,8"
+                                            PlaceholderText="Account label (e.g. alt #1)"
+                                            ClearButtonEnabled="False"
+                                            Text="{Binding NewCookieLabel, UpdateSourceTrigger=PropertyChanged}"/>
+                                <ui:TextBox Margin="0,0,0,10"
+                                            MinHeight="70" MaxHeight="120"
+                                            AcceptsReturn="True"
+                                            TextWrapping="Wrap"
+                                            ClearButtonEnabled="False"
+                                            PlaceholderText="Paste cookie header (_identity=...; _csrf=...; ...)"
+                                            VerticalScrollBarVisibility="Auto"
+                                            Text="{Binding NewCookies, UpdateSourceTrigger=PropertyChanged}"/>
+                                <ui:Button Appearance="Primary"
+                                           HorizontalAlignment="Stretch"
+                                           Padding="0,9"
+                                           IsEnabled="{Binding IsNotBusy}"
+                                           Command="{s:Action AddCookieAccount}">
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                        <ui:SymbolIcon Symbol="PersonAdd24" FontSize="15" Margin="0,0,6,0"/>
+                                        <TextBlock Text="Add account"/>
+                                    </StackPanel>
+                                </ui:Button>
+
+                                <Expander Margin="0,12,0,0"
+                                          Header="How to copy your cookies">
+                                    <StackPanel Margin="2,10,2,2">
+                                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
+                                                   Text="Use this when a password sign-in is blocked by a captcha or risk control."/>
+                                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
+                                                   Text="1.  Sign in to midishow.com in your browser."/>
+                                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
+                                                   Text="2.  Open DevTools (F12) → Application/Storage → Cookies → www.midishow.com."/>
+                                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
+                                                   Text="3.  Copy the cookies as a single 'name=value; name2=value2' line (the _identity cookie is required)."/>
+                                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,2"
+                                                   Text="4.  Paste them above and add the account."/>
+                                    </StackPanel>
+                                </Expander>
+                            </StackPanel>
                         </StackPanel>
-                        </Grid>
+                        </ScrollViewer>
                     </Border>
                 </Popup>
             </Grid>

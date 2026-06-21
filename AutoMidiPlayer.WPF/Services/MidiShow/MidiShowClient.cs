@@ -159,6 +159,68 @@ public sealed class MidiShowClient : IDisposable
         }
     }
 
+    /// <summary>
+    /// Signs in by importing a raw cookie header copied from a browser that is already logged
+    /// in to MidiShow (e.g. <c>_identity=...; _csrf=...; ...</c>). This is the fallback for
+    /// accounts where the password login is blocked by a captcha or risk control. The session
+    /// is considered authenticated when the MidiShow "_identity" cookie is present.
+    /// </summary>
+    public Task<bool> LoginByCookies(string cookieHeader, CancellationToken ct = default)
+    {
+        // Start clean so leftover anonymous cookies don't shadow the imported ones.
+        ResetSession();
+
+        var baseUri = new Uri(Base);
+        if (!string.IsNullOrWhiteSpace(cookieHeader))
+        {
+            foreach (var part in cookieHeader.Split(';'))
+            {
+                var trimmed = part.Trim();
+                var eq = trimmed.IndexOf('=');
+                if (eq <= 0)
+                    continue;
+
+                var name = trimmed[..eq].Trim();
+                var value = trimmed[(eq + 1)..].Trim();
+                if (name.Length == 0)
+                    continue;
+
+                try
+                {
+                    _cookies.Add(baseUri, new Cookie(name, value));
+                }
+                catch
+                {
+                    // Skip a malformed cookie rather than failing the whole import.
+                }
+            }
+        }
+
+        IsAuthenticated = HasAuthCookie();
+        var cookieNames = string.Join(",", _cookies.GetCookies(baseUri).Select(c => c.Name));
+        LastDiagnostic = $"cookie-login auth={IsAuthenticated} cookies=[{cookieNames}]";
+        Logger.LogStep("MIDISHOW_COOKIE_LOGIN", LastDiagnostic);
+        return Task.FromResult(IsAuthenticated);
+    }
+
+    /// <summary>
+    /// Exports the current session cookies as a single header string
+    /// (<c>name=value; name2=value2</c>), for copying an authenticated session back out.
+    /// </summary>
+    public string ExportCookies()
+    {
+        var sb = new StringBuilder();
+        foreach (Cookie cookie in _cookies.GetCookies(new Uri(Base)))
+        {
+            if (cookie.Expired || string.IsNullOrEmpty(cookie.Value))
+                continue;
+            if (sb.Length > 0)
+                sb.Append("; ");
+            sb.Append(cookie.Name).Append('=').Append(cookie.Value);
+        }
+        return sb.ToString();
+    }
+
     public void SignOut()
     {
         IsAuthenticated = false;
@@ -341,9 +403,7 @@ public sealed class MidiShowClient : IDisposable
             throw new MidiShowException(MidiShowDownloadError.Decode, "Unexpected response from MidiShow (segment too short).");
 
         // Second request: the middle segment, served from the asset host as a ".js" payload.
-        var assetUrl = fakeMidiUrl
-            .Replace(Base, AssetHost, StringComparison.OrdinalIgnoreCase)
-            .Replace(".mid?", ".js?", StringComparison.OrdinalIgnoreCase);
+        var assetUrl = BuildAssetUrl(fakeMidiUrl);
 
         string text2;
         try
@@ -414,6 +474,14 @@ public sealed class MidiShowClient : IDisposable
                 "MidiShow has temporarily disabled MIDI downloads on their side (an anti-scraping " +
                 "measure). This is server-side and affects everyone — please try again later. " +
                 "Browsing and search still work.");
+
+        // Risk control / abnormal-activity flag on the account. 风控 = risk control,
+        // 异常 = abnormal, 频繁 = frequent, 验证 = (extra) verification. The account is valid but
+        // temporarily blocked — surfaced separately so the pool can rotate to another account.
+        if (Has("风控", "异常", "频繁", "risk control", "abnormal", "too frequent", "unusual activity"))
+            return new MidiShowException(MidiShowDownloadError.RiskControlled,
+                "MidiShow flagged this account's activity as abnormal (risk control). Try a " +
+                "different account, or wait a while before downloading again.");
 
         // Per-account quota / points / VIP. English keywords plus common Chinese equivalents:
         // 积分 = points, 次数 = (download) count, 限制 = limit, 会员/VIP = membership, 余额 = balance.
@@ -821,6 +889,21 @@ public sealed class MidiShowClient : IDisposable
 
         var stripped = Regex.Replace(value, "<.*?>", string.Empty, RegexOptions.Singleline);
         return WebUtility.HtmlDecode(stripped).Trim();
+    }
+
+    /// <summary>
+    /// Turns the page's <c>data-mid</c> URL into the asset-host URL for the middle segment:
+    /// swap the host to the asset CDN and, on the legacy format where the filename ends in
+    /// ".mid", rewrite that extension to ".js". On the current format the filename already has
+    /// no ".mid" extension, so only the host swap applies (matching MidiShow's own player and
+    /// the reference downloader). NOTE: an authenticated page and an anonymous page can emit
+    /// different <c>data-mid</c> shapes; do not assume one without testing while signed in.
+    /// </summary>
+    private static string BuildAssetUrl(string fakeMidiUrl)
+    {
+        return fakeMidiUrl
+            .Replace(Base, AssetHost, StringComparison.OrdinalIgnoreCase)
+            .Replace(".mid?", ".js?", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

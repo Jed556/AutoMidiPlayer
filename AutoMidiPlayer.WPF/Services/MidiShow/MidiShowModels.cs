@@ -127,7 +127,15 @@ public enum MidiShowDownloadError
     /// The account's per-day download quota / points balance / VIP requirement blocked the
     /// download. The session is still valid; it's a quota issue, not an auth failure.
     /// </summary>
-    LimitReached
+    LimitReached,
+
+    /// <summary>
+    /// MidiShow flagged this account's activity as abnormal (risk control / too frequent).
+    /// The credentials are valid but this account is temporarily blocked from downloading;
+    /// the right fix is to use a different account or wait. Surfaced separately so the pool
+    /// can rotate to another account instead of treating it as a sign-in failure.
+    /// </summary>
+    RiskControlled
 }
 
 /// <summary>

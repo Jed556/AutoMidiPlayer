@@ -29,8 +29,20 @@ public partial class OnlineMidiView : UserControl
         if (e.Key == Key.Enter && ViewModel is { } vm)
         {
             e.Handled = true;
-            _ = vm.SignIn();
+            _ = vm.AddPasswordAccount();
         }
+    }
+
+    private void RemoveAccount_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is { } vm && sender is FrameworkElement { DataContext: MidiShowAccountRow row })
+            vm.RemoveAccount(row);
+    }
+
+    private void CopyCookies_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is { } vm && sender is FrameworkElement { DataContext: MidiShowAccountRow row })
+            vm.CopyCookies(row);
     }
 
     private void AddToSongs_Click(object sender, RoutedEventArgs e)

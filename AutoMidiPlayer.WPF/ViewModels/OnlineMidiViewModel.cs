@@ -17,15 +17,16 @@ namespace AutoMidiPlayer.WPF.ViewModels;
 
 /// <summary>
 /// Browse, search and download MIDI files from MidiShow (https://www.midishow.com).
-/// Downloads use the signed-in user's own MidiShow account; credentials are stored
-/// encrypted per-user via <see cref="MidiShowCredentialStore"/>.
+/// Downloads run through a <see cref="MidiShowAccountPool"/> that rotates across the user's
+/// configured accounts (password- or cookie-based) and fails over when one is limited;
+/// accounts are stored encrypted per-user via <see cref="MidiShowAccountStore"/>.
 /// </summary>
 [UsedImplicitly]
 public sealed class OnlineMidiViewModel : Screen
 {
     private readonly IContainer _ioc;
     private readonly MainWindowViewModel _main;
-    private readonly MidiShowClient _client = new();
+    private readonly MidiShowAccountPool _pool = new();
 
     private bool _initialized;
     private CancellationTokenSource? _loadCts;
@@ -38,6 +39,7 @@ public sealed class OnlineMidiViewModel : Screen
         _ioc = ioc;
         _main = main;
         _preview.Finished += OnPreviewFinished;
+        _pool.Changed += OnPoolChanged;
 
         // Preview and the main player both render through the same Windows synth, so they
         // must not play at once. When the main player starts, stop the preview cleanly
@@ -65,17 +67,54 @@ public sealed class OnlineMidiViewModel : Screen
 
     public BindableCollection<MidiShowItem> Results { get; } = new();
 
-    public bool IsSignedIn { get; private set; }
-    public string SignedInUser { get; private set; } = string.Empty;
+    /// <summary>The configured MidiShow accounts, with live health status, for the account flyout.</summary>
+    public BindableCollection<MidiShowAccountRow> Accounts { get; } = new();
 
-    /// <summary>Username typed into the sign-in form.</summary>
-    public string LoginUsername { get; set; } = string.Empty;
+    /// <summary>True when at least one MidiShow account is configured (drives the account badge).</summary>
+    public bool HasAnyAccount { get; private set; }
 
-    /// <summary>Password typed into the sign-in form (bound from the PasswordBox).</summary>
-    public string LoginPassword { get; set; } = string.Empty;
+    /// <summary>Label for the account toolbar button when accounts exist, e.g. "Accounts (2)".</summary>
+    public string AccountButtonText => $"Accounts ({Accounts.Count})";
 
-    /// <summary>Whether to persist credentials (encrypted) for next launch.</summary>
-    public bool RememberMe { get; set; } = true;
+    /// <summary>One-line pool summary, e.g. "2 accounts · 1 active".</summary>
+    public string AccountSummary
+    {
+        get
+        {
+            var total = Accounts.Count;
+            if (total == 0)
+                return "No accounts yet";
+            var active = Accounts.Count(a => a.State == MidiShowAccountState.Active);
+            return $"{total} account{(total == 1 ? "" : "s")} · {active} active";
+        }
+    }
+
+    // ----- Add-account form -----
+
+    /// <summary>Username/email typed into the add-account form.</summary>
+    public string NewUsername { get; set; } = string.Empty;
+
+    /// <summary>Password typed into the add-account form (bound from the PasswordBox).</summary>
+    public string NewPassword { get; set; } = string.Empty;
+
+    /// <summary>Display label for a cookie-based account.</summary>
+    public string NewCookieLabel { get; set; } = string.Empty;
+
+    /// <summary>Raw cookie header pasted for a cookie-based account.</summary>
+    public string NewCookies { get; set; } = string.Empty;
+
+    /// <summary>When true the add form collects cookies instead of a password.</summary>
+    private bool _isAddingCookie;
+    public bool IsAddingCookie
+    {
+        get => _isAddingCookie;
+        set
+        {
+            SetAndNotify(ref _isAddingCookie, value);
+            NotifyOfPropertyChange(nameof(IsAddingPassword));
+        }
+    }
+    public bool IsAddingPassword => !IsAddingCookie;
 
     /// <summary>When true the password is shown as plain text (eye toggle).</summary>
     public bool IsPasswordRevealed { get; private set; }
@@ -139,82 +178,68 @@ public sealed class OnlineMidiViewModel : Screen
     private async Task InitializeAsync()
     {
         // Show the (public) listing first so MIDIs appear after a single round-trip, then sign
-        // in afterwards. Browsing/searching needs no auth — only download/preview do — so there
-        // is no reason to make the user wait for the login round-trips before seeing content.
-        // (LoginAsync starts from a fresh session anyway, so the anonymous browse cookies don't
-        // interfere.) The "signed in" badge updates a moment after the list renders.
+        // the saved accounts in afterwards. Browsing/searching needs no auth — only
+        // download/preview do — so there is no reason to make the user wait for login
+        // round-trips before seeing content. The account badge updates as each one connects.
         await LoadAsync();
-        await TrySignInFromStoreAsync();
+        RefreshAccounts();
+        await _pool.RestoreAsync();
     }
 
-    #region Authentication
+    #region Accounts
 
-    private async Task TrySignInFromStoreAsync()
+    /// <summary>Rebuilds the bindable account list from the pool's current snapshot (UI thread).</summary>
+    private void RefreshAccounts()
     {
-        var credentials = MidiShowCredentialStore.Load();
-        if (credentials is null)
-            return;
+        var snapshot = _pool.Snapshot();
+        Accounts.Clear();
+        Accounts.AddRange(snapshot.Select(s => new MidiShowAccountRow(s)));
 
-        LoginUsername = credentials.Username;
-        try
-        {
-            var success = await _client.LoginAsync(credentials.Username, credentials.Password);
-            SetSignedIn(success, credentials.Username);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogException(ex);
-            SetSignedIn(false, credentials.Username);
-        }
+        HasAnyAccount = snapshot.Count > 0;
+        NotifyOfPropertyChange(nameof(HasAnyAccount));
+        NotifyOfPropertyChange(nameof(AccountButtonText));
+        NotifyOfPropertyChange(nameof(AccountSummary));
     }
 
-    /// <summary>
-    /// Signs in using the bound <see cref="LoginUsername"/> / <see cref="LoginPassword"/>.
-    /// </summary>
-    public async Task SignIn()
+    private void OnPoolChanged()
     {
-        var username = (LoginUsername ?? string.Empty).Trim();
-        var password = LoginPassword ?? string.Empty;
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+            RefreshAccounts();
+        else
+            dispatcher.Invoke(RefreshAccounts);
+    }
 
-        Logger.LogStep("MIDISHOW_LOGIN", $"userLen={username.Length} | passLen={password.Length}");
+    /// <summary>Adds a password-based MidiShow account from the add form.</summary>
+    public async Task AddPasswordAccount()
+    {
+        var username = (NewUsername ?? string.Empty).Trim();
+        var password = NewPassword ?? string.Empty;
 
-        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
-        {
-            SnackbarService.Warning("Sign in failed", "Enter your MidiShow username and password.");
-            return;
-        }
+        Logger.LogStep("MIDISHOW_ADD_ACCOUNT", $"mode=password userLen={username.Length} passLen={password.Length}");
 
         SetBusy(true);
         StatusMessage = "Signing in to MidiShow...";
         try
         {
-            var success = await _client.LoginAsync(username, password);
-            SetSignedIn(success, username);
-
-            if (success)
+            var (ok, message) = await _pool.AddPasswordAsync(username, password);
+            if (ok)
             {
-                if (RememberMe)
-                    MidiShowCredentialStore.Save(new MidiShowCredentials(username, password));
-
-                LoginPassword = string.Empty;
-                NotifyOfPropertyChange(nameof(LoginPassword));
-                IsAccountFlyoutOpen = false;
-
-                SnackbarService.Success("Signed in", $"Connected to MidiShow as {username}.");
+                NewUsername = string.Empty;
+                NewPassword = string.Empty;
+                NotifyOfPropertyChange(nameof(NewUsername));
+                NotifyOfPropertyChange(nameof(NewPassword));
+                SnackbarService.Success("Account added", message);
             }
             else
             {
-                SnackbarService.Danger("Sign in failed", "MidiShow rejected those credentials. Double-check your email and password.");
+                SnackbarService.Danger("Couldn't add account", message);
             }
-        }
-        catch (MidiShowException ex)
-        {
-            SnackbarService.Danger("Sign in failed", ex.Message);
         }
         catch (Exception ex)
         {
             Logger.LogException(ex);
-            SnackbarService.Danger("Sign in failed", "An unexpected error occurred. Check your connection.");
+            SnackbarService.Danger("Couldn't add account", "An unexpected error occurred. Check your connection.");
         }
         finally
         {
@@ -223,21 +248,77 @@ public sealed class OnlineMidiViewModel : Screen
         }
     }
 
-    public void SignOut()
+    /// <summary>Adds a cookie-based MidiShow account from the add form.</summary>
+    public async Task AddCookieAccount()
     {
-        _client.SignOut();
-        MidiShowCredentialStore.Clear();
-        SetSignedIn(false, string.Empty);
-        IsAccountFlyoutOpen = false;
-        SnackbarService.Info("Signed out", "Your MidiShow credentials were removed from this device.");
+        var label = (NewCookieLabel ?? string.Empty).Trim();
+        var cookies = NewCookies ?? string.Empty;
+
+        Logger.LogStep("MIDISHOW_ADD_ACCOUNT", $"mode=cookie labelLen={label.Length} cookieLen={cookies.Length}");
+
+        SetBusy(true);
+        StatusMessage = "Verifying cookies...";
+        try
+        {
+            var (ok, message) = await _pool.AddCookieAsync(label, cookies);
+            if (ok)
+            {
+                NewCookieLabel = string.Empty;
+                NewCookies = string.Empty;
+                NotifyOfPropertyChange(nameof(NewCookieLabel));
+                NotifyOfPropertyChange(nameof(NewCookies));
+                SnackbarService.Success("Account added", message);
+            }
+            else
+            {
+                SnackbarService.Danger("Couldn't add account", message);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException(ex);
+            SnackbarService.Danger("Couldn't add account", "An unexpected error occurred. Check your connection.");
+        }
+        finally
+        {
+            SetBusy(false);
+            StatusMessage = string.Empty;
+        }
     }
 
-    private void SetSignedIn(bool signedIn, string username)
+    /// <summary>Removes an account from the pool (and from disk).</summary>
+    public void RemoveAccount(MidiShowAccountRow row)
     {
-        IsSignedIn = signedIn;
-        SignedInUser = signedIn ? username : string.Empty;
-        NotifyOfPropertyChange(nameof(IsSignedIn));
-        NotifyOfPropertyChange(nameof(SignedInUser));
+        if (row is null)
+            return;
+
+        _pool.Remove(row.Username);
+        SnackbarService.Info("Account removed", $"\"{row.Username}\" was removed from this device.");
+    }
+
+    /// <summary>Copies an account's live session cookies to the clipboard.</summary>
+    public void CopyCookies(MidiShowAccountRow row)
+    {
+        if (row is null)
+            return;
+
+        var cookies = _pool.ExportCookies(row.Username);
+        if (string.IsNullOrEmpty(cookies))
+        {
+            SnackbarService.Warning("No cookies", "This account isn't signed in yet, so there are no cookies to copy.");
+            return;
+        }
+
+        try
+        {
+            System.Windows.Clipboard.SetText(cookies);
+            SnackbarService.Success("Cookies copied", $"Session cookies for \"{row.Username}\" copied to the clipboard.");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException(ex);
+            SnackbarService.Danger("Copy failed", "Could not access the clipboard.");
+        }
     }
 
     #endregion
@@ -359,8 +440,8 @@ public sealed class OnlineMidiViewModel : Screen
         try
         {
             var items = isSearch
-                ? await _client.SearchAsync(SearchQuery, CurrentPage, SortKey, cts.Token)
-                : await _client.BrowseAsync(CurrentPage, SortKey, SelectedCategorySlug, cts.Token);
+                ? await _pool.SearchAsync(SearchQuery, CurrentPage, SortKey, cts.Token)
+                : await _pool.BrowseAsync(CurrentPage, SortKey, SelectedCategorySlug, cts.Token);
 
             if (cts.IsCancellationRequested)
                 return;
@@ -442,7 +523,7 @@ public sealed class OnlineMidiViewModel : Screen
 
         try
         {
-            var details = await _client.GetDetailsAsync(item);
+            var details = await _pool.GetDetailsAsync(item);
 
             // If the user opened another track (or closed the panel) while this was loading,
             // a stale response must not overwrite the newer one's details.
@@ -518,9 +599,9 @@ public sealed class OnlineMidiViewModel : Screen
         if (item is null)
             return;
 
-        if (!IsSignedIn)
+        if (!_pool.HasAccounts)
         {
-            SnackbarService.Warning("Sign in required", "Sign in with your MidiShow account first.");
+            SnackbarService.Warning("Account required", "Add a MidiShow account first.");
             return;
         }
 
@@ -537,7 +618,9 @@ public sealed class OnlineMidiViewModel : Screen
 
         try
         {
-            var result = await _client.DownloadAsync(item.PageUrl);
+            // The pool rotates across accounts and fails over internally, so by the time an
+            // exception reaches here every usable account has already been tried.
+            var result = await _pool.DownloadAsync(item.PageUrl);
             var path = await SaveMidiAsync(result, item);
 
             await _main.FileService.AddFiles(new[] { path });
@@ -546,12 +629,6 @@ public sealed class OnlineMidiViewModel : Screen
         }
         catch (MidiShowException ex)
         {
-            // Only a genuine auth failure should clear the saved session. A server-side feature
-            // outage or a quota limit leaves the user signed in — logging them out there is wrong
-            // and just sends them on a pointless re-login.
-            if (ex.Reason == MidiShowDownloadError.NotAuthenticated)
-                SetSignedIn(false, SignedInUser);
-
             switch (ex.Reason)
             {
                 case MidiShowDownloadError.Unavailable:
@@ -560,10 +637,13 @@ public sealed class OnlineMidiViewModel : Screen
                 case MidiShowDownloadError.LimitReached:
                     SnackbarService.Warning("Download limit reached", ex.Message);
                     break;
+                case MidiShowDownloadError.RiskControlled:
+                    SnackbarService.Warning("Account risk control", ex.Message);
+                    break;
                 default:
                     SnackbarService.Danger("Couldn't add to Songs", ex.Reason switch
                     {
-                        MidiShowDownloadError.NotAuthenticated => "Your MidiShow session expired. Sign in again.",
+                        MidiShowDownloadError.NotAuthenticated => "Could not sign in to any of your MidiShow accounts. Re-add one.",
                         MidiShowDownloadError.NotFound => "This track is no longer available.",
                         _ => ex.Message
                     });
@@ -612,9 +692,9 @@ public sealed class OnlineMidiViewModel : Screen
         if (item is null)
             return;
 
-        if (!IsSignedIn)
+        if (!_pool.HasAccounts)
         {
-            SnackbarService.Warning("Sign in required", "Sign in with your MidiShow account to preview.");
+            SnackbarService.Warning("Account required", "Add a MidiShow account to preview.");
             return;
         }
 
@@ -636,7 +716,7 @@ public sealed class OnlineMidiViewModel : Screen
 
         try
         {
-            var result = await _client.DownloadAsync(item.PageUrl);
+            var result = await _pool.DownloadAsync(item.PageUrl);
 
             // The synth allows only one open handle, so reuse the main player's device.
             var synth = _main.PlaybackEngine.PreviewSynthDevice;
@@ -680,10 +760,6 @@ public sealed class OnlineMidiViewModel : Screen
         {
             await ResumeMainIfPreviewFailed(pausedMain);
 
-            // Same rule as downloads: only a real auth failure clears the session.
-            if (ex.Reason == MidiShowDownloadError.NotAuthenticated)
-                SetSignedIn(false, SignedInUser);
-
             switch (ex.Reason)
             {
                 case MidiShowDownloadError.Unavailable:
@@ -692,9 +768,12 @@ public sealed class OnlineMidiViewModel : Screen
                 case MidiShowDownloadError.LimitReached:
                     SnackbarService.Warning("Download limit reached", ex.Message);
                     break;
+                case MidiShowDownloadError.RiskControlled:
+                    SnackbarService.Warning("Account risk control", ex.Message);
+                    break;
                 default:
                     SnackbarService.Danger("Preview failed", ex.Reason == MidiShowDownloadError.NotAuthenticated
-                        ? "Your MidiShow session expired. Sign in again."
+                        ? "Could not sign in to any of your MidiShow accounts. Re-add one."
                         : ex.Message);
                     break;
             }
@@ -912,9 +991,59 @@ public sealed class OnlineMidiViewModel : Screen
 
     #endregion
 
-    // NOTE: Do NOT dispose the MidiShowClient here. Stylet's conductor closes this screen
+    // NOTE: Do NOT dispose the MidiShowAccountPool here. Stylet's conductor closes this screen
     // every time the user navigates to another page, but the same ViewModel instance is
-    // reused for the app's lifetime. Disposing the HttpClient on navigation would drop the
-    // authenticated session, so returning and downloading would fail with
-    // "Could not load the MIDI page". The client lives with the app and is released on exit.
+    // reused for the app's lifetime. Disposing the pool on navigation would drop every
+    // authenticated session, so returning and downloading would fail. The pool lives with the
+    // app and is released on exit.
+}
+
+/// <summary>
+/// A row in the account flyout: one MidiShow account plus its current health, with a friendly
+/// status label, colour and icon for the list. Rebuilt from the pool snapshot on every change.
+/// </summary>
+public sealed class MidiShowAccountRow
+{
+    public MidiShowAccountRow(MidiShowAccountStatus status)
+    {
+        Username = status.Username;
+        IsCookieBased = status.IsCookieBased;
+        State = status.State;
+    }
+
+    public string Username { get; }
+    public bool IsCookieBased { get; }
+    public MidiShowAccountState State { get; }
+
+    public string TypeLabel => IsCookieBased ? "Cookie" : "Password";
+
+    public string StatusText => State switch
+    {
+        MidiShowAccountState.SigningIn => "Signing in…",
+        MidiShowAccountState.Active => "Active",
+        MidiShowAccountState.Limited => "Limit reached",
+        MidiShowAccountState.RiskControlled => "Risk control",
+        MidiShowAccountState.AuthFailed => "Sign-in failed",
+        _ => "Idle"
+    };
+
+    /// <summary>A coloured dot for the row: green active, amber limited/risk, red failed, grey idle.</summary>
+    public System.Windows.Media.Brush StatusBrush => State switch
+    {
+        MidiShowAccountState.Active => Frozen(0x2E, 0xA0, 0x43),         // green
+        MidiShowAccountState.SigningIn => Frozen(0x3B, 0x82, 0xF6),      // blue
+        MidiShowAccountState.Limited => Frozen(0xE5, 0xA8, 0x00),        // amber
+        MidiShowAccountState.RiskControlled => Frozen(0xE5, 0xA8, 0x00), // amber
+        MidiShowAccountState.AuthFailed => Frozen(0xE0, 0x4F, 0x4F),     // red
+        _ => Frozen(0x9A, 0x9A, 0x9A)                                    // grey
+    };
+
+    public bool CanCopyCookies => State == MidiShowAccountState.Active;
+
+    private static System.Windows.Media.Brush Frozen(byte r, byte g, byte b)
+    {
+        var brush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(r, g, b));
+        brush.Freeze();
+        return brush;
+    }
 }

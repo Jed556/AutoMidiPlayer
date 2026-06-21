@@ -94,8 +94,16 @@ public static class AppPaths
 
     /// <summary>
     /// Path to the encrypted MidiShow account credentials file (per-user, DPAPI protected).
+    /// Legacy single-account store; superseded by <see cref="MidiShowAccountsPath"/> and only
+    /// read once for migration.
     /// </summary>
     public static readonly string MidiShowCredentialsPath = Path.Combine(AppDataDirectory, "midishow.cred");
+
+    /// <summary>
+    /// Path to the encrypted MidiShow account pool file (per-user, DPAPI protected). Holds the
+    /// list of configured accounts (password- or cookie-based) used for download rotation.
+    /// </summary>
+    public static readonly string MidiShowAccountsPath = Path.Combine(AppDataDirectory, "midishow.accounts");
 
     /// <summary>
     /// Ensures the app data directory exists
