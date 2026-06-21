@@ -275,6 +275,22 @@
                                       IsChecked="{Binding IsAddingCookie}"
                                       Margin="0,0,0,10"/>
 
+                            <!-- Inline validation / error (the popup covers the snackbar area) -->
+                            <Border Margin="0,0,0,10"
+                                    Padding="10,8"
+                                    CornerRadius="6"
+                                    Background="#33E04F4F"
+                                    BorderBrush="#E04F4F"
+                                    BorderThickness="1"
+                                    Visibility="{Binding HasAddAccountError, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="ErrorCircle24" FontSize="15" Foreground="#E04F4F"
+                                                   VerticalAlignment="Top" Margin="0,1,8,0"/>
+                                    <TextBlock Text="{Binding AddAccountError}" Foreground="#F2B8B8"
+                                               TextWrapping="Wrap" FontSize="12.5" MaxWidth="270"/>
+                                </StackPanel>
+                            </Border>
+
                             <!-- Password mode -->
                             <StackPanel Visibility="{Binding IsAddingPassword, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
                                 <ui:TextBox Margin="0,0,0,8"
@@ -321,12 +337,17 @@
                                 <ui:Button Appearance="Primary"
                                            HorizontalAlignment="Stretch"
                                            Padding="0,9"
-                                           IsEnabled="{Binding IsNotBusy}"
+                                           IsEnabled="{Binding IsNotAddingAccount}"
                                            Command="{s:Action AddPasswordAccount}">
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                        <ui:SymbolIcon Symbol="PersonAdd24" FontSize="15" Margin="0,0,6,0"/>
-                                        <TextBlock Text="Add account"/>
-                                    </StackPanel>
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                                                    Visibility="{Binding IsAddingAccount, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                                            <ui:SymbolIcon Symbol="PersonAdd24" FontSize="15" Margin="0,0,6,0"/>
+                                            <TextBlock Text="Add account"/>
+                                        </StackPanel>
+                                        <ui:ProgressRing IsIndeterminate="True" Width="18" Height="18"
+                                                         Visibility="{Binding IsAddingAccount, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                                    </Grid>
                                 </ui:Button>
 
                                 <Expander Margin="0,12,0,0"
@@ -367,12 +388,17 @@
                                 <ui:Button Appearance="Primary"
                                            HorizontalAlignment="Stretch"
                                            Padding="0,9"
-                                           IsEnabled="{Binding IsNotBusy}"
+                                           IsEnabled="{Binding IsNotAddingAccount}"
                                            Command="{s:Action AddCookieAccount}">
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                        <ui:SymbolIcon Symbol="PersonAdd24" FontSize="15" Margin="0,0,6,0"/>
-                                        <TextBlock Text="Add account"/>
-                                    </StackPanel>
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                                                    Visibility="{Binding IsAddingAccount, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                                            <ui:SymbolIcon Symbol="PersonAdd24" FontSize="15" Margin="0,0,6,0"/>
+                                            <TextBlock Text="Add account"/>
+                                        </StackPanel>
+                                        <ui:ProgressRing IsIndeterminate="True" Width="18" Height="18"
+                                                         Visibility="{Binding IsAddingAccount, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                                    </Grid>
                                 </ui:Button>
 
                                 <Expander Margin="0,12,0,0"

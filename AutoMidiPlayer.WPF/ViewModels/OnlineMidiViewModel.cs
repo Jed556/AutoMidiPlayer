@@ -112,9 +112,39 @@ public sealed class OnlineMidiViewModel : Screen
         {
             SetAndNotify(ref _isAddingCookie, value);
             NotifyOfPropertyChange(nameof(IsAddingPassword));
+            SetAddAccountError(string.Empty);
         }
     }
     public bool IsAddingPassword => !IsAddingCookie;
+
+    /// <summary>
+    /// Inline validation / error message shown inside the account flyout. The flyout popup
+    /// covers the snackbar area, so add-account failures are surfaced here instead.
+    /// </summary>
+    public string AddAccountError { get; private set; } = string.Empty;
+    public bool HasAddAccountError => !string.IsNullOrEmpty(AddAccountError);
+
+    private void SetAddAccountError(string message)
+    {
+        AddAccountError = message;
+        NotifyOfPropertyChange(nameof(AddAccountError));
+        NotifyOfPropertyChange(nameof(HasAddAccountError));
+    }
+
+    /// <summary>
+    /// True while an add-account sign-in is in flight. Drives a spinner ON the flyout's Add
+    /// button — NOT the results busy overlay (the sign-in happens inside the popup, so the
+    /// loading belongs there, not over the list behind it).
+    /// </summary>
+    public bool IsAddingAccount { get; private set; }
+    public bool IsNotAddingAccount => !IsAddingAccount;
+
+    private void SetAddingAccount(bool adding)
+    {
+        IsAddingAccount = adding;
+        NotifyOfPropertyChange(nameof(IsAddingAccount));
+        NotifyOfPropertyChange(nameof(IsNotAddingAccount));
+    }
 
     /// <summary>When true the password is shown as plain text (eye toggle).</summary>
     public bool IsPasswordRevealed { get; private set; }
@@ -218,8 +248,8 @@ public sealed class OnlineMidiViewModel : Screen
 
         Logger.LogStep("MIDISHOW_ADD_ACCOUNT", $"mode=password userLen={username.Length} passLen={password.Length}");
 
-        SetBusy(true);
-        StatusMessage = "Signing in to MidiShow...";
+        SetAddAccountError(string.Empty);
+        SetAddingAccount(true);
         try
         {
             var (ok, message) = await _pool.AddPasswordAsync(username, password);
@@ -233,18 +263,17 @@ public sealed class OnlineMidiViewModel : Screen
             }
             else
             {
-                SnackbarService.Danger("Couldn't add account", message);
+                SetAddAccountError(message);
             }
         }
         catch (Exception ex)
         {
             Logger.LogException(ex);
-            SnackbarService.Danger("Couldn't add account", "An unexpected error occurred. Check your connection.");
+            SetAddAccountError("An unexpected error occurred. Check your connection.");
         }
         finally
         {
-            SetBusy(false);
-            StatusMessage = string.Empty;
+            SetAddingAccount(false);
         }
     }
 
@@ -256,8 +285,8 @@ public sealed class OnlineMidiViewModel : Screen
 
         Logger.LogStep("MIDISHOW_ADD_ACCOUNT", $"mode=cookie labelLen={label.Length} cookieLen={cookies.Length}");
 
-        SetBusy(true);
-        StatusMessage = "Verifying cookies...";
+        SetAddAccountError(string.Empty);
+        SetAddingAccount(true);
         try
         {
             var (ok, message) = await _pool.AddCookieAsync(label, cookies);
@@ -271,18 +300,17 @@ public sealed class OnlineMidiViewModel : Screen
             }
             else
             {
-                SnackbarService.Danger("Couldn't add account", message);
+                SetAddAccountError(message);
             }
         }
         catch (Exception ex)
         {
             Logger.LogException(ex);
-            SnackbarService.Danger("Couldn't add account", "An unexpected error occurred. Check your connection.");
+            SetAddAccountError("An unexpected error occurred. Check your connection.");
         }
         finally
         {
-            SetBusy(false);
-            StatusMessage = string.Empty;
+            SetAddingAccount(false);
         }
     }
 
