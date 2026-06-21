@@ -18,9 +18,9 @@ internal static class SkyKeyboardLayouts
     public static readonly KeyboardLayoutConfig QWERTY_15 = new(
         name: "QWERTY",
         keys: [
-            "n", "m", ",", ".", "/",
-            "h", "j", "k", "l", ";",
             "y", "u", "i", "o", "p",
+            "h", "j", "k", "l", ";",
+            "n", "m", ",", ".", "/",
             ]);
 
     /// <summary>
