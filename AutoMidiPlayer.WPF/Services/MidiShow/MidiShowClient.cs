@@ -255,6 +255,36 @@ public sealed class MidiShowClient : IDisposable
         var title = ExtractTitle(pageHtml);
         var csrf = ExtractMeta(pageHtml, "csrf-token");
 
+        var trackNames = new Dictionary<int, string>();
+        var tracksTableMatch = Regex.Match(pageHtml, "<h2[^>]*>Tracks</h2>.*?<tbody>(.*?)</tbody>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+        if (tracksTableMatch.Success)
+        {
+            var tbody = tracksTableMatch.Groups[1].Value;
+            var rows = Regex.Matches(tbody, "<tr>(.*?)</tr>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+            foreach (Match row in rows)
+            {
+                var cols = Regex.Matches(row.Groups[1].Value, "<td[^>]*>(.*?)</td>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+                if (cols.Count >= 4)
+                {
+                    var trackIdxStr = CleanText(cols[0].Groups[1].Value);
+                    if (int.TryParse(trackIdxStr, out var trackIdx))
+                    {
+                        var instruments = new List<string>();
+                        var smalls = Regex.Matches(cols[3].Groups[1].Value, "<small[^>]*>(.*?)</small>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+                        foreach (Match small in smalls)
+                        {
+                            var inst = CleanText(small.Groups[1].Value);
+                            if (!string.IsNullOrWhiteSpace(inst))
+                                instruments.Add(inst);
+                        }
+                        
+                        if (instruments.Count > 0)
+                            trackNames[trackIdx] = string.Join(", ", instruments);
+                    }
+                }
+            }
+        }
+
         var midElement = Regex.Match(pageHtml, "<[^>]*\\bdata-mid=\"(?<mid>[^\"]+)\"[^>]*>",
             RegexOptions.IgnoreCase | RegexOptions.Singleline);
         if (!midElement.Success)
@@ -292,8 +322,15 @@ public sealed class MidiShowClient : IDisposable
             }, ct);
 
             if (response1.StatusCode == HttpStatusCode.Forbidden)
-                throw new MidiShowException(MidiShowDownloadError.NotAuthenticated,
-                    "MidiShow requires you to be signed in to download.");
+            {
+                var errorBody = await response1.Content.ReadAsStringAsync(ct);
+                Logger.Log($"MidiShow returned 403 Forbidden. Body: {errorBody}");
+
+                if (errorBody.Contains("limit", StringComparison.OrdinalIgnoreCase) || errorBody.Contains("points", StringComparison.OrdinalIgnoreCase) || errorBody.Contains("insufficient", StringComparison.OrdinalIgnoreCase) || errorBody.Contains("vip", StringComparison.OrdinalIgnoreCase))
+                    throw new MidiShowException(MidiShowDownloadError.NotAuthenticated, "MidiShow download limit reached or insufficient points.");
+                
+                throw new MidiShowException(MidiShowDownloadError.NotAuthenticated, "MidiShow requires you to be signed in to download.");
+            }
 
             if (!response1.IsSuccessStatusCode)
                 throw new MidiShowException(MidiShowDownloadError.Network,
@@ -340,7 +377,7 @@ public sealed class MidiShowClient : IDisposable
             Buffer.BlockCopy(segmentB, 0, midi, segmentA.Length, segmentB.Length);
             Buffer.BlockCopy(segmentC, 0, midi, segmentA.Length + segmentB.Length, segmentC.Length);
 
-            return new MidiShowDownloadResult(midi, title);
+            return new MidiShowDownloadResult(midi, title, trackNames.Count > 0 ? trackNames : null);
         }
         catch (MidiShowException)
         {
@@ -379,7 +416,8 @@ public sealed class MidiShowClient : IDisposable
         }, ct);
 
         response.EnsureSuccessStatusCode();
-        var html = await response.Content.ReadAsStringAsync(ct);
+        var bytes = await response.Content.ReadAsByteArrayAsync(ct);
+        var html = System.Text.Encoding.UTF8.GetString(bytes);
 
         if (cache)
         {

@@ -103,7 +103,7 @@ public sealed class MidiShowDetails
 /// <summary>
 /// Result of a download attempt: the raw MIDI bytes and a suggested title.
 /// </summary>
-public sealed record MidiShowDownloadResult(byte[] Data, string Title);
+public sealed record MidiShowDownloadResult(byte[] Data, string Title, System.Collections.Generic.Dictionary<int, string>? TrackNames = null);
 
 /// <summary>
 /// Reasons a download may fail, surfaced to the UI for a friendly message.

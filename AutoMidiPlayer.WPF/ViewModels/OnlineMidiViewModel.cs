@@ -814,7 +814,7 @@ public sealed class OnlineMidiViewModel : Screen
             path = Path.Combine(directory, $"{baseName} ({counter++}).mid");
         }
 
-        await NormalizeToFileAsync(result.Data, path);
+        await NormalizeToFileAsync(result.Data, path, result.TrackNames);
         return path;
     }
 
@@ -823,7 +823,7 @@ public sealed class OnlineMidiViewModel : Screen
     /// default reader's NotEnoughBytesException). Read leniently and re-write a clean,
     /// standard MIDI so the rest of the app accepts it without the "Bad MIDI" dialog.
     /// </summary>
-    private static Task NormalizeToFileAsync(byte[] data, string path) => Task.Run(() =>
+    private static Task NormalizeToFileAsync(byte[] data, string path, System.Collections.Generic.Dictionary<int, string>? trackNames = null) => Task.Run(() =>
     {
         try
         {
@@ -832,12 +832,40 @@ public sealed class OnlineMidiViewModel : Screen
                 NotEnoughBytesPolicy = NotEnoughBytesPolicy.Ignore,
                 InvalidChunkSizePolicy = InvalidChunkSizePolicy.Ignore,
                 UnexpectedTrackChunksCountPolicy = UnexpectedTrackChunksCountPolicy.Ignore,
-                ExtraTrackChunkPolicy = ExtraTrackChunkPolicy.Read
+                ExtraTrackChunkPolicy = ExtraTrackChunkPolicy.Read,
+                TextEncoding = System.Text.Encoding.UTF8
+            };
+
+            var writeSettings = new WritingSettings
+            {
+                TextEncoding = System.Text.Encoding.UTF8
             };
 
             using var stream = new MemoryStream(data);
             var midi = Melanchall.DryWetMidi.Core.MidiFile.Read(stream, lenient);
-            midi.Write(path, overwriteFile: true);
+            
+            if (trackNames != null && trackNames.Count > 0)
+            {
+                var trackChunks = midi.GetTrackChunks().ToList();
+                for (int i = 0; i < trackChunks.Count; i++)
+                {
+                    if (trackNames.TryGetValue(i, out var name))
+                    {
+                        var track = trackChunks[i];
+                        var existingInstName = track.Events.OfType<Melanchall.DryWetMidi.Core.InstrumentNameEvent>().FirstOrDefault();
+                        if (existingInstName != null)
+                        {
+                            existingInstName.Text = name;
+                        }
+                        else
+                        {
+                            track.Events.Insert(0, new Melanchall.DryWetMidi.Core.InstrumentNameEvent(name));
+                        }
+                    }
+                }
+            }
+
+            midi.Write(path, overwriteFile: true, settings: writeSettings);
         }
         catch
         {

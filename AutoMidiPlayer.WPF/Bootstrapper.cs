@@ -45,6 +45,8 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
 
     public Bootstrapper()
     {
+        System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+
         // Suppress benign Storyboard animation warnings from WPF-UI (idk why this happens XD)
         System.Diagnostics.PresentationTraceSources.DataBindingSource.Switch.Level = System.Diagnostics.SourceLevels.Critical;
         System.Diagnostics.PresentationTraceSources.ResourceDictionarySource.Switch.Level = System.Diagnostics.SourceLevels.Critical;
