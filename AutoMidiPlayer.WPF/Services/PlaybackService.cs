@@ -56,6 +56,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
     private bool _loggedSongContextForNotes;
     private bool _pedalStateNeedsResync;
     private readonly Dictionary<int, (int SourceNote, int OutputNote, string KeyName, int Velocity, long StartMs)> _activeNotes = new();
+    private readonly Dictionary<(int Channel, int NoteNumber), int> _activeSpeakerNotes = new();
 
     private class PedalState
     {
@@ -267,6 +268,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         playback.InterruptNotesOnStop = true;
         _scheduledEventTicks = 0;
         _activeNotes.Clear();
+        _activeSpeakerNotes.Clear();
         foreach (var pedal in AllPedals) pedal.Clear();
         _loggedSongContextForNotes = false;
         playback.Finished += (_, _) =>
@@ -292,6 +294,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             _playbackStartedAtUtc = DateTime.UtcNow;
             _scheduledEventTicks = 0;
             _activeNotes.Clear();
+            _activeSpeakerNotes.Clear();
             foreach (var pedal in AllPedals) pedal.Clear();
             _loggedSongContextForNotes = false;
 
@@ -607,7 +610,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                 if (ShouldLogPlayedNotes)
                     LogNoteInputOutput("speakers", noteEvent, sourceNote, noteForKeyboard, hasMappedKey, mappedKey);
 
-                _speakers?.SendEvent(CreateOutputNoteEvent(noteEvent, noteForListen));
+                SendToSpeakers(noteEvent, noteForListen);
                 return;
             }
 
@@ -628,7 +631,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                 if (ShouldLogPlayedNotes)
                     LogNoteInputOutput("auto-listen", noteEvent, sourceNote, noteForKeyboard, hasMappedKey, mappedKey);
 
-                _speakers?.SendEvent(CreateOutputNoteEvent(noteEvent, noteForListen));
+                SendToSpeakers(noteEvent, noteForListen);
                 return;
             }
 
@@ -726,6 +729,66 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             },
             _ => source
         };
+    }
+
+    private void SendToSpeakers(NoteEvent source, int noteForListen)
+    {
+        if (_speakers is null)
+            return;
+
+        var outputEvent = CreateOutputNoteEvent(source, noteForListen);
+        
+        if (outputEvent is NoteOnEvent noteOn && noteOn.Velocity > 0)
+        {
+            var key = (noteOn.Channel, noteOn.NoteNumber);
+            _activeSpeakerNotes[key] = _activeSpeakerNotes.GetValueOrDefault(key) + 1;
+            _speakers.SendEvent(outputEvent);
+        }
+        else if (outputEvent is NoteOffEvent noteOff)
+        {
+            var key = (noteOff.Channel, noteOff.NoteNumber);
+            if (_activeSpeakerNotes.TryGetValue(key, out var count))
+            {
+                if (count > 1)
+                {
+                    _activeSpeakerNotes[key] = count - 1;
+                }
+                else
+                {
+                    _activeSpeakerNotes.Remove(key);
+                    _speakers.SendEvent(outputEvent);
+                }
+            }
+            else
+            {
+                // Fallback: send it anyway if not tracked
+                _speakers.SendEvent(outputEvent);
+            }
+        }
+        else if (outputEvent is NoteOnEvent noteOnZero && noteOnZero.Velocity == 0)
+        {
+            var key = (noteOnZero.Channel, noteOnZero.NoteNumber);
+            if (_activeSpeakerNotes.TryGetValue(key, out var count))
+            {
+                if (count > 1)
+                {
+                    _activeSpeakerNotes[key] = count - 1;
+                }
+                else
+                {
+                    _activeSpeakerNotes.Remove(key);
+                    _speakers.SendEvent(outputEvent);
+                }
+            }
+            else
+            {
+                _speakers.SendEvent(outputEvent);
+            }
+        }
+        else
+        {
+            _speakers.SendEvent(outputEvent);
+        }
     }
 
     private bool HandleGameNotRunning(bool isPlaybackStartAttempt)
@@ -867,6 +930,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         _loggedSongContextForNotes = false;
         _scheduledEventTicks = 0;
         _activeNotes.Clear();
+        _activeSpeakerNotes.Clear();
         foreach (var pedal in AllPedals) pedal.Clear();
 
         Logger.LogStep(
