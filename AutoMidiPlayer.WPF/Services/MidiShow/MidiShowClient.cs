@@ -748,19 +748,36 @@ public sealed class MidiShowClient : IDisposable
             var rating = Regex.Match(body, "font-weight-semi-bold\">\\s*(?<v>[\\d.]+)", RegexOptions.IgnoreCase).Groups["v"].Value;
             var ratingCount = Regex.Match(body, "(?<v>\\d+)\\s+ratings?", RegexOptions.IgnoreCase).Groups["v"].Value;
 
+            // Extract file size (e.g., 29.73 KB)
+            var fileSize = Regex.Match(body, "(?<v>[\\d.]+\\s*[KMG]B)", RegexOptions.IgnoreCase).Groups["v"].Value;
+
+            var trackCount = ExtractTitled(body, "Tracks");
+            if (string.IsNullOrEmpty(trackCount)) trackCount = "0";
+
+            var instruments = ExtractTitled(body, "Instrument count");
+            if (string.IsNullOrEmpty(instruments)) instruments = "0";
+
+            var finalFileSize = ExtractTitled(body, "File size") ?? fileSize;
+
+            var uploadDate = Regex.Match(body, @"Uploaded on\s+(?<v>[A-Za-z]+\s+\d{1,2},\s+\d{4})", RegexOptions.IgnoreCase).Groups["v"].Value;
+
             items.Add(new MidiShowItem
             {
                 Id = id,
                 PageUrl = href,
                 Title = title,
                 Uploader = uploader,
+                UploadDate = string.IsNullOrEmpty(uploadDate) ? null : uploadDate,
                 ThumbnailUrl = thumb,
                 Standard = std.Success ? std.Groups["v"].Value.ToUpperInvariant() : null,
-                Duration = ExtractTitled(body, "Duration") ?? "",
-                TrackCount = ExtractTitled(body, "Track Count") ?? "0",
+                Duration = ExtractTitled(body, "Duration") ?? Regex.Match(body, "(?<v>\\d{2}:\\d{2})").Groups["v"].Value,
+                TrackCount = trackCount,
+                InstrumentCount = instruments,
+                FileSize = string.IsNullOrEmpty(finalFileSize) ? null : finalFileSize,
                 Downloads = ExtractDownloads(body) ?? "0",
                 Category = category,
                 Tags = string.Join(" · ", tags),
+                TagsList = tags,
                 Description = description,
                 Rating = string.IsNullOrEmpty(rating) ? "0.0" : rating,
                 RatingCount = string.IsNullOrEmpty(ratingCount) ? "0" : ratingCount

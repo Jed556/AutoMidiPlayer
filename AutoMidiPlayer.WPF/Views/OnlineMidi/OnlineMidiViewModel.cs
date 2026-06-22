@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -465,6 +466,19 @@ public sealed class OnlineMidiViewModel : Screen
             ? $"Searching \"{SearchQuery.Trim()}\"..."
             : (string.IsNullOrEmpty(SelectedCategorySlug) ? "Loading MIDI files..." : $"Loading {SelectedCategoryName}...");
 
+        Results.Clear();
+        for (int i = 0; i < 8; i++)
+        {
+            Results.Add(new MidiShowItem 
+            { 
+                Id = $"skeleton_{i}", 
+                IsLoading = true,
+                Description = "...",
+                Category = "...",
+                Tags = "..."
+            });
+        }
+
         try
         {
             var items = isSearch
@@ -487,7 +501,10 @@ public sealed class OnlineMidiViewModel : Screen
 
             StatusMessage = items.Count == 0
                 ? $"No MIDI files found{scope}."
-                : $"Showing {items.Count} result{(items.Count == 1 ? "" : "s")}{scope} (page {CurrentPage}).";
+                : $"Showing {items.Count} result{(items.Count == 1 ? "" : "s")}{scope}.";
+
+            // Fetching extended details sequentially is no longer necessary since all data 
+            // is available in the summary listing HTML.
         }
         catch (OperationCanceledException)
         {
@@ -499,6 +516,8 @@ public sealed class OnlineMidiViewModel : Screen
             Logger.LogException(ex);
             StatusMessage = "Could not reach MidiShow. Check your connection and try again.";
             SnackbarService.Danger("MidiShow", "Could not load the MIDI list.");
+            if (_loadCts == cts)
+                Results.Clear();
         }
         finally
         {
@@ -511,6 +530,8 @@ public sealed class OnlineMidiViewModel : Screen
             }
         }
     }
+
+
 
     private void SetBusy(bool busy)
     {

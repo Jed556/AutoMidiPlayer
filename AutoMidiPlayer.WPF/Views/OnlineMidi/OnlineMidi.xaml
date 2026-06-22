@@ -10,6 +10,7 @@
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
     xmlns:midishow="clr-namespace:AutoMidiPlayer.WPF.Services.MidiShow"
     xmlns:converters="clr-namespace:AutoMidiPlayer.WPF.Converters"
+    xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
     d:DataContext="{d:DesignInstance Type=viewModels:OnlineMidiViewModel}">
 
     <UserControl.Resources>
@@ -31,21 +32,7 @@
             <Setter Property="Margin" Value="0,0,8,8"/>
         </Style>
 
-        <!-- Result card with a subtle hover highlight -->
-        <Style x:Key="ResultCard" TargetType="Border">
-            <Setter Property="Margin" Value="0,0,0,8"/>
-            <Setter Property="Padding" Value="14"/>
-            <Setter Property="CornerRadius" Value="10"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource ControlElevationBorderBrush}"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
-                    <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
+
     </UserControl.Resources>
 
     <Grid>
@@ -590,113 +577,7 @@
                 </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
                         <DataTemplate DataType="{x:Type midishow:MidiShowItem}">
-                            <Border Style="{StaticResource ResultCard}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-
-                                    <!-- Circular thumbnail -->
-                                    <Grid Grid.Column="0"
-                                          Width="50" Height="50"
-                                          VerticalAlignment="Top"
-                                          Margin="0,0,14,0">
-                                        <Ellipse Fill="{ui:ThemeResource ControlFillColorSecondaryBrush}"/>
-                                        <Ellipse>
-                                            <Ellipse.Fill>
-                                                <ImageBrush ImageSource="{Binding ThumbnailUrl, Converter={StaticResource UrlToCachedImageConverter}}" Stretch="UniformToFill"/>
-                                            </Ellipse.Fill>
-                                        </Ellipse>
-                                        <ui:SymbolIcon Symbol="MusicNote224" FontSize="18" Opacity="0.5"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                       Visibility="{Binding HasThumbnail, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
-                                    </Grid>
-
-                                    <!-- Content -->
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Title}"
-                                                   FontWeight="SemiBold" FontSize="15"
-                                                   TextTrimming="CharacterEllipsis"/>
-
-                                        <!-- meta row -->
-                                        <WrapPanel Margin="0,5,0,0">
-                                            <StackPanel Orientation="Horizontal" Margin="0,0,14,0" VerticalAlignment="Center">
-                                                <ui:SymbolIcon Symbol="PersonCircle24" FontSize="12" Opacity="0.55" Margin="0,0,4,0"/>
-                                                <TextBlock Text="{Binding Uploader, FallbackValue=Unknown}" Opacity="0.7" FontSize="12"/>
-                                            </StackPanel>
-                                            <StackPanel Orientation="Horizontal" Margin="0,0,14,0" VerticalAlignment="Center"
-                                                        Visibility="{Binding HasRating, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                                                <ui:SymbolIcon Symbol="StarEmphasis24" FontSize="12" Foreground="#E5A800" Margin="0,0,4,0"/>
-                                                <TextBlock Text="{Binding RatingDisplay}" Opacity="0.7" FontSize="12"/>
-                                            </StackPanel>
-                                            <StackPanel Orientation="Horizontal" Margin="0,0,14,0" VerticalAlignment="Center"
-                                                        Visibility="{Binding HasDownloads, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                                                <ui:SymbolIcon Symbol="ArrowDownload16" FontSize="12" Opacity="0.55" Margin="0,0,4,0"/>
-                                                <TextBlock Text="{Binding Downloads}" Opacity="0.7" FontSize="12"/>
-                                            </StackPanel>
-                                            <StackPanel Orientation="Horizontal" Margin="0,0,14,0" VerticalAlignment="Center"
-                                                        Visibility="{Binding HasDuration, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                                                <ui:SymbolIcon Symbol="Clock12" FontSize="12" Opacity="0.55" Margin="0,0,4,0"/>
-                                                <TextBlock Text="{Binding Duration}" Opacity="0.7" FontSize="12"/>
-                                            </StackPanel>
-                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
-                                                        Visibility="{Binding HasTrackCount, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                                                <ui:SymbolIcon Symbol="Layer24" FontSize="12" Opacity="0.55" Margin="0,0,4,0"/>
-                                                <TextBlock Text="{Binding TrackCount}" Opacity="0.7" FontSize="12"/>
-                                            </StackPanel>
-                                        </WrapPanel>
-
-                                        <!-- description -->
-                                        <TextBlock Text="{Binding Description}"
-                                                   Margin="0,6,0,0" Opacity="0.6" FontSize="12"
-                                                   TextWrapping="NoWrap"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   Visibility="{Binding HasDescription, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
-
-                                        <!-- category + tags -->
-                                        <WrapPanel Margin="0,8,0,0">
-                                            <Border Padding="9,2" CornerRadius="9" Margin="0,0,8,0" VerticalAlignment="Center"
-                                                    Background="{DynamicResource SystemAccentColorPrimaryBrush}"
-                                                    Visibility="{Binding HasCategory, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                                                <TextBlock Text="{Binding Category}" FontSize="10.5" Foreground="White"/>
-                                            </Border>
-                                            <TextBlock Text="{Binding Tags}" Opacity="0.5" FontSize="11.5" VerticalAlignment="Center"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       Visibility="{Binding HasTags, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
-                                        </WrapPanel>
-                                    </StackPanel>
-
-                                    <!-- Right: standard badge (top) + actions (vertically centred) -->
-                                    <Grid Grid.Column="2" Margin="14,0,0,0">
-                                        <Border VerticalAlignment="Top" HorizontalAlignment="Right"
-                                                Padding="6,1" CornerRadius="4"
-                                                Background="{ui:ThemeResource ControlFillColorSecondaryBrush}"
-                                                Visibility="{Binding HasStandard, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                                            <TextBlock Text="{Binding Standard}" FontSize="10" Opacity="0.7"/>
-                                        </Border>
-                                        <StackPanel Orientation="Horizontal"
-                                                    VerticalAlignment="Center" HorizontalAlignment="Right">
-                                            <ui:Button Appearance="Secondary" Padding="10,8" Margin="0,0,6,0"
-                                                       ToolTip="View details (description, BPM, tracks, notes…)"
-                                                       Click="Details_Click">
-                                                <ui:SymbolIcon Symbol="DocumentText24" FontSize="17"/>
-                                            </ui:Button>
-                                            <ui:Button Appearance="Secondary" Padding="10,8" Margin="0,0,6,0"
-                                                       ToolTip="Preview — play without adding to Songs"
-                                                       Click="Preview_Click">
-                                                <ui:SymbolIcon Symbol="PlayCircle24" FontSize="17"/>
-                                            </ui:Button>
-                                            <ui:Button Appearance="Primary" Padding="11,8"
-                                                       ToolTip="Download to your Songs library"
-                                                       Click="AddToSongs_Click">
-                                                <ui:SymbolIcon Symbol="ArrowDownload16" FontSize="18"/>
-                                            </ui:Button>
-                                        </StackPanel>
-                                    </Grid>
-                                </Grid>
-                            </Border>
+                            <controls:DiscoveryCard DetailsClick="Details_Click" PreviewClick="Preview_Click" AddToSongsClick="AddToSongs_Click"/>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
@@ -715,17 +596,7 @@
                            HorizontalAlignment="Center"/>
             </StackPanel>
 
-            <!-- Busy overlay -->
-            <Border Background="{ui:ThemeResource ApplicationBackgroundBrush}"
-                    Opacity="0.5"
-                    IsHitTestVisible="False"
-                    Visibility="{Binding IsBusy, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
-            <ui:ProgressRing IsIndeterminate="True"
-                             Width="44"
-                             Height="44"
-                             VerticalAlignment="Center"
-                             HorizontalAlignment="Center"
-                             Visibility="{Binding IsBusy, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+
 
             <!-- ============ Detail overlay ============ -->
             <Border Background="{ui:ThemeResource ApplicationBackgroundBrush}"

@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
 namespace AutoMidiPlayer.WPF.Services.MidiShow;
 
 /// <summary>
@@ -7,6 +11,9 @@ public sealed class MidiShowItem
 {
     /// <summary>Numeric MidiShow id (from the <c>data-key</c> attribute).</summary>
     public string Id { get; init; } = string.Empty;
+
+    /// <summary>Indicates if this item is a loading skeleton.</summary>
+    public bool IsLoading { get; init; } = false;
 
     /// <summary>Absolute URL of the MIDI detail page (used to download).</summary>
     public string PageUrl { get; init; } = string.Empty;
@@ -38,6 +45,9 @@ public sealed class MidiShowItem
     /// <summary>Tags joined for display, e.g. "your name · sparkle" ("" when none).</summary>
     public string Tags { get; init; } = "";
 
+    /// <summary>The individual tags as a list for rendering separate chips.</summary>
+    public IReadOnlyList<string> TagsList { get; init; } = Array.Empty<string>();
+
     /// <summary>Short description / introduction snippet ("" when none).</summary>
     public string Description { get; init; } = "";
 
@@ -56,6 +66,39 @@ public sealed class MidiShowItem
     public bool HasTags => !string.IsNullOrEmpty(Tags);
     public bool HasDescription => !string.IsNullOrEmpty(Description);
     public bool HasRating => RatingCount is not (null or "" or "0");
+    
+
+    public string? InstrumentCount { get; init; }
+    public bool HasInstrumentCount => InstrumentCount is not (null or "" or "0");
+
+    public string? FileSize { get; init; }
+    public bool HasFileSize => !string.IsNullOrEmpty(FileSize);
+
+    public string? UploadDate { get; init; }
+    public bool HasUploadDate => !string.IsNullOrEmpty(UploadDate);
+
+    public string? UploadDateDisplay => string.IsNullOrEmpty(UploadDate) ? null : 
+        (DateTime.TryParse(UploadDate, out var dt) ? dt.ToString("MM/dd/yyyy") : UploadDate);
+
+    public string? UploadDateTooltip => string.IsNullOrEmpty(UploadDate) ? null :
+        (DateTime.TryParse(UploadDate, out var dt) ? $"Uploaded on {dt:MMMM d, yyyy}" : $"Uploaded on {UploadDate}");
+
+    public string TrackCountTooltip => (TrackCount == "1") ? "1 Track" : $"{TrackCount} Tracks";
+    public string InstrumentCountTooltip => (InstrumentCount == "1") ? "1 Instrument" : $"{InstrumentCount} Instruments";
+    
+    public string RatingTooltip
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(Rating) || Rating == "0.0") return "Unrated";
+            var people = RatingCount == "1" ? "1 person" : $"{RatingCount} people";
+            return $"Rated {Rating} stars by {people}";
+        }
+    }
+    
+    public string DurationTooltip => $"Duration: {Duration}";
+    public string UploaderTooltip => $"By {Uploader}";
+    public string FileSizeTooltip => $"File Size: {FileSize}";
 
     /// <summary>Rating shown as "5.0 (8)".</summary>
     public string RatingDisplay => $"{Rating} ({RatingCount})";
