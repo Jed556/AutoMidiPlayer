@@ -117,6 +117,18 @@ public static class MusicConstants
         KeyOffsets.TryGetValue(keyOffset, out var note) ? note : "C3";
 
     /// <summary>
+    /// Formats a MIDI note number (0-127) to its string representation (e.g., C4, D#5)
+    /// </summary>
+    public static string FormatNoteName(int noteNumber)
+    {
+        var names = new[] { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+        var normalized = Math.Clamp(noteNumber, 0, 127);
+        var pitch = names[normalized % 12];
+        var octave = (normalized / 12) - 1;
+        return $"{pitch}{octave}";
+    }
+
+    /// <summary>
     /// Format key offset for display (e.g., "+5 (F3)" or "-3 (A2)")
     /// </summary>
     public static string FormatKeyDisplay(int keyOffset, bool includeDefault = false)

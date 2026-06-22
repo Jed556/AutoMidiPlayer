@@ -602,7 +602,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                     return;
 
                 if (isNoteOn)
-                    NotePlayed?.Invoke(this, new NotePlayedEventArgs(sourceNote));
+                    NotePlayed?.Invoke(this, new NotePlayedEventArgs(sourceNote, Controls.CurrentTime.Ticks / 10));
 
                 if (ShouldLogPlayedNotes)
                     LogNoteInputOutput("speakers", noteEvent, sourceNote, noteForKeyboard, hasMappedKey, mappedKey);
@@ -623,7 +623,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                     return;
 
                 if (isNoteOn)
-                    NotePlayed?.Invoke(this, new NotePlayedEventArgs(sourceNote));
+                    NotePlayed?.Invoke(this, new NotePlayedEventArgs(sourceNote, Controls.CurrentTime.Ticks / 10));
 
                 if (ShouldLogPlayedNotes)
                     LogNoteInputOutput("auto-listen", noteEvent, sourceNote, noteForKeyboard, hasMappedKey, mappedKey);
@@ -660,7 +660,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                     if (!hasMappedKey)
                         return;
 
-                    NotePlayed?.Invoke(this, new NotePlayedEventArgs(sourceNote));
+                    NotePlayed?.Invoke(this, new NotePlayedEventArgs(sourceNote, Controls.CurrentTime.Ticks / 10));
 
                     if (ShouldLogPlayedNotes)
                         LogNoteInputOutput("game", noteEvent, sourceNote, noteForKeyboard, hasMappedKey, mappedKey);
@@ -1057,15 +1057,6 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         SongSettings.UpdateAutoCorrectState();
     }
 
-    private static string FormatNoteName(int noteNumber)
-    {
-        var names = new[] { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
-        var normalized = Math.Clamp(noteNumber, 0, 127);
-        var pitch = names[normalized % 12];
-        var octave = (normalized / 12) - 1;
-        return $"{pitch}{octave}";
-    }
-
     private long GetPlaybackElapsedMs()
     {
         if (_playbackStartedAtUtc == DateTime.MinValue)
@@ -1111,7 +1102,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         var drift = actualMs - scheduledMs;
 
         Logger.LogScheduler(
-            $"[{actualMs}ms] Note {FormatNoteName(sourceNote)} scheduled={scheduledMs}ms actual={actualMs}ms drift={(drift >= 0 ? "+" : string.Empty)}{drift}ms");
+            $"[{actualMs}ms] Note {MusicConstants.FormatNoteName(sourceNote)} scheduled={scheduledMs}ms actual={actualMs}ms drift={(drift >= 0 ? "+" : string.Empty)}{drift}ms");
     }
 
     private void LogNoteInputOutput(string mode, NoteEvent noteEvent, int sourceNote, int outputNote, bool hasMappedKey, VirtualKeyCode mappedKey)
@@ -1119,8 +1110,8 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         EnsureNoteSongContextLogged();
 
         var keyName = hasMappedKey ? mappedKey.ToString() : "<unmapped>";
-        var source = FormatNoteName(sourceNote);
-        var output = FormatNoteName(outputNote);
+        var source = MusicConstants.FormatNoteName(sourceNote);
+        var output = MusicConstants.FormatNoteName(outputNote);
         var eventType = noteEvent.EventType == MidiEventType.NoteOn && noteEvent.Velocity > 0
             ? "NoteOn"
             : "NoteOff";
@@ -1146,7 +1137,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         {
             _activeNotes.Remove(outputNote);
             var pressLength = Math.Max(0, GetPlaybackElapsedMs() - active.StartMs);
-            Logger.LogInputOutput($"[{pressLength}ms] {FormatNoteName(active.SourceNote)} -> {FormatNoteName(active.OutputNote)} Key={active.KeyName} Vel={active.Velocity} mode={mode}");
+            Logger.LogInputOutput($"[{pressLength}ms] {MusicConstants.FormatNoteName(active.SourceNote)} -> {MusicConstants.FormatNoteName(active.OutputNote)} Key={active.KeyName} Vel={active.Velocity} mode={mode}");
             return;
         }
 
@@ -1174,7 +1165,8 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 /// <summary>
 /// Event args for note played event
 /// </summary>
-public class NotePlayedEventArgs(int noteNumber) : EventArgs
+public class NotePlayedEventArgs(int noteNumber, long currentTimeUs) : EventArgs
 {
     public int NoteNumber { get; } = noteNumber;
+    public long CurrentTimeUs { get; } = currentTimeUs;
 }

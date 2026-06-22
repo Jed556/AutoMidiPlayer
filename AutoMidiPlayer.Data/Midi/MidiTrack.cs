@@ -18,7 +18,52 @@ public class MidiTrack : INotifyPropertyChanged
     private bool _isActive;
     private int _playableNotes;
     private DispatcherTimer? _glowTimer;
+    private bool _isExpanded;
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        set
+        {
+            if (_isExpanded != value)
+            {
+                _isExpanded = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public void ToggleExpanded()
+    {
+        IsExpanded = !IsExpanded;
+    }
+
+    public int ProgramId { get; private set; }
+    public string AvgPitchDisplay { get; private set; } = string.Empty;
+    public string TimeRangeDisplay { get; private set; } = string.Empty;
+    public string PitchRangeDisplay { get; private set; } = string.Empty;
+    public double TimeStartRatio { get; private set; }
+    public double TimeDurationRatio { get; private set; }
+    public double TimeEndRatio { get; private set; }
+    public double PitchStartRatio { get; private set; }
+    public double PitchRangeRatio { get; private set; }
+    public double PitchEndRatio { get; private set; }
+    
+    private int _displayTrackNumber;
+    public int DisplayTrackNumber
+    {
+        get => _displayTrackNumber;
+        set
+        {
+            if (_displayTrackNumber != value)
+            {
+                _displayTrackNumber = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     private HashSet<int>? _noteNumbers; // Cached note numbers for fast lookup
+    private Dictionary<int, List<(long StartUs, long EndUs)>>? _noteTimingsUs;
     private const int GlowDurationMs = 150; // How long the glow stays on
 
     // Black keys (sharps/flats) in MIDI note numbers mod 12: C#, D#, F#, G#, A#
@@ -67,6 +112,7 @@ public class MidiTrack : INotifyPropertyChanged
                 else
                 {
                     int progNum = programChange.ProgramNumber;
+                    ProgramId = progNum;
                     if (progNum >= 0 && progNum < GeneralMidiInstruments.Length)
                     {
                         InstrumentName = GeneralMidiInstruments[progNum];
@@ -92,6 +138,7 @@ public class MidiTrack : INotifyPropertyChanged
                         if (globalProgramChange != null)
                         {
                             int progNum = globalProgramChange.ProgramNumber;
+                            ProgramId = progNum;
                             if (progNum >= 0 && progNum < GeneralMidiInstruments.Length)
                             {
                                 InstrumentName = GeneralMidiInstruments[progNum];
@@ -103,16 +150,32 @@ public class MidiTrack : INotifyPropertyChanged
         }
 
         // Calculate statistics
-        CalculateStatistics();
+        CalculateStatistics(file);
     }
 
-    private void CalculateStatistics()
+    private void CalculateStatistics(Melanchall.DryWetMidi.Core.MidiFile file)
     {
         var notes = Track.GetNotes().ToList();
         NotesCount = notes.Count;
-
         // Cache note numbers for fast lookup during playback
         _noteNumbers = notes.Select(n => (int)n.NoteNumber).ToHashSet();
+
+        // Precalculate note timings in microseconds for accurate UI glow
+        var tempoMap = file?.GetTempoMap() ?? TempoMap.Default;
+        _noteTimingsUs = new Dictionary<int, List<(long StartUs, long EndUs)>>();
+        foreach (var note in notes)
+        {
+            var pitch = (int)note.NoteNumber;
+            if (!_noteTimingsUs.TryGetValue(pitch, out var timings))
+            {
+                timings = new List<(long, long)>();
+                _noteTimingsUs[pitch] = timings;
+            }
+            
+            var startUs = note.TimeAs<MetricTimeSpan>(tempoMap).TotalMicroseconds;
+            var endUs = Melanchall.DryWetMidi.Interaction.TimeConverter.ConvertTo<MetricTimeSpan>(note.Time + note.Length, tempoMap).TotalMicroseconds;
+            timings.Add((startUs, endUs));
+        }
 
         if (NotesCount == 0)
         {
@@ -135,6 +198,43 @@ public class MidiTrack : INotifyPropertyChanged
         var averageOccurrence = (double)NotesCount / noteGroups.Count;
         var frequentNotes = noteGroups.Where(g => g.Count() > averageOccurrence).Sum(g => g.Count());
         FrequentNotesRatio = (double)frequentNotes / NotesCount * 100;
+
+        // Expanded Accordion Statistics
+        var firstNote = notes.OrderBy(n => n.Time).FirstOrDefault();
+        var lastNote = notes.OrderByDescending(n => n.Time + n.Length).FirstOrDefault();
+        
+        if (firstNote != null && lastNote != null)
+        {
+            var startTime = firstNote.TimeAs<MetricTimeSpan>(tempoMap);
+            var endTime = Melanchall.DryWetMidi.Interaction.TimeConverter.ConvertTo<MetricTimeSpan>(lastNote.Time + lastNote.Length, tempoMap);
+            
+            TimeRangeDisplay = $"{startTime.Minutes:D2}:{startTime.Seconds:D2} - {endTime.Minutes:D2}:{endTime.Seconds:D2}";
+            
+            if (file != null)
+            {
+                var totalTime = file.GetDuration<MetricTimeSpan>();
+                if (totalTime.TotalMicroseconds > 0)
+                {
+                    TimeStartRatio = (double)startTime.TotalMicroseconds / totalTime.TotalMicroseconds;
+                    TimeDurationRatio = (double)(endTime.TotalMicroseconds - startTime.TotalMicroseconds) / totalTime.TotalMicroseconds;
+                    TimeEndRatio = Math.Max(0, 1.0 - TimeStartRatio - TimeDurationRatio);
+                }
+            }
+        }
+
+        // Pitch calculations
+        var minNote = notes.Min(n => n.NoteNumber);
+        var maxNote = notes.Max(n => n.NoteNumber);
+        var avgNoteNumber = (int)Math.Round(notes.Average(n => n.NoteNumber));
+        
+        var minNoteObj = Melanchall.DryWetMidi.MusicTheory.Note.Get((Melanchall.DryWetMidi.Common.SevenBitNumber)minNote);
+        PitchRangeDisplay = $"{MusicConstants.FormatNoteName(minNote)} - {MusicConstants.FormatNoteName(maxNote)}";
+        AvgPitchDisplay = $"{MusicConstants.FormatNoteName((int)avgNoteNumber)}";
+        
+        // Pitch ratio mapped to 0-127
+        PitchStartRatio = minNote / 127.0;
+        PitchRangeRatio = Math.Max(0.01, (maxNote - minNote) / 127.0); // min 1% width
+        PitchEndRatio = Math.Max(0, 1.0 - PitchStartRatio - PitchRangeRatio);
     }
 
     public bool CanBePlayed => Track.Events.Count(e => e is NoteEvent) > 0;
@@ -302,6 +402,23 @@ public class MidiTrack : INotifyPropertyChanged
     /// </summary>
     public bool ContainsNote(int noteNumber) =>
         _noteNumbers?.Contains(noteNumber) ?? false;
+
+    /// <summary>
+    /// Checks if the track is actively playing a specific note at the given time (with 100ms tolerance)
+    /// </summary>
+    public bool IsPlayingNoteAt(int noteNumber, long currentUs)
+    {
+        if (_noteTimingsUs != null && _noteTimingsUs.TryGetValue(noteNumber, out var timings))
+        {
+            // Add a small 100ms tolerance window (100,000 microseconds) for playback sync imperfections
+            foreach (var (startUs, endUs) in timings)
+            {
+                if (currentUs >= startUs - 100000 && currentUs <= endUs + 100000)
+                    return true;
+            }
+        }
+        return false;
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
