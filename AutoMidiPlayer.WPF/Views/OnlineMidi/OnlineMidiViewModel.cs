@@ -488,8 +488,17 @@ public sealed class OnlineMidiViewModel : Screen
             if (cts.IsCancellationRequested)
                 return;
 
-            Results.Clear();
-            Results.AddRange(items);
+            for (int i = 0; i < items.Count; i++)
+            {
+                if (i < Results.Count)
+                    Results[i] = items[i];
+                else
+                    Results.Add(items[i]);
+            }
+            while (Results.Count > items.Count)
+            {
+                Results.RemoveAt(Results.Count - 1);
+            }
 
             // An empty page means we've run past the last page — stop "Next" from walking
             // into endless empty pages. Any page-1 navigation (search/category/sort) resets this.

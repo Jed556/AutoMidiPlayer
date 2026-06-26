@@ -1,0 +1,32 @@
+<UserControl x:Class="AutoMidiPlayer.WPF.Controls.SkeletonBlock"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             mc:Ignorable="d">
+    <UserControl.Template>
+        <ControlTemplate TargetType="UserControl">
+            <Grid>
+                <!-- The static skeleton background -->
+                <Border Background="{DynamicResource ControlFillColorTertiaryBrush}" 
+                        CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                
+                <!-- The animated shimmer overlay -->
+                <Border x:Name="ShimmerBorder" CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource AncestorType=UserControl}}" ClipToBounds="True">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5" MappingMode="RelativeToBoundingBox">
+                            <LinearGradientBrush.RelativeTransform>
+                                <TranslateTransform X="-1.2" />
+                            </LinearGradientBrush.RelativeTransform>
+                            <GradientStop Color="#00FFFFFF" Offset="0" />
+                            <GradientStop Color="#70FFFFFF" Offset="0.5" />
+                            <GradientStop Color="#00FFFFFF" Offset="1" />
+                        </LinearGradientBrush>
+                    </Border.Background>
+                </Border>
+                
+                <ContentPresenter Margin="{TemplateBinding Padding}" />
+            </Grid>
+        </ControlTemplate>
+    </UserControl.Template>
+</UserControl>
