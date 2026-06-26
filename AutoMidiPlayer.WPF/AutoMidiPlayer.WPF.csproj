@@ -29,6 +29,7 @@
         <PackageReference Include="Melanchall.DryWetMidi" Version="8.0.3" />
         <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.5" />
         <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.0" />
+        <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.5" />
         <PackageReference Include="PropertyChanged.Fody" Version="4.1.0" PrivateAssets="All" />
         <PackageReference Include="Sentry" Version="6.6.0" />
         <PackageReference Include="Sentry.Profiling" Version="6.6.0" />
