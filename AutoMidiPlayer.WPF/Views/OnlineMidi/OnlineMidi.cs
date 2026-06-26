@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using AutoMidiPlayer.WPF.Helpers;
 using AutoMidiPlayer.WPF.Services.MidiShow;
 using AutoMidiPlayer.WPF.ViewModels;
 
@@ -8,9 +9,66 @@ namespace AutoMidiPlayer.WPF.Views;
 
 public partial class OnlineMidiView : UserControl
 {
+    private ScrollViewer? _resultsScrollViewer;
+
     public OnlineMidiView()
     {
         InitializeComponent();
+        DataContextChanged += OnDataContextChanged;
+        ResultsList.Loaded += ResultsList_Loaded;
+    }
+
+    private void ResultsList_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (_resultsScrollViewer != null)
+            return;
+
+        _resultsScrollViewer = FindVisualChild<ScrollViewer>(ResultsList);
+        if (_resultsScrollViewer is null)
+            return;
+
+        // Apply the custom scrollbar and smooth scroll behavior programmatically,
+        // because the WPF UI library's ListBox template prevents the global implicit
+        // ScrollViewer style (from BaseStyles.xaml) from reaching the internal ScrollViewer.
+        ScrollViewerAutoFadeBehavior.SetIsEnabled(_resultsScrollViewer, true);
+        ScrollEdgeFadeBehavior.SetIsEnabled(_resultsScrollViewer, true);
+        _resultsScrollViewer.Padding = new Thickness(0, 0, 12, 0);
+    }
+
+    private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (e.OldValue is OnlineMidiViewModel oldVm)
+            oldVm.PropertyChanged -= ViewModel_PropertyChanged;
+        if (e.NewValue is OnlineMidiViewModel newVm)
+            newVm.PropertyChanged += ViewModel_PropertyChanged;
+    }
+
+    private void ViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(OnlineMidiViewModel.CurrentPage))
+        {
+            ScrollToTop();
+        }
+    }
+
+    private void ScrollToTop()
+    {
+        _resultsScrollViewer?.ScrollToTop();
+    }
+
+    private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is T match)
+                return match;
+
+            var descendent = FindVisualChild<T>(child);
+            if (descendent != null)
+                return descendent;
+        }
+        return null;
     }
 
     private OnlineMidiViewModel? ViewModel => DataContext as OnlineMidiViewModel;

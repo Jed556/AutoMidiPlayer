@@ -546,18 +546,19 @@
         <Grid Grid.Row="2">
             <!-- Virtualized so only the visible cards are realized; each card is a fairly heavy
                  visual tree, and paging rebuilds the whole list. -->
-            <ListBox ItemsSource="{Binding Results}"
-                     Background="Transparent"
-                     BorderThickness="0"
-                     Padding="0,0,8,0"
-                     HorizontalContentAlignment="Stretch"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+            <ListBox x:Name="ResultsList"
+                     ItemsSource="{Binding Results}"
+                     ScrollViewer.CanContentScroll="True"
                      VirtualizingPanel.IsVirtualizing="True"
                      VirtualizingPanel.VirtualizationMode="Recycling"
                      VirtualizingPanel.ScrollUnit="Pixel"
                      VirtualizingPanel.CacheLength="1"
-                     VirtualizingPanel.CacheLengthUnit="Page">
+                     VirtualizingPanel.CacheLengthUnit="Page"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     BorderThickness="0"
+                     Background="Transparent"
+                     HorizontalContentAlignment="Stretch">
                 <ListBox.ItemContainerStyle>
                     <!-- Strip all ListBoxItem chrome (selection/hover highlight, padding); the card
                          draws its own hover state and the items aren't meant to be "selected". -->
@@ -575,12 +576,12 @@
                         </Setter>
                     </Style>
                 </ListBox.ItemContainerStyle>
-                    <ListBox.ItemTemplate>
-                        <DataTemplate DataType="{x:Type midishow:MidiShowItem}">
-                            <controls:DiscoveryCard DetailsClick="Details_Click" PreviewClick="Preview_Click" AddToSongsClick="AddToSongs_Click"/>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type midishow:MidiShowItem}">
+                        <controls:DiscoveryCard DetailsClick="Details_Click" PreviewClick="Preview_Click" AddToSongsClick="AddToSongs_Click"/>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
 
             <!-- Empty / status state -->
             <StackPanel VerticalAlignment="Center"
