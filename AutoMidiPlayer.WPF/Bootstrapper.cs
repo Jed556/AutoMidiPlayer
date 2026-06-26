@@ -20,6 +20,7 @@ using Sentry.Profiling;
 using Stylet;
 using StyletIoC;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using Wpf.Ui.Appearance;
 using System.Threading;
 using System.Windows.Media;
@@ -248,8 +249,25 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
 
 #pragma warning restore EF1003
 
+    // HRESULT DWM_E_COMPOSITIONDISABLED: thrown by WPF's WindowChrome when it tries to
+    // extend the glass/Mica frame (DwmExtendFrameIntoClientArea) while desktop composition
+    // is disabled (e.g. RDP/remote sessions). It is cosmetic and safe to ignore.
+    private const int DwmCompositionDisabledHResult = unchecked((int)0x80263001);
+
+    private static bool IsBenignDwmCompositionException(Exception? ex)
+        => ex is COMException com && com.HResult == DwmCompositionDisabledHResult;
+
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
+        if (IsBenignDwmCompositionException(e.Exception))
+        {
+            // Desktop composition is disabled; the frame just can't be extended right now.
+            // Recover silently instead of crashing or filing a noisy error report.
+            Logger.Log("Ignoring benign DWM composition-disabled exception (0x80263001).");
+            e.Handled = true;
+            return;
+        }
+
         Logger.Log("=== DISPATCHER UNHANDLED EXCEPTION ===");
         Logger.LogException(e.Exception);
         SentrySdk.CaptureException(e.Exception);
@@ -272,6 +290,12 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
 
     private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
     {
+        if (e.ExceptionObject is Exception benign && IsBenignDwmCompositionException(benign))
+        {
+            Logger.Log("Ignoring benign DWM composition-disabled exception (0x80263001).");
+            return;
+        }
+
         Logger.Log("=== UNHANDLED EXCEPTION ===");
         if (e.ExceptionObject is Exception ex)
         {
@@ -287,6 +311,14 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
 
     private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
     {
+        if (IsBenignDwmCompositionException(e.Exception) ||
+            e.Exception?.InnerExceptions.Any(IsBenignDwmCompositionException) == true)
+        {
+            Logger.Log("Ignoring benign DWM composition-disabled exception (0x80263001).");
+            e.SetObserved();
+            return;
+        }
+
         Logger.Log("=== UNOBSERVED TASK EXCEPTION ===");
         Logger.LogException(e.Exception);
         SentrySdk.CaptureException(e.Exception);
