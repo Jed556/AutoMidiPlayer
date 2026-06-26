@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using System.Windows.Interop;
 using AutoMidiPlayer.WPF.Core;
 using AutoMidiPlayer.WPF.Helpers;
 using AutoMidiPlayer.WPF.Services;
@@ -67,6 +68,9 @@ public partial class MainWindowView : FluentWindow
         {
             AttachStartupProgress(vm);
             await vm.WaitForStartupLoadAsync();
+
+            if (new WindowInteropHelper(this).Handle == IntPtr.Zero)
+                return;
 
             // Initialize global hotkey service with window handle after startup song loading.
             _hotkeyService = vm.Ioc.Get<GlobalHotkeyService>();
