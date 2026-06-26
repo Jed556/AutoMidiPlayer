@@ -249,6 +249,19 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
 
 #pragma warning restore EF1003
 
+    // Re-entrancy guard: prevents one failure (e.g. a render-thread OutOfMemoryException
+    // raised on every window-position update) from cascading into a storm of reports and
+    // crash dialogs, where showing each dialog allocates another window and re-throws.
+    private static int _handlingDispatcherException;
+
+    private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+    {
+        // If we're already handling an exception, swallow this one to break the cascade.
+        if (Interlocked.CompareExchange(ref _handlingDispatcherException, 1, 0) != 0)
+        {
+            e.Handled = true;
+            return;
+        }
     // HRESULT DWM_E_COMPOSITIONDISABLED: thrown by WPF's WindowChrome when it tries to
     // extend the glass/Mica frame (DwmExtendFrameIntoClientArea) while desktop composition
     // is disabled (e.g. RDP/remote sessions). It is cosmetic and safe to ignore.
@@ -277,15 +290,51 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
 
         try
         {
-            CrashMessageBox.Show(e.Exception, Logger.GetPrimaryLogPath());
+            Logger.Log("=== DISPATCHER UNHANDLED EXCEPTION ===");
+            Logger.LogException(e.Exception);
+            SentrySdk.CaptureException(e.Exception);
+
+            // Flush to ensure the crash event reaches Sentry before the app may terminate
+            SentrySdk.FlushAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
+
+            // Under memory exhaustion, do NOT open the themed WPF crash dialog: building a new
+            // window needs render memory and re-throws, amplifying a single OOM into a storm.
+            // Fail fast instead — the process is unrecoverable.
+            if (IsMemoryExhaustion(e.Exception))
+            {
+                e.Handled = true;
+                Application.Current?.Shutdown();
+                return;
+            }
+
+            e.Handled = true;
+            try
+            {
+                CrashMessageBox.Show(e.Exception, Logger.GetPrimaryLogPath());
+            }
+            catch
+            {
+                // Fallback if the themed dialog itself fails
+                MessageBoxHelper.ShowError(
+                    $"An error occurred. Logs saved in:\n{Logger.GetLogsDirectoryPath()}\n\nError: {e.Exception.Message}",
+                    "AutoMidiPlayer Error");
+            }
         }
-        catch
+        finally
         {
-            // Fallback if the themed dialog itself fails
-            MessageBoxHelper.ShowError(
-                $"An error occurred. Logs saved in:\n{Logger.GetLogsDirectoryPath()}\n\nError: {e.Exception.Message}",
-                "AutoMidiPlayer Error");
+            Interlocked.Exchange(ref _handlingDispatcherException, 0);
         }
+    }
+
+    private static bool IsMemoryExhaustion(Exception? exception)
+    {
+        for (var current = exception; current != null; current = current.InnerException)
+        {
+            if (current is OutOfMemoryException)
+                return true;
+        }
+
+        return false;
     }
 
     private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
