@@ -466,17 +466,25 @@ public sealed class OnlineMidiViewModel : Screen
             ? $"Searching \"{SearchQuery.Trim()}\"..."
             : (string.IsNullOrEmpty(SelectedCategorySlug) ? "Loading MIDI files..." : $"Loading {SelectedCategoryName}...");
 
-        Results.Clear();
-        for (int i = 0; i < 8; i++)
+        var skeletonCount = Math.Max(Results.Count, 8);
+        for (int i = 0; i < skeletonCount; i++)
         {
-            Results.Add(new MidiShowItem 
-            { 
-                Id = $"skeleton_{i}", 
-                IsLoading = true,
-                Description = "...",
-                Category = "...",
-                Tags = "..."
-            });
+            if (i < Results.Count)
+            {
+                Results[i].IsLoading = true;
+                Results[i].IsExpanded = false;
+            }
+            else
+            {
+                Results.Add(new MidiShowItem 
+                { 
+                    Id = $"skeleton_{i}", 
+                    IsLoading = true,
+                    Description = "...",
+                    Category = "...",
+                    Tags = "..."
+                });
+            }
         }
 
         try
@@ -558,90 +566,46 @@ public sealed class OnlineMidiViewModel : Screen
 
     #region Details
 
-    private MidiShowItem? _detailItem;
-
-    public MidiShowDetails? SelectedDetails { get; private set; }
-    public bool IsDetailOpen { get; private set; }
-    public bool IsDetailLoading { get; private set; }
-    public bool HasDetails => SelectedDetails is not null;
-
-    public async Task ShowDetailsAsync(MidiShowItem item)
+    public async Task ToggleDetailsAsync(MidiShowItem item)
     {
         if (item is null)
             return;
 
-        _detailItem = item;
-        SelectedDetails = null;
-        IsDetailOpen = true;
-        IsDetailLoading = true;
-        NotifyOfPropertyChange(nameof(SelectedDetails));
-        NotifyOfPropertyChange(nameof(HasDetails));
-        NotifyOfPropertyChange(nameof(IsDetailOpen));
-        NotifyOfPropertyChange(nameof(IsDetailLoading));
-
-        try
+        if (item.IsExpanded)
         {
-            var details = await _pool.GetDetailsAsync(item);
-
-            // If the user opened another track (or closed the panel) while this was loading,
-            // a stale response must not overwrite the newer one's details.
-            if (!ReferenceEquals(_detailItem, item))
-                return;
-
-            SelectedDetails = details;
-        }
-        catch (Exception ex)
-        {
-            if (!ReferenceEquals(_detailItem, item))
-                return; // superseded — let the newer request own the UI
-
-            Logger.LogException(ex);
-            SnackbarService.Danger("Couldn't load details", "Could not load this MIDI's details.");
-            CloseDetails();
+            item.IsExpanded = false;
             return;
         }
-        finally
+
+        // Collapse any currently expanded card to keep the view uncluttered
+        foreach (var result in Results)
         {
-            // Only the most recent request clears the loading state / notifies.
-            if (ReferenceEquals(_detailItem, item))
+            if (result != item && result.IsExpanded)
             {
-                IsDetailLoading = false;
-                NotifyOfPropertyChange(nameof(SelectedDetails));
-                NotifyOfPropertyChange(nameof(HasDetails));
-                NotifyOfPropertyChange(nameof(IsDetailLoading));
+                result.IsExpanded = false;
             }
         }
-    }
 
-    public void CloseDetails()
-    {
-        IsDetailOpen = false;
-        SelectedDetails = null;
-        _detailItem = null;
-        NotifyOfPropertyChange(nameof(IsDetailOpen));
-        NotifyOfPropertyChange(nameof(SelectedDetails));
-        NotifyOfPropertyChange(nameof(HasDetails));
-    }
+        item.IsExpanded = true;
 
-    public async Task AddSelectedToSongs()
-    {
-        if (_detailItem is not null)
-            await AddToSongsAsync(_detailItem);
-    }
-
-    public void OpenDetailPage()
-    {
-        var url = SelectedDetails?.PageUrl ?? _detailItem?.PageUrl;
-        if (string.IsNullOrWhiteSpace(url))
-            return;
-
-        try
+        if (item.Details is null && !item.IsLoadingDetails)
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = url, UseShellExecute = true });
-        }
-        catch (Exception ex)
-        {
-            Logger.LogException(ex);
+            item.IsLoadingDetails = true;
+            try
+            {
+                var details = await _pool.GetDetailsAsync(item);
+                item.Details = details;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogException(ex);
+                SnackbarService.Danger("Couldn't load details", "Could not load this MIDI's details.");
+                item.IsExpanded = false;
+            }
+            finally
+            {
+                item.IsLoadingDetails = false;
+            }
         }
     }
 
@@ -862,11 +826,6 @@ public sealed class OnlineMidiViewModel : Screen
             await _main.PlaybackControls.PlayPause();
     }
 
-    public async Task PreviewSelectedAsync()
-    {
-        if (_detailItem is not null)
-            await PreviewAsync(_detailItem);
-    }
 
     /// <summary>Toggle play/pause on the preview.</summary>
     public void PreviewPlayPause()

@@ -10,6 +10,7 @@ namespace AutoMidiPlayer.WPF.Views;
 public partial class OnlineMidiView : UserControl
 {
     private ScrollViewer? _resultsScrollViewer;
+    private SmoothScrollAnimator? _scrollAnimator;
 
     public OnlineMidiView()
     {
@@ -33,6 +34,8 @@ public partial class OnlineMidiView : UserControl
         ScrollViewerAutoFadeBehavior.SetIsEnabled(_resultsScrollViewer, true);
         ScrollEdgeFadeBehavior.SetIsEnabled(_resultsScrollViewer, true);
         _resultsScrollViewer.Padding = new Thickness(0, 0, 12, 0);
+
+        _scrollAnimator = new SmoothScrollAnimator(_resultsScrollViewer, SmoothScrollAnimatorOptions.Default);
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -53,7 +56,15 @@ public partial class OnlineMidiView : UserControl
 
     private void ScrollToTop()
     {
-        _resultsScrollViewer?.ScrollToTop();
+        if (_scrollAnimator != null && _resultsScrollViewer != null)
+        {
+            _scrollAnimator.SyncTargetToCurrentOffset();
+            _scrollAnimator.SetTargetOffset(0, startIfNeeded: true, immediateStep: false);
+        }
+        else
+        {
+            _resultsScrollViewer?.ScrollToTop();
+        }
     }
 
     private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
@@ -142,13 +153,14 @@ public partial class OnlineMidiView : UserControl
             _ = vm.SetCategory(slug, item.Header?.ToString() ?? "");
     }
 
-    private void Details_Click(object sender, RoutedEventArgs e)
+    private void Card_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel is not { } vm)
             return;
 
         if (sender is FrameworkElement { DataContext: MidiShowItem item })
-            _ = vm.ShowDetailsAsync(item);
+            _ = vm.ToggleDetailsAsync(item);
     }
+
 
 }

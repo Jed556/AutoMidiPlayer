@@ -1,19 +1,25 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Stylet;
 
 namespace AutoMidiPlayer.WPF.Services.MidiShow;
 
 /// <summary>
 /// A single MIDI entry parsed from a MidiShow list or search results page.
 /// </summary>
-public sealed class MidiShowItem
+public sealed class MidiShowItem : PropertyChangedBase
 {
     /// <summary>Numeric MidiShow id (from the <c>data-key</c> attribute).</summary>
     public string Id { get; init; } = string.Empty;
 
+    private bool _isLoading;
     /// <summary>Indicates if this item is a loading skeleton.</summary>
-    public bool IsLoading { get; init; } = false;
+    public bool IsLoading
+    {
+        get => _isLoading;
+        set => SetAndNotify(ref _isLoading, value);
+    }
 
     /// <summary>Absolute URL of the MIDI detail page (used to download).</summary>
     public string PageUrl { get; init; } = string.Empty;
@@ -102,6 +108,37 @@ public sealed class MidiShowItem
 
     /// <summary>Rating shown as "5.0 (8)".</summary>
     public string RatingDisplay => $"{Rating} ({RatingCount})";
+
+    private bool _isExpanded;
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        set => SetAndNotify(ref _isExpanded, value);
+    }
+
+    private bool _isLoadingDetails;
+    public bool IsLoadingDetails
+    {
+        get => _isLoadingDetails;
+        set
+        {
+            if (SetAndNotify(ref _isLoadingDetails, value))
+                NotifyOfPropertyChange(nameof(IsBpmSectionVisible));
+        }
+    }
+
+    private MidiShowDetails? _details;
+    public MidiShowDetails? Details
+    {
+        get => _details;
+        set
+        {
+            if (SetAndNotify(ref _details, value))
+                NotifyOfPropertyChange(nameof(IsBpmSectionVisible));
+        }
+    }
+
+    public bool IsBpmSectionVisible => IsLoadingDetails || Details?.HasBpm == true;
 }
 
 /// <summary>
@@ -141,6 +178,19 @@ public sealed class MidiShowDetails
     public bool HasCategory => !string.IsNullOrEmpty(Category);
     public bool HasTags => !string.IsNullOrEmpty(Tags);
     public bool HasDownloads => Downloads is not (null or "" or "0");
+
+    public IReadOnlyList<MidiShowTrack> Tracks { get; init; } = Array.Empty<MidiShowTrack>();
+    public bool HasTracks => Tracks.Count > 0;
+}
+
+public sealed class MidiShowTrack
+{
+    public string Number { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Channel { get; set; } = "";
+    public string Instrument { get; set; } = "";
+    public string ProgramId { get; set; } = "";
+    public string NotesCount { get; set; } = "";
 }
 
 /// <summary>

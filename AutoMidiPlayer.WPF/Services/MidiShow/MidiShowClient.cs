@@ -868,6 +868,66 @@ public sealed class MidiShowClient : IDisposable
 
         var std = Regex.Match(html, "midi-std-(?<v>[A-Za-z0-9]+)", RegexOptions.IgnoreCase);
 
+        var trackList = new List<MidiShowTrack>();
+        var tableMatch = Regex.Match(html, "<table[^>]*>.*?<thead>.*?<tr[^>]*>.*?<th[^>]*>#.*?</tr>.*?</thead>.*?<tbody>(.*?)</tbody>.*?</table>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+        if (tableMatch.Success)
+        {
+            var tbody = tableMatch.Groups[1].Value;
+            var rows = Regex.Matches(tbody, "<tr>(.*?)</tr>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+            foreach (Match row in rows)
+            {
+                var cols = Regex.Matches(row.Groups[1].Value, "<td[^>]*>(.*?)</td>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+                if (cols.Count >= 4)
+                {
+                    var num = CleanText(cols[0].Groups[1].Value);
+                    var name = CleanText(cols[1].Groups[1].Value);
+                    var channel = CleanText(cols[2].Groups[1].Value);
+                    
+                    var instHtml = cols[3].Groups[1].Value;
+                    var inst = WebUtility.HtmlDecode(Regex.Replace(instHtml, "<[^>]+>", ", ")).Trim().Trim(',');
+                    inst = Regex.Replace(inst, "(^,\\s*)|(,\\s*$)", "").Trim();
+                    inst = Regex.Replace(inst, "(,\\s*)+", ", ");
+
+                    if (!string.IsNullOrWhiteSpace(num) && (!string.IsNullOrWhiteSpace(channel) || !string.IsNullOrWhiteSpace(inst)))
+                    {
+                        trackList.Add(new MidiShowTrack
+                        {
+                            Number = num,
+                            Name = name,
+                            Channel = channel,
+                            Instrument = inst
+                        });
+                    }
+                }
+            }
+        }
+
+        var channelsAndInstMatch = Regex.Match(html, "Channels and Instruments.*?<ul class=\"step\">(.*?)</ul>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+        if (channelsAndInstMatch.Success)
+        {
+            var stepItems = Regex.Matches(channelsAndInstMatch.Groups[1].Value, "<li class=\"step-item\">(.*?)</li>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+            foreach (Match mItem in stepItems)
+            {
+                var content = mItem.Groups[1].Value;
+                var progMatch = Regex.Match(content, @"Program ID:\s*(\d+),\s*Track:\s*(\d+)", RegexOptions.IgnoreCase);
+                var notesMatch = Regex.Match(content, @"([\d,]+)\s+notes/chords", RegexOptions.IgnoreCase);
+
+                if (progMatch.Success)
+                {
+                    var trackNum = progMatch.Groups[2].Value;
+                    var progId = progMatch.Groups[1].Value;
+                    var trackNotes = notesMatch.Success ? notesMatch.Groups[1].Value : "";
+
+                    var track = trackList.FirstOrDefault(t => t.Number == trackNum);
+                    if (track != null)
+                    {
+                        track.ProgramId = progId;
+                        track.NotesCount = trackNotes;
+                    }
+                }
+            }
+        }
+
         return new MidiShowDetails
         {
             Id = item.Id,
@@ -888,7 +948,8 @@ public sealed class MidiShowClient : IDisposable
             Introduction = intro ?? (string.IsNullOrWhiteSpace(abstractText) ? null : abstractText),
             Category = item.Category,
             Tags = item.Tags,
-            Downloads = item.Downloads
+            Downloads = item.Downloads,
+            Tracks = trackList
         };
     }
 
