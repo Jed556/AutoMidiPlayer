@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Controls;
-using Humanizer;
 using AutoMidiPlayer.WPF.Helpers;
 using Wpf.Ui.Controls;
 

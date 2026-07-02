@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using System.Windows.Controls;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.WPF.Helpers;
-using Humanizer;
 using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Wpf.Ui.Controls;
