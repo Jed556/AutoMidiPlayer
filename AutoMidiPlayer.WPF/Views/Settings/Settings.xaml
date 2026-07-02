@@ -541,6 +541,78 @@
                         </controls:SimpleStackPanel>
                     </controls:Section>
 
+                    <!-- Storage Section -->
+                    <controls:Section Title="Storage"
+                                      Margin="0,16,0,0">
+                        <controls:SimpleStackPanel>
+                            <GroupBox Header="Local Storage">
+                                <controls:SimpleStackPanel Spacing="8">
+                                    <!-- Storage size displays + clear button -->
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <controls:SimpleStackPanel VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock>
+                                                <Run Text="App Data: "/>
+                                                <Run Text="{Binding AppDataSizeDisplay, Mode=OneWay}" FontWeight="SemiBold"/>
+                                            </TextBlock>
+                                            <TextBlock>
+                                                <Run Text="Online MIDI Folder: "/>
+                                                <Run Text="{Binding MidiFolderSizeDisplay, Mode=OneWay}" FontWeight="SemiBold"/>
+                                            </TextBlock>
+                                            <TextBlock>
+                                                <Run Text="Discover Cache: "/>
+                                                <Run Text="{Binding CacheSizeDisplay, Mode=OneWay}" FontWeight="SemiBold"/>
+                                            </TextBlock>
+                                        </controls:SimpleStackPanel>
+                                        <controls:Button Grid.Column="1"
+                                                         Content="Clear Cache"
+                                                         Command="{s:Action ClearCache}"
+                                                         Icon="Delete16"
+                                                         IconFontSize="14"
+                                                         VerticalAlignment="Center"
+                                                         ToolTip="Delete all cached Discover data (avatars, MIDI details, downloaded files)"
+                                                         IsEnabled="{Binding CanClearCache}"/>
+                                    </Grid>
+
+                                    <!-- Auto-clean interval -->
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Auto-clean cache"
+                                                   VerticalAlignment="Center"/>
+                                        <button:StandardDropdown Grid.Column="1"
+                                                  Width="130"
+                                                  ItemsSource="{Binding CacheAutoCleanOptions}"
+                                                  DisplayMemberPath="Label"
+                                                  SelectedItem="{Binding SelectedCacheAutoClean}"
+                                                  ToolTip="How often the cache is automatically cleared"/>
+                                    </Grid>
+
+                                    <!-- Max cache size (LRU) -->
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Max cache size"
+                                                   VerticalAlignment="Center"/>
+                                        <button:StandardDropdown Grid.Column="1"
+                                                  Width="130"
+                                                  ItemsSource="{Binding CacheMaxSizeOptions}"
+                                                  DisplayMemberPath="Label"
+                                                  SelectedItem="{Binding SelectedCacheMaxSize}"
+                                                  ToolTip="When exceeded, the least recently accessed cache files are removed"/>
+                                    </Grid>
+                                </controls:SimpleStackPanel>
+                            </GroupBox>
+                        </controls:SimpleStackPanel>
+                    </controls:Section>
+
                 </controls:SimpleStackPanel>
 
                 <!-- Right Column -->

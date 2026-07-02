@@ -208,6 +208,14 @@ public sealed class OnlineMidiViewModel : Screen
 
     private async Task InitializeAsync()
     {
+        // Run cache maintenance on a background thread so the UI isn't blocked.
+        _ = Task.Run(() =>
+        {
+            var settings = Data.Properties.Settings.Default;
+            MidiShowCache.RunAutoCleanIfDue(settings.CacheAutoCleanInterval);
+            MidiShowCache.EvictLru(settings.CacheMaxSizeMB);
+        });
+
         // Show the (public) listing first so MIDIs appear after a single round-trip, then sign
         // the saved accounts in afterwards. Browsing/searching needs no auth — only
         // download/preview do — so there is no reason to make the user wait for login
@@ -389,7 +397,7 @@ public sealed class OnlineMidiViewModel : Screen
         await LoadAsync();
     }
 
-    public async Task Reload() => await LoadAsync();
+    public async Task Reload() => await LoadAsync(forceRefresh: true);
 
     /// <summary>MidiShow sort key: "" = newest, "time_asc" = oldest, "popularity", "marks".</summary>
     public string SortKey { get; private set; } = "";
@@ -454,13 +462,32 @@ public sealed class OnlineMidiViewModel : Screen
         await LoadAsync();
     }
 
-    private async Task LoadAsync()
+    private async Task LoadAsync(bool forceRefresh = false)
     {
         _loadCts?.Cancel();
         var cts = new CancellationTokenSource();
         _loadCts = cts;
 
         var isSearch = !string.IsNullOrWhiteSpace(SearchQuery);
+        
+        // Fast-path: Check cache first to avoid skeleton flashes on already cached pages
+        if (!forceRefresh)
+        {
+            var cachedResult = isSearch
+                ? _pool.TryGetCachedSearchPage(SearchQuery, CurrentPage, SortKey)
+                : _pool.TryGetCachedBrowsePage(CurrentPage, SortKey, SelectedCategorySlug);
+
+            if (cachedResult != null)
+            {
+                // Cached data available! Skip skeletons entirely and snap to items instantly.
+                UpdateResultsCollection(cachedResult.Items, isSearch);
+                if (!string.IsNullOrEmpty(cachedResult.StatusText)) StatusMessage = cachedResult.StatusText;
+                _loadCts = null;
+                SetBusy(false);
+                return;
+            }
+        }
+
         SetBusy(true);
         StatusMessage = isSearch
             ? $"Searching \"{SearchQuery.Trim()}\"..."
@@ -489,39 +516,14 @@ public sealed class OnlineMidiViewModel : Screen
 
         try
         {
-            var items = isSearch
-                ? await _pool.SearchAsync(SearchQuery, CurrentPage, SortKey, cts.Token)
-                : await _pool.BrowseAsync(CurrentPage, SortKey, SelectedCategorySlug, cts.Token);
+            var result = isSearch
+                ? await _pool.SearchAsync(SearchQuery, CurrentPage, SortKey, forceRefresh, cts.Token)
+                : await _pool.BrowseAsync(CurrentPage, SortKey, SelectedCategorySlug, forceRefresh, cts.Token);
 
             if (cts.IsCancellationRequested)
                 return;
 
-            for (int i = 0; i < items.Count; i++)
-            {
-                if (i < Results.Count)
-                    Results[i] = items[i];
-                else
-                    Results.Add(items[i]);
-            }
-            while (Results.Count > items.Count)
-            {
-                Results.RemoveAt(Results.Count - 1);
-            }
-
-            // An empty page means we've run past the last page — stop "Next" from walking
-            // into endless empty pages. Any page-1 navigation (search/category/sort) resets this.
-            _reachedEnd = items.Count == 0 && CurrentPage > 1;
-
-            var scope = isSearch
-                ? $" for \"{SearchQuery.Trim()}\""
-                : (string.IsNullOrEmpty(SelectedCategorySlug) ? "" : $" in {SelectedCategoryName}");
-
-            StatusMessage = items.Count == 0
-                ? $"No MIDI files found{scope}."
-                : $"Showing {items.Count} result{(items.Count == 1 ? "" : "s")}{scope}.";
-
-            // Fetching extended details sequentially is no longer necessary since all data 
-            // is available in the summary listing HTML.
+            UpdateResultsCollection(result.Items, isSearch, result.StatusText);
         }
         catch (OperationCanceledException)
         {
@@ -548,6 +550,40 @@ public sealed class OnlineMidiViewModel : Screen
         }
     }
 
+    private void UpdateResultsCollection(IReadOnlyList<MidiShowItem> items, bool isSearch, string statusText = "")
+    {
+        for (int i = 0; i < items.Count; i++)
+        {
+            if (i < Results.Count)
+                Results[i] = items[i];
+            else
+                Results.Add(items[i]);
+        }
+        while (Results.Count > items.Count)
+        {
+            Results.RemoveAt(Results.Count - 1);
+        }
+
+        // An empty page means we've run past the last page — stop "Next" from walking
+        // into endless empty pages. Any page-1 navigation (search/category/sort) resets this.
+        _reachedEnd = items.Count == 0 && CurrentPage > 1;
+
+        var scope = isSearch
+            ? $" for \"{SearchQuery.Trim()}\""
+            : (string.IsNullOrEmpty(SelectedCategorySlug) ? "" : $" in {SelectedCategoryName}");
+
+        if (!string.IsNullOrEmpty(statusText))
+        {
+            StatusMessage = statusText + scope + ".";
+        }
+        else
+        {
+            StatusMessage = items.Count == 0
+                ? $"No MIDI files found{scope}."
+                : $"Showing {items.Count} result{(items.Count == 1 ? "" : "s")}{scope}.";
+        }
+    }
+
 
 
     private void SetBusy(bool busy)
@@ -555,7 +591,6 @@ public sealed class OnlineMidiViewModel : Screen
         IsBusy = busy;
         NotifyOfPropertyChange(nameof(IsBusy));
         NotifyOfPropertyChange(nameof(IsNotBusy));
-        NotifyOfPropertyChange(nameof(CurrentPage));
         NotifyOfPropertyChange(nameof(CanGoToPreviousPage));
         NotifyOfPropertyChange(nameof(CanGoToNextPage));
         NotifyOfPropertyChange(nameof(HasResults));

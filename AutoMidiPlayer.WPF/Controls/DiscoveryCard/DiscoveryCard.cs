@@ -57,6 +57,9 @@ public partial class DiscoveryCard : UserControl
 
             ResetAllAnimationsAndSkeletons();
             
+            if (item.IsLoading)
+                RandomizeSkeletonWidths();
+            
             var meta = FindName("MetaContent") as FrameworkElement;
             if (meta != null) meta.BeginAnimation(UIElement.OpacityProperty, null);
 
@@ -292,6 +295,7 @@ public partial class DiscoveryCard : UserControl
         {
             if (skeletonWrap == null || realContent == null) return;
             
+            realContent.UpdateLayout();
             var targetWidths = GetTargetWidths(realContent);
 
             var textFadeIn = new DoubleAnimation(0, 1, duration) { BeginTime = duration.TimeSpan };
@@ -390,6 +394,7 @@ public partial class DiscoveryCard : UserControl
         var duration = new Duration(TimeSpan.FromSeconds(0.4));
         var easing = new QuarticEase { EasingMode = EasingMode.EaseOut };
 
+        element.UpdateLayout();
         double targetWidth = element.ActualWidth;
         if (targetWidth <= 0) targetWidth = 100; // fallback
 

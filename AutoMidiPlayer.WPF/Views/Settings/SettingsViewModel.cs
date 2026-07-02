@@ -750,6 +750,125 @@ public class SettingsPageViewModel : Screen
     /// </summary>
     public static string DataLocation => AppPaths.AppDataDirectory;
 
+    #region Cache management
+
+    /// <summary>Option model for cache auto-clean interval dropdown.</summary>
+    public record CacheAutoCleanOption(string Label, int Value);
+
+    /// <summary>Option model for cache max size dropdown.</summary>
+    public record CacheMaxSizeOption(string Label, int ValueMB);
+
+    public static List<CacheAutoCleanOption> CacheAutoCleanOptions { get; } = new()
+    {
+        new("Daily",   0),
+        new("Weekly",  1),
+        new("Monthly", 2),
+        new("Never",   3)
+    };
+
+    public static List<CacheMaxSizeOption> CacheMaxSizeOptions { get; } = new()
+    {
+        new("Unlimited",  0),
+        new("50 MB",     50),
+        new("100 MB",   100),
+        new("250 MB",   250),
+        new("500 MB",   500),
+        new("1 GB",    1000)
+    };
+
+    public string CacheSizeDisplay { get; set; } = Services.MidiShow.MidiShowCache.FormatSize(
+        Services.MidiShow.MidiShowCache.GetCacheSizeBytes());
+
+    public string AppDataSizeDisplay { get; set; } = Services.MidiShow.MidiShowCache.FormatSize(
+        GetDirectorySizeBytes(Data.AppPaths.AppDataDirectory));
+
+    public string MidiFolderSizeDisplay { get; set; } = Services.MidiShow.MidiShowCache.FormatSize(
+        GetDirectorySizeBytes(Data.AppPaths.OnlineMidiDirectory));
+
+    public bool CanClearCache => Services.MidiShow.MidiShowCache.GetCacheSizeBytes() > 0;
+
+    private CacheAutoCleanOption _selectedCacheAutoClean = null!;
+    public CacheAutoCleanOption SelectedCacheAutoClean
+    {
+        get => _selectedCacheAutoClean ??= CacheAutoCleanOptions.FirstOrDefault(o => o.Value == Settings.CacheAutoCleanInterval)
+            ?? CacheAutoCleanOptions[2]; // Monthly
+        set
+        {
+            if (_selectedCacheAutoClean == value) return;
+            _selectedCacheAutoClean = value;
+            Settings.Modify(s => s.CacheAutoCleanInterval = value.Value);
+            NotifyOfPropertyChange();
+        }
+    }
+
+    private CacheMaxSizeOption _selectedCacheMaxSize = null!;
+    public CacheMaxSizeOption SelectedCacheMaxSize
+    {
+        get => _selectedCacheMaxSize ??= CacheMaxSizeOptions.FirstOrDefault(o => o.ValueMB == Settings.CacheMaxSizeMB)
+            ?? CacheMaxSizeOptions[0]; // Unlimited
+        set
+        {
+            if (_selectedCacheMaxSize == value) return;
+            _selectedCacheMaxSize = value;
+            Settings.Modify(s => s.CacheMaxSizeMB = value.ValueMB);
+            NotifyOfPropertyChange();
+
+            // Run LRU eviction immediately when the limit changes.
+            if (value.ValueMB > 0)
+            {
+                Task.Run(() =>
+                {
+                    Services.MidiShow.MidiShowCache.EvictLru(value.ValueMB);
+                    System.Windows.Application.Current?.Dispatcher?.BeginInvoke(RefreshStorageSizes);
+                });
+            }
+        }
+    }
+
+    public void ClearCache()
+    {
+        Services.MidiShow.MidiShowCache.ClearAll();
+        // Also clear the in-memory avatar cache so images are re-fetched.
+        Converters.UrlToCachedImageConverter.ClearMemoryCache();
+        RefreshStorageSizes();
+    }
+
+    private void RefreshStorageSizes()
+    {
+        CacheSizeDisplay = Services.MidiShow.MidiShowCache.FormatSize(
+            Services.MidiShow.MidiShowCache.GetCacheSizeBytes());
+
+        AppDataSizeDisplay = Services.MidiShow.MidiShowCache.FormatSize(
+            GetDirectorySizeBytes(Data.AppPaths.AppDataDirectory));
+
+        MidiFolderSizeDisplay = Services.MidiShow.MidiShowCache.FormatSize(
+            GetDirectorySizeBytes(Data.AppPaths.OnlineMidiDirectory));
+
+        NotifyOfPropertyChange(nameof(CacheSizeDisplay));
+        NotifyOfPropertyChange(nameof(AppDataSizeDisplay));
+        NotifyOfPropertyChange(nameof(MidiFolderSizeDisplay));
+        NotifyOfPropertyChange(nameof(CanClearCache));
+    }
+
+    private static long GetDirectorySizeBytes(string path)
+    {
+        try
+        {
+            if (!System.IO.Directory.Exists(path))
+                return 0;
+
+            return new System.IO.DirectoryInfo(path)
+                .EnumerateFiles("*", System.IO.SearchOption.AllDirectories)
+                .Sum(f => f.Length);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    #endregion
+
     public string TimerText => CanChangeTime ? "Start" : "Stop";
 
     [UsedImplicitly] public string UpdateString { get; set; } = string.Empty;

@@ -93,6 +93,24 @@ public static class AppPaths
     public static readonly string OnlineMidiDirectory = Path.Combine(AppDataDirectory, "OnlineMidi");
 
     /// <summary>
+    /// Root directory for Discover page caching: %LocalAppData%\AutoMidiPlayer\cache\discover\MidiShow
+    /// </summary>
+    public static readonly string DiscoverCacheDirectory =
+        Path.Combine(AppDataDirectory, "cache", "discover", "MidiShow");
+
+    /// <summary>
+    /// Directory for cached per-MIDI data (summary.json, details.json, file.mid) keyed by MIDI id.
+    /// </summary>
+    public static readonly string DiscoverMidiCacheDirectory =
+        Path.Combine(DiscoverCacheDirectory, "midi");
+
+    /// <summary>
+    /// Directory for cached user avatar images, keyed by URL hash.
+    /// </summary>
+    public static readonly string DiscoverAvatarCacheDirectory =
+        Path.Combine(DiscoverCacheDirectory, "avatar");
+
+    /// <summary>
     /// Path to the encrypted MidiShow account credentials file (per-user, DPAPI protected).
     /// Legacy single-account store; superseded by <see cref="MidiShowAccountsPath"/> and only
     /// read once for migration.
@@ -126,5 +144,19 @@ public static class AppPaths
             Directory.CreateDirectory(OnlineMidiDirectory);
 
         return OnlineMidiDirectory;
+    }
+
+    /// <summary>
+    /// Ensures the Discover page cache directories (midi/ and avatar/) exist and returns the root path.
+    /// </summary>
+    public static string EnsureDiscoverCacheDirectories()
+    {
+        if (!Directory.Exists(DiscoverMidiCacheDirectory))
+            Directory.CreateDirectory(DiscoverMidiCacheDirectory);
+
+        if (!Directory.Exists(DiscoverAvatarCacheDirectory))
+            Directory.CreateDirectory(DiscoverAvatarCacheDirectory);
+
+        return DiscoverCacheDirectory;
     }
 }

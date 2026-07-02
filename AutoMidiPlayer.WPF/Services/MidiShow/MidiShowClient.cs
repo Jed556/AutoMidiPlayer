@@ -247,7 +247,7 @@ public sealed class MidiShowClient : IDisposable
     /// Browses the public MIDI listing. <paramref name="sortByMarks"/> sorts by rating
     /// instead of newest.
     /// </summary>
-    public async Task<IReadOnlyList<MidiShowItem>> BrowseAsync(int page = 1, string sort = "", string category = "", CancellationToken ct = default)
+    public async Task<MidiShowPageResult> BrowseAsync(int page = 1, string sort = "", string category = "", CancellationToken ct = default)
     {
         var url = string.IsNullOrEmpty(category)
             ? $"{Base}/en/midi?page={Math.Max(1, page)}"
@@ -262,7 +262,7 @@ public sealed class MidiShowClient : IDisposable
     /// <summary>
     /// Searches MidiShow by keyword (track name, uploader, etc.).
     /// </summary>
-    public async Task<IReadOnlyList<MidiShowItem>> SearchAsync(string query, int page = 1, string sort = "", CancellationToken ct = default)
+    public async Task<MidiShowPageResult> SearchAsync(string query, int page = 1, string sort = "", CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(query))
             return await BrowseAsync(page, sort, "", ct);
@@ -682,10 +682,13 @@ public sealed class MidiShowClient : IDisposable
         return raw.Trim('"');
     }
 
-    private static IReadOnlyList<MidiShowItem> ParseItems(string html)
+    private static MidiShowPageResult ParseItems(string html)
     {
         var items = new List<MidiShowItem>();
         var seen = new HashSet<string>();
+
+        var statusMatch = Regex.Match(html, @"Showing\s+(?<range>[\d,-]+)\s+of\s+(?<total>[\d,]+)", RegexOptions.IgnoreCase);
+        string statusText = statusMatch.Success ? $"Showing {statusMatch.Groups["range"].Value}/{statusMatch.Groups["total"].Value}" : "";
 
         // Each result is `<div data-key="ID"> <a ... href="..."> ... </a>`.
         foreach (Match match in Regex.Matches(html,
@@ -784,7 +787,7 @@ public sealed class MidiShowClient : IDisposable
             });
         }
 
-        return items;
+        return new MidiShowPageResult(items, statusText);
     }
 
     /// <summary>Reads the value after an icon for a <c>title="Label"</c> stat cell.</summary>

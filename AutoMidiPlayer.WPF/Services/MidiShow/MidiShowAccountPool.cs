@@ -233,14 +233,54 @@ public sealed class MidiShowAccountPool : IDisposable
 
     #region Browse / search / details (anonymous session)
 
-    public Task<IReadOnlyList<MidiShowItem>> BrowseAsync(int page = 1, string sort = "", string category = "", CancellationToken ct = default)
-        => _browseClient.BrowseAsync(page, sort, category, ct);
+    public MidiShowPageResult? TryGetCachedBrowsePage(int page, string sort, string category)
+        => MidiShowCache.TryLoadBrowsePage(page, sort, category);
 
-    public Task<IReadOnlyList<MidiShowItem>> SearchAsync(string query, int page = 1, string sort = "", CancellationToken ct = default)
-        => _browseClient.SearchAsync(query, page, sort, ct);
+    public MidiShowPageResult? TryGetCachedSearchPage(string query, int page, string sort)
+        => MidiShowCache.TryLoadSearchPage(query, page, sort);
 
-    public Task<MidiShowDetails> GetDetailsAsync(MidiShowItem item, CancellationToken ct = default)
-        => _browseClient.GetDetailsAsync(item, ct);
+    public async Task<MidiShowPageResult> BrowseAsync(int page = 1, string sort = "", string category = "", bool forceRefresh = false, CancellationToken ct = default)
+    {
+        if (!forceRefresh)
+        {
+            var cached = MidiShowCache.TryLoadBrowsePage(page, sort, category);
+            if (cached is not null)
+                return cached;
+        }
+
+        var result = await _browseClient.BrowseAsync(page, sort, category, ct);
+        _ = MidiShowCache.SaveBrowsePageAsync(page, sort, category, result.Items);
+        // Fire-and-forget: persist each item's summary so detail-expand is faster next time.
+        _ = MidiShowCache.SaveSummariesAsync(result.Items);
+        return result;
+    }
+
+    public async Task<MidiShowPageResult> SearchAsync(string query, int page = 1, string sort = "", bool forceRefresh = false, CancellationToken ct = default)
+    {
+        if (!forceRefresh)
+        {
+            var cached = MidiShowCache.TryLoadSearchPage(query, page, sort);
+            if (cached is not null)
+                return cached;
+        }
+
+        var result = await _browseClient.SearchAsync(query, page, sort, ct);
+        _ = MidiShowCache.SaveSearchPageAsync(query, page, sort, result.Items);
+        _ = MidiShowCache.SaveSummariesAsync(result.Items);
+        return result;
+    }
+
+    public async Task<MidiShowDetails> GetDetailsAsync(MidiShowItem item, CancellationToken ct = default)
+    {
+        // Check disk cache first.
+        var cached = MidiShowCache.TryLoadDetails(item.Id);
+        if (cached is not null)
+            return cached;
+
+        var details = await _browseClient.GetDetailsAsync(item, ct);
+        _ = MidiShowCache.SaveDetailsAsync(details);
+        return details;
+    }
 
     #endregion
 
@@ -254,6 +294,20 @@ public sealed class MidiShowAccountPool : IDisposable
     /// </summary>
     public async Task<MidiShowDownloadResult> DownloadAsync(string pageUrl, CancellationToken ct = default)
     {
+        // Check disk cache first — avoids burning account quota for previously downloaded MIDIs.
+        var cachedId = MidiShowCache.ExtractIdFromUrl(pageUrl);
+        if (cachedId is not null)
+        {
+            var cachedData = MidiShowCache.TryLoadMidiFile(cachedId);
+            if (cachedData is not null)
+            {
+                var cachedSummary = MidiShowCache.TryLoadSummary(cachedId);
+                var title = cachedSummary?.Title ?? $"MidiShow #{cachedId}";
+                Logger.LogStep("MIDISHOW_CACHE_HIT", $"id={cachedId} bytes={cachedData.Length}");
+                return new MidiShowDownloadResult(cachedData, title);
+            }
+        }
+
         var candidates = OrderedCandidates();
         if (candidates.Count == 0)
             throw new MidiShowException(MidiShowDownloadError.NotAuthenticated,
@@ -278,6 +332,8 @@ public sealed class MidiShowAccountPool : IDisposable
                 var result = await entry.Client!.DownloadAsync(pageUrl, ct);
                 MarkActive(entry);
                 AdvanceRotation();
+                if (cachedId is not null)
+                    _ = MidiShowCache.SaveMidiFileAsync(cachedId, result.Data);
                 return result;
             }
             catch (MidiShowException ex)
@@ -313,6 +369,8 @@ public sealed class MidiShowAccountPool : IDisposable
                                 var retry = await entry.Client!.DownloadAsync(pageUrl, ct);
                                 MarkActive(entry);
                                 AdvanceRotation();
+                                if (cachedId is not null)
+                                    _ = MidiShowCache.SaveMidiFileAsync(cachedId, retry.Data);
                                 return retry;
                             }
                             catch (MidiShowException ex2)

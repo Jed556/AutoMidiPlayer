@@ -5,6 +5,8 @@ using Stylet;
 
 namespace AutoMidiPlayer.WPF.Services.MidiShow;
 
+public record MidiShowPageResult(IReadOnlyList<MidiShowItem> Items, string StatusText);
+
 /// <summary>
 /// A single MIDI entry parsed from a MidiShow list or search results page.
 /// </summary>

@@ -46,7 +46,7 @@
                     <TextBlock Text="Playable Notes" FontSize="11" Opacity="0.6"/>
                     <TextBlock FontSize="14" FontWeight="SemiBold">
                         <Run Text="{Binding AccessibleNotes, Mode=OneWay, StringFormat='{}{0:N0}'}"/>
-                        <Run Text=" / " Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                        <Run Text="/" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                         <Run Text="{Binding TotalNotes, Mode=OneWay, StringFormat='{}{0:N0}'}" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                     </TextBlock>
                 </StackPanel>

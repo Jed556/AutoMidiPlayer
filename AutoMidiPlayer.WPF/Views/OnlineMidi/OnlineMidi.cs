@@ -22,7 +22,10 @@ public partial class OnlineMidiView : UserControl
     private void ResultsList_Loaded(object sender, RoutedEventArgs e)
     {
         if (_resultsScrollViewer != null)
-            return;
+        {
+            _resultsScrollViewer.PreviewMouseWheel -= ResultsScrollViewer_PreviewMouseWheel;
+            _resultsScrollViewer.PreviewMouseDown -= ResultsScrollViewer_PreviewMouseDown;
+        }
 
         _resultsScrollViewer = FindVisualChild<ScrollViewer>(ResultsList);
         if (_resultsScrollViewer is null)
@@ -36,6 +39,8 @@ public partial class OnlineMidiView : UserControl
         _resultsScrollViewer.Padding = new Thickness(0, 0, 12, 0);
 
         _scrollAnimator = new SmoothScrollAnimator(_resultsScrollViewer, SmoothScrollAnimatorOptions.Default);
+        _resultsScrollViewer.PreviewMouseWheel += ResultsScrollViewer_PreviewMouseWheel;
+        _resultsScrollViewer.PreviewMouseDown += ResultsScrollViewer_PreviewMouseDown;
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -65,6 +70,16 @@ public partial class OnlineMidiView : UserControl
         {
             _resultsScrollViewer?.ScrollToTop();
         }
+    }
+
+    private void ResultsScrollViewer_PreviewMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
+    {
+        _scrollAnimator?.Stop();
+    }
+
+    private void ResultsScrollViewer_PreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        _scrollAnimator?.Stop();
     }
 
     private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
