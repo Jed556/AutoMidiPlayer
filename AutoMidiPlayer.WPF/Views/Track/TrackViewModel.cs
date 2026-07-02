@@ -37,6 +37,18 @@ public class TrackViewModel : Screen
 
         // Subscribe to note played events from PlaybackService
         main.PlaybackEngine.NotePlayed += OnNotePlayed;
+
+        // Setup filter for empty tracks
+        var view = System.Windows.Data.CollectionViewSource.GetDefaultView(MidiTracks);
+        view.Filter = item =>
+        {
+            if (item is MidiTrack track)
+            {
+                if (!ShowEmptyTracks && !track.CanBePlayed)
+                    return false;
+            }
+            return true;
+        };
     }
 
     #endregion
@@ -58,6 +70,24 @@ public class TrackViewModel : Screen
     #endregion
 
     #region Properties - Note Statistics
+
+    private bool _showEmptyTracks;
+    public bool ShowEmptyTracks
+    {
+        get => _showEmptyTracks;
+        set
+        {
+            if (SetAndNotify(ref _showEmptyTracks, value))
+            {
+                System.Windows.Data.CollectionViewSource.GetDefaultView(MidiTracks).Refresh();
+            }
+        }
+    }
+
+    public void ToggleEmptyTracks()
+    {
+        ShowEmptyTracks = !ShowEmptyTracks;
+    }
 
     /// <summary>
     /// Total number of notes across all enabled tracks
@@ -94,12 +124,16 @@ public class TrackViewModel : Screen
         }
     }
 
+    public double PlayablePercentage => TotalNotes > 0 ? (double)AccessibleNotes / TotalNotes * 100 : 0;
+
     /// <summary>
     /// Display string showing accessible notes vs total notes
     /// </summary>
     public string NotesStatsDisplay => TotalNotes > 0
-        ? $"{AccessibleNotes:N0} / {TotalNotes:N0} notes playable ({(double)AccessibleNotes / TotalNotes * 100:F1}%)"
+        ? $"{AccessibleNotes:N0} / {TotalNotes:N0} notes playable ({PlayablePercentage:F1}%)"
         : "No notes";
+
+
 
     #endregion
 
@@ -128,6 +162,30 @@ public class TrackViewModel : Screen
             Logger.LogException(ex);
             throw;
         }
+    }
+
+    public void ToggleTrackExpanded(MidiTrack track)
+    {
+        if (track != null)
+        {
+            track.ToggleExpanded();
+            NotifyOfPropertyChange(() => IsAnyExpanded);
+        }
+    }
+
+    public bool IsAnyExpanded => MidiTracks.Any(t => t.IsExpanded);
+
+    public void ToggleAllExpanded()
+    {
+        bool targetState = !IsAnyExpanded;
+        foreach (var track in MidiTracks)
+        {
+            if (track.IsExpanded != targetState)
+            {
+                track.ToggleExpanded();
+            }
+        }
+        NotifyOfPropertyChange(() => IsAnyExpanded);
     }
 
     protected override void OnDeactivate()
@@ -172,13 +230,22 @@ public class TrackViewModel : Screen
         }
 
         MidiTracks.Clear();
-        var trackChunks = Queue.OpenedFile.Midi.GetTrackChunks().ToList();
+        var midiFile = Queue.OpenedFile.Midi;
+        var trackChunks = midiFile.GetTrackChunks().ToList();
         var events = _main.Ioc.Get<IEventAggregator>();
+        
+        int displayTrackNum = 1;
         for (var i = 0; i < trackChunks.Count; i++)
         {
             var isChecked = !disabledIndices.Contains(i);
-            MidiTracks.Add(new MidiTrack(events, trackChunks[i], i, isChecked));
+            var track = new MidiTrack(events, trackChunks[i], i, midiFile, isChecked);
+            
+            track.DisplayTrackNumber = i;
+            
+            MidiTracks.Add(track);
         }
+        
+        NotifyOfPropertyChange(() => IsAnyExpanded);
     }
 
     /// <summary>
@@ -215,6 +282,7 @@ public class TrackViewModel : Screen
         NotifyOfPropertyChange(() => TotalNotes);
         NotifyOfPropertyChange(() => AccessibleNotes);
         NotifyOfPropertyChange(() => NotesStatsDisplay);
+        NotifyOfPropertyChange(() => PlayablePercentage);
     }
 
     #endregion
@@ -225,7 +293,7 @@ public class TrackViewModel : Screen
     {
         if (!_isViewActive) return;
 
-        var matchingTracks = MidiTracks.Where(t => t.IsChecked && t.ContainsNote(e.NoteNumber)).ToList();
+        var matchingTracks = MidiTracks.Where(t => t.IsChecked && t.IsPlayingNoteAt(e.NoteNumber, e.CurrentTimeUs)).ToList();
         foreach (var track in matchingTracks)
         {
             track.TriggerGlow();

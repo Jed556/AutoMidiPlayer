@@ -11,6 +11,7 @@
     xmlns:helpers="clr-namespace:AutoMidiPlayer.WPF.Helpers"
     xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
     xmlns:noSong="clr-namespace:AutoMidiPlayer.WPF.Controls.NoSongPlaceholder"
+    xmlns:converters="clr-namespace:AutoMidiPlayer.WPF.Converters"
     d:DataContext="{d:DesignInstance Type=viewModels:TrackViewModel}">
     <Grid>
         <Grid.RowDefinitions>
@@ -18,24 +19,76 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Notes Statistics -->
-        <TextBlock Grid.Row="0"
-                   VerticalAlignment="Center"
-                   FontSize="12"
-                   Opacity="0.7"
-                   Margin="0,0,0,10"
-                   Text="{Binding NotesStatsDisplay}"
-                   Visibility="{Binding Queue.OpenedFile, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+        <!-- Top Bar Summary -->
+        <Border Grid.Row="0"
+                Margin="0,0,0,10"
+                Padding="12,8"
+                BorderThickness="2"
+                CornerRadius="6"
+                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                Visibility="{Binding Queue.OpenedFile, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <!-- Leftmost: Percent -->
+                <StackPanel Grid.Column="0" Orientation="Vertical" Margin="0,0,16,0" VerticalAlignment="Center">
+                    <TextBlock Text="Playable" FontSize="11" Opacity="0.6"/>
+                    <TextBlock FontSize="14" FontWeight="SemiBold" Text="{Binding PlayablePercentage, StringFormat='{}{0:F1}%'}"/>
+                </StackPanel>
+
+                <!-- Middle: Notes -->
+                <StackPanel Grid.Column="1" Orientation="Vertical" VerticalAlignment="Center">
+                    <TextBlock Text="Playable Notes" FontSize="11" Opacity="0.6"/>
+                    <TextBlock FontSize="14" FontWeight="SemiBold">
+                        <Run Text="{Binding AccessibleNotes, Mode=OneWay, StringFormat='{}{0:N0}'}"/>
+                        <Run Text="/" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                        <Run Text="{Binding TotalNotes, Mode=OneWay, StringFormat='{}{0:N0}'}" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                    </TextBlock>
+                </StackPanel>
+                           
+                <!-- Right: Buttons -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <controls:Button Variant="Ghost"
+                                     Icon="Eye24"
+                                     IconFontSize="18"
+                                     Padding="4"
+                                     Margin="0,0,8,0"
+                                     IsActive="{Binding ShowEmptyTracks}"
+                                     Command="{s:Action ToggleEmptyTracks}"
+                                     ToolTip="Show/hide empty tracks"/>
+                    
+                    <controls:RotateToggleButton Command="{s:Action ToggleAllExpanded}"
+                                                 IsRotated="{Binding IsAnyExpanded}"
+                                                 ToolTip="Expand/collapse all"/>
+                </StackPanel>
+            </Grid>
+        </Border>
 
         <!-- Track Cards -->
         <ScrollViewer Grid.Row="1"
                       helpers:ScrollEdgeFadeBehavior.IsEnabled="True">
             <ItemsControl ItemsSource="{Binding MidiTracks}">
+                <ItemsControl.ItemContainerStyle>
+                    <Style TargetType="ContentPresenter">
+                        <Setter Property="Visibility" Value="Visible" />
+                    </Style>
+                </ItemsControl.ItemContainerStyle>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <Grid Margin="0,4">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
                             <!-- Glow layer (behind content) -->
                             <Border x:Name="GlowBorder"
+                                    Grid.Row="0"
                                     Margin="0"
                                     BorderThickness="2"
                                     CornerRadius="6"
@@ -82,6 +135,7 @@
 
                             <!-- Content layer -->
                             <Border x:Name="TrackBorder"
+                                    Grid.Row="0"
                                     Padding="12,8"
                                     BorderThickness="2"
                                     CornerRadius="6"
@@ -90,19 +144,54 @@
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
 
-                                    <!-- Toggle and Track Name -->
-                                    <ui:ToggleSwitch Grid.Column="0"
+                                    <!-- Track Index -->
+                                    <TextBlock Grid.Column="0"
+                                               Text="{Binding DisplayTrackNumber, StringFormat='{}{0:00}', TargetNullValue='', FallbackValue=''}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,12,0"
+                                               FontSize="16"
+                                               FontWeight="Bold"
+                                               Opacity="0.3" />
+
+                                    <!-- Toggle and Track Name + Instrument -->
+                                    <ui:ToggleSwitch Grid.Column="1"
                                                      IsChecked="{Binding IsChecked}"
                                                      IsEnabled="{Binding CanBePlayed}"
-                                                     Content="{Binding TrackName, TargetNullValue=Unknown}"
                                                      MinWidth="180">
+                                        <ui:ToggleSwitch.Content>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding TrackName, TargetNullValue=Unknown}" 
+                                                           FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding InstrumentName}" 
+                                                           FontSize="11" 
+                                                           Opacity="0.7" 
+                                                           TextWrapping="Wrap" 
+                                                           MaxWidth="250">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding InstrumentName}" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding InstrumentName}" Value="">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </ui:ToggleSwitch.Content>
                                     </ui:ToggleSwitch>
 
                                     <!-- Statistics -->
-                                    <controls:SimpleStackPanel Grid.Column="1"
+                                    <controls:SimpleStackPanel Grid.Column="2"
                                                                Orientation="Horizontal"
                                                                HorizontalAlignment="Right"
                                                                Spacing="16">
@@ -152,8 +241,127 @@
                                                        HorizontalAlignment="Center"/>
                                         </StackPanel>
                                     </controls:SimpleStackPanel>
+                                    
+                                    <!-- Accordion Expand Button -->
+                                    <controls:RotateToggleButton Grid.Column="3"
+                                                                 Command="{s:Action ToggleTrackExpanded}"
+                                                                 CommandParameter="{Binding}"
+                                                                 IsRotated="{Binding IsExpanded}"
+                                                                 Margin="12,0,0,0"
+                                                                 VerticalAlignment="Center"/>
                                 </Grid>
                             </Border>
+                                
+                            <!-- Expanded Details -->
+                            <Border Grid.Row="1"
+                                    Margin="0,-4,0,0"
+                                    Padding="12,12,12,8"
+                                    Background="#0F000000"
+                                    CornerRadius="0,0,4,4"
+                                    Panel.ZIndex="-1"
+                                    ClipToBounds="True">
+                                    <Border.LayoutTransform>
+                                        <ScaleTransform ScaleY="0" />
+                                    </Border.LayoutTransform>
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Opacity" Value="0" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                                    <DataTrigger.EnterActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetProperty="(FrameworkElement.LayoutTransform).(ScaleTransform.ScaleY)"
+                                                                                 To="1" Duration="0:0:0.25">
+                                                                    <DoubleAnimation.EasingFunction>
+                                                                        <QuadraticEase EasingMode="EaseOut" />
+                                                                    </DoubleAnimation.EasingFunction>
+                                                                </DoubleAnimation>
+                                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                                 To="1" Duration="0:0:0.2" BeginTime="0:0:0.05">
+                                                                    <DoubleAnimation.EasingFunction>
+                                                                        <QuadraticEase EasingMode="EaseOut" />
+                                                                    </DoubleAnimation.EasingFunction>
+                                                                </DoubleAnimation>
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </DataTrigger.EnterActions>
+                                                    <DataTrigger.ExitActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetProperty="(FrameworkElement.LayoutTransform).(ScaleTransform.ScaleY)"
+                                                                                 To="0" Duration="0:0:0.2">
+                                                                    <DoubleAnimation.EasingFunction>
+                                                                        <QuadraticEase EasingMode="EaseIn" />
+                                                                    </DoubleAnimation.EasingFunction>
+                                                                </DoubleAnimation>
+                                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                                 To="0" Duration="0:0:0.15">
+                                                                    <DoubleAnimation.EasingFunction>
+                                                                        <QuadraticEase EasingMode="EaseIn" />
+                                                                    </DoubleAnimation.EasingFunction>
+                                                                </DoubleAnimation>
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </DataTrigger.ExitActions>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="16"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        
+                                        <!-- Time Column -->
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <DockPanel Margin="0,0,0,4">
+                                                <TextBlock Text="Time" FontSize="10" Opacity="0.6" DockPanel.Dock="Left"/>
+                                                <TextBlock Text="{Binding TimeRangeDisplay}" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Right" TextAlignment="Right"/>
+                                            </DockPanel>
+                                            <Border Height="4" CornerRadius="2" Background="{DynamicResource ControlFillColorDisabledBrush}">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="{Binding TimeStartRatio, Converter={x:Static converters:RatioToStarGridLengthConverter.Instance}}"/>
+                                                        <ColumnDefinition Width="{Binding TimeDurationRatio, Converter={x:Static converters:RatioToStarGridLengthConverter.Instance}}"/>
+                                                        <ColumnDefinition Width="{Binding TimeEndRatio, Converter={x:Static converters:RatioToStarGridLengthConverter.Instance}}"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="1" Background="{DynamicResource SystemAccentColorPrimaryBrush}" CornerRadius="2"/>
+                                                </Grid>
+                                            </Border>
+                                        </StackPanel>
+                                        
+                                        <!-- Pitch Column -->
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                            <DockPanel Margin="0,0,0,4">
+                                                <TextBlock Text="Pitch" FontSize="10" Opacity="0.6" DockPanel.Dock="Left"/>
+                                                <TextBlock FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Right" TextAlignment="Right">
+                                                    <Run Text="{Binding PitchRangeDisplay, Mode=OneWay}"/>
+                                                    <Run Text=" (avg: "/><Run Text="{Binding AvgPitchDisplay, Mode=OneWay}"/><Run Text=")" FontSize="10" FontWeight="Normal"/>
+                                                </TextBlock>
+                                            </DockPanel>
+                                            <Border Height="4" CornerRadius="2" Background="{DynamicResource ControlFillColorDisabledBrush}">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="{Binding PitchStartRatio, Converter={x:Static converters:RatioToStarGridLengthConverter.Instance}}"/>
+                                                        <ColumnDefinition Width="{Binding PitchRangeRatio, Converter={x:Static converters:RatioToStarGridLengthConverter.Instance}}"/>
+                                                        <ColumnDefinition Width="{Binding PitchEndRatio, Converter={x:Static converters:RatioToStarGridLengthConverter.Instance}}"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="1" Background="#00cc99" CornerRadius="2"/>
+                                                </Grid>
+                                            </Border>
+                                        </StackPanel>
+                                        
+                                        <!-- Program ID -->
+                                        <StackPanel Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="16,0,0,0">
+                                            <TextBlock Text="Program" FontSize="10" Opacity="0.6" HorizontalAlignment="Center"/>
+                                            <TextBlock Text="{Binding ProgramId, Mode=OneWay}" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
                         </Grid>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>

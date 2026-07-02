@@ -87,6 +87,43 @@ public static class AppPaths
     public static readonly string UpdateCacheDirectory = Path.Combine(AppDataDirectory, "cache", "update");
 
     /// <summary>
+    /// Directory where MIDI files downloaded from online sources (e.g. MidiShow) are stored.
+    /// These files are referenced by the song library, so the location must be persistent.
+    /// </summary>
+    public static readonly string OnlineMidiDirectory = Path.Combine(AppDataDirectory, "OnlineMidi");
+
+    /// <summary>
+    /// Root directory for Discover page caching: %LocalAppData%\AutoMidiPlayer\cache\discover\MidiShow
+    /// </summary>
+    public static readonly string DiscoverCacheDirectory =
+        Path.Combine(AppDataDirectory, "cache", "discover", "MidiShow");
+
+    /// <summary>
+    /// Directory for cached per-MIDI data (summary.json, details.json, file.mid) keyed by MIDI id.
+    /// </summary>
+    public static readonly string DiscoverMidiCacheDirectory =
+        Path.Combine(DiscoverCacheDirectory, "midi");
+
+    /// <summary>
+    /// Directory for cached user avatar images, keyed by URL hash.
+    /// </summary>
+    public static readonly string DiscoverAvatarCacheDirectory =
+        Path.Combine(DiscoverCacheDirectory, "avatar");
+
+    /// <summary>
+    /// Path to the encrypted MidiShow account credentials file (per-user, DPAPI protected).
+    /// Legacy single-account store; superseded by <see cref="MidiShowAccountsPath"/> and only
+    /// read once for migration.
+    /// </summary>
+    public static readonly string MidiShowCredentialsPath = Path.Combine(AppDataDirectory, "midishow.cred");
+
+    /// <summary>
+    /// Path to the encrypted MidiShow account pool file (per-user, DPAPI protected). Holds the
+    /// list of configured accounts (password- or cookie-based) used for download rotation.
+    /// </summary>
+    public static readonly string MidiShowAccountsPath = Path.Combine(AppDataDirectory, "midishow.accounts");
+
+    /// <summary>
     /// Ensures the app data directory exists
     /// </summary>
     public static void EnsureDirectoryExists()
@@ -96,5 +133,30 @@ public static class AppPaths
 
         if (!Directory.Exists(LogsDirectory))
             Directory.CreateDirectory(LogsDirectory);
+    }
+
+    /// <summary>
+    /// Ensures the online MIDI download directory exists and returns its path.
+    /// </summary>
+    public static string EnsureOnlineMidiDirectory()
+    {
+        if (!Directory.Exists(OnlineMidiDirectory))
+            Directory.CreateDirectory(OnlineMidiDirectory);
+
+        return OnlineMidiDirectory;
+    }
+
+    /// <summary>
+    /// Ensures the Discover page cache directories (midi/ and avatar/) exist and returns the root path.
+    /// </summary>
+    public static string EnsureDiscoverCacheDirectories()
+    {
+        if (!Directory.Exists(DiscoverMidiCacheDirectory))
+            Directory.CreateDirectory(DiscoverMidiCacheDirectory);
+
+        if (!Directory.Exists(DiscoverAvatarCacheDirectory))
+            Directory.CreateDirectory(DiscoverAvatarCacheDirectory);
+
+        return DiscoverCacheDirectory;
     }
 }

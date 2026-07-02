@@ -171,6 +171,9 @@ DocProject/Help/html
 # Click-Once directory
 publish/
 
+# Local build output (portable exe + installer)
+dist/
+
 # Publish Web Output
 *.[Pp]ublish.xml
 *.azurePubxml
@@ -351,5 +354,6 @@ MigrationBackup/
 .idea/
 
 .github/**/*instructions*
+.claude
 
 Benchmark

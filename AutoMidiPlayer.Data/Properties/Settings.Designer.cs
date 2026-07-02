@@ -1015,6 +1015,30 @@ namespace AutoMidiPlayer.Data.Properties {
             }
         }
         
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("2")]
+        public int CacheAutoCleanInterval {
+            get {
+                return ((int)(this["CacheAutoCleanInterval"]));
+            }
+            set {
+                this["CacheAutoCleanInterval"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int CacheMaxSizeMB {
+            get {
+                return ((int)(this["CacheMaxSizeMB"]));
+            }
+            set {
+                this["CacheMaxSizeMB"] = value;
+            }
+        }
+        
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.SpecialSettingAttribute(global::System.Configuration.SpecialSetting.ConnectionString)]

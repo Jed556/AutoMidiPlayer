@@ -128,6 +128,9 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         SongsView = new(ioc, this);
         PianoSheetView = new(this, new Controls.NoSongPlaceholder.NoSongPlaceholderComponent(this));
 
+        // OnlineMidiView depends on FileService/SongsView/QueueView for importing downloads
+        OnlineMidiView = new(ioc, this);
+
         _ = AboutViewModel.GetContributorsAsync();
 
         var initialPage = NormalizePageName(Settings.LastViewedPage);
@@ -183,6 +186,8 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
     public SongsViewModel SongsView { get; }
 
+    public OnlineMidiViewModel OnlineMidiView { get; }
+
     public TrackViewModel TrackView { get; }
 
     public PianoSheetViewModel PianoSheetView { get; }
@@ -203,6 +208,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         "Instrument" => "Instrument",
         "Queue" => "Queue",
         "Settings" => "Settings",
+        "Discover" => "Discover",
         "Songs" => "Songs",
         _ => "Songs"
     };
@@ -215,6 +221,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         "Instrument" => InstrumentView,
         "Queue" => QueueView,
         "Settings" => SettingsView,
+        "Discover" => OnlineMidiView,
         "Songs" or _ => SongsView
     };
 

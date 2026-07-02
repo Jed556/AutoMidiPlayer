@@ -1,0 +1,653 @@
+<UserControl
+    x:Class="AutoMidiPlayer.WPF.Views.OnlineMidiView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    mc:Ignorable="d"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:s="https://github.com/canton7/Stylet"
+    xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
+    xmlns:midishow="clr-namespace:AutoMidiPlayer.WPF.Services.MidiShow"
+    xmlns:converters="clr-namespace:AutoMidiPlayer.WPF.Converters"
+    xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
+    d:DataContext="{d:DesignInstance Type=viewModels:OnlineMidiViewModel}">
+
+    <UserControl.Resources>
+        <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter"/>
+        <converters:UrlToCachedImageConverter x:Key="UrlToCachedImageConverter"/>
+
+        <!-- Icons inside buttons don't inherit the button foreground in this app, so they
+             default to the accent (green). Force a neutral foreground; icons that need a
+             colour (gold star, green check) set Foreground explicitly and override this. -->
+        <Style TargetType="ui:SymbolIcon">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style x:Key="StatChip" TargetType="Border">
+            <Setter Property="Background" Value="{ui:ThemeResource ControlFillColorSecondaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{ui:ThemeResource ControlElevationBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Margin" Value="0,0,8,8"/>
+        </Style>
+
+
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ============ Toolbar: row 0 = search + account, row 1 = filters ============ -->
+        <Grid Grid.Row="0"
+              Margin="0,0,0,12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <ui:TextBox x:Name="SearchBox"
+                        Grid.Row="0"
+                        Grid.Column="0"
+                        PlaceholderText="Search MidiShow by track, artist, keyword..."
+                        Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}"
+                        Icon="Search12"
+                        ClearButtonEnabled="False"
+                        VerticalAlignment="Center"
+                        KeyDown="SearchBox_KeyDown"/>
+
+            <ui:Button Grid.Row="0"
+                       Grid.Column="1"
+                       Appearance="Primary"
+                       Margin="8,0,0,0"
+                       Padding="16,7"
+                       VerticalAlignment="Center"
+                       Command="{s:Action Search}"
+                       Content="Search"/>
+
+            <!-- Filter row -->
+            <StackPanel Grid.Row="1"
+                        Grid.Column="0"
+                        Grid.ColumnSpan="3"
+                        Orientation="Horizontal"
+                        Margin="0,10,0,0">
+
+            <ui:DropDownButton Appearance="Secondary"
+                               Padding="12,7"
+                               VerticalAlignment="Center"
+                               ToolTip="Filter by category">
+                <StackPanel Orientation="Horizontal">
+                    <ui:SymbolIcon Symbol="TagMultiple24" FontSize="16" Margin="0,0,7,0"/>
+                    <TextBlock VerticalAlignment="Center" Text="{Binding SelectedCategoryName, FallbackValue='All categories'}"/>
+                </StackPanel>
+                <ui:DropDownButton.Flyout>
+                    <ContextMenu>
+                        <MenuItem Header="All categories" Tag="" Click="Category_Click"/>
+                        <Separator/>
+                        <MenuItem Header="Pop Music" Tag="pop-music" Click="Category_Click"/>
+                        <MenuItem Header="Anime / Game music" Tag="game-music" Click="Category_Click"/>
+                        <MenuItem Header="Film Score" Tag="movie_tv_soundtrack" Click="Category_Click"/>
+                        <MenuItem Header="Classical Music" Tag="classical-music" Click="Category_Click"/>
+                        <MenuItem Header="Electronic Music" Tag="electronic-music" Click="Category_Click"/>
+                        <MenuItem Header="Rock" Tag="rock-and-roll" Click="Category_Click"/>
+                        <MenuItem Header="Jazz" Tag="jazz-and-blues" Click="Category_Click"/>
+                        <MenuItem Header="Country Music" Tag="country-music" Click="Category_Click"/>
+                        <MenuItem Header="Rhythm &amp; Blues" Tag="rhythm-and-blues" Click="Category_Click"/>
+                        <MenuItem Header="Hip / Rap Music" Tag="hip-hop-and-rap" Click="Category_Click"/>
+                        <MenuItem Header="Latin" Tag="latin-music" Click="Category_Click"/>
+                        <MenuItem Header="Folk Music" Tag="national-music" Click="Category_Click"/>
+                        <MenuItem Header="Ballad" Tag="folk-music" Click="Category_Click"/>
+                        <MenuItem Header="Easy Listening" Tag="easy-listening-music" Click="Category_Click"/>
+                        <MenuItem Header="Children's Music" Tag="childrens-music" Click="Category_Click"/>
+                        <MenuItem Header="Religious Music" Tag="religious-music" Click="Category_Click"/>
+                        <MenuItem Header="Other Music" Tag="other-music" Click="Category_Click"/>
+                    </ContextMenu>
+                </ui:DropDownButton.Flyout>
+            </ui:DropDownButton>
+
+            <ui:DropDownButton Appearance="Secondary"
+                               Margin="8,0,0,0"
+                               Padding="12,7"
+                               VerticalAlignment="Center"
+                               ToolTip="Sort results">
+                <StackPanel Orientation="Horizontal">
+                    <ui:SymbolIcon Symbol="ArrowSort24" FontSize="16" Margin="0,0,7,0"/>
+                    <TextBlock VerticalAlignment="Center" Text="{Binding SortLabel, FallbackValue=Newest}"/>
+                </StackPanel>
+                <ui:DropDownButton.Flyout>
+                    <ContextMenu>
+                        <MenuItem Header="Newest" Tag="" Click="Sort_Click">
+                            <MenuItem.Icon><ui:SymbolIcon Symbol="CalendarArrowDown24"/></MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="Oldest" Tag="time_asc" Click="Sort_Click">
+                            <MenuItem.Icon><ui:SymbolIcon Symbol="ArrowSortUpLines24"/></MenuItem.Icon>
+                        </MenuItem>
+                        <Separator/>
+                        <MenuItem Header="Most popular" Tag="popularity" Click="Sort_Click">
+                            <MenuItem.Icon><ui:SymbolIcon Symbol="Fire24"/></MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="Highest rated" Tag="marks" Click="Sort_Click">
+                            <MenuItem.Icon><ui:SymbolIcon Symbol="StarEmphasis24"/></MenuItem.Icon>
+                        </MenuItem>
+                    </ContextMenu>
+                </ui:DropDownButton.Flyout>
+            </ui:DropDownButton>
+
+            <ui:Button Appearance="Secondary"
+                       Margin="8,0,0,0"
+                       Padding="10,7"
+                       VerticalAlignment="Center"
+                       ToolTip="Refresh list"
+                       Command="{s:Action Reload}">
+                <ui:SymbolIcon Symbol="ArrowSync24"
+                               FontSize="16"/>
+            </ui:Button>
+            </StackPanel>
+
+            <!-- Account: a toolbar button that opens an account-manager popup. The pool can hold
+                 several MidiShow accounts (password- or cookie-based); downloads rotate across
+                 them and fail over when one is limited. -->
+            <Grid Grid.Row="0" Grid.Column="2" x:Name="AccountAnchor" Margin="8,0,0,0">
+                <ui:Button Appearance="Primary"
+                           Padding="13,7"
+                           VerticalAlignment="Center"
+                           ToolTip="Add a MidiShow account"
+                           Command="{s:Action ToggleAccountFlyout}"
+                           Visibility="{Binding HasAnyAccount, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="PersonCircle24" FontSize="16" Margin="0,0,6,0"/>
+                        <TextBlock Text="Sign in"/>
+                    </StackPanel>
+                </ui:Button>
+
+                <ui:Button Appearance="Secondary"
+                           Padding="11,7"
+                           VerticalAlignment="Center"
+                           ToolTip="{Binding AccountSummary}"
+                           Command="{s:Action ToggleAccountFlyout}"
+                           Visibility="{Binding HasAnyAccount, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="PeopleTeam24" FontSize="16" Foreground="#2EA043" Margin="0,0,6,0"/>
+                        <TextBlock Text="{Binding AccountButtonText}" Margin="0,0,6,0"/>
+                        <ui:SymbolIcon Symbol="ChevronDown12" FontSize="11" Opacity="0.7"/>
+                    </StackPanel>
+                </ui:Button>
+
+                <Popup PlacementTarget="{Binding ElementName=AccountAnchor}"
+                       Placement="Bottom"
+                       HorizontalOffset="-256"
+                       VerticalOffset="6"
+                       AllowsTransparency="True"
+                       PopupAnimation="Fade"
+                       StaysOpen="False"
+                       IsOpen="{Binding IsAccountFlyoutOpen, Mode=TwoWay}">
+                    <Border Width="360"
+                            Padding="18"
+                            CornerRadius="10"
+                            Background="{ui:ThemeResource ApplicationBackgroundBrush}"
+                            BorderBrush="{ui:ThemeResource ControlElevationBorderBrush}"
+                            BorderThickness="1">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="18" ShadowDepth="3" Opacity="0.35" Color="Black"/>
+                        </Border.Effect>
+
+                        <ScrollViewer MaxHeight="540" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <!-- Header -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <ui:SymbolIcon Symbol="PeopleTeam24" FontSize="18" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Text="MidiShow accounts" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <TextBlock Text="{Binding AccountSummary}" Opacity="0.6" FontSize="12" Margin="0,0,0,12"/>
+
+                            <!-- Configured accounts -->
+                            <ItemsControl ItemsSource="{Binding Accounts}"
+                                          Visibility="{Binding HasAnyAccount, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                          Margin="0,0,0,4">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type viewModels:MidiShowAccountRow}">
+                                        <Border Padding="10,8" Margin="0,0,0,6" CornerRadius="8"
+                                                Background="{ui:ThemeResource ControlFillColorSecondaryBrush}"
+                                                BorderBrush="{ui:ThemeResource ControlElevationBorderBrush}"
+                                                BorderThickness="1">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Ellipse Grid.Column="0" Width="9" Height="9" VerticalAlignment="Center"
+                                                         Margin="0,0,10,0" Fill="{Binding StatusBrush}"/>
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Username}" FontWeight="SemiBold" FontSize="13"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock FontSize="11" Opacity="0.6">
+                                                        <Run Text="{Binding TypeLabel, Mode=OneWay}"/>
+                                                        <Run Text="·"/>
+                                                        <Run Text="{Binding StatusText, Mode=OneWay}"/>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                                <ui:Button Grid.Column="2" Appearance="Secondary" Padding="7,5" Margin="0,0,6,0"
+                                                           ToolTip="Copy this account's session cookies"
+                                                           Visibility="{Binding CanCopyCookies, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                                           Click="CopyCookies_Click">
+                                                    <ui:SymbolIcon Symbol="Copy24" FontSize="14"/>
+                                                </ui:Button>
+                                                <ui:Button Grid.Column="3" Appearance="Secondary" Padding="7,5"
+                                                           ToolTip="Remove this account"
+                                                           Click="RemoveAccount_Click">
+                                                    <ui:SymbolIcon Symbol="Delete24" FontSize="14" Foreground="#E04F4F"/>
+                                                </ui:Button>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <Separator Margin="0,6,0,10"/>
+
+                            <!-- Add an account -->
+                            <CheckBox Content="Use cookies instead of a password"
+                                      IsChecked="{Binding IsAddingCookie}"
+                                      Margin="0,0,0,10"/>
+
+                            <!-- Inline validation / error (the popup covers the snackbar area) -->
+                            <Border Margin="0,0,0,10"
+                                    Padding="10,8"
+                                    CornerRadius="6"
+                                    Background="#33E04F4F"
+                                    BorderBrush="#E04F4F"
+                                    BorderThickness="1"
+                                    Visibility="{Binding HasAddAccountError, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="ErrorCircle24" FontSize="15" Foreground="#E04F4F"
+                                                   VerticalAlignment="Top" Margin="0,1,8,0"/>
+                                    <TextBlock Text="{Binding AddAccountError}" Foreground="#F2B8B8"
+                                               TextWrapping="Wrap" FontSize="12.5" MaxWidth="270"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Password mode -->
+                            <StackPanel Visibility="{Binding IsAddingPassword, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                <ui:TextBox Margin="0,0,0,8"
+                                            PlaceholderText="Email or username"
+                                            ClearButtonEnabled="False"
+                                            Text="{Binding NewUsername, UpdateSourceTrigger=PropertyChanged}"/>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- masked -->
+                                    <ui:PasswordBox x:Name="PasswordBox"
+                                                    Grid.Column="0"
+                                                    PlaceholderText="Password"
+                                                    ClearButtonEnabled="False"
+                                                    RevealButtonEnabled="False"
+                                                    Password="{Binding NewPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                    KeyDown="PasswordBox_KeyDown"
+                                                    Visibility="{Binding IsPasswordRevealed, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
+                                    <!-- revealed (plain text) -->
+                                    <ui:TextBox Grid.Column="0"
+                                                PlaceholderText="Password"
+                                                ClearButtonEnabled="False"
+                                                Text="{Binding NewPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                KeyDown="PasswordBox_KeyDown"
+                                                Visibility="{Binding IsPasswordRevealed, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+
+                                    <ui:Button Grid.Column="1"
+                                               Margin="6,0,0,0"
+                                               Padding="9,0"
+                                               VerticalAlignment="Stretch"
+                                               ToolTip="Show / hide password"
+                                               Command="{s:Action ToggleReveal}">
+                                        <Grid>
+                                            <ui:SymbolIcon Symbol="EyeLines24" FontSize="16" Opacity="0.75"
+                                                           Visibility="{Binding IsPasswordRevealed, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
+                                            <ui:SymbolIcon Symbol="EyeOff24" FontSize="16" Opacity="0.75"
+                                                           Visibility="{Binding IsPasswordRevealed, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                                        </Grid>
+                                    </ui:Button>
+                                </Grid>
+                                <ui:Button Appearance="Primary"
+                                           HorizontalAlignment="Stretch"
+                                           Padding="0,9"
+                                           IsEnabled="{Binding IsNotAddingAccount}"
+                                           Command="{s:Action AddPasswordAccount}">
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                                                    Visibility="{Binding IsAddingAccount, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                                            <ui:SymbolIcon Symbol="PersonAdd24" FontSize="15" Margin="0,0,6,0"/>
+                                            <TextBlock Text="Add account"/>
+                                        </StackPanel>
+                                        <ui:ProgressRing IsIndeterminate="True" Width="18" Height="18"
+                                                         Visibility="{Binding IsAddingAccount, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                                    </Grid>
+                                </ui:Button>
+
+                                <Expander Margin="0,12,0,0"
+                                          Header="How to create a MidiShow account">
+                                    <StackPanel Margin="2,10,2,2">
+                                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
+                                                   Text="1.  Open the registration page below (or go to midishow.com)."/>
+                                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
+                                                   Text="2.  Enter your email, a password (6+ characters) and the captcha. Accept the terms. (Google / Facebook sign-up also works.)"/>
+                                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
+                                                   Text="3.  Confirm the verification email from MidiShow."/>
+                                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,10"
+                                                   Text="4.  Come back and add the account with the same email and password. Add several to spread the per-account download limit."/>
+                                        <ui:Button Appearance="Secondary" HorizontalAlignment="Left" Padding="12,6" Command="{s:Action OpenRegisterPage}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <ui:SymbolIcon Symbol="Globe28" FontSize="15" Margin="0,0,6,0"/>
+                                                <TextBlock Text="Open registration page"/>
+                                            </StackPanel>
+                                        </ui:Button>
+                                    </StackPanel>
+                                </Expander>
+                            </StackPanel>
+
+                            <!-- Cookie mode -->
+                            <StackPanel Visibility="{Binding IsAddingCookie, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                <ui:TextBox Margin="0,0,0,8"
+                                            PlaceholderText="Account label (e.g. alt #1)"
+                                            ClearButtonEnabled="False"
+                                            Text="{Binding NewCookieLabel, UpdateSourceTrigger=PropertyChanged}"/>
+                                <ui:TextBox Margin="0,0,0,10"
+                                            MinHeight="70" MaxHeight="120"
+                                            AcceptsReturn="True"
+                                            TextWrapping="Wrap"
+                                            ClearButtonEnabled="False"
+                                            PlaceholderText="Paste cookie header (_identity=...; _csrf=...; ...)"
+                                            VerticalScrollBarVisibility="Auto"
+                                            Text="{Binding NewCookies, UpdateSourceTrigger=PropertyChanged}"/>
+                                <ui:Button Appearance="Primary"
+                                           HorizontalAlignment="Stretch"
+                                           Padding="0,9"
+                                           IsEnabled="{Binding IsNotAddingAccount}"
+                                           Command="{s:Action AddCookieAccount}">
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                                                    Visibility="{Binding IsAddingAccount, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                                            <ui:SymbolIcon Symbol="PersonAdd24" FontSize="15" Margin="0,0,6,0"/>
+                                            <TextBlock Text="Add account"/>
+                                        </StackPanel>
+                                        <ui:ProgressRing IsIndeterminate="True" Width="18" Height="18"
+                                                         Visibility="{Binding IsAddingAccount, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                                    </Grid>
+                                </ui:Button>
+
+                                <Expander Margin="0,12,0,0"
+                                          Header="How to copy your cookies">
+                                    <StackPanel Margin="2,10,2,2">
+                                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
+                                                   Text="Use this when a password sign-in is blocked by a captcha or risk control."/>
+                                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
+                                                   Text="1.  Sign in to midishow.com in your browser."/>
+                                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
+                                                   Text="2.  Open DevTools (F12) → Application/Storage → Cookies → www.midishow.com."/>
+                                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
+                                                   Text="3.  Copy the cookies as a single 'name=value; name2=value2' line (the _identity cookie is required)."/>
+                                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,2"
+                                                   Text="4.  Paste them above and add the account."/>
+                                    </StackPanel>
+                                </Expander>
+                            </StackPanel>
+                        </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+                </Popup>
+            </Grid>
+        </Grid>
+
+        <!-- ============ Preview mini-player (separate player; not Listen Mode) ============ -->
+        <Border Grid.Row="1"
+                Margin="0,0,0,10"
+                Padding="12,9"
+                CornerRadius="10"
+                Background="{ui:ThemeResource ControlFillColorSecondaryBrush}"
+                BorderBrush="{DynamicResource SystemAccentColorPrimaryBrush}"
+                BorderThickness="1"
+                RenderTransformOrigin="0.5,0.5">
+            <Border.RenderTransform>
+                <TranslateTransform/>
+            </Border.RenderTransform>
+            <Border.Style>
+                <!-- Smooth slide + fade + grow on appear, and fade + shrink on close. -->
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsPreviewActive}" Value="True">
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility" Duration="0:0:0">
+                                            <DiscreteObjectKeyFrame KeyTime="0:0:0" Value="{x:Static Visibility.Visible}"/>
+                                        </ObjectAnimationUsingKeyFrames>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                         From="0" To="1" Duration="0:0:0.22"/>
+                                        <DoubleAnimation Storyboard.TargetProperty="MaxHeight"
+                                                         From="0" To="90" Duration="0:0:0.22">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                         From="-10" To="0" Duration="0:0:0.22">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.EnterActions>
+                            <DataTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="0:0:0.16"/>
+                                        <DoubleAnimation Storyboard.TargetProperty="MaxHeight"
+                                                         To="0" Duration="0:0:0.16">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseIn"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                         To="-10" Duration="0:0:0.16">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseIn"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility" BeginTime="0:0:0.16" Duration="0:0:0">
+                                            <DiscreteObjectKeyFrame KeyTime="0:0:0" Value="{x:Static Visibility.Collapsed}"/>
+                                        </ObjectAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.ExitActions>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Play / pause -->
+                <ui:Button Grid.Column="0"
+                           Appearance="Secondary"
+                           Padding="8,6"
+                           VerticalAlignment="Center"
+                           ToolTip="Play / pause preview"
+                           Command="{s:Action PreviewPlayPause}">
+                    <Grid>
+                        <ui:SymbolIcon Symbol="PlayCircle24" FontSize="18"
+                                       Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                       Visibility="{Binding IsPreviewPlaying, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
+                        <ui:SymbolIcon Symbol="PauseCircle24" FontSize="18"
+                                       Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                       Visibility="{Binding IsPreviewPlaying, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                    </Grid>
+                </ui:Button>
+
+                <!-- Stop -->
+                <ui:Button Grid.Column="1"
+                           Appearance="Secondary"
+                           Padding="8,6"
+                           Margin="6,0,0,0"
+                           VerticalAlignment="Center"
+                           ToolTip="Stop preview"
+                           Command="{s:Action StopPreview}">
+                    <ui:SymbolIcon Symbol="RecordStop24" FontSize="16"/>
+                </ui:Button>
+
+                <!-- Title + seekbar -->
+                <StackPanel Grid.Column="2" Margin="14,0,12,0" VerticalAlignment="Center">
+                    <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,0,1">
+                        <Run Text="Previewing" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                        <Run Text="{Binding PreviewTitle, Mode=OneWay}" FontWeight="SemiBold"/>
+                    </TextBlock>
+                    <Slider x:Name="PreviewSeek"
+                            Minimum="0"
+                            Maximum="{Binding PreviewDurationSeconds}"
+                            Value="{Binding PreviewPositionSeconds, Mode=TwoWay}"
+                            IsMoveToPointEnabled="True"
+                            VerticalAlignment="Center"
+                            Thumb.DragStarted="PreviewSeek_DragStarted"
+                            Thumb.DragCompleted="PreviewSeek_DragCompleted"
+                            PreviewMouseLeftButtonUp="PreviewSeek_MouseUp"/>
+                </StackPanel>
+
+                <!-- Time -->
+                <TextBlock Grid.Column="3" VerticalAlignment="Center"
+                           Opacity="0.7" FontSize="12" MinWidth="78" TextAlignment="Right">
+                    <Run Text="{Binding PreviewPositionText, Mode=OneWay}"/>
+                    <Run Text="/"/>
+                    <Run Text="{Binding PreviewDurationText, Mode=OneWay}"/>
+                </TextBlock>
+            </Grid>
+        </Border>
+
+        <!-- ============ Results ============ -->
+        <Grid Grid.Row="2">
+            <!-- Virtualized so only the visible cards are realized; each card is a fairly heavy
+                 visual tree, and paging rebuilds the whole list. -->
+            <ListBox x:Name="ResultsList"
+                     ItemsSource="{Binding Results}"
+                     ScrollViewer.CanContentScroll="True"
+                     VirtualizingPanel.IsVirtualizing="True"
+                     VirtualizingPanel.VirtualizationMode="Recycling"
+                     VirtualizingPanel.ScrollUnit="Pixel"
+                     VirtualizingPanel.CacheLength="1"
+                     VirtualizingPanel.CacheLengthUnit="Page"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     BorderThickness="0"
+                     Padding="0,0,16,0"
+                     Background="Transparent"
+                     HorizontalContentAlignment="Stretch">
+                <ListBox.ItemContainerStyle>
+                    <!-- Strip all ListBoxItem chrome (selection/hover highlight, padding); the card
+                         draws its own hover state and the items aren't meant to be "selected". -->
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Margin" Value="0"/>
+                        <Setter Property="Padding" Value="0"/>
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                        <Setter Property="Focusable" Value="False"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <ContentPresenter/>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type midishow:MidiShowItem}">
+                        <controls:DiscoveryCard CardClick="Card_Click" PreviewClick="Preview_Click" AddToSongsClick="AddToSongs_Click"/>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!-- Empty / status state -->
+            <StackPanel VerticalAlignment="Center"
+                        HorizontalAlignment="Center"
+                        Visibility="{Binding ShowEmptyState, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                <ui:SymbolIcon Symbol="MusicNote224"
+                               FontSize="40"
+                               Opacity="0.4"
+                               HorizontalAlignment="Center"/>
+                <TextBlock Text="{Binding StatusMessage, FallbackValue='No MIDI files to show'}"
+                           Margin="0,10,0,0"
+                           Opacity="0.7"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+
+
+
+
+
+        </Grid>
+
+        <!-- ============ Footer: status + pagination ============ -->
+        <Grid Grid.Row="3"
+              Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0"
+                       VerticalAlignment="Center"
+                       Opacity="0.7"
+                       TextTrimming="CharacterEllipsis"
+                       Text="{Binding StatusMessage}"/>
+
+            <StackPanel Grid.Column="1"
+                        Orientation="Horizontal">
+                <ui:Button Appearance="Secondary"
+                           Padding="10,6"
+                           Margin="0,0,6,0"
+                           ToolTip="Previous page"
+                           IsEnabled="{Binding CanGoToPreviousPage}"
+                           Command="{s:Action PreviousPage}">
+                    <ui:SymbolIcon Symbol="ChevronLeft24"
+                                   FontSize="15"/>
+                </ui:Button>
+                <Border Padding="12,0"
+                        MinWidth="40"
+                        VerticalAlignment="Stretch"
+                        CornerRadius="6"
+                        Background="{ui:ThemeResource ControlFillColorSecondaryBrush}">
+                    <TextBlock VerticalAlignment="Center"
+                               HorizontalAlignment="Center"
+                               Text="{Binding CurrentPage}"/>
+                </Border>
+                <ui:Button Appearance="Secondary"
+                           Padding="10,6"
+                           Margin="6,0,0,0"
+                           ToolTip="Next page"
+                           IsEnabled="{Binding CanGoToNextPage}"
+                           Command="{s:Action NextPage}">
+                    <ui:SymbolIcon Symbol="ChevronRight24"
+                                   FontSize="15"/>
+                </ui:Button>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

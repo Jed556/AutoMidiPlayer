@@ -1,0 +1,632 @@
+<UserControl x:Class="AutoMidiPlayer.WPF.Controls.DiscoveryCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:s="https://github.com/canton7/Stylet"
+             xmlns:midishow="clr-namespace:AutoMidiPlayer.WPF.Services.MidiShow"
+             xmlns:converters="clr-namespace:AutoMidiPlayer.WPF.Converters"
+             xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=midishow:MidiShowItem}">
+    <UserControl.Resources>
+        <converters:UrlToCachedImageConverter x:Key="UrlToCachedImageConverter"/>
+        <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter"/>
+
+        <Style TargetType="ui:SymbolIcon">
+            <Setter Property="Foreground"
+                    Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+
+        <Style x:Key="ResultCard"
+                TargetType="Border">
+            <Setter Property="Margin"
+                    Value="0,0,0,8"/>
+            <Setter Property="Cursor"
+                    Value="Hand"/>
+        </Style>
+
+    </UserControl.Resources>
+
+    <Grid Margin="0,0,0,8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+            <Grid.Triggers>
+                <EventTrigger RoutedEvent="MouseEnter">
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="CardHover"
+                                             Storyboard.TargetProperty="Opacity"
+                                             To="1"
+                                             Duration="0:0:0.15">
+                                <DoubleAnimation.EasingFunction>
+                                    <QuadraticEase EasingMode="EaseOut"/>
+                                </DoubleAnimation.EasingFunction>
+                            </DoubleAnimation>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </EventTrigger>
+                <EventTrigger RoutedEvent="MouseLeave">
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="CardHover"
+                                             Storyboard.TargetProperty="Opacity"
+                                             To="0"
+                                             Duration="0:0:0.25">
+                                <DoubleAnimation.EasingFunction>
+                                    <QuadraticEase EasingMode="EaseOut"/>
+                                </DoubleAnimation.EasingFunction>
+                            </DoubleAnimation>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </EventTrigger>
+            </Grid.Triggers>
+            <!-- Base card background -->
+            <Border x:Name="CardBase"
+                    Grid.Row="0"
+                    CornerRadius="8"
+                    BorderThickness="2"
+                    Background="{DynamicResource ControlFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource ControlElevationBorderBrush}"/>
+
+            <!-- Hover overlay — fades in/out for a smooth transition -->
+            <Border x:Name="CardHover"
+                    Grid.Row="0"
+                    CornerRadius="8"
+                    BorderThickness="2"
+                    Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                    BorderBrush="{DynamicResource SystemAccentColorPrimaryBrush}"
+                    Opacity="0"
+                    IsHitTestVisible="False"/>
+
+            <!-- Content sits on top -->
+            <Border Grid.Row="0"
+                    Padding="14"
+                    CornerRadius="8"
+                    BorderThickness="2"
+                    BorderBrush="Transparent"
+                    Background="Transparent"
+                    MouseLeftButtonUp="Card_Click"
+                    Cursor="Hand">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Avatar -->
+            <Grid Grid.Column="0"
+                    Width="50"
+                    Height="50"
+                    VerticalAlignment="Top"
+                    Margin="0,0,14,0">
+                <controls:SkeletonBlock CornerRadius="25"
+                                        Visibility="{Binding IsLoading, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                <Grid Visibility="{Binding IsLoading, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                    <Ellipse Fill="{ui:ThemeResource ControlFillColorSecondaryBrush}"/>
+
+                    <controls:SkeletonBlock CornerRadius="25"
+                                            Visibility="{Binding ElementName=AvatarBrush, Path=ImageSource.IsDownloading, Converter={x:Static s:BoolToVisibilityConverter.Instance}, FallbackValue=Collapsed}"/>
+
+                    <Ellipse x:Name="AvatarImageEllipse" Opacity="0">
+                        <Ellipse.Fill>
+                            <ImageBrush x:Name="AvatarBrush"
+                                    ImageSource="{Binding ThumbnailUrl, Converter={StaticResource UrlToCachedImageConverter}}"
+                                    Stretch="UniformToFill"/>
+                        </Ellipse.Fill>
+                    </Ellipse>
+                    <ui:SymbolIcon Symbol="MusicNote224"
+                            FontSize="18"
+                            Opacity="0.5"
+                                   HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                                   Visibility="{Binding HasThumbnail, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
+                </Grid>
+            </Grid>
+
+            <!-- Content -->
+            <StackPanel Grid.Column="1"
+                    VerticalAlignment="Center"
+                    MinHeight="95">
+                <!-- Title -->
+                <Grid>
+                    <controls:SkeletonBlock x:Name="SkeletonTitle"
+                            Width="180"
+                            HorizontalAlignment="Left"
+                                            Visibility="{Binding IsLoading, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                        <TextBlock Text="A"
+                                FontSize="15"
+                                FontWeight="SemiBold"
+                                Visibility="Hidden"/>
+                    </controls:SkeletonBlock>
+                    <TextBlock x:Name="TitleText" Text="{Binding Title}"
+                            MinHeight="20"
+                               HorizontalAlignment="Left"
+                               FontWeight="SemiBold"
+                            FontSize="15"
+                               TextTrimming="CharacterEllipsis"
+                               Visibility="{Binding IsLoading, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
+                </Grid>
+
+                <!-- Meta Row -->
+                <Grid Margin="0,5,0,0">
+                    <!-- Skeleton Meta -->
+                    <WrapPanel x:Name="SkeletonMetaWrap" Visibility="{Binding IsLoading, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                        <controls:SkeletonBlock Width="60"
+                                Margin="0,0,14,0">
+                            <TextBlock Text="A"
+                                    FontSize="12"
+                                    Visibility="Hidden"/>
+                        </controls:SkeletonBlock>
+                        <controls:SkeletonBlock Width="50"
+                                Margin="0,0,14,0">
+                            <TextBlock Text="A"
+                                    FontSize="12"
+                                    Visibility="Hidden"/>
+                        </controls:SkeletonBlock>
+                        <controls:SkeletonBlock Width="40"
+                                Margin="0,0,14,0">
+                            <TextBlock Text="A"
+                                    FontSize="12"
+                                    Visibility="Hidden"/>
+                        </controls:SkeletonBlock>
+                        <controls:SkeletonBlock Width="55"
+                                Margin="0,0,14,0">
+                            <TextBlock Text="A"
+                                    FontSize="12"
+                                    Visibility="Hidden"/>
+                        </controls:SkeletonBlock>
+                        <controls:SkeletonBlock Width="45"
+                                Margin="0,0,14,0">
+                            <TextBlock Text="A"
+                                    FontSize="12"
+                                    Visibility="Hidden"/>
+                        </controls:SkeletonBlock>
+                        <controls:SkeletonBlock Width="40"
+                                Margin="0,0,14,0">
+                            <TextBlock Text="A"
+                                    FontSize="12"
+                                    Visibility="Hidden"/>
+                        </controls:SkeletonBlock>
+                    </WrapPanel>
+
+                    <!-- Real Meta -->
+                    <WrapPanel x:Name="MetaContent" Visibility="{Binding IsLoading, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                        <StackPanel Orientation="Horizontal"
+                                Margin="0,0,14,0"
+                                VerticalAlignment="Center"
+                                ToolTipService.ToolTip="{Binding UploaderTooltip}">
+                            <ui:SymbolIcon Symbol="PersonCircle24"
+                                    FontSize="12"
+                                    Opacity="0.55"
+                                    Margin="0,0,4,0"/>
+                            <TextBlock Text="{Binding Uploader, FallbackValue=Unknown}"
+                                    Opacity="0.7"
+                                    FontSize="12"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                Margin="0,0,14,0"
+                                VerticalAlignment="Center"
+                                    Visibility="{Binding HasUploadDate, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                    ToolTipService.ToolTip="{Binding UploadDateTooltip}">
+                            <ui:SymbolIcon Symbol="CalendarLtr16"
+                                    FontSize="12"
+                                    Opacity="0.55"
+                                    Margin="0,0,4,0"/>
+                            <TextBlock Text="{Binding UploadDateDisplay}"
+                                    Opacity="0.7"
+                                    FontSize="12"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                Margin="0,0,14,0"
+                                VerticalAlignment="Center"
+                                    Visibility="{Binding HasRating, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                    ToolTipService.ToolTip="{Binding RatingTooltip}">
+                            <ui:SymbolIcon Symbol="StarEmphasis24"
+                                    FontSize="12"
+                                    Foreground="#E5A800"
+                                    Margin="0,0,4,0"/>
+                            <TextBlock Text="{Binding RatingDisplay}"
+                                    Opacity="0.7"
+                                    FontSize="12"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                Margin="0,0,14,0"
+                                VerticalAlignment="Center"
+                                    Visibility="{Binding HasDownloads, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                    ToolTipService.ToolTip="Total Downloads">
+                            <ui:SymbolIcon Symbol="ArrowDownload16"
+                                    FontSize="12"
+                                    Opacity="0.55"
+                                    Margin="0,0,4,0"/>
+                            <TextBlock Text="{Binding Downloads}"
+                                    Opacity="0.7"
+                                    FontSize="12"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                Margin="0,0,14,0"
+                                VerticalAlignment="Center"
+                                    Visibility="{Binding HasDuration, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                    ToolTipService.ToolTip="{Binding DurationTooltip}">
+                            <ui:SymbolIcon Symbol="Clock12"
+                                    FontSize="12"
+                                    Opacity="0.55"
+                                    Margin="0,0,4,0"/>
+                            <TextBlock Text="{Binding Duration}"
+                                    Opacity="0.7"
+                                    FontSize="12"/>
+                        </StackPanel>
+                        <Grid VerticalAlignment="Center">
+                            <Grid.Style>
+                                <Style TargetType="Grid">
+                                    <Setter Property="LayoutTransform">
+                                        <Setter.Value>
+                                            <ScaleTransform ScaleX="0"/>
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Setter Property="Opacity" Value="0"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsBpmSectionVisible}" Value="True">
+                                            <DataTrigger.EnterActions>
+                                                <BeginStoryboard>
+                                                    <Storyboard>
+                                                        <DoubleAnimation Storyboard.TargetProperty="(FrameworkElement.LayoutTransform).(ScaleTransform.ScaleX)" To="1" Duration="0:0:0.35">
+                                                            <DoubleAnimation.EasingFunction>
+                                                                <QuadraticEase EasingMode="EaseOut" />
+                                                            </DoubleAnimation.EasingFunction>
+                                                        </DoubleAnimation>
+                                                        <DoubleAnimation Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.25" BeginTime="0:0:0.1">
+                                                            <DoubleAnimation.EasingFunction>
+                                                                <QuadraticEase EasingMode="EaseOut" />
+                                                            </DoubleAnimation.EasingFunction>
+                                                        </DoubleAnimation>
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </DataTrigger.EnterActions>
+                                            <DataTrigger.ExitActions>
+                                                <BeginStoryboard>
+                                                    <Storyboard>
+                                                        <DoubleAnimation Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.2">
+                                                            <DoubleAnimation.EasingFunction>
+                                                                <QuadraticEase EasingMode="EaseIn" />
+                                                            </DoubleAnimation.EasingFunction>
+                                                        </DoubleAnimation>
+                                                        <DoubleAnimation Storyboard.TargetProperty="(FrameworkElement.LayoutTransform).(ScaleTransform.ScaleX)" To="0" Duration="0:0:0.3" BeginTime="0:0:0.05">
+                                                            <DoubleAnimation.EasingFunction>
+                                                                <QuadraticEase EasingMode="EaseIn" />
+                                                            </DoubleAnimation.EasingFunction>
+                                                        </DoubleAnimation>
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </DataTrigger.ExitActions>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
+
+                            <controls:SkeletonBlock x:Name="SkeletonBpm" Width="36" Margin="0,0,14,0" HorizontalAlignment="Left" Visibility="{Binding IsLoadingDetails, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                                <TextBlock Text="A" FontSize="12" Visibility="Hidden"/>
+                            </controls:SkeletonBlock>
+
+                            <StackPanel x:Name="BpmContent" Orientation="Horizontal" Margin="0,0,14,0" HorizontalAlignment="Left" ToolTipService.ToolTip="BPM" Visibility="{Binding Details.HasBpm, Converter={x:Static s:BoolToVisibilityConverter.Instance}, FallbackValue=Collapsed, TargetNullValue=Collapsed}">
+                                <ui:SymbolIcon Symbol="Timer24" FontSize="12" Opacity="0.55" Margin="0,0,4,0"/>
+                                <TextBlock Text="{Binding Details.Bpm}" Opacity="0.7" FontSize="12"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal"
+                                Margin="0,0,14,0"
+                                VerticalAlignment="Center"
+                                    Visibility="{Binding HasTrackCount, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                    ToolTipService.ToolTip="{Binding TrackCountTooltip}">
+                            <ui:SymbolIcon Symbol="Layer24"
+                                    FontSize="12"
+                                    Opacity="0.55"
+                                    Margin="0,0,4,0"/>
+                            <TextBlock Text="{Binding TrackCount, StringFormat={}{0}}"
+                                    Opacity="0.7"
+                                    FontSize="12"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                Margin="0,0,14,0"
+                                VerticalAlignment="Center"
+                                    Visibility="{Binding HasInstrumentCount, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                    ToolTipService.ToolTip="{Binding InstrumentCountTooltip}">
+                            <ui:SymbolIcon Symbol="Guitar28"
+                                    FontSize="12"
+                                    Opacity="0.55"
+                                    Margin="0,0,4,0"/>
+                            <TextBlock Text="{Binding InstrumentCount, StringFormat={}{0}}"
+                                    Opacity="0.7"
+                                    FontSize="12"/>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                    Visibility="{Binding HasFileSize, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"
+                                    ToolTipService.ToolTip="{Binding FileSizeTooltip}">
+                            <ui:SymbolIcon Symbol="Document24"
+                                    FontSize="12"
+                                    Opacity="0.55"
+                                    Margin="0,0,4,0"/>
+                            <TextBlock Text="{Binding FileSize}"
+                                    Opacity="0.7"
+                                    FontSize="12"/>
+                        </StackPanel>
+                    </WrapPanel>
+                </Grid>
+
+                <!-- Description (Now persists even when empty) -->
+                <Grid Margin="0,6,0,0">
+                    <controls:SkeletonBlock x:Name="SkeletonDesc"
+                            Width="240"
+                            HorizontalAlignment="Left"
+                                            Visibility="{Binding IsLoading, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                        <TextBlock Text="A"
+                                FontSize="12"
+                                Visibility="Hidden"/>
+                    </controls:SkeletonBlock>
+                    <TextBlock x:Name="DescText" Text="{Binding Description}"
+                            Opacity="0.6"
+                            FontSize="12"
+                            MinHeight="16"
+                               HorizontalAlignment="Left"
+                               TextWrapping="NoWrap"
+                            TextTrimming="CharacterEllipsis"
+                               Visibility="{Binding IsLoading, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
+                </Grid>
+
+                <!-- Category & Tags -->
+                <Grid Margin="0,8,0,0">
+                    <WrapPanel x:Name="SkeletonTagsWrap" Visibility="{Binding IsLoading, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                        <!-- Skeleton styling identically matching the real chip's padding and font size -->
+                        <controls:SkeletonBlock x:Name="SkeletonChip"
+                                Width="80"
+                                Padding="9,2"
+                                CornerRadius="9"
+                                Margin="0,0,6,6"
+                                VerticalAlignment="Top">
+                            <TextBlock Text="A"
+                                    FontSize="10.5"
+                                    Visibility="Hidden"/>
+                        </controls:SkeletonBlock>
+                        <controls:SkeletonBlock x:Name="SkeletonTags"
+                                Width="120"
+                                Padding="9,2"
+                                CornerRadius="9"
+                                Margin="0,0,6,6"
+                                VerticalAlignment="Top">
+                            <TextBlock Text="A"
+                                    FontSize="10.5"
+                                    Visibility="Hidden"/>
+                        </controls:SkeletonBlock>
+                    </WrapPanel>
+
+                    <DockPanel x:Name="TagsContent" Visibility="{Binding IsLoading, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                        <!-- Category Chip -->
+                        <Border DockPanel.Dock="Left"
+                                Padding="9,2"
+                                CornerRadius="9"
+                                Margin="0,0,6,6"
+                                VerticalAlignment="Top"
+                                Background="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                Visibility="{Binding HasCategory, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                            <TextBlock Text="{Binding Category}"
+                                    FontSize="10.5"
+                                    Foreground="White"/>
+                        </Border>
+
+                        <!-- Tags as Individual Chips & +N Tag -->
+                        <controls:TagContainer Tags="{Binding TagsList}"
+                                VerticalAlignment="Top"
+                                               Visibility="{Binding HasTags, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                    </DockPanel>
+                </Grid>
+            </StackPanel>
+
+            <!-- Right: Actions -->
+            <Grid Grid.Column="2"
+                    Margin="14,0,0,0">
+                <Grid>
+                    <Border VerticalAlignment="Top"
+                            HorizontalAlignment="Right"
+                            Padding="6,1"
+                            CornerRadius="4"
+                            Background="{ui:ThemeResource ControlFillColorSecondaryBrush}"
+                            Visibility="{Binding HasStandard, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                        <TextBlock Text="{Binding Standard}"
+                                FontSize="10"
+                                Opacity="0.7"/>
+                    </Border>
+                    <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                            HorizontalAlignment="Right">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsLoading}"
+                                            Value="True">
+                                        <Setter Property="IsEnabled"
+                                                Value="False"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <controls:Button Variant="Ghost"
+                                Padding="10,8"
+                                Margin="0,0,6,0"
+                                         ToolTip="Preview — play without adding to Songs"
+                                         Click="Preview_Click"
+                                         Icon="PlayCircle24"
+                                IconFontSize="17"/>
+                        <controls:Button Variant="Ghost"
+                                ColorMode="Accent"
+                                Padding="11,8"
+                                         ToolTip="Download to your Songs library"
+                                         Click="AddToSongs_Click"
+                                         Icon="ArrowDownload16"
+                                IconFontSize="18"/>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Grid>
+            </Border>
+            
+            <!-- Accordion Details -->
+            <Border Grid.Row="1"
+                    Margin="0,-4,0,0"
+                    Padding="14,14,14,14"
+                    Background="#0F000000"
+                    CornerRadius="0,0,6,6"
+                    Panel.ZIndex="-1"
+                    ClipToBounds="True">
+                <Border.LayoutTransform>
+                    <ScaleTransform ScaleY="0" />
+                </Border.LayoutTransform>
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Opacity" Value="0" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                <DataTrigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetProperty="(FrameworkElement.LayoutTransform).(ScaleTransform.ScaleY)"
+                                                             To="1" Duration="0:0:0.25">
+                                                <DoubleAnimation.EasingFunction>
+                                                    <QuadraticEase EasingMode="EaseOut" />
+                                                </DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                             To="1" Duration="0:0:0.2" BeginTime="0:0:0.05">
+                                                <DoubleAnimation.EasingFunction>
+                                                    <QuadraticEase EasingMode="EaseOut" />
+                                                </DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.EnterActions>
+                                <DataTrigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetProperty="(FrameworkElement.LayoutTransform).(ScaleTransform.ScaleY)"
+                                                             To="0" Duration="0:0:0.2">
+                                                <DoubleAnimation.EasingFunction>
+                                                    <QuadraticEase EasingMode="EaseIn" />
+                                                </DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                             To="0" Duration="0:0:0.15">
+                                                <DoubleAnimation.EasingFunction>
+                                                    <QuadraticEase EasingMode="EaseIn" />
+                                                </DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.ExitActions>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <Grid>
+                    <ui:ProgressRing IsIndeterminate="True"
+                                     Width="32" Height="32"
+                                     VerticalAlignment="Center" HorizontalAlignment="Center"
+                                     Margin="0,20,0,20"
+                                     Visibility="{Binding IsLoadingDetails, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+
+                    <StackPanel Visibility="{Binding IsLoadingDetails, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+
+                        
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="20"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Left Column: Intro & Meta -->
+                            <StackPanel Grid.Column="0">
+                                <StackPanel Visibility="{Binding Details.HasIntroduction, Converter={x:Static s:BoolToVisibilityConverter.Instance}, FallbackValue=Collapsed}">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                        <ui:SymbolIcon Symbol="TextDescription24" FontSize="14" Opacity="0.7" Margin="0,0,6,0"/>
+                                        <TextBlock Text="Introduction" FontWeight="SemiBold" FontSize="13"/>
+                                    </StackPanel>
+                                    <Border Background="{ui:ThemeResource ControlFillColorSecondaryBrush}"
+                                            BorderBrush="{ui:ThemeResource ControlElevationBorderBrush}"
+                                            BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,14">
+                                        <TextBlock Text="{Binding Details.Introduction}"
+                                                   Opacity="0.85" TextWrapping="Wrap" LineHeight="20" FontSize="12"/>
+                                    </Border>
+                                </StackPanel>
+                                
+                                <WrapPanel>
+                                    <Border Margin="0,0,8,8" Padding="10,6" CornerRadius="6" Background="{ui:ThemeResource ControlFillColorSecondaryBrush}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <ui:SymbolIcon Symbol="MusicNote124" FontSize="13" Opacity="0.7" Margin="0,0,6,0"/>
+                                            <TextBlock Text="{Binding Details.NoteCount, FallbackValue='--'}" FontWeight="SemiBold" Margin="0,0,5,0"/>
+                                            <TextBlock Text="Notes" Opacity="0.55" FontSize="11" VerticalAlignment="Bottom"/>
+                                        </StackPanel>
+                                    </Border>
+                                     <controls:Button Variant="Outlined" Margin="0,0,8,8" Padding="12,6" Click="VisitPage_Click" ToolTip="Open the MidiShow page in your browser">
+                                         <StackPanel Orientation="Horizontal">
+                                             <ui:SymbolIcon Symbol="Open24" FontSize="13" Opacity="0.7" Margin="0,0,6,0"/>
+                                             <TextBlock Text="Visit Page" FontWeight="SemiBold"/>
+                                         </StackPanel>
+                                     </controls:Button>
+                                </WrapPanel>
+                            </StackPanel>
+
+                            <!-- Right Column: Tracks Table -->
+                            <StackPanel Grid.Column="2" Visibility="{Binding Details.HasTracks, Converter={x:Static s:BoolToVisibilityConverter.Instance}, FallbackValue=Collapsed}">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <ui:SymbolIcon Symbol="Layer24" FontSize="14" Opacity="0.7" Margin="0,0,6,0"/>
+                                    <TextBlock Text="Tracks &amp; Instruments" FontWeight="SemiBold" FontSize="13"/>
+                                </StackPanel>
+                                <Border BorderBrush="{ui:ThemeResource ControlElevationBorderBrush}" BorderThickness="1" CornerRadius="8" ClipToBounds="True">
+                                    <DataGrid ItemsSource="{Binding Details.Tracks}"
+                                              AutoGenerateColumns="False"
+                                              CanUserAddRows="False"
+                                              CanUserDeleteRows="False"
+                                              CanUserSortColumns="True"
+                                              IsReadOnly="True"
+                                              HeadersVisibility="Column"
+                                              GridLinesVisibility="None"
+                                              RowBackground="Transparent"
+                                              AlternatingRowBackground="{ui:ThemeResource ControlFillColorSecondaryBrush}"
+                                              BorderThickness="0">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="#" Binding="{Binding Number}" Width="Auto" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                            <DataGridTextColumn Header="Track Name" Binding="{Binding Name}" Width="*" FontSize="11"/>
+                                            <DataGridTextColumn Header="Ch." Binding="{Binding Channel}" Width="Auto" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                            <DataGridTextColumn Header="Prog. ID" Binding="{Binding ProgramId}" Width="Auto" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                            <DataGridTextColumn Header="Instrument" Binding="{Binding Instrument}" Width="*" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                            <DataGridTextColumn Header="Notes" Binding="{Binding NotesCount}" Width="Auto" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Border>
+                            </StackPanel>
+                            
+                            <StackPanel Grid.Column="2" Visibility="{Binding Details.HasTracks, Converter={StaticResource InverseBoolToVisibilityConverter}, FallbackValue=Visible}">
+                                <StackPanel Visibility="{Binding Details.HasInstruments, Converter={x:Static s:BoolToVisibilityConverter.Instance}, FallbackValue=Collapsed}">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                        <ui:SymbolIcon Symbol="Guitar28" FontSize="14" Opacity="0.7" Margin="0,0,6,0"/>
+                                        <TextBlock Text="Instruments" FontWeight="SemiBold" FontSize="13"/>
+                                    </StackPanel>
+                                    <Border Background="{ui:ThemeResource ControlFillColorSecondaryBrush}"
+                                            BorderBrush="{ui:ThemeResource ControlElevationBorderBrush}"
+                                            BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,14">
+                                        <TextBlock Text="{Binding Details.Instruments}" Opacity="0.85" TextWrapping="Wrap" LineHeight="20" FontSize="12"/>
+                                    </Border>
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Grid>
+            </Border>
+    </Grid>
+</UserControl>
