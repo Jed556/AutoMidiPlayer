@@ -82,7 +82,7 @@ jobs:
           ref: ${{ needs.prepare.outputs.build_sha }}
 
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v5.4.0
+        uses: actions/setup-dotnet@v6.0.0
         with:
           dotnet-version: 10.x
 
@@ -119,7 +119,7 @@ jobs:
           ref: ${{ needs.prepare.outputs.build_sha }}
 
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v5.4.0
+        uses: actions/setup-dotnet@v6.0.0
         with:
           dotnet-version: 10.x
 
@@ -205,7 +205,7 @@ jobs:
           Get-ChildItem .\AutoMidiPlayer_*_win-x64_* | Select Name,Length
 
       - name: Create or update GitHub Release
-        uses: softprops/action-gh-release@v3.0.1
+        uses: softprops/action-gh-release@v3.0.2
         with:
           tag_name: ${{ needs.prepare.outputs.version }}
           target_commitish: ${{ needs.prepare.outputs.build_sha }}
