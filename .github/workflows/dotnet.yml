@@ -205,7 +205,7 @@ jobs:
           Get-ChildItem .\AutoMidiPlayer_*_win-x64_* | Select Name,Length
 
       - name: Create or update GitHub Release
-        uses: softprops/action-gh-release@v3.0.2
+        uses: softprops/action-gh-release@v3.0.3
         with:
           tag_name: ${{ needs.prepare.outputs.version }}
           target_commitish: ${{ needs.prepare.outputs.build_sha }}
