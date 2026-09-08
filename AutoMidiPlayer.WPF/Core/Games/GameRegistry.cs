@@ -48,7 +48,7 @@ public static class GameRegistry
             instrumentGameName: "Wuthering Waves",
             imageResourcePath: "pack://application:,,,/Resources/Images/Games/Wuthering_Waves.png",
             processNames: ["Client-Win64-Shipping", "Wuthering Waves"],
-            windowNames: ["Wuthering Waves"],
+            // windowNames: ["Wuthering Waves"],
             getLocation: () => Settings.WutheringWavesLocation,
             setLocation: v => Settings.Modify(s => s.WutheringWavesLocation = v),
             getIsActive: () => Settings.ActiveWutheringWaves,
