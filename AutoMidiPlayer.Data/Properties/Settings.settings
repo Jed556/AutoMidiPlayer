@@ -104,6 +104,9 @@
       <Value Profile="(Default)">1</Value>
     </Setting>
     <!-- Piano Pedals -->
+    <Setting Name="SustainEnabledByInstrument" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
     <Setting Name="SustainEnabledByGame" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>

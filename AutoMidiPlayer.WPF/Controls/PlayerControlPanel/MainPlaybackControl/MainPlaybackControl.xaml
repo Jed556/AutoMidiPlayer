@@ -25,8 +25,9 @@
                     <Grid>
                         <controls:Button x:Name="PedalButton" Variant="GhostDimmed"
                                          s:View.ActionTarget="{Binding InstrumentView}"
-                                         Command="{s:Action ToggleEnableSustainForGame}"
-                                         IsActive="{Binding InstrumentView.EnableSustainForGame}"
+                                         Command="{s:Action ToggleEnableSustainForInstrument}"
+                                         IsActive="{Binding InstrumentView.EnableSustainForInstrument}"
+                                         IsEnabled="{Binding InstrumentView.SupportsSustainPedals}"
                                          Padding="8"
                                          MouseEnter="PedalButton_MouseEnter"
                                          MouseLeave="PedalButton_MouseLeave">

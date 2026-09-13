@@ -20,6 +20,8 @@ namespace AutoMidiPlayer.WPF.ViewModels;
 public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenModeChangedNotification>
 {
     private static readonly Settings Settings = Settings.Default;
+
+    private const uint DefaultChordDetectionMilliseconds = 30;
     private readonly IEventAggregator _events;
     private readonly IContainer _ioc;
     private readonly MainWindowViewModel _main;
@@ -43,7 +45,9 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
         _events.Subscribe(this);
         _selectedInstrumentByGame = LoadSelectedInstrumentsByGame();
         
-        _sustainEnabledByGame = LoadJsonDictionary<bool>(Settings.SustainEnabledByGame) ?? new Dictionary<string, bool>();
+        _sustainEnabledByInstrument = LoadJsonDictionary<bool>(Settings.SustainEnabledByInstrument)
+            ?? LoadJsonDictionary<bool>(Settings.SustainEnabledByGame)
+            ?? new Dictionary<string, bool>();
         _sustainKeyByLayout = LoadJsonDictionary<VirtualKeyCode?>(Settings.SustainKeyByLayout) ?? new Dictionary<string, VirtualKeyCode?>();
         _sostenutoKeyByLayout = LoadJsonDictionary<VirtualKeyCode?>(Settings.SostenutoKeyByLayout) ?? new Dictionary<string, VirtualKeyCode?>();
         _unaCordaKeyByLayout = LoadJsonDictionary<VirtualKeyCode?>(Settings.UnaCordaKeyByLayout) ?? new Dictionary<string, VirtualKeyCode?>();
@@ -85,9 +89,13 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
         }
 
         // Initialize note settings to defaults (will be updated when song is loaded)
+        _isUpdatingFromSong = true;
         MergeNotes = false;
         MergeMilliseconds = 100;
         HoldNotes = false;
+        DetectChordPads = false;
+        ChordDetectionMilliseconds = DefaultChordDetectionMilliseconds;
+        _isUpdatingFromSong = false;
 
         SyncListenModeFromSettings();
         SyncPlayUnplayableOnIgnoreFromSettings();
@@ -145,7 +153,7 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
     /// </summary>
     public void UpdateFromCurrentSong()
     {
-        var song = _main.QueueView.OpenedFile?.Song;
+        var song = _main.QueueView?.OpenedFile?.Song;
         if (song == null)
         {
             // No song open - use defaults
@@ -153,8 +161,11 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
             MergeNotes = false;
             MergeMilliseconds = 100;
             HoldNotes = false;
+            DetectChordPads = false;
+            ChordDetectionMilliseconds = DefaultChordDetectionMilliseconds;
             _isUpdatingFromSong = false;
             NotifyOfPropertyChange(nameof(HasSongOpen));
+            NotifyOfPropertyChange(nameof(CanUseChordPads));
             return;
         }
 
@@ -162,8 +173,11 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
         MergeNotes = song.MergeNotes ?? false;
         MergeMilliseconds = song.MergeMilliseconds ?? 100;
         HoldNotes = song.HoldNotes ?? false;
+        DetectChordPads = song.DetectChordPads ?? false;
+        ChordDetectionMilliseconds = song.ChordDetectionMilliseconds ?? DefaultChordDetectionMilliseconds;
         _isUpdatingFromSong = false;
         NotifyOfPropertyChange(nameof(HasSongOpen));
+        NotifyOfPropertyChange(nameof(CanUseChordPads));
     }
 
 
@@ -182,30 +196,76 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
 
     public BindableCollection<KeyValuePair<string, string>> AvailableLayouts { get; } = new();
 
-    private readonly Dictionary<string, bool> _sustainEnabledByGame;
+    private readonly Dictionary<string, bool> _sustainEnabledByInstrument;
     private readonly Dictionary<string, VirtualKeyCode?> _sustainKeyByLayout;
     private readonly Dictionary<string, VirtualKeyCode?> _sostenutoKeyByLayout;
     private readonly Dictionary<string, VirtualKeyCode?> _unaCordaKeyByLayout;
 
-    public bool EnableSustainForGame
+    public bool EnableSustainForInstrument
     {
         get
         {
-            var gameId = GetActiveGameId();
-            if (string.IsNullOrEmpty(gameId)) return true;
-            return _sustainEnabledByGame.TryGetValue(gameId, out var enabled) ? enabled : true;
+            if (SelectedInstrument.Equals(default(KeyValuePair<string, string>)) || !SupportsSustainPedals) return false;
+            return _sustainEnabledByInstrument.TryGetValue(SelectedInstrument.Key, out var enabled) ? enabled : true;
         }
         set
         {
-            var gameId = GetActiveGameId();
-            if (string.IsNullOrEmpty(gameId)) return;
-            
-            if (_sustainEnabledByGame.TryGetValue(gameId, out var current) && current == value) return;
-            
-            _sustainEnabledByGame[gameId] = value;
-            var json = JsonSerializer.Serialize(_sustainEnabledByGame);
-            Settings.Modify(s => s.SustainEnabledByGame = json);
+            if (SelectedInstrument.Equals(default(KeyValuePair<string, string>)) || !SupportsSustainPedals) return;
+
+            var instrumentKey = SelectedInstrument.Key;
+            // The supported-instruments default is enabled. Persist only a deliberate opt-out so reset
+            // can reliably return to the default and accurately disable itself afterward.
+            var changed = value
+                ? _sustainEnabledByInstrument.Remove(instrumentKey)
+                : !_sustainEnabledByInstrument.TryGetValue(instrumentKey, out var current) || current;
+            if (!changed) return;
+
+            if (!value)
+                _sustainEnabledByInstrument[instrumentKey] = false;
+
+            var json = JsonSerializer.Serialize(_sustainEnabledByInstrument);
+            Settings.Modify(s => s.SustainEnabledByInstrument = json);
             NotifyOfPropertyChange();
+            NotifyOfPropertyChange(nameof(EnableSustainForGame));
+            NotifyOfPropertyChange(nameof(CanResetPedals));
+            _events.Publish(this);
+        }
+    }
+
+    /// <summary>
+    /// Backward-compatible alias for <see cref="EnableSustainForInstrument"/>.
+    /// </summary>
+    public bool EnableSustainForGame
+    {
+        get => EnableSustainForInstrument;
+        set => EnableSustainForInstrument = value;
+    }
+
+    /// <summary>
+    /// Only expose pedal bindings where the selected instrument supports pedal input.
+    /// </summary>
+    public bool SupportsSustainPedals => !SelectedInstrument.Equals(default(KeyValuePair<string, string>))
+        && Keyboard.SupportsPedals(SelectedInstrument.Key);
+
+    public string? PedalSectionDescription => SupportsSustainPedals
+        ? null
+        : "The selected instrument does not support pedal bindings.";
+
+    public bool CanResetPedals
+    {
+        get
+        {
+            if (!SupportsSustainPedals || SelectedLayout.Equals(default(KeyValuePair<string, string>)))
+                return false;
+
+            var layout = Keyboard.GetBaseLayoutConfig(SelectedLayout.Key, SelectedInstrument.Key);
+            if (layout is null)
+                return false;
+
+            return !EnableSustainForInstrument
+                || SustainKey != layout.SustainKey
+                || SostenutoKey != layout.SostenutoKey
+                || UnaCordaKey != layout.UnaCordaKey;
         }
     }
 
@@ -229,22 +289,30 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
 
     public void ResetPedals()
     {
-        if (SelectedLayout.Equals(default(KeyValuePair<string, string>))) return;
+        if (!CanResetPedals) return;
 
         _sustainKeyByLayout.Remove(SelectedLayout.Key);
         _sostenutoKeyByLayout.Remove(SelectedLayout.Key);
         _unaCordaKeyByLayout.Remove(SelectedLayout.Key);
+
+        if (!SelectedInstrument.Equals(default(KeyValuePair<string, string>)))
+            _sustainEnabledByInstrument.Remove(SelectedInstrument.Key);
 
         Settings.Modify(s =>
         {
             s.SustainKeyByLayout = JsonSerializer.Serialize(_sustainKeyByLayout);
             s.SostenutoKeyByLayout = JsonSerializer.Serialize(_sostenutoKeyByLayout);
             s.UnaCordaKeyByLayout = JsonSerializer.Serialize(_unaCordaKeyByLayout);
+            s.SustainEnabledByInstrument = JsonSerializer.Serialize(_sustainEnabledByInstrument);
         });
 
         NotifyOfPropertyChange(nameof(SustainKey));
         NotifyOfPropertyChange(nameof(SostenutoKey));
         NotifyOfPropertyChange(nameof(UnaCordaKey));
+        NotifyOfPropertyChange(nameof(EnableSustainForInstrument));
+        NotifyOfPropertyChange(nameof(EnableSustainForGame));
+        NotifyOfPropertyChange(nameof(CanResetPedals));
+        _events.Publish(this);
     }
 
     private VirtualKeyCode? GetLayoutPedalKey(Dictionary<string, VirtualKeyCode?> dict)
@@ -261,12 +329,22 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
 
     private void SetLayoutPedalKey(Dictionary<string, VirtualKeyCode?> dict, VirtualKeyCode? value, Action<Settings> saveAction, [System.Runtime.CompilerServices.CallerMemberName] string propertyName = "")
     {
-        if (SelectedLayout.Equals(default(KeyValuePair<string, string>))) return;
+        if (!SupportsSustainPedals || SelectedLayout.Equals(default(KeyValuePair<string, string>))) return;
         
-        dict[SelectedLayout.Key] = value;
+        var layout = Keyboard.GetBaseLayoutConfig(SelectedLayout.Key, SelectedInstrument.Key);
+        var defaultValue = dict == _sustainKeyByLayout ? layout?.SustainKey
+            : dict == _sostenutoKeyByLayout ? layout?.SostenutoKey
+            : dict == _unaCordaKeyByLayout ? layout?.UnaCordaKey
+            : null;
+
+        if (value == defaultValue)
+            dict.Remove(SelectedLayout.Key);
+        else
+            dict[SelectedLayout.Key] = value;
         
         Settings.Modify(saveAction);
         NotifyOfPropertyChange(propertyName);
+        NotifyOfPropertyChange(nameof(CanResetPedals));
     }
 
     public bool MergeNotes { get; set; }
@@ -275,11 +353,20 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
 
     public bool HoldNotes { get; set; }
 
+    public bool DetectChordPads { get; set; }
+
+    public uint ChordDetectionMilliseconds { get; set; }
+
     public bool UseSpeakers { get; set; }
 
     public bool PlayUnplayableOnIgnore { get; set; }
 
-    public bool HasSongOpen => _main.QueueView.OpenedFile != null;
+    public bool HasSongOpen => _main.QueueView?.OpenedFile != null;
+
+    public bool SupportsChordPads => !SelectedInstrument.Equals(default(KeyValuePair<string, string>))
+        && Keyboard.GetInstrumentConfig(SelectedInstrument.Key).ChordPads.Count > 0;
+
+    public bool CanUseChordPads => HasSongOpen && SupportsChordPads;
 
     public bool CanChangeTime => PlayTimerToken is null;
 
@@ -469,6 +556,13 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
                 NotifyOfPropertyChange(nameof(SustainKey));
                 NotifyOfPropertyChange(nameof(SostenutoKey));
                 NotifyOfPropertyChange(nameof(UnaCordaKey));
+                NotifyOfPropertyChange(nameof(EnableSustainForInstrument));
+                NotifyOfPropertyChange(nameof(EnableSustainForGame));
+                NotifyOfPropertyChange(nameof(SupportsSustainPedals));
+                NotifyOfPropertyChange(nameof(PedalSectionDescription));
+                NotifyOfPropertyChange(nameof(CanResetPedals));
+                NotifyOfPropertyChange(nameof(SupportsChordPads));
+                NotifyOfPropertyChange(nameof(CanUseChordPads));
             });
 
         var index = AvailableInstruments.ToList().FindIndex(i =>
@@ -496,6 +590,7 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
         NotifyOfPropertyChange(nameof(SustainKey));
         NotifyOfPropertyChange(nameof(SostenutoKey));
         NotifyOfPropertyChange(nameof(UnaCordaKey));
+        NotifyOfPropertyChange(nameof(CanResetPedals));
         _events.Publish(this);
     }
 
@@ -516,10 +611,15 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
         NotifyOfPropertyChange(nameof(AvailableLayouts));
     }
 
-    public void ToggleEnableSustainForGame()
+    public void ToggleEnableSustainForInstrument()
     {
-        EnableSustainForGame = !EnableSustainForGame;
+        if (!SupportsSustainPedals)
+            return;
+
+        EnableSustainForInstrument = !EnableSustainForInstrument;
     }
+
+    public void ToggleEnableSustainForGame() => ToggleEnableSustainForInstrument();
 
     private void RefreshAvailableInstruments()
     {
@@ -591,7 +691,13 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
             {
                 NotifyOfPropertyChange(nameof(SelectedInstrument));
                 NotifyOfPropertyChange(nameof(SelectedLayout));
+                NotifyOfPropertyChange(nameof(EnableSustainForInstrument));
                 NotifyOfPropertyChange(nameof(EnableSustainForGame));
+                NotifyOfPropertyChange(nameof(SupportsSustainPedals));
+                NotifyOfPropertyChange(nameof(PedalSectionDescription));
+                NotifyOfPropertyChange(nameof(CanResetPedals));
+                NotifyOfPropertyChange(nameof(SupportsChordPads));
+                NotifyOfPropertyChange(nameof(CanUseChordPads));
             });
 
         _events.Publish(this);
@@ -747,9 +853,49 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
         }
     }
 
+    [UsedImplicitly]
+    private async void OnDetectChordPadsChanged()
+    {
+        if (_isUpdatingFromSong) return;
+        if (_main.QueueView is null) return;
+
+        var song = _main.QueueView.OpenedFile?.Song;
+        if (song != null)
+        {
+            song.DetectChordPads = DetectChordPads;
+            await SaveCurrentSong();
+        }
+
+        _events.Publish(this);
+    }
+
+    [UsedImplicitly]
+    private async void OnChordDetectionMillisecondsChanged()
+    {
+        if (_isUpdatingFromSong) return;
+
+        var clamped = Math.Min(ChordDetectionMilliseconds, 1000u);
+        if (clamped != ChordDetectionMilliseconds)
+        {
+            ChordDetectionMilliseconds = clamped;
+            return;
+        }
+
+        if (_main.QueueView is null) return;
+
+        var song = _main.QueueView.OpenedFile?.Song;
+        if (song != null)
+        {
+            song.ChordDetectionMilliseconds = ChordDetectionMilliseconds;
+            await SaveCurrentSong();
+        }
+
+        _events.Publish(this);
+    }
+
     private async Task SaveCurrentSong()
     {
-        var song = _main.QueueView.OpenedFile?.Song;
+        var song = _main.QueueView?.OpenedFile?.Song;
         if (song == null) return;
 
         var dbService = _ioc.Get<AutoMidiPlayer.WPF.Services.IDbService>();

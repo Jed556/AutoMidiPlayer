@@ -68,6 +68,16 @@ public class Song
     public bool? HoldNotes { get; set; }
 
     /// <summary>
+    /// Whether simultaneous MIDI notes should be matched to an instrument's pre-composed chord pads.
+    /// </summary>
+    public bool? DetectChordPads { get; set; }
+
+    /// <summary>
+    /// Maximum onset distance, in milliseconds, for notes to be detected as one chord.
+    /// </summary>
+    public uint? ChordDetectionMilliseconds { get; set; }
+
+    /// <summary>
     /// Computes SHA-256 hash of a file's content.
     /// </summary>
     /// <param name="filePath">Path to the file to hash.</param>

@@ -262,6 +262,16 @@ public static class KeyboardPlayer
     public static void PlayNote(int noteId, string layoutName, string instrumentId)
         => InteractNote(noteId, layoutName, instrumentId, KeyAction.Press);
 
+    /// <summary>
+    /// Presses a pre-composed chord pad exposed by the selected instrument. Chord pads are always
+    /// sent as a short press because the game owns their individual note voicings and durations.
+    /// </summary>
+    public static void PlayChordPad(int chordPadKeyIndex, string layoutName, string instrumentId)
+    {
+        if (Keyboard.TryGetChordPadKeyStroke(layoutName, instrumentId, chordPadKeyIndex, out var keyStroke))
+            InteractKeyStroke(keyStroke, KeyAction.Press);
+    }
+
     public static bool TryGetKey(string layoutName, string instrumentId, int noteId, out VirtualKeyCode key)
     {
         var keyStrokes = Keyboard.GetLayout(layoutName, instrumentId);
@@ -294,6 +304,11 @@ public static class KeyboardPlayer
         if (!TryGetKeyStroke(layoutName, instrumentId, noteId, out var keyStroke))
             return;
 
+        InteractKeyStroke(keyStroke, action);
+    }
+
+    private static void InteractKeyStroke(Keyboard.KeyStroke keyStroke, KeyAction action)
+    {
         if (UseWindowMessage)
         {
             var hWnd = WindowHelper.GetActiveGameWindowHandle();
@@ -478,4 +493,3 @@ public static class KeyboardPlayer
         SendKeyStrokeDirect(new Keyboard.KeyStroke(pedalKey), KeyAction.Up);
     }
 }
-

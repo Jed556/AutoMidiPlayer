@@ -118,13 +118,11 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         // Initialize ViewModels - order matters for dependencies
         SettingsView = new(ioc, this);
         AboutView = new();
+        QueueView = new(ioc, this);
         InstrumentView = new(ioc, this, new Controls.NoSongPlaceholder.NoSongPlaceholderComponent(this));
 
         // TrackView only handles track list management
         TrackView = new(ioc, this, new Controls.NoSongPlaceholder.NoSongPlaceholderComponent(this));
-
-        // QueueView and SongsView depend on Playback being initialized
-        QueueView = new(ioc, this);
         SongsView = new(ioc, this);
         PianoSheetView = new(this, new Controls.NoSongPlaceholder.NoSongPlaceholderComponent(this));
 

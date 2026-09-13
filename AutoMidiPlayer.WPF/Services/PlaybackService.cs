@@ -12,6 +12,7 @@ using AutoMidiPlayer.Data.Notification;
 using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Core;
 using AutoMidiPlayer.WPF.Core.Games;
+using AutoMidiPlayer.WPF.Core.Instruments;
 using AutoMidiPlayer.WPF.Dialogs;
 using AutoMidiPlayer.WPF.ViewModels;
 using Melanchall.DryWetMidi.Common;
@@ -58,6 +59,21 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
     private readonly Dictionary<int, (int SourceNote, int OutputNote, string KeyName, int Velocity, long StartMs)> _activeNotes = new();
     private readonly Dictionary<(int Channel, int NoteNumber), int> _activeSpeakerNotes = new();
     private readonly HashSet<(int Note, string Layout, string Instrument)> _activeGameNotes = new();
+    private readonly Dictionary<ChordPadEventKey, DetectedChordPad> _chordPadsByEvent = new();
+    private readonly List<DetectedChordPad> _detectedChordPads = new();
+
+    private sealed class DetectedChordPad(ChordPadConfig pad)
+    {
+        public ChordPadConfig Pad { get; } = pad;
+
+        public bool WasTriggered { get; set; }
+    }
+
+    private readonly record struct ChordPadEventKey(
+        long Time,
+        MidiEventType EventType,
+        int NoteNumber,
+        int Channel);
 
     private class PedalState
     {
@@ -205,6 +221,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
     {
         ReleaseSustainIfActive();
         SilenceSpeakers();
+        ClearChordPadDetection();
 
         var old = Playback;
         Playback = null;
@@ -235,6 +252,12 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
         var midi = Queue.OpenedFile.Midi;
         var tempoMap = Queue.OpenedFile.OriginalTempoMap;
+        if (midi is null || tempoMap is null)
+        {
+            ClearChordPadDetection();
+            Controls.UpdateButtons();
+            return Task.CompletedTask;
+        }
 
         var tracksToPlay = TrackView.MidiTracks
             .Where(t => t.IsChecked)
@@ -258,10 +281,13 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
         if (tracksToPlay.Count == 0)
         {
+            ClearChordPadDetection();
             Playback = null;
             Controls.UpdateButtons();
             return Task.CompletedTask;
         }
+
+        BuildChordPadEventMap(tracksToPlay, tempoMap);
 
         var playback = tracksToPlay.GetPlayback(tempoMap);
 
@@ -300,6 +326,11 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             _activeNotes.Clear();
             _activeSpeakerNotes.Clear();
             _activeGameNotes.Clear();
+            _scheduledEventTicks = TimeConverter.ConvertFrom(
+                playback.GetCurrentTime<MetricTimeSpan>(),
+                playback.TempoMap);
+            foreach (var chordPad in _detectedChordPads)
+                chordPad.WasTriggered = false;
             foreach (var pedal in AllPedals) pedal.Clear();
             _loggedSongContextForNotes = false;
 
@@ -538,7 +569,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
             if (pedalKey is null) continue;
 
-            var shouldBeDown = InstrumentPage.EnableSustainForGame && pedal.ChannelsDown.Count > 0;
+            var shouldBeDown = InstrumentPage.EnableSustainForInstrument && pedal.ChannelsDown.Count > 0;
             if (shouldBeDown == pedal.IsCurrentlyHeldInGame)
                 continue;
 
@@ -697,6 +728,9 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                 return;
             }
 
+            if (TryPlayChordPad(noteEvent, sourceNote, layout, instrument, noteForKeyboard))
+                return;
+
             var useHoldNotes = Queue.OpenedFile?.Song.HoldNotes ?? false;
 
             switch (noteEvent.EventType)
@@ -742,6 +776,138 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             Logger.LogException(ex);
         }
     }
+
+    private bool TryPlayChordPad(
+        NoteEvent noteEvent,
+        int sourceNote,
+        string layout,
+        string instrument,
+        int noteForKeyboard)
+    {
+        var eventKey = new ChordPadEventKey(
+            _scheduledEventTicks,
+            noteEvent.EventType,
+            (int)noteEvent.NoteNumber,
+            (int)noteEvent.Channel);
+        if (!_chordPadsByEvent.TryGetValue(eventKey, out var detectedChordPad))
+            return false;
+
+        var isNoteOn = noteEvent.EventType == MidiEventType.NoteOn && noteEvent.Velocity > 0;
+        if (!isNoteOn)
+            return true;
+
+        // Keep the track view's glow state representative of the source MIDI even though the
+        // output is a single game chord-pad key.
+        NotePlayed?.Invoke(this, new NotePlayedEventArgs(sourceNote, Controls.CurrentTime.Ticks / 10));
+
+        if (detectedChordPad.WasTriggered)
+            return true;
+
+        detectedChordPad.WasTriggered = true;
+        KeyboardPlayer.PlayChordPad(detectedChordPad.Pad.KeyIndex, layout, instrument);
+
+        if (ShouldLogPlayedNotes)
+            Logger.LogInputOutput(
+                $"CHORD_PAD name={detectedChordPad.Pad.Name} source={sourceNote} output={noteForKeyboard} keyIndex={detectedChordPad.Pad.KeyIndex}");
+
+        return true;
+    }
+
+    private void BuildChordPadEventMap(IEnumerable<TrackChunk> trackChunks, TempoMap tempoMap)
+    {
+        ClearChordPadDetection();
+
+        var song = Queue?.OpenedFile?.Song;
+        var instrument = InstrumentPage.SelectedInstrument.Key;
+        if (song?.DetectChordPads != true || string.IsNullOrWhiteSpace(instrument))
+            return;
+
+        var instrumentConfig = Keyboard.GetInstrumentConfig(instrument);
+        if (instrumentConfig.ChordPads.Count == 0)
+            return;
+
+        var toleranceMilliseconds = Math.Min(song.ChordDetectionMilliseconds ?? 30, 1000u);
+        var chordDetectionSettings = new ChordDetectionSettings
+        {
+            // Genshin's currently supported pads are triads or a dominant seventh. A lower
+            // value would incorrectly turn two-note harmony into a pad press.
+            NotesMinCount = 3,
+            NotesTolerance = TimeConverter.ConvertFrom(
+                new MetricTimeSpan(0, 0, 0, (int)toleranceMilliseconds),
+                tempoMap)
+        };
+
+        // GetChords(IEnumerable<TrackChunk>) processes every track independently. Build a temporary,
+        // time-ordered note stream so a C/E/G chord split over three MIDI tracks still reaches the
+        // game's single C chord pad. Event keys below use the original absolute times, so cloning
+        // this stream does not affect playback or event matching.
+        var chordTrack = CreateChordDetectionTrack(trackChunks);
+        foreach (var chord in chordTrack.GetChords(chordDetectionSettings))
+        {
+            var notes = chord.Notes.ToArray();
+            var pitchClasses = notes
+                .Select(note => Mod12(ApplyNoteSettings(instrument, (int)note.NoteNumber)))
+                .ToHashSet();
+
+            var chordPad = instrumentConfig.ChordPads
+                .FirstOrDefault(pad => pad.PitchClasses.SetEquals(pitchClasses));
+            if (chordPad is null)
+                continue;
+
+            var detectedChordPad = new DetectedChordPad(chordPad);
+            var wasMapped = false;
+
+            foreach (var note in notes)
+            {
+                var timedNoteOnEvent = note.GetTimedNoteOnEvent();
+                if (timedNoteOnEvent?.Event is NoteEvent noteOn)
+                {
+                    _chordPadsByEvent[CreateChordPadEventKey(timedNoteOnEvent.Time, noteOn)] = detectedChordPad;
+                    wasMapped = true;
+                }
+
+                var timedNoteOffEvent = note.GetTimedNoteOffEvent();
+                if (timedNoteOffEvent?.Event is NoteEvent noteOff)
+                    _chordPadsByEvent[CreateChordPadEventKey(timedNoteOffEvent.Time, noteOff)] = detectedChordPad;
+            }
+
+            if (wasMapped)
+                _detectedChordPads.Add(detectedChordPad);
+        }
+    }
+
+    private void ClearChordPadDetection()
+    {
+        _chordPadsByEvent.Clear();
+        _detectedChordPads.Clear();
+    }
+
+    private static int Mod12(int note) => ((note % 12) + 12) % 12;
+
+    private static TrackChunk CreateChordDetectionTrack(IEnumerable<TrackChunk> trackChunks)
+    {
+        var chordTrack = new TrackChunk();
+        var previousTime = 0L;
+
+        foreach (var timedEvent in trackChunks
+                     .SelectMany(track => track.GetTimedEvents())
+                     .Where(timedEvent => timedEvent.Event is NoteEvent)
+                     .OrderBy(timedEvent => timedEvent.Time))
+        {
+            var eventCopy = timedEvent.Event.Clone();
+            eventCopy.DeltaTime = timedEvent.Time - previousTime;
+            chordTrack.Events.Add(eventCopy);
+            previousTime = timedEvent.Time;
+        }
+
+        return chordTrack;
+    }
+
+    private static ChordPadEventKey CreateChordPadEventKey(long time, NoteEvent noteEvent) => new(
+        time,
+        noteEvent.EventType,
+        (int)noteEvent.NoteNumber,
+        (int)noteEvent.Channel);
 
     private int ApplyNoteSettings(string instrumentId, int noteId)
     {
@@ -1162,6 +1328,9 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         // Threshold change may affect whether auto-correction is active
         SongSettings.UpdateAutoCorrectState();
 
+        ReconcilePedalStates();
+        SyncPedalStatesToUI();
+
         var wasPlaying = Playback?.IsRunning ?? false;
         SavedPosition = Controls.SongPosition;
 
@@ -1173,7 +1342,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
     public void Handle(InstrumentViewModel message)
     {
-        if (_main.InstrumentView is null) return;
+        if (_main.InstrumentView is null || _main.QueueView is null) return;
 
         TrackView.UpdateTrackPlayableNotes();
         TrackView.NotifyNoteStatsChanged();
@@ -1181,6 +1350,13 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         // Instrument change may affect whether auto-correction is active
         // (depends on instrument key count vs. threshold)
         SongSettings.UpdateAutoCorrectState();
+
+        var midi = Queue?.OpenedFile?.Midi;
+        var tempoMap = Queue?.OpenedFile?.OriginalTempoMap;
+        if (midi is not null && tempoMap is not null)
+            BuildChordPadEventMap(midi.GetTrackChunks(), tempoMap);
+        else
+            ClearChordPadDetection();
     }
 
     private long GetPlaybackElapsedMs()

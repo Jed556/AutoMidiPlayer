@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using AutoMidiPlayer.WPF.Core;
@@ -9,6 +10,12 @@ public class KeyboardLayoutConfig
     public string Name { get; }
 
     public IReadOnlyList<Keyboard.KeyStroke> KeyStrokes { get; }
+
+    /// <summary>
+    /// Optional keys reserved for pre-composed chord pads. These do not correspond to entries in
+    /// <see cref="KeyStrokes"/>, which remain a one-key-per-note mapping.
+    /// </summary>
+    public IReadOnlyList<Keyboard.KeyStroke> ChordKeyStrokes { get; }
 
     public IReadOnlyList<VirtualKeyCode> Keys => KeyStrokes.Select(k => k.Key).ToArray();
 
@@ -34,10 +41,12 @@ public class KeyboardLayoutConfig
         IReadOnlyList<VirtualKeyCode> keyCodes, 
         VirtualKeyCode? sustainKey = null,
         VirtualKeyCode? sostenutoKey = null,
-        VirtualKeyCode? unaCordaKey = null)
+        VirtualKeyCode? unaCordaKey = null,
+        IReadOnlyList<Keyboard.KeyStroke>? chordKeyStrokes = null)
     {
         Name = name;
         KeyStrokes = keyCodes.Select(key => new Keyboard.KeyStroke(key)).ToArray();
+        ChordKeyStrokes = chordKeyStrokes ?? Array.Empty<Keyboard.KeyStroke>();
         SustainKey = sustainKey;
         SostenutoKey = sostenutoKey;
         UnaCordaKey = unaCordaKey;
@@ -48,10 +57,12 @@ public class KeyboardLayoutConfig
         IReadOnlyList<Keyboard.KeyStroke> keyStrokes, 
         VirtualKeyCode? sustainKey = null,
         VirtualKeyCode? sostenutoKey = null,
-        VirtualKeyCode? unaCordaKey = null)
+        VirtualKeyCode? unaCordaKey = null,
+        IReadOnlyList<Keyboard.KeyStroke>? chordKeyStrokes = null)
     {
         Name = name;
         KeyStrokes = keyStrokes;
+        ChordKeyStrokes = chordKeyStrokes ?? Array.Empty<Keyboard.KeyStroke>();
         SustainKey = sustainKey;
         SostenutoKey = sostenutoKey;
         UnaCordaKey = unaCordaKey;
@@ -76,10 +87,12 @@ public class KeyboardLayoutConfig
         IReadOnlyList<string> keys, 
         VirtualKeyCode? sustainKey = null,
         VirtualKeyCode? sostenutoKey = null,
-        VirtualKeyCode? unaCordaKey = null)
+        VirtualKeyCode? unaCordaKey = null,
+        IReadOnlyList<Keyboard.KeyStroke>? chordKeyStrokes = null)
     {
         Name = name;
         KeyStrokes = Keyboard.ParseLayoutKeys(keys);
+        ChordKeyStrokes = chordKeyStrokes ?? Array.Empty<Keyboard.KeyStroke>();
         SustainKey = sustainKey;
         SostenutoKey = sostenutoKey;
         UnaCordaKey = unaCordaKey;

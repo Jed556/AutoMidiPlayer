@@ -20,12 +20,12 @@ A feature-rich MIDI-to-key player for in-game instruments, built with C# and WPF
 https://github.com/user-attachments/assets/8e7d8dec-33c4-4d2b-a268-4abd1dbac405
 
 ### Supported Games and Instruments
-- **Genshin Impact** - Windsong Lyre, Floral Zither, Vintage Lyre
+- **Genshin Impact** - All 11 instruments as of August 2026
 - **Wuthering Waves** - 21-key instruments (shared QWERTY mapping)
 - **Neverness to Everness (NTE)** - Piano (21-key & 36-key)
 - **Where Winds Meet** - Guqin
 - **Blue Protocol: Star Resonance** - Piano (61-key & 88-key)
-- **Sky: Children of the Light** - All available Sky instruments as of Feb 2026
+- **Sky: Children of the Light** - All available Sky instruments as of February 2026
 - **Roblox** - Piano (61-key & 88-key)
 - **Heartopia** - Piano (All variations), 15-key instruments (e.g. lyre, wooden bass, violin, etc.)
 - **Core Keeper** - All instruments (shared 24-key chromatic layout; sounding range C2–B3 up to C5–B6 per instrument)

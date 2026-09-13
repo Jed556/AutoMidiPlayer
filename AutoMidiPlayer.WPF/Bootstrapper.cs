@@ -51,6 +51,8 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         ("MergeNotes", "INTEGER NULL"),
         ("MergeMilliseconds", "INTEGER NULL"),
         ("HoldNotes", "INTEGER NULL"),
+        ("DetectChordPads", "INTEGER NULL"),
+        ("ChordDetectionMilliseconds", "INTEGER NULL"),
         ("Speed", "REAL NULL"),
         ("Bpm", "REAL NULL"),
         ("BaseKey", "INTEGER NULL"),

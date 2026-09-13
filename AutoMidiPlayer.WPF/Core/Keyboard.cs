@@ -172,9 +172,7 @@ public static class Keyboard
         var config = GetInstrumentConfig(instrumentId);
 
         var layouts = config.KeyboardLayouts
-            .GroupBy(layout => layout.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.First())
-            .OrderBy(layout => layout.Name, StringComparer.OrdinalIgnoreCase)
+            .DistinctBy(layout => layout.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(layout => layout.Name, layout => layout.Name, StringComparer.OrdinalIgnoreCase);
 
         return layouts;
@@ -448,6 +446,18 @@ public static class Keyboard
     }
 
     /// <summary>
+    /// Checks whether the specified instrument supports pedal bindings.
+    /// </summary>
+    public static bool SupportsPedals(string? instrumentId)
+    {
+        if (string.IsNullOrWhiteSpace(instrumentId)
+            || !_instrumentRegistry.TryGetValue(instrumentId, out var cfg))
+            return false;
+
+        return cfg.SupportsPedals;
+    }
+
+    /// <summary>
     /// Get the key layout for the specified keyboard layout and instrument
     /// </summary>
     public static IReadOnlyList<KeyStroke> GetLayout(string? layoutName, string? instrumentId)
@@ -461,6 +471,21 @@ public static class Keyboard
             .FirstOrDefault(l => string.Equals(l.Name, layoutName, StringComparison.OrdinalIgnoreCase));
 
         return (match ?? config.KeyboardLayouts[0]).KeyStrokes;
+    }
+
+    /// <summary>
+    /// Gets the key assigned to a pre-composed chord pad, if the selected instrument and layout
+    /// expose one at the specified index.
+    /// </summary>
+    public static bool TryGetChordPadKeyStroke(
+        string? layoutName,
+        string? instrumentId,
+        int keyIndex,
+        out KeyStroke keyStroke)
+    {
+        var layout = GetBaseLayoutConfig(layoutName, instrumentId);
+        keyStroke = layout?.ChordKeyStrokes.ElementAtOrDefault(keyIndex) ?? default;
+        return layout is not null && keyIndex >= 0 && keyIndex < layout.ChordKeyStrokes.Count;
     }
 
     public static KeyboardLayoutConfig? GetBaseLayoutConfig(string? layoutName, string? instrumentId)
@@ -495,7 +520,8 @@ public static class Keyboard
             layout.KeyStrokes,
             sustainKey,
             sostenutoKey,
-            unaCordaKey
+            unaCordaKey,
+            layout.ChordKeyStrokes
         );
     }
 

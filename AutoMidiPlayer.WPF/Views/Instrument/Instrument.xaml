@@ -17,6 +17,83 @@
     d:DataContext="{d:DesignInstance Type=viewModels:InstrumentViewModel}">
     <UserControl.Resources>
         <properties:Settings x:Key="Settings"/>
+        <Style x:Key="PedalBindingsContentContainerStyle"
+               TargetType="Border">
+            <Setter Property="Opacity"
+                    Value="0"/>
+            <Setter Property="MaxHeight"
+                    Value="0"/>
+            <Setter Property="IsHitTestVisible"
+                    Value="False"/>
+            <Setter Property="ClipToBounds"
+                    Value="True"/>
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <TranslateTransform Y="-8"/>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding EnableSustainForInstrument}"
+                             Value="True">
+                    <Setter Property="IsHitTestVisible"
+                            Value="True"/>
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                 To="1"
+                                                 Duration="0:0:0.22">
+                                    <DoubleAnimation.EasingFunction>
+                                        <CubicEase EasingMode="EaseOut"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                                <DoubleAnimation Storyboard.TargetProperty="MaxHeight"
+                                                 To="180"
+                                                 Duration="0:0:0.22">
+                                    <DoubleAnimation.EasingFunction>
+                                        <CubicEase EasingMode="EaseOut"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                 To="0"
+                                                 Duration="0:0:0.22">
+                                    <DoubleAnimation.EasingFunction>
+                                        <CubicEase EasingMode="EaseOut"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                 To="0"
+                                                 Duration="0:0:0.18">
+                                    <DoubleAnimation.EasingFunction>
+                                        <CubicEase EasingMode="EaseIn"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                                <DoubleAnimation Storyboard.TargetProperty="MaxHeight"
+                                                 To="0"
+                                                 Duration="0:0:0.18">
+                                    <DoubleAnimation.EasingFunction>
+                                        <CubicEase EasingMode="EaseIn"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                 To="-8"
+                                                 Duration="0:0:0.18">
+                                    <DoubleAnimation.EasingFunction>
+                                        <CubicEase EasingMode="EaseIn"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
 
     <ScrollViewer helpers:ScrollEdgeFadeBehavior.IsEnabled="True">
@@ -40,10 +117,6 @@
                             HorizontalAlignment="Left"
                             Margin="2,0,0,0"
                             MinWidth="200"/>
-                        <ui:ToggleSwitch
-                            Content="Enable sustain pedal for this game"
-                            IsChecked="{Binding EnableSustainForGame, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                            Margin="2,8,0,0"/>
                     </controls:SimpleStackPanel>
                 </controls:Section>
 
@@ -62,60 +135,65 @@
 
                 <!-- Pedal Bindings Section -->
                 <controls:Section Title="Pedal Bindings"
+                                  Description="{Binding PedalSectionDescription}"
                                   Margin="0,16,0,0">
                     <controls:Section.HeaderContent>
-                        <controls:Button Variant="Ghost"
-                                         ColorMode="Danger"
-                                         Command="{s:Action ResetPedals}"
-                                         ToolTip="Reset pedal bindings to layout defaults"
-                                         Icon="ArrowClockwise24"
-                                         IconFontSize="18"/>
-                    </controls:Section.HeaderContent>
-                    
-                    <Grid Grid.IsSharedSizeScope="True" Margin="2,0,0,0">
-                        <StackPanel>
-                            <controls:KeyEditControl MaxKeysAccepted="1" KeyBinding="{Binding SustainKey, Mode=TwoWay}" Title="Sustain"/>
-                            <controls:KeyEditControl MaxKeysAccepted="1" KeyBinding="{Binding SostenutoKey, Mode=TwoWay}" Title="Sostenuto"/>
-                            <controls:KeyEditControl MaxKeysAccepted="1" KeyBinding="{Binding UnaCordaKey, Mode=TwoWay}" Title="Una Corda"/>
-                        </StackPanel>
-                    </Grid>
-                </controls:Section>
-
-                <!-- Scheduled Playback Section -->
-                <controls:Section Title="Scheduled Playback"
-                                  Margin="0,16,0,0">
-                    <controls:SimpleStackPanel>
-                        <controls:SimpleStackPanel.Resources>
-                        </controls:SimpleStackPanel.Resources>
                         <controls:SimpleStackPanel Orientation="Horizontal"
                                                    Spacing="8">
-                            <controls:Numberbox ToolTip="hour"
-                                                 Value="{Binding ScheduledHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                 Minimum="0"
-                                                 Maximum="23"
-                                                 MaxDecimalPlaces="0"
-                                                 FixedWidth="True"
-                                                 IsEnabled="{Binding CanChangeTime}"/>
-                            <TextBlock Text=":"
-                                       VerticalAlignment="Center"/>
-                            <controls:Numberbox ToolTip="minute"
-                                                 Value="{Binding ScheduledMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                 Minimum="0"
-                                                 Maximum="59"
-                                                 MaxDecimalPlaces="0"
-                                                 FixedWidth="True"
-                                                 IsEnabled="{Binding CanChangeTime}"/>
-                            <controls:Button Variant="Outlined"
-                                             Command="{s:Action SetTimeToNow}"
-                                             IsEnabled="{Binding CanChangeTime}"
-                                             Content="Now" />
-                            <controls:Button Variant="Outlined"
-                                             Command="{s:Action StartStopTimer}"
-                                             Content="{Binding TimerText}" />
+                            <controls:Button Variant="Ghost"
+                                             ColorMode="Danger"
+                                             IsEnabled="{Binding CanResetPedals}"
+                                             Command="{s:Action ResetPedals}"
+                                             ToolTip="Reset pedal bindings and this instrument's pedal setting to their defaults"
+                                             Icon="ArrowClockwise24"
+                                             IconFontSize="18"/>
+                            <ui:ToggleSwitch IsChecked="{Binding EnableSustainForInstrument, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             IsEnabled="{Binding SupportsSustainPedals}"
+                                             ToolTip="Enable or disable sustain pedals for this instrument"/>
                         </controls:SimpleStackPanel>
-                        <TextBlock Text="{Binding ScheduledTimeText}"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   Margin="0,-4,0,0"/>
+                    </controls:Section.HeaderContent>
+
+                    <Border Style="{StaticResource PedalBindingsContentContainerStyle}"
+                            Visibility="{Binding SupportsSustainPedals, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                        <Grid Grid.IsSharedSizeScope="True" Margin="2,0,0,0">
+                            <StackPanel>
+                                <controls:KeyEditControl MaxKeysAccepted="1" KeyBinding="{Binding SustainKey, Mode=TwoWay}" Title="Sustain"/>
+                                <controls:KeyEditControl MaxKeysAccepted="1" KeyBinding="{Binding SostenutoKey, Mode=TwoWay}" Title="Sostenuto"/>
+                                <controls:KeyEditControl MaxKeysAccepted="1" KeyBinding="{Binding UnaCordaKey, Mode=TwoWay}" Title="Una Corda"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </controls:Section>
+
+                <!-- Chord Pad Detection Section -->
+                <controls:Section Title="Chord Pad Detection"
+                                  Margin="0,16,0,0">
+                    <controls:SimpleStackPanel>
+                        <controls:SimpleStackPanel Orientation="Horizontal"
+                                                   Spacing="20"
+                                                   IsEnabled="{Binding CanUseChordPads}">
+                            <ui:ToggleSwitch Content="Detect pre-composed chord pads"
+                                             IsChecked="{Binding DetectChordPads, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Use DryWetMIDI to match simultaneous MIDI notes to the game instrument's chord-pad keys."/>
+                            <controls:Numberbox ToolTip="Chord onset tolerance (ms)"
+                                                 IsEnabled="{Binding DetectChordPads}"
+                                                 Value="{Binding ChordDetectionMilliseconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 Minimum="0"
+                                                 Maximum="1000"
+                                                 MaxDecimalPlaces="0"/>
+                        </controls:SimpleStackPanel>
+                        <TextBlock Text="Matches the supported C, Dm, Em, F, G, Am, and G7 pads. The tolerance allows slightly staggered MIDI chord onsets."
+                                   TextWrapping="Wrap"
+                                   Opacity="0.6"
+                                   FontSize="12"
+                                   Margin="0,-4,0,0"
+                                   Visibility="{Binding SupportsChordPads, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                        <TextBlock Text="The selected instrument has no pre-composed chord pads."
+                                   TextWrapping="Wrap"
+                                   Opacity="0.6"
+                                   FontSize="12"
+                                   Margin="0,-4,0,0"
+                                   Visibility="{Binding SupportsChordPads, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}"/>
                     </controls:SimpleStackPanel>
                 </controls:Section>
             </controls:SimpleStackPanel>
@@ -196,6 +274,40 @@
                                        Margin="0,-4,0,0"/>
                         </controls:SimpleStackPanel>
                     </GroupBox>
+                </controls:Section>
+
+                <!-- Scheduled Playback Section -->
+                <controls:Section Title="Scheduled Playback"
+                                  Margin="0,16,0,0">
+                    <controls:SimpleStackPanel Orientation="Horizontal"
+                                               Spacing="8">
+                        <controls:Numberbox ToolTip="hour"
+                                             Value="{Binding ScheduledHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             Minimum="0"
+                                             Maximum="23"
+                                             MaxDecimalPlaces="0"
+                                             FixedWidth="True"
+                                             IsEnabled="{Binding CanChangeTime}"/>
+                        <TextBlock Text=":"
+                                   VerticalAlignment="Center"/>
+                        <controls:Numberbox ToolTip="minute"
+                                             Value="{Binding ScheduledMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             Minimum="0"
+                                             Maximum="59"
+                                             MaxDecimalPlaces="0"
+                                             FixedWidth="True"
+                                             IsEnabled="{Binding CanChangeTime}"/>
+                        <controls:Button Variant="Outlined"
+                                         Command="{s:Action SetTimeToNow}"
+                                         IsEnabled="{Binding CanChangeTime}"
+                                         Content="Now"/>
+                        <controls:Button Variant="Outlined"
+                                         Command="{s:Action StartStopTimer}"
+                                         Content="{Binding TimerText}"/>
+                        <TextBlock Text="{Binding ScheduledTimeText}"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   VerticalAlignment="Center"/>
+                    </controls:SimpleStackPanel>
                 </controls:Section>
             </controls:SimpleStackPanel>
 
