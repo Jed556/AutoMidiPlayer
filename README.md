@@ -22,12 +22,14 @@ https://github.com/user-attachments/assets/8e7d8dec-33c4-4d2b-a268-4abd1dbac405
 ### Supported Games and Instruments
 - **Genshin Impact** - Windsong Lyre, Floral Zither, Vintage Lyre
 - **Wuthering Waves** - 21-key instruments (shared QWERTY mapping)
-- **Heartopia** - Piano (All variations), 15-key instruments (e.g. lyre, wooden bass, violin, etc.)
-- **Roblox** - Piano (61-key & 88-key)
-- **Sky: Children of the Light** - All available Sky instruments as of Feb 2026
 - **Neverness to Everness (NTE)** - Piano (21-key & 36-key)
-- **Harry Potter: Magic Awakened (HPMA)** - Piano (14-key & 36-key)
+- **Where Winds Meet** - Guqin
+- **Blue Protocol: Star Resonance** - Piano (61-key & 88-key)
+- **Sky: Children of the Light** - All available Sky instruments as of Feb 2026
+- **Roblox** - Piano (61-key & 88-key)
+- **Heartopia** - Piano (All variations), 15-key instruments (e.g. lyre, wooden bass, violin, etc.)
 - **Core Keeper** - All instruments (shared 24-key chromatic layout; sounding range C2–B3 up to C5–B6 per instrument)
+- **Harry Potter: Magic Awakened (HPMA)** - Piano (14-key & 36-key)
 
 See the [Support wiki page][wiki-support] for details on supported games, instruments, and keyboard layouts.
 
@@ -46,7 +48,7 @@ See the [Support wiki page][wiki-support] for details on supported games, instru
 ## Features
 
 ### Core Features
-* **Multi-game support** - Play on Genshin Impact, Wuthering Waves, Sky, Roblox, Heartopia, Neverness to Everness, Blue Protocol: Star Resonance, Harry Potter: Magic Awakened and Core Keeper
+* **Multi-game support** - Play on Genshin Impact, Wuthering Waves, Sky, Roblox, Heartopia, Neverness to Everness, Blue Protocol: Star Resonance, Harry Potter: Magic Awakened, Core Keeper, and Where Winds Meet
 * **Spotify-style UI** - Modern player interface with fixed bottom controls
 * **Per-song Settings** - Key offset, transpose, speed, and BPM settings are saved for each song
 
@@ -54,9 +56,18 @@ See the [Support wiki page][wiki-support] for details on supported games, instru
 * Test MIDI files through speakers before playing in-game
 * Change keyboard layouts (QWERTY, QWERTZ, AZERTY, DVORAK, etc.)
 * Hold and merge nearby notes. _Some songs sound better when merged ([#4](https://github.com/sabihoshi/GenshinLyreMidiPlayer/issues/4))_
+* Smart transposition with key auto-correction for instruments with limited note ranges
+* Sustain pedal support
 * Play using your own MIDI Input Device
 
 https://github.com/user-attachments/assets/e10a31d2-419c-4f41-bc1d-3f12cee36c0d
+
+### Discovery (Online MIDI)
+Browse, search, and download thousands of MIDI files directly inside the app without opening a browser.
+* **Online Repositories** - Browse MIDI tracks from various online repositories.
+* **In-App Synthesizer Preview** - Listen to song previews before downloading or adding to your library
+* **Detailed Track Breakdown** - Inspect tracks, channels, instruments, note counts, BPM, ratings, and download counts
+* **Library Import** - Download and add tracks directly into your song list with original track names preserved
 
 ### MIDI Track Management
 * Play multiple tracks of a MIDI file simultaneously
@@ -139,7 +150,7 @@ This project was originally forked from **[sabihoshi/GenshinLyreMidiPlayer][Gens
 * This project’s source code is licensed under the [GNU General Public License v3.0](LICENSE).
 * This project is based on [sabihoshi/GenshinLyreMidiPlayer][GenshinLyreMidiPlayer]. Original attribution and upstream notices are preserved in [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md).
 * "**Auto MIDI Player**" and its logo are trademarks of Jed556. Trademark and branding use are governed by [TRADEMARK.md](TRADEMARK.md).
-* This project is not affiliated with or endorsed by miHoYo, KURO GAMES, XD, thatgamecompany, Roblox Corporation, Hotta Studio, Pugstorm, or any other rights holder. Genshin Impact™, Wuthering Waves™, Heartopia™, Sky: Children of the Light™, Roblox™, Neverness to Everness™, Core Keeper™, and other game titles and properties belong to their respective owners.
+* This project is not affiliated with or endorsed by miHoYo, KURO GAMES, XD, thatgamecompany, Roblox Corporation, Hotta Studio, Pugstorm, Everstone Studio, or any other rights holder. Genshin Impact™, Wuthering Waves™, Heartopia™, Sky: Children of the Light™, Roblox™, Neverness to Everness™, Core Keeper™, Where Winds Meet™, and other game titles and properties belong to their respective owners.
 * Third-party libraries and other resources used by this project may be distributed under different licenses and are listed in [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md).
 
 <br/>

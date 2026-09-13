@@ -66,6 +66,28 @@ public static class GameRegistry
             setIsActive: v => Settings.Modify(s => s.ActiveNTE = v)
         ),
         new GameDefinition(
+            id: "WWM",
+            displayName: "Where Winds Meet",
+            instrumentGameName: "Where Winds Meet",
+            imageResourcePath: "pack://application:,,,/Resources/Images/Games/WWM.png",
+            processNames: ["WhereWindsMeet", "Where Winds Meet", "yysls", "yysls_client"],
+            getLocation: () => Settings.WWMLocation,
+            setLocation: v => Settings.Modify(s => s.WWMLocation = v),
+            getIsActive: () => Settings.ActiveWWM,
+            setIsActive: v => Settings.Modify(s => s.ActiveWWM = v)
+        ),
+        new GameDefinition(
+            id: "BPSR",
+            displayName: "Blue Protocol: Star Resonance",
+            instrumentGameName: "BPSR",
+            imageResourcePath: "pack://application:,,,/Resources/Images/Games/BPSR.png",
+            processNames: ["BPSR"],
+            getLocation: () => Settings.BPSRLocation,
+            setLocation: v => Settings.Modify(s => s.BPSRLocation = v),
+            getIsActive: () => Settings.ActiveBPSR,
+            setIsActive: v => Settings.Modify(s => s.ActiveBPSR = v)
+        ),
+        new GameDefinition(
             id: "Sky",
             displayName: "Sky: Children of the Light",
             instrumentGameName: "Sky",
@@ -100,15 +122,15 @@ public static class GameRegistry
             setIsActive: v => Settings.Modify(s => s.ActiveHeartopia = v)
         ),
         new GameDefinition(
-            id: "BPSR",
-            displayName: "Blue Protocol: Star Resonance",
-            instrumentGameName: "BPSR",
-            imageResourcePath: "pack://application:,,,/Resources/Images/Games/BPSR.png",
-            processNames: ["BPSR"],
-            getLocation: () => Settings.BPSRLocation,
-            setLocation: v => Settings.Modify(s => s.BPSRLocation = v),
-            getIsActive: () => Settings.ActiveBPSR,
-            setIsActive: v => Settings.Modify(s => s.ActiveBPSR = v)
+            id: "Core Keeper",
+            displayName: "Core Keeper",
+            instrumentGameName: "Core Keeper",
+            imageResourcePath: "pack://application:,,,/Resources/Images/Games/Core_Keeper.png",
+            processNames: ["CoreKeeper"],
+            getLocation: () => Settings.CoreKeeperLocation,
+            setLocation: v => Settings.Modify(s => s.CoreKeeperLocation = v),
+            getIsActive: () => Settings.ActiveCoreKeeper,
+            setIsActive: v => Settings.Modify(s => s.ActiveCoreKeeper = v)
         ),
         new GameDefinition(
             id: "HPMA",
@@ -122,17 +144,6 @@ public static class GameRegistry
             getIsActive: () => Settings.ActiveHPMA,
             setIsActive: v => Settings.Modify(s => s.ActiveHPMA = v)
         ),
-        new GameDefinition(
-            id: "Core Keeper",
-            displayName: "Core Keeper",
-            instrumentGameName: "Core Keeper",
-            imageResourcePath: "pack://application:,,,/Resources/Images/Games/Core_Keeper.png",
-            processNames: ["CoreKeeper"],
-            getLocation: () => Settings.CoreKeeperLocation,
-            setLocation: v => Settings.Modify(s => s.CoreKeeperLocation = v),
-            getIsActive: () => Settings.ActiveCoreKeeper,
-            setIsActive: v => Settings.Modify(s => s.ActiveCoreKeeper = v)
-        )
     ];
 
     #endregion
