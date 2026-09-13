@@ -70,7 +70,7 @@ public static class GameRegistry
             displayName: "Where Winds Meet",
             instrumentGameName: "Where Winds Meet",
             imageResourcePath: "pack://application:,,,/Resources/Images/Games/WWM.png",
-            processNames: ["WhereWindsMeet", "Where Winds Meet", "yysls", "yysls_client"],
+            processNames: ["WhereWindsMeet", "Where Winds Meet", "yysls", "yysls_client", "wwm"],
             getLocation: () => Settings.WWMLocation,
             setLocation: v => Settings.Modify(s => s.WWMLocation = v),
             getIsActive: () => Settings.ActiveWWM,
