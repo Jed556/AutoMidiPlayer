@@ -129,6 +129,11 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         // OnlineMidiView depends on FileService/SongsView/QueueView for importing downloads
         OnlineMidiView = new(ioc, this);
 
+        // Prevent GarbageMan from triggering full GC and working set trimming while a song is playing
+        GarbageManService.IsPlaybackActive = () =>
+            (PlaybackControls?.IsPlaying ?? false) ||
+            (OnlineMidiView?.PreviewPlayer?.IsPreviewActive ?? false);
+
         _ = AboutViewModel.GetContributorsAsync();
 
         var initialPage = NormalizePageName(Settings.LastViewedPage);
@@ -430,7 +435,11 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         // Call the GarbageMan whenever we switch pages to clean up any messy 
         // object graphs or unmanaged memory left behind by the previous page.
         // This is especially important when leaving the local Songs list or Discovery page.
-        GarbageManService.TakeOutTheTrash(aggressive: true);
+        // Do not call when a song is playing because forced GC and working set trimming cause audio/playback stutters.
+        if (PlaybackControls?.IsPlaying != true)
+        {
+            GarbageManService.TakeOutTheTrash(aggressive: true);
+        }
     }
 
     public void ToggleGameSelector()

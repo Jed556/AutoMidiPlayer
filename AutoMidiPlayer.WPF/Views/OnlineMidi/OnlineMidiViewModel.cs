@@ -747,8 +747,12 @@ public sealed class OnlineMidiViewModel : Screen
                 _loadCts = null;
                 SetBusy(false);
                 
-                // Call in the GarbageMan to clean up unmanaged image memory from the previous page
-                GarbageManService.TakeOutTheTrash();
+                // Call in the GarbageMan to clean up unmanaged image memory from the previous page,
+                // but avoid doing so if a song is playing to prevent playback stutter.
+                if (_main.PlaybackControls?.IsPlaying != true)
+                {
+                    GarbageManService.TakeOutTheTrash();
+                }
             }
         }
     }

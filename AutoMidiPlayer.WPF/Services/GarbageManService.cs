@@ -21,11 +21,20 @@ public static class GarbageManService
     private static int _isTrailingSweepScheduled = 0;
 
     /// <summary>
+    /// Optional predicate to check if playback is currently active.
+    /// If true, garbage collection and working set trimming are skipped to prevent playback stutter.
+    /// </summary>
+    public static Func<bool>? IsPlaybackActive { get; set; }
+
+    /// <summary>
     /// Performs a full Gen 2 garbage collection with finalizer drain.
     /// Use sparingly, as this halts the execution engine.
     /// </summary>
     public static void TakeOutTheTrash(bool aggressive = false)
     {
+        if (IsPlaybackActive?.Invoke() == true)
+            return;
+
         // If we are spammed with requests, always schedule a trailing sweep to run a few seconds 
         // later. This guarantees that unmanaged thumbnail downloads that finish asynchronously 
         // AFTER the page loads will still be cleaned up when the user stops clicking "Next".
@@ -35,6 +44,8 @@ public static class GarbageManService
             {
                 await Task.Delay(_minInterval);
                 _isTrailingSweepScheduled = 0;
+                if (IsPlaybackActive?.Invoke() == true)
+                    return;
                 DoSweep();
             });
         }
@@ -52,6 +63,9 @@ public static class GarbageManService
 
     private static void DoSweep()
     {
+        if (IsPlaybackActive?.Invoke() == true)
+            return;
+
         // "I don't know why we have to tell the computer to clean up after itself. 
         // It's 2026, you'd think it would know better." - The GarbageMan
         
