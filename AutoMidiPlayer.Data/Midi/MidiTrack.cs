@@ -47,7 +47,7 @@ public class MidiTrack : INotifyPropertyChanged
     public double PitchStartRatio { get; private set; }
     public double PitchRangeRatio { get; private set; }
     public double PitchEndRatio { get; private set; }
-    
+
     private int _displayTrackNumber;
     public int DisplayTrackNumber
     {
@@ -153,7 +153,7 @@ public class MidiTrack : INotifyPropertyChanged
         CalculateStatistics(file);
     }
 
-    private void CalculateStatistics(Melanchall.DryWetMidi.Core.MidiFile file)
+    private void CalculateStatistics(Melanchall.DryWetMidi.Core.MidiFile? file)
     {
         var notes = Track.GetNotes().ToList();
         NotesCount = notes.Count;
@@ -171,7 +171,7 @@ public class MidiTrack : INotifyPropertyChanged
                 timings = new List<(long, long)>();
                 _noteTimingsUs[pitch] = timings;
             }
-            
+
             var startUs = note.TimeAs<MetricTimeSpan>(tempoMap).TotalMicroseconds;
             var endUs = Melanchall.DryWetMidi.Interaction.TimeConverter.ConvertTo<MetricTimeSpan>(note.Time + note.Length, tempoMap).TotalMicroseconds;
             timings.Add((startUs, endUs));
@@ -202,14 +202,14 @@ public class MidiTrack : INotifyPropertyChanged
         // Expanded Accordion Statistics
         var firstNote = notes.OrderBy(n => n.Time).FirstOrDefault();
         var lastNote = notes.OrderByDescending(n => n.Time + n.Length).FirstOrDefault();
-        
+
         if (firstNote != null && lastNote != null)
         {
             var startTime = firstNote.TimeAs<MetricTimeSpan>(tempoMap);
             var endTime = Melanchall.DryWetMidi.Interaction.TimeConverter.ConvertTo<MetricTimeSpan>(lastNote.Time + lastNote.Length, tempoMap);
-            
+
             TimeRangeDisplay = $"{startTime.Minutes:D2}:{startTime.Seconds:D2} - {endTime.Minutes:D2}:{endTime.Seconds:D2}";
-            
+
             if (file != null)
             {
                 var totalTime = file.GetDuration<MetricTimeSpan>();
@@ -226,11 +226,11 @@ public class MidiTrack : INotifyPropertyChanged
         var minNote = notes.Min(n => n.NoteNumber);
         var maxNote = notes.Max(n => n.NoteNumber);
         var avgNoteNumber = (int)Math.Round(notes.Average(n => n.NoteNumber));
-        
+
         var minNoteObj = Melanchall.DryWetMidi.MusicTheory.Note.Get((Melanchall.DryWetMidi.Common.SevenBitNumber)minNote);
         PitchRangeDisplay = $"{MusicConstants.FormatNoteName(minNote)} - {MusicConstants.FormatNoteName(maxNote)}";
         AvgPitchDisplay = $"{MusicConstants.FormatNoteName((int)avgNoteNumber)}";
-        
+
         // Pitch ratio mapped to 0-127
         PitchStartRatio = minNote / 127.0;
         PitchRangeRatio = Math.Max(0.01, (maxNote - minNote) / 127.0); // min 1% width

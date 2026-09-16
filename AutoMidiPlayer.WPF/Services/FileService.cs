@@ -834,7 +834,11 @@ public class FileService(IContainer ioc)
         if (!ShouldAutoDetectSongKey(song))
             return;
 
-        if (!TryDetectSongKeyOffset(loadedFile.Midi, out var detectedKey))
+        var midi = loadedFile.Midi;
+        if (midi is null)
+            return;
+
+        if (!TryDetectSongKeyOffset(midi, out var detectedKey))
             return;
 
         if (song.BaseKey == detectedKey && song.Key == 0)

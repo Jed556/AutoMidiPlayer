@@ -233,18 +233,17 @@ public class TrackViewModel : Screen
         var midiFile = Queue.OpenedFile.Midi;
         var trackChunks = midiFile.GetTrackChunks().ToList();
         var events = _main.Ioc.Get<IEventAggregator>();
-        
-        int displayTrackNum = 1;
+
         for (var i = 0; i < trackChunks.Count; i++)
         {
             var isChecked = !disabledIndices.Contains(i);
             var track = new MidiTrack(events, trackChunks[i], i, midiFile, isChecked);
-            
+
             track.DisplayTrackNumber = i;
-            
+
             MidiTracks.Add(track);
         }
-        
+
         NotifyOfPropertyChange(() => IsAnyExpanded);
     }
 

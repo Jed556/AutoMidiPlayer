@@ -58,12 +58,12 @@ public sealed class OnlineMidiViewModel : Screen
                 NotifyOfPropertyChange(nameof(HasCategories));
                 NotifyOfPropertyChange(nameof(HasSortOptions));
                 NotifyOfPropertyChange(nameof(SearchPlaceholderText));
-                
+
                 ApplyDefaultFilters(skipLoad: true);
-                
+
                 Results.Clear();
                 CurrentPage = 1;
-                Reload();
+                _ = Reload();
             }
         }
     }
@@ -80,11 +80,11 @@ public sealed class OnlineMidiViewModel : Screen
 
         SelectedCategorySlug = _selectedCategoryOption?.Key ?? "";
         SelectedCategoryName = string.IsNullOrEmpty(_selectedCategoryOption?.Name) ? "All categories" : _selectedCategoryOption.Name;
-        
+
         SortKey = _selectedSortOption?.Key ?? "";
 
         SearchQuery = "";
-        
+
         NotifyOfPropertyChange(nameof(SearchQuery));
         NotifyOfPropertyChange(nameof(SelectedCategoryName));
         NotifyOfPropertyChange(nameof(SortKey));
@@ -103,7 +103,7 @@ public sealed class OnlineMidiViewModel : Screen
     {
         _ioc = ioc;
         _main = main;
-        _pool.Changed += OnPoolChanged;
+        _pool.Changed += HandlePoolChanged;
 
         Providers.Add(new MidiShowProvider(_pool));
         Providers.Add(new NanoMidiProvider());
@@ -115,11 +115,11 @@ public sealed class OnlineMidiViewModel : Screen
         // must not play at once. When the main player starts, stop the preview cleanly
         // (releasing its synth device) — otherwise the preview dies mid-play and its device
         // is left in a bad state, breaking the next preview.
-        _main.PlaybackControls.PlaybackStateChanged += OnMainPlaybackStateChanged;
-        PreviewPlayer.PropertyChanged += OnPreviewPlayerPropertyChanged;
+        _main.PlaybackControls.PlaybackStateChanged += HandleMainPlaybackStateChanged;
+        PreviewPlayer.PropertyChanged += HandlePreviewPlayerPropertyChanged;
     }
 
-    private void OnPreviewPlayerPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void HandlePreviewPlayerPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(PreviewPlayer.IsPreviewPlaying))
         {
@@ -138,7 +138,7 @@ public sealed class OnlineMidiViewModel : Screen
         }
     }
 
-    private void OnMainPlaybackStateChanged(object? sender, EventArgs e)
+    private void HandleMainPlaybackStateChanged(object? sender, EventArgs e)
     {
         if (!PreviewPlayer.IsPreviewActive || !_main.PlaybackControls.IsPlaying)
             return;
@@ -399,7 +399,7 @@ public sealed class OnlineMidiViewModel : Screen
         NotifyOfPropertyChange(nameof(AccountSummary));
     }
 
-    private void OnPoolChanged()
+    private void HandlePoolChanged()
     {
         var dispatcher = System.Windows.Application.Current?.Dispatcher;
         if (dispatcher is null || dispatcher.CheckAccess())
@@ -591,7 +591,7 @@ public sealed class OnlineMidiViewModel : Screen
     }
 
     public IReadOnlyList<FilterOption> CategoryOptions => CurrentProvider.CategoryOptions;
-    
+
     public IReadOnlyList<FilterOption> SortOptions => CurrentProvider.SortOptions;
 
     public bool HasCategories => CategoryOptions != null && CategoryOptions.Count > 1;
@@ -685,7 +685,7 @@ public sealed class OnlineMidiViewModel : Screen
         _loadCts = cts;
 
         var isSearch = !string.IsNullOrWhiteSpace(SearchQuery);
-        
+
         SetBusy(true);
         StatusMessage = isSearch
             ? $"Searching \"{SearchQuery.Trim()}\"..."
@@ -701,9 +701,9 @@ public sealed class OnlineMidiViewModel : Screen
             }
             else
             {
-                Results.Add(new OnlineMidiItem 
-                { 
-                    Id = $"skeleton_{i}", 
+                Results.Add(new OnlineMidiItem
+                {
+                    Id = $"skeleton_{i}",
                     ProviderSupportsTags = CurrentProvider.SupportsTags,
                     IsLoading = true,
                     Description = "...",
@@ -746,7 +746,7 @@ public sealed class OnlineMidiViewModel : Screen
             {
                 _loadCts = null;
                 SetBusy(false);
-                
+
                 // Call in the GarbageMan to clean up unmanaged image memory from the previous page,
                 // but avoid doing so if a song is playing to prevent playback stutter.
                 if (_main.PlaybackControls?.IsPlaying != true)
@@ -1107,7 +1107,7 @@ public sealed class OnlineMidiViewModel : Screen
             using var stream = new MemoryStream(data);
             var midi = Melanchall.DryWetMidi.Core.MidiFile.Read(stream, lenient);
             midi.RemoveMalformedSysExEvents();
-            
+
             if (trackNames != null && trackNames.Count > 0)
             {
                 var trackChunks = midi.GetTrackChunks().ToList();
@@ -1202,10 +1202,10 @@ public sealed class MidiShowAccountRow
     };
 
     public bool CanCopyCookies => State == MidiShowAccountState.Active;
-    
-    public bool IsErrorState => State is MidiShowAccountState.AuthFailed 
-                                      or MidiShowAccountState.NotActivated 
-                                      or MidiShowAccountState.Limited 
+
+    public bool IsErrorState => State is MidiShowAccountState.AuthFailed
+                                      or MidiShowAccountState.NotActivated
+                                      or MidiShowAccountState.Limited
                                       or MidiShowAccountState.RiskControlled;
 
     private static System.Windows.Media.Brush Frozen(byte r, byte g, byte b)
@@ -1215,14 +1215,3 @@ public sealed class MidiShowAccountRow
         return brush;
     }
 }
-
-
-
-
-
-
-
-
-
-
-

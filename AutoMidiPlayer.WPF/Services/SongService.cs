@@ -482,7 +482,10 @@ public class SongService(IContainer ioc) : PropertyChangedBase
                 Appearance = Wpf.Ui.Controls.ControlAppearance.Danger,
                 CallbackAsync = async () =>
                 {
-                    Application.Current.Dispatcher.InvokeAsync(() => view.ResetAndRescan(), System.Windows.Threading.DispatcherPriority.Background);
+                    var resetOperation = Application.Current.Dispatcher.InvokeAsync(
+                        () => view.ResetAndRescan(),
+                        System.Windows.Threading.DispatcherPriority.Background);
+                    await resetOperation.Task;
                     return false; // keep open
                 }
             },

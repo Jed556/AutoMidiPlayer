@@ -403,11 +403,16 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         if (!existingSongColumns.Contains(oldColumnName) || existingSongColumns.Contains(newColumnName))
             return;
 
+        if (!IsSafeSqlIdentifier(oldColumnName) || !IsSafeSqlIdentifier(newColumnName))
+            throw new ArgumentException("Invalid song column name.");
+
         try
         {
+#pragma warning disable EF1003 // Column names cannot be parameterized; both identifiers are validated above.
             db.Database.ExecuteSqlRaw(@"
                 ALTER TABLE Songs RENAME COLUMN " + oldColumnName + @" TO " + newColumnName + @";
             ");
+#pragma warning restore EF1003
 
             existingSongColumns.Remove(oldColumnName);
             existingSongColumns.Add(newColumnName);
@@ -428,6 +433,11 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
             existingSongColumns.Add(newColumnName);
         }
     }
+
+    private static bool IsSafeSqlIdentifier(string value) =>
+        !string.IsNullOrWhiteSpace(value) &&
+        (char.IsLetter(value[0]) || value[0] == '_') &&
+        value.All(character => char.IsLetterOrDigit(character) || character == '_');
 
     private static void AddSongColumnIfMissing(PlayerContext db, string columnName, string sqlType)
     {
@@ -562,8 +572,15 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         }
 
         Logger.Log("=== UNOBSERVED TASK EXCEPTION ===");
-        Logger.LogException(e.Exception);
-        SentrySdk.CaptureException(e.Exception);
+        var exception = e.Exception;
+        if (exception is null)
+        {
+            Logger.Log("Unobserved task exception did not include an exception instance.");
+            return;
+        }
+
+        Logger.LogException(exception);
+        SentrySdk.CaptureException(exception);
     }
 
     protected override void ConfigureIoC(IStyletIoCBuilder builder)
