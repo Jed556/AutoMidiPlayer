@@ -28,12 +28,24 @@ public static class AppPaths
 
     public static bool IsNetInstall => DistributionType == "Net-Install" || DistributionType == "Development";
 
+    private static string GetAppDataDirectory()
+    {
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (string.IsNullOrWhiteSpace(localAppData))
+        {
+            localAppData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        }
+        if (string.IsNullOrWhiteSpace(localAppData))
+        {
+            localAppData = AppDomain.CurrentDomain.BaseDirectory;
+        }
+        return Path.Combine(localAppData, "AutoMidiPlayer");
+    }
+
     /// <summary>
     /// Base application data directory: %LocalAppData%\AutoMidiPlayer
     /// </summary>
-    public static readonly string AppDataDirectory = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "AutoMidiPlayer");
+    public static readonly string AppDataDirectory = GetAppDataDirectory();
 
     /// <summary>
     /// Path to the SQLite database file
@@ -158,13 +170,23 @@ public static class AppPaths
     }
 
     /// <summary>
+    /// Ensures that the directory containing the SQLite database exists.
+    /// </summary>
+    public static void EnsureDatabaseDirectoryExists()
+    {
+        var dir = Path.GetDirectoryName(DatabasePath);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            Directory.CreateDirectory(dir);
+    }
+
+    /// <summary>
     /// Ensures the online MIDI download directory exists and returns its path.
     /// </summary>
     public static string EnsureOnlineMidiDirectory(string? providerName = null)
     {
         if (!Directory.Exists(OnlineMidiDirectory))
             Directory.CreateDirectory(OnlineMidiDirectory);
-            
+
         if (!string.IsNullOrWhiteSpace(providerName))
         {
             var providerDir = Path.Combine(OnlineMidiDirectory, providerName);

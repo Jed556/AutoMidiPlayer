@@ -18,6 +18,7 @@ using AutoMidiPlayer.WPF.Services;
 using AutoMidiPlayer.WPF.Views;
 using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore;
+using Sentry;
 using Stylet;
 using StyletIoC;
 using Wpf.Ui.Appearance;
@@ -623,14 +624,23 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
             ReportStartupProgress(30, "Loading song database...");
 
-            // Load songs from database into Songs library
-            await using var db = Ioc.Get<PlayerContext>();
-            var startupSongs = await db.Songs
-                .AsNoTracking()
-                .ToListAsync();
+            try
+            {
+                // Load songs from database into Songs library
+                await using var db = Ioc.Get<PlayerContext>();
+                var startupSongs = await db.Songs
+                    .AsNoTracking()
+                    .ToListAsync();
 
-            ReportStartupProgress(42, $"Loading {startupSongs.Count} songs...");
-            await LoadStartupSongsStagedAsync(startupSongs);
+                ReportStartupProgress(42, $"Loading {startupSongs.Count} songs...");
+                await LoadStartupSongsStagedAsync(startupSongs);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log("Failed to load song database during startup.");
+                Logger.LogException(ex);
+                SentrySdk.CaptureException(ex);
+            }
 
             ReportStartupProgress(95, "Preparing input hooks...");
             _gameStateTimer.Start();

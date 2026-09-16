@@ -13,6 +13,7 @@ using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Helpers;
 using AutoMidiPlayer.WPF.MessageBox;
 using AutoMidiPlayer.WPF.ViewModels;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Sentry;
@@ -149,7 +150,7 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
             Environment.Exit(0);
             return;
         }
-        
+
         base.OnStart();
     }
 
@@ -220,33 +221,147 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
             var hasHandle = false;
             try
             {
-                hasHandle = mutex.WaitOne(TimeSpan.FromSeconds(30), false);
-                
+                try
+                {
+                    hasHandle = mutex.WaitOne(TimeSpan.FromSeconds(30), false);
+                }
+                catch (AbandonedMutexException)
+                {
+                    hasHandle = true;
+                }
+
                 if (_databaseInitialized)
                     return;
 
-                db.Database.EnsureCreated();
-
-                var existingSongColumns = GetSongTableColumns(db);
-                if (existingSongColumns.Count > 0)
-                {
-                    RenameSongColumn(db, existingSongColumns, "Author", "Artist");
-                    RenameSongColumn(db, existingSongColumns, "DefaultKey", "BaseKey");
-
-                    foreach (var (columnName, sqlType) in SongColumnMigrations)
-                    {
-                        if (!existingSongColumns.Contains(columnName))
-                            AddSongColumnIfMissing(db, columnName, sqlType);
-                    }
-                }
+                InitializeDatabaseWithRetry(db);
 
                 _databaseInitialized = true;
             }
             finally
             {
                 if (hasHandle)
-                    mutex.ReleaseMutex();
+                {
+                    try
+                    {
+                        mutex.ReleaseMutex();
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogException(ex);
+                    }
+                }
             }
+        }
+    }
+
+    private static void PrepareDatabaseFile()
+    {
+        try
+        {
+            AppPaths.EnsureDatabaseDirectoryExists();
+
+            var dbPath = AppPaths.DatabasePath;
+            if (File.Exists(dbPath))
+            {
+                var attr = File.GetAttributes(dbPath);
+                if ((attr & FileAttributes.ReadOnly) != 0)
+                {
+                    File.SetAttributes(dbPath, attr & ~FileAttributes.ReadOnly);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException(ex);
+        }
+    }
+
+    private static void InitializeDatabaseWithRetry(PlayerContext db)
+    {
+        const int maxRetries = 3;
+        for (var attempt = 1; attempt <= maxRetries; attempt++)
+        {
+            try
+            {
+                PrepareDatabaseFile();
+                ApplyDatabaseCreationAndMigrations(db);
+                return;
+            }
+            catch (SqliteException ex) when (attempt < maxRetries)
+            {
+                Logger.Log($"Database initialization attempt {attempt} failed (ErrorCode: {ex.SqliteErrorCode}): {ex.Message}. Retrying...");
+                Thread.Sleep(500 * attempt);
+            }
+            catch (SqliteException ex)
+            {
+                Logger.LogException(ex);
+                SentrySdk.CaptureException(ex);
+
+                // If all retries failed due to an unopenable or corrupt database, attempt recovery by backing up and recreating
+                if (TryRecoverDatabaseFile())
+                {
+                    Logger.Log("Corrupt or unopenable database file was backed up. Attempting to recreate database...");
+                    PrepareDatabaseFile();
+                    ApplyDatabaseCreationAndMigrations(db);
+                    return;
+                }
+
+                throw;
+            }
+        }
+    }
+
+    private static void ApplyDatabaseCreationAndMigrations(PlayerContext db)
+    {
+        db.Database.EnsureCreated();
+
+        var existingSongColumns = GetSongTableColumns(db);
+        if (existingSongColumns.Count > 0)
+        {
+            RenameSongColumn(db, existingSongColumns, "Author", "Artist");
+            RenameSongColumn(db, existingSongColumns, "DefaultKey", "BaseKey");
+
+            foreach (var (columnName, sqlType) in SongColumnMigrations)
+            {
+                if (!existingSongColumns.Contains(columnName))
+                    AddSongColumnIfMissing(db, columnName, sqlType);
+            }
+        }
+    }
+
+    private static bool TryRecoverDatabaseFile()
+    {
+        try
+        {
+            var dbPath = AppPaths.DatabasePath;
+            if (!File.Exists(dbPath))
+                return false;
+
+            SqliteConnection.ClearAllPools();
+
+            var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+            var backupPath = $"{dbPath}.corrupted.{timestamp}";
+
+            File.Move(dbPath, backupPath, true);
+
+            var walPath = $"{dbPath}-wal";
+            if (File.Exists(walPath))
+            {
+                try { File.Move(walPath, $"{backupPath}-wal", true); } catch { }
+            }
+
+            var shmPath = $"{dbPath}-shm";
+            if (File.Exists(shmPath))
+            {
+                try { File.Move(shmPath, $"{backupPath}-shm", true); } catch { }
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException(ex);
+            return false;
         }
     }
 
@@ -281,7 +396,7 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         return columns;
     }
 
-// #pragma warning disable EF1003
+    // #pragma warning disable EF1003
 
     private static void RenameSongColumn(PlayerContext db, HashSet<string> existingSongColumns, string oldColumnName, string newColumnName)
     {
@@ -463,10 +578,17 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
 
         builder.Bind<PlayerContext>().ToFactory(_ =>
         {
-            var source = AppPaths.DatabasePath;
+            AppPaths.EnsureDatabaseDirectoryExists();
+
+            var connectionString = new SqliteConnectionStringBuilder
+            {
+                DataSource = AppPaths.DatabasePath,
+                Mode = SqliteOpenMode.ReadWriteCreate,
+                DefaultTimeout = 30
+            }.ToString();
 
             var options = new DbContextOptionsBuilder<PlayerContext>()
-                .UseSqlite($"Data Source={source}")
+                .UseSqlite(connectionString)
                 .Options;
 
             var db = new PlayerContext(options);
@@ -495,10 +617,10 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
 
         // Register GlobalHotkeyService as singleton
         builder.Bind<Services.GlobalHotkeyService>().ToSelf().InSingletonScope();
-        
+
         // Register DbService as singleton
         builder.Bind<Services.IDbService>().To<Services.DbService>().InSingletonScope();
-        
+
         // Register UpdateService as singleton
         builder.Bind<Services.UpdateService>().ToSelf().InSingletonScope();
 
