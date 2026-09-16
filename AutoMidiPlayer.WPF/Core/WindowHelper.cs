@@ -53,7 +53,7 @@ public static class WindowHelper
 
         try
         {
-            var process = Process.GetProcessById((int)processId);
+            using var process = Process.GetProcessById((int)processId);
             return processNames.Contains(process.ProcessName, StringComparer.OrdinalIgnoreCase);
         }
         catch
@@ -101,7 +101,7 @@ public static class WindowHelper
             {
                 try
                 {
-                    var process = Process.GetProcessById((int)processId);
+                    using var process = Process.GetProcessById((int)processId);
                     if (names.Contains(process.ProcessName, StringComparer.OrdinalIgnoreCase))
                         return foregroundWindow;
                 }

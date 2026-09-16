@@ -68,16 +68,16 @@ public static class GarbageManService
 
         // "I don't know why we have to tell the computer to clean up after itself. 
         // It's 2026, you'd think it would know better." - The GarbageMan
-        
-        try 
+
+        try
         {
             // Compact the Large Object Heap (where big network strings and arrays get stuck)
-            System.Runtime.GCSettings.LargeObjectHeapCompactionMode = 
+            System.Runtime.GCSettings.LargeObjectHeapCompactionMode =
                 System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
-            
+
             // Sweep the generations. Must be blocking: true for LOH compaction to actually occur!
             GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
-            
+
             // Wait for finalizers (this is where WPF's unmanaged BitmapImages actually get freed)
             GC.WaitForPendingFinalizers();
 
@@ -85,7 +85,7 @@ public static class GarbageManService
             GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true);
 
             // Force the OS to page out unused CLR segments so Task Manager shows the real memory footprint
-            var process = System.Diagnostics.Process.GetCurrentProcess();
+            using var process = System.Diagnostics.Process.GetCurrentProcess();
             EmptyWorkingSet(process.Handle);
 
 #if DEBUG

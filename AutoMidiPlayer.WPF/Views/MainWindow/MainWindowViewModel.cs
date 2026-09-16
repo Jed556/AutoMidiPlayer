@@ -147,7 +147,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
         _gameStateTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromSeconds(2)
+            Interval = TimeSpan.FromSeconds(3)
         };
         _gameStateTimer.Tick += (_, _) => RefreshGameRunningState();
 
@@ -452,6 +452,11 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
         }
 
         IsGameSelectorOpen = !IsGameSelectorOpen;
+        if (IsGameSelectorOpen)
+        {
+            RefreshGameRunningState();
+        }
+
         var selectedGameName = SelectedGame?.Definition.DisplayName ?? "none";
         Logger.LogStep("GAME_SELECTOR_TOGGLE", $"opened={IsGameSelectorOpen} | selectedGame='{selectedGameName}'");
     }
@@ -830,9 +835,17 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
     private void RefreshGameRunningState()
     {
-        foreach (var game in Games)
+        try
         {
-            game.IsRunning = GameRegistry.IsGameRunning(game.Definition);
+            foreach (var game in Games)
+            {
+                game.IsRunning = GameRegistry.IsGameRunning(game.Definition);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Log("Failed to refresh game running state.");
+            Logger.LogException(ex);
         }
     }
 

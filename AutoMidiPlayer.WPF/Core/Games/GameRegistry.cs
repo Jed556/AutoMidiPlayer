@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using AutoMidiPlayer.Data.Properties;
 
 namespace AutoMidiPlayer.WPF.Core.Games;
@@ -23,9 +24,6 @@ public static class GameRegistry
 {
     private static readonly Settings Settings = Settings.Default;
 
-    // Cache IsGameRunning results to avoid per-note process enumeration
-    private static readonly ConcurrentDictionary<string, (bool result, long timestamp)> _gameRunningCache = new();
-    private const long GameRunningCacheTtlMs = 500;
 
     #region Game Definitions
     /// <summary>All registered games in display order</summary>
@@ -163,28 +161,163 @@ public static class GameRegistry
     public static GameDefinition? GetByInstrumentGameName(string gameName) =>
         AllGames.FirstOrDefault(g => string.Equals(g.InstrumentGameName, gameName, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>
-    /// Check if a game process is currently running.
-    /// Checks both configured location process name and fallback process names.
-    /// Results are cached briefly to avoid expensive per-note process enumeration.
-    /// </summary>
-    public static bool IsGameRunning(GameDefinition game)
+    #endregion
+
+    #region Process Snapshot & Running Check
+
+    private static readonly object _snapshotLock = new();
+    private static HashSet<string>? _cachedRunningProcesses;
+    private static long _lastSnapshotTimestampMs;
+    private const long SnapshotCacheTtlMs = 1500;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct PROCESSENTRY32
+    {
+        private const int MaxPath = 260;
+        public uint dwSize;
+        public uint cntUsage;
+        public uint th32ProcessID;
+        public IntPtr th32DefaultHeapID;
+        public uint th32ModuleID;
+        public uint cntThreads;
+        public uint th32ParentProcessID;
+        public int pcPriClassBase;
+        public uint dwFlags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = MaxPath)]
+        public string szExeFile;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr CreateToolhelp32Snapshot(uint dwFlags, uint th32ProcessID);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "Process32FirstW")]
+    private static extern bool Process32First(IntPtr hSnapshot, ref PROCESSENTRY32 lppe);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "Process32NextW")]
+    private static extern bool Process32Next(IntPtr hSnapshot, ref PROCESSENTRY32 lppe);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CloseHandle(IntPtr hObject);
+
+    private static readonly IntPtr InvalidHandleValue = new(-1);
+    private const uint SnapshotProcess = 0x00000002;
+
+    private static HashSet<string> GetRunningProcessesSnapshot()
     {
         var now = Stopwatch.GetTimestamp();
         var nowMs = (long)(now * 1000.0 / Stopwatch.Frequency);
 
-        if (_gameRunningCache.TryGetValue(game.Id, out var cached) &&
-            (nowMs - cached.timestamp) < GameRunningCacheTtlMs)
+        lock (_snapshotLock)
         {
-            return cached.result;
+            if (_cachedRunningProcesses is not null && (nowMs - _lastSnapshotTimestampMs) < SnapshotCacheTtlMs)
+            {
+                return _cachedRunningProcesses;
+            }
+
+            var snapshot = QueryRunningProcesses();
+            _cachedRunningProcesses = snapshot;
+            _lastSnapshotTimestampMs = nowMs;
+            return snapshot;
+        }
+    }
+
+    private static HashSet<string> QueryRunningProcesses()
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        try
+        {
+            var hSnapshot = CreateToolhelp32Snapshot(SnapshotProcess, 0);
+            if (hSnapshot != IntPtr.Zero && hSnapshot != InvalidHandleValue)
+            {
+                try
+                {
+                    var entry = new PROCESSENTRY32 { dwSize = (uint)Marshal.SizeOf<PROCESSENTRY32>() };
+                    if (Process32First(hSnapshot, ref entry))
+                    {
+                        do
+                        {
+                            var name = entry.szExeFile;
+                            if (!string.IsNullOrEmpty(name))
+                            {
+                                result.Add(name);
+                                var withoutExt = Path.GetFileNameWithoutExtension(name);
+                                if (!string.IsNullOrEmpty(withoutExt))
+                                    result.Add(withoutExt);
+                            }
+                        } while (Process32Next(hSnapshot, ref entry));
+                    }
+                }
+                finally
+                {
+                    CloseHandle(hSnapshot);
+                }
+
+                return result;
+            }
+        }
+        catch
+        {
+            // Ignore native error, fallback below
         }
 
-        var result = IsGameRunningCore(game);
-        _gameRunningCache[game.Id] = (result, nowMs);
+        // Fallback using Process.GetProcesses() if Toolhelp fails
+        try
+        {
+            var processes = Process.GetProcesses();
+            try
+            {
+                foreach (var p in processes)
+                {
+                    try
+                    {
+                        var name = p.ProcessName;
+                        if (!string.IsNullOrEmpty(name))
+                        {
+                            result.Add(name);
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore individual process access errors
+                    }
+                }
+            }
+            finally
+            {
+                foreach (var p in processes)
+                {
+                    p.Dispose();
+                }
+            }
+        }
+        catch
+        {
+            // Ignore - returns whatever was collected or empty set
+        }
+
         return result;
     }
 
-    private static bool IsGameRunningCore(GameDefinition game)
+    /// <summary>
+    /// Check if a game process is currently running.
+    /// Checks both configured location process name and fallback process names.
+    /// Results are cached briefly via a unified system process snapshot to avoid expensive per-note process enumeration.
+    /// </summary>
+    public static bool IsGameRunning(GameDefinition game)
+    {
+        try
+        {
+            var runningProcesses = GetRunningProcessesSnapshot();
+            return IsGameRunningCore(game, runningProcesses);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsGameRunningCore(GameDefinition game, HashSet<string> runningProcesses)
     {
         var processNames = new HashSet<string>(game.ProcessNames, StringComparer.OrdinalIgnoreCase);
 
@@ -200,23 +333,48 @@ public static class GameRegistry
         if (processNames.Count == 0)
             return false;
 
+        // Check if any process name matches the running process snapshot
+        var isAnyProcessRunning = processNames.Any(name => runningProcesses.Contains(name));
+        if (!isAnyProcessRunning)
+            return false;
+
+        // If the game definition does not require window title matching, we are done
+        if (game.WindowNames.Count == 0)
+            return true;
+
+        // For games with specific WindowNames (e.g. Roblox, HPMA launcher), verify window title
+        return CheckGameWindowMatches(game, processNames);
+    }
+
+    private static bool CheckGameWindowMatches(GameDefinition game, IEnumerable<string> processNames)
+    {
         try
         {
             foreach (var processName in processNames)
             {
-                var processes = Process.GetProcessesByName(processName);
+                Process[] processes;
+                try
+                {
+                    processes = Process.GetProcessesByName(processName);
+                }
+                catch
+                {
+                    continue;
+                }
+
                 try
                 {
                     foreach (var process in processes)
                     {
-                        if (game.WindowNames.Count > 0)
+                        try
                         {
-                            if (game.WindowNames.Any(w => string.Equals(w, process.MainWindowTitle, StringComparison.OrdinalIgnoreCase)))
+                            var title = process.MainWindowTitle;
+                            if (game.WindowNames.Any(w => string.Equals(w, title, StringComparison.OrdinalIgnoreCase)))
                                 return true;
                         }
-                        else
+                        catch
                         {
-                            return true;
+                            // Ignore access errors on individual process properties
                         }
                     }
                 }
@@ -228,17 +386,13 @@ public static class GameRegistry
                     }
                 }
             }
+        }
+        catch
+        {
+            return false;
+        }
 
-            return false;
-        }
-        catch (InvalidOperationException)
-        {
-            return false;
-        }
-        catch (Win32Exception)
-        {
-            return false;
-        }
+        return false;
     }
 
     #endregion
