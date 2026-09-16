@@ -230,6 +230,26 @@ public class FileService(IContainer ioc)
         songs.ApplySort();
     }
 
+    /// <summary>
+    /// Mark a song as bad MIDI at runtime (e.g. file corrupt/unreadable when opened for playback).
+    /// </summary>
+    public void MarkSongAsBadMidi(Song song, Exception exception)
+    {
+        if (_main is null) return;
+        var songs = _main.SongsView;
+
+        AddBadMidiFile(song, exception, false);
+
+        foreach (var track in songs.Tracks.Where(t => t.Song.Id == song.Id).ToList())
+            songs.Tracks.Remove(track);
+
+        if (songs.SelectedFile is not null && songs.SelectedFile.Song.Id == song.Id)
+            songs.SelectedFile = null;
+
+        songs.NotifyFileErrorsChanged();
+        songs.ApplySort();
+    }
+
     #endregion
 
     #region File Adding

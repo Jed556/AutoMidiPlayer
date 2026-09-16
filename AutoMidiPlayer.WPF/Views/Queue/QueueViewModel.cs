@@ -217,15 +217,23 @@ public class QueueViewModel : Screen
     {
         if (file is null) return;
 
-        // If this is the currently opened file, toggle play/pause
-        if (OpenedFile == file)
+        try
         {
-            await _main.PlaybackControls.PlayPause();
+            // If this is the currently opened file, toggle play/pause
+            if (OpenedFile == file)
+            {
+                await _main.PlaybackControls.PlayPause();
+            }
+            else
+            {
+                // Load the new file and auto-play it — fully awaited, no race
+                await _main.PlaybackEngine.LoadFileAsync(file, autoPlay: true);
+            }
         }
-        else
+        catch (Exception ex)
         {
-            // Load the new file and auto-play it — fully awaited, no race
-            await _main.PlaybackEngine.LoadFileAsync(file, autoPlay: true);
+            Logger.Log($"Error in PlayPauseFromQueue for '{file.Path}': {ex.Message}");
+            Logger.LogException(ex);
         }
     }
 

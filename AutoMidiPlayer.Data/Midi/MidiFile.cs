@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using AutoMidiPlayer.Data.Entities;
 using AutoMidiPlayer.Data.Midi.Extensions;
+using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using Melanchall.DryWetMidi.Tools;
@@ -16,11 +17,31 @@ public class MidiFile : Screen
 {
     private readonly ReadingSettings? _settings;
     private int _position;
+    /// <summary>
+    /// Creates tolerant default reading settings that snap out-of-range parameters (0-127)
+    /// to limits (e.g. byte 134 in NoteOn clamped to 127) and ignore non-fatal chunk mismatches.
+    /// </summary>
+    public static ReadingSettings CreateDefaultReadingSettings() => new()
+    {
+        TextEncoding = System.Text.Encoding.UTF8,
+        InvalidChannelEventParameterValuePolicy = InvalidChannelEventParameterValuePolicy.SnapToLimits,
+        InvalidMetaEventParameterValuePolicy = InvalidMetaEventParameterValuePolicy.SnapToLimits,
+        InvalidSystemCommonEventParameterValuePolicy = InvalidSystemCommonEventParameterValuePolicy.SnapToLimits,
+        InvalidChunkSizePolicy = InvalidChunkSizePolicy.Ignore,
+        NotEnoughBytesPolicy = NotEnoughBytesPolicy.Ignore,
+        UnexpectedTrackChunksCountPolicy = UnexpectedTrackChunksCountPolicy.Ignore,
+        UnknownChunkIdPolicy = UnknownChunkIdPolicy.ReadAsUnknownChunk,
+        MissedEndOfTrackPolicy = MissedEndOfTrackPolicy.Ignore,
+        NoHeaderChunkPolicy = NoHeaderChunkPolicy.Ignore,
+        UnknownFileFormatPolicy = UnknownFileFormatPolicy.Ignore,
+        ExtraTrackChunkPolicy = ExtraTrackChunkPolicy.Read,
+        UnknownChannelEventPolicy = UnknownChannelEventPolicy.SkipStatusByte,
+    };
 
     public MidiFile(Song song, ReadingSettings? settings = null)
     {
-        _settings = settings ?? new ReadingSettings();
-        _settings.TextEncoding = System.Text.Encoding.UTF8;
+        _settings = settings ?? CreateDefaultReadingSettings();
+        _settings.TextEncoding ??= System.Text.Encoding.UTF8;
 
         Song = song;
 
@@ -37,6 +58,17 @@ public class MidiFile : Screen
             CacheMetadata();
         }
     }
+
+    /// <summary>
+    /// Whether the MIDI file contained formatting errors that were automatically repaired
+    /// using tolerant reading policies (e.g. SnapToLimits).
+    /// </summary>
+    public bool HasRecoveredErrors { get; private set; }
+
+    /// <summary>
+    /// The message of the recovered formatting error, if any.
+    /// </summary>
+    public string? RecoveryReason { get; private set; }
 
     public Song Song { get; }
 
@@ -136,7 +168,24 @@ public class MidiFile : Screen
         var sw = Stopwatch.StartNew();
         Logger.LogMidiParser($"MIDI_LOAD_BEGIN path='{Path}'");
 
-        Midi = Melanchall.DryWetMidi.Core.MidiFile.Read(Path, _settings);
+        try
+        {
+            // First attempt: read strictly to verify if the MIDI file has any format errors
+            var strictSettings = new ReadingSettings { TextEncoding = System.Text.Encoding.UTF8 };
+            Midi = Melanchall.DryWetMidi.Core.MidiFile.Read(Path, strictSettings);
+            HasRecoveredErrors = false;
+            RecoveryReason = null;
+        }
+        catch (MidiException ex)
+        {
+            // File contains non-standard or malformed MIDI events (e.g. parameter > 127 in NoteOn).
+            // Fall back to tolerant reading settings (SnapToLimits) to recover automatically.
+            Logger.LogMidiParser($"MIDI_LOAD_STRICT_FAILED path='{Path}' | error='{ex.Message}'. Retrying with tolerant settings.");
+            Midi = Melanchall.DryWetMidi.Core.MidiFile.Read(Path, _settings);
+            HasRecoveredErrors = true;
+            RecoveryReason = ex.Message;
+        }
+
         Midi.RemoveMalformedSysExEvents();
         // Store the original tempo map so it's preserved even when tracks are modified
         OriginalTempoMap = Midi.GetTempoMap();
@@ -145,7 +194,7 @@ public class MidiFile : Screen
         var trackCount = Midi.GetTrackChunks().Count();
         var nativeBpm = GetNativeBpm();
         Logger.LogMidiParser(
-            $"MIDI_LOAD_END path='{Path}' | tracks={trackCount} | bpm={nativeBpm:0.###} | elapsedMs={sw.Elapsed.TotalMilliseconds:0}");
+            $"MIDI_LOAD_END path='{Path}' | tracks={trackCount} | bpm={nativeBpm:0.###} | recoveredErrors={HasRecoveredErrors} | elapsedMs={sw.Elapsed.TotalMilliseconds:0}");
 
         // Update cached metadata whenever we parse
         CacheMetadata();

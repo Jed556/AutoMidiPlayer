@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 using System.Windows.Media;
+using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Entities;
 using AutoMidiPlayer.Data.Properties;
 using AutoMidiPlayer.WPF.Dialogs;
@@ -554,16 +555,24 @@ public class SongsViewModel : Screen
     {
         if (file is null) return;
 
-        // If this is the currently opened file, toggle play/pause
-        if (QueueView.OpenedFile == file)
+        try
         {
-            await _main.PlaybackControls.PlayPause();
+            // If this is the currently opened file, toggle play/pause
+            if (QueueView.OpenedFile == file)
+            {
+                await _main.PlaybackControls.PlayPause();
+            }
+            else
+            {
+                // Add to queue and then load with auto-play to avoid publish/toggle races.
+                _main.QueueView.AddFile(file);
+                await _main.PlaybackEngine.LoadFileAsync(file, autoPlay: true);
+            }
         }
-        else
+        catch (Exception ex)
         {
-            // Add to queue and then load with auto-play to avoid publish/toggle races.
-            _main.QueueView.AddFile(file);
-            await _main.PlaybackEngine.LoadFileAsync(file, autoPlay: true);
+            Logger.Log($"Error in PlayPauseFromSongs for '{file.Path}': {ex.Message}");
+            Logger.LogException(ex);
         }
     }
 

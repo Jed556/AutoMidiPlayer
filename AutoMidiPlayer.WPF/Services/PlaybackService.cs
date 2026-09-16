@@ -10,6 +10,7 @@ using AutoMidiPlayer.Data.Entities;
 using AutoMidiPlayer.Data.Midi;
 using AutoMidiPlayer.Data.Notification;
 using AutoMidiPlayer.Data.Properties;
+using AutoMidiPlayer.WPF.Controls.Snackbar;
 using AutoMidiPlayer.WPF.Core;
 using AutoMidiPlayer.WPF.Core.Games;
 using AutoMidiPlayer.WPF.Core.Instruments;
@@ -489,7 +490,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
             if (ShouldLogPlayedNotes)
                 Logger.LogInputOutput($"{(isPedalDown ? $"{pedal.Name.ToUpper()}_DOWN" : $"{pedal.Name.ToUpper()}_UP")} mode=speakers");
-            
+
             SyncPedalStatesToUI();
             return;
         }
@@ -502,7 +503,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             // Auto-listen fallback: forward to speakers if available
             if (Settings.AutoEnableListenMode)
                 _speakers?.SendEvent(ccEvent);
-            
+
             SyncPedalStatesToUI();
             return;
         }
@@ -617,7 +618,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                     67 => layoutConfig.UnaCordaKey,
                     _ => null
                 };
-                
+
                 if (pedalKey is not null && pedal.IsCurrentlyHeldInGame)
                 {
                     if (KeyboardPlayer.UseWindowMessage || WindowHelper.IsGameFocused())
@@ -965,7 +966,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             return;
 
         var outputEvent = CreateOutputNoteEvent(source, noteForListen);
-        
+
         if (outputEvent is NoteOnEvent noteOn && noteOn.Velocity > 0)
         {
             var key = (noteOn.Channel, noteOn.NoteNumber);
@@ -1217,12 +1218,37 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             await _main.FileService.HandleMissingSongFileAsync(file);
             return;
         }
+        catch (Exception ex)
+        {
+            Logger.LogStep("PLAYBACK_LOAD_ERROR", $"path='{file.Path}' | error='{ex.Message}'");
+            Logger.LogException(ex);
+
+            if (Queue.History.Count > 0 && ReferenceEquals(Queue.History.Peek(), file))
+                Queue.History.Pop();
+
+            Controls.CloseFile(notifyOpenedFileChanged: true);
+            _main.FileService.MarkSongAsBadMidi(file.Song, ex);
+            Queue.RemoveSong([file]);
+
+            SnackbarService.Danger(
+                "Cannot Play Song",
+                $"'{file.Title}' could not be read: {ex.Message}");
+            return;
+        }
 
         // Abandon stale load work if a newer request won while initialization was running.
         if (epoch != _loadEpoch || !ReferenceEquals(Queue.OpenedFile, file))
         {
             Logger.LogStep("PLAYBACK_LOAD_STALE_IGNORED", $"title='{file.Title}' | epoch={epoch} | currentEpoch={_loadEpoch}");
             return;
+        }
+
+        if (file.HasRecoveredErrors)
+        {
+            Logger.Log($"MIDI file '{file.Path}' had errors recovered with SnapToLimits: {file.RecoveryReason}");
+            SnackbarService.Warning(
+                $"An error in MIDI '{file.Title}' has been handled.",
+                file.RecoveryReason);
         }
 
         TrackView.InitializeTracks();
