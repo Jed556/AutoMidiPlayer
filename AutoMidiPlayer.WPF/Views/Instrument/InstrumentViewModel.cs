@@ -93,7 +93,7 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
         MergeNotes = false;
         MergeMilliseconds = 100;
         HoldNotes = false;
-        DetectChordPads = false;
+        AutoChord = false;
         ChordDetectionMilliseconds = DefaultChordDetectionMilliseconds;
         _isUpdatingFromSong = false;
 
@@ -161,11 +161,11 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
             MergeNotes = false;
             MergeMilliseconds = 100;
             HoldNotes = false;
-            DetectChordPads = false;
+            AutoChord = false;
             ChordDetectionMilliseconds = DefaultChordDetectionMilliseconds;
             _isUpdatingFromSong = false;
             NotifyOfPropertyChange(nameof(HasSongOpen));
-            NotifyOfPropertyChange(nameof(CanUseChordPads));
+            NotifyOfPropertyChange(nameof(CanUseAutoChord));
             return;
         }
 
@@ -173,11 +173,11 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
         MergeNotes = song.MergeNotes ?? false;
         MergeMilliseconds = song.MergeMilliseconds ?? 100;
         HoldNotes = song.HoldNotes ?? false;
-        DetectChordPads = song.DetectChordPads ?? false;
+        AutoChord = song.AutoChord ?? false;
         ChordDetectionMilliseconds = song.ChordDetectionMilliseconds ?? DefaultChordDetectionMilliseconds;
         _isUpdatingFromSong = false;
         NotifyOfPropertyChange(nameof(HasSongOpen));
-        NotifyOfPropertyChange(nameof(CanUseChordPads));
+        NotifyOfPropertyChange(nameof(CanUseAutoChord));
     }
 
 
@@ -353,7 +353,7 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
 
     public bool HoldNotes { get; set; }
 
-    public bool DetectChordPads { get; set; }
+    public bool AutoChord { get; set; }
 
     public uint ChordDetectionMilliseconds { get; set; }
 
@@ -363,10 +363,10 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
 
     public bool HasSongOpen => _main.QueueView?.OpenedFile != null;
 
-    public bool SupportsChordPads => !SelectedInstrument.Equals(default(KeyValuePair<string, string>))
+    public bool SupportsAutoChord => !SelectedInstrument.Equals(default(KeyValuePair<string, string>))
         && Keyboard.GetInstrumentConfig(SelectedInstrument.Key).ChordPads.Count > 0;
 
-    public bool CanUseChordPads => HasSongOpen && SupportsChordPads;
+    public bool CanUseAutoChord => HasSongOpen && SupportsAutoChord;
 
     public bool CanChangeTime => PlayTimerToken is null;
 
@@ -561,8 +561,8 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
                 NotifyOfPropertyChange(nameof(SupportsSustainPedals));
                 NotifyOfPropertyChange(nameof(PedalSectionDescription));
                 NotifyOfPropertyChange(nameof(CanResetPedals));
-                NotifyOfPropertyChange(nameof(SupportsChordPads));
-                NotifyOfPropertyChange(nameof(CanUseChordPads));
+                NotifyOfPropertyChange(nameof(SupportsAutoChord));
+                NotifyOfPropertyChange(nameof(CanUseAutoChord));
             });
 
         var index = AvailableInstruments.ToList().FindIndex(i =>
@@ -696,8 +696,8 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
                 NotifyOfPropertyChange(nameof(SupportsSustainPedals));
                 NotifyOfPropertyChange(nameof(PedalSectionDescription));
                 NotifyOfPropertyChange(nameof(CanResetPedals));
-                NotifyOfPropertyChange(nameof(SupportsChordPads));
-                NotifyOfPropertyChange(nameof(CanUseChordPads));
+                NotifyOfPropertyChange(nameof(SupportsAutoChord));
+                NotifyOfPropertyChange(nameof(CanUseAutoChord));
             });
 
         _events.Publish(this);
@@ -854,7 +854,7 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
     }
 
     [UsedImplicitly]
-    private async void OnDetectChordPadsChanged()
+    private async void OnAutoChordChanged()
     {
         if (_isUpdatingFromSong) return;
         if (_main.QueueView is null) return;
@@ -862,7 +862,7 @@ public class InstrumentViewModel : Screen, IHandle<MidiFile>, IHandle<ListenMode
         var song = _main.QueueView.OpenedFile?.Song;
         if (song != null)
         {
-            song.DetectChordPads = DetectChordPads;
+            song.AutoChord = AutoChord;
             await SaveCurrentSong();
         }
 

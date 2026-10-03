@@ -381,6 +381,7 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
             var isRunning = pb.IsRunning;
             pb.Stop();
             pb.MoveToTime(new MetricTimeSpan(_songPosition));
+            Engine.ResetChordPadsTriggered();
             if (Settings.UseSpeakers && isRunning)
                 pb.Start();
         }

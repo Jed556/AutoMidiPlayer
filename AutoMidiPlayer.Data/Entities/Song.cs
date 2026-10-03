@@ -68,9 +68,9 @@ public class Song
     public bool? HoldNotes { get; set; }
 
     /// <summary>
-    /// Whether simultaneous MIDI notes should be matched to an instrument's pre-composed chord pads.
+    /// Whether simultaneous MIDI notes should be matched to an instrument's chords.
     /// </summary>
-    public bool? DetectChordPads { get; set; }
+    public bool? AutoChord { get; set; }
 
     /// <summary>
     /// Maximum onset distance, in milliseconds, for notes to be detected as one chord.

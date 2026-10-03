@@ -52,7 +52,7 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         ("MergeNotes", "INTEGER NULL"),
         ("MergeMilliseconds", "INTEGER NULL"),
         ("HoldNotes", "INTEGER NULL"),
-        ("DetectChordPads", "INTEGER NULL"),
+        ("AutoChord", "INTEGER NULL"),
         ("ChordDetectionMilliseconds", "INTEGER NULL"),
         ("Speed", "REAL NULL"),
         ("Bpm", "REAL NULL"),
@@ -320,6 +320,7 @@ public class Bootstrapper : Bootstrapper<MainWindowViewModel>
         {
             RenameSongColumn(db, existingSongColumns, "Author", "Artist");
             RenameSongColumn(db, existingSongColumns, "DefaultKey", "BaseKey");
+            RenameSongColumn(db, existingSongColumns, "DetectChordPads", "AutoChord");
 
             foreach (var (columnName, sqlType) in SongColumnMigrations)
             {

@@ -165,35 +165,35 @@
                     </Border>
                 </controls:Section>
 
-                <!-- Chord Pad Detection Section -->
-                <controls:Section Title="Chord Pad Detection"
+                <!-- Auto Chord Section -->
+                <controls:Section Title="Auto Chord"
                                   Margin="0,16,0,0">
                     <controls:SimpleStackPanel>
                         <controls:SimpleStackPanel Orientation="Horizontal"
                                                    Spacing="20"
-                                                   IsEnabled="{Binding CanUseChordPads}">
-                            <ui:ToggleSwitch Content="Detect pre-composed chord pads"
-                                             IsChecked="{Binding DetectChordPads, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                             ToolTip="Use DryWetMIDI to match simultaneous MIDI notes to the game instrument's chord-pad keys."/>
+                                                   IsEnabled="{Binding CanUseAutoChord}">
+                            <ui:ToggleSwitch Content="Detect and play chords"
+                                             IsChecked="{Binding AutoChord, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Match simultaneous MIDI notes to the game instrument's chord keys."/>
                             <controls:Numberbox ToolTip="Chord onset tolerance (ms)"
-                                                 IsEnabled="{Binding DetectChordPads}"
+                                                 IsEnabled="{Binding AutoChord}"
                                                  Value="{Binding ChordDetectionMilliseconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  Minimum="0"
                                                  Maximum="1000"
                                                  MaxDecimalPlaces="0"/>
                         </controls:SimpleStackPanel>
-                        <TextBlock Text="Matches the supported C, Dm, Em, F, G, Am, and G7 pads. The tolerance allows slightly staggered MIDI chord onsets."
+                        <TextBlock Text="Matches the supported chords. The tolerance allows slightly staggered MIDI chord onsets."
                                    TextWrapping="Wrap"
                                    Opacity="0.6"
                                    FontSize="12"
                                    Margin="0,-4,0,0"
-                                   Visibility="{Binding SupportsChordPads, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
-                        <TextBlock Text="The selected instrument has no pre-composed chord pads."
+                                   Visibility="{Binding SupportsAutoChord, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
+                        <TextBlock Text="The selected instrument does not support chords."
                                    TextWrapping="Wrap"
                                    Opacity="0.6"
                                    FontSize="12"
                                    Margin="0,-4,0,0"
-                                   Visibility="{Binding SupportsChordPads, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}"/>
+                                   Visibility="{Binding SupportsAutoChord, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}"/>
                     </controls:SimpleStackPanel>
                 </controls:Section>
             </controls:SimpleStackPanel>
