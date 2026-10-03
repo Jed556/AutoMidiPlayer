@@ -1,0 +1,317 @@
+<UserControl x:Class="AutoMidiPlayer.WPF.Views.StudioView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
+             xmlns:s="https://github.com/canton7/Stylet"
+             xmlns:pianoRoll="clr-namespace:AutoMidiPlayer.WPF.Controls.PianoRoll"
+             xmlns:noSong="clr-namespace:AutoMidiPlayer.WPF.Controls.NoSongPlaceholder"
+             xmlns:button="clr-namespace:AutoMidiPlayer.WPF.Controls.SelectorPopupButton.Button"
+             xmlns:local="clr-namespace:AutoMidiPlayer.WPF.Views"
+             xmlns:viewModels="clr-namespace:AutoMidiPlayer.WPF.ViewModels"
+             mc:Ignorable="d" 
+             d:DataContext="{d:DesignInstance Type=viewModels:StudioViewModel}"
+             s:View.ActionTarget="{Binding}"
+             d:DesignHeight="700" d:DesignWidth="1100"
+             SizeChanged="OnViewSizeChanged">
+    <UserControl.Resources>
+        <DataTemplate x:Key="OffsetNoteTemplate">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock MinWidth="24"
+                           HorizontalAlignment="Right"
+                           FontSize="12"
+                           Text="{Binding OffsetDisplay}"
+                           TextAlignment="Right"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                <TextBlock Margin="6,0,0,0"
+                           HorizontalAlignment="Left"
+                           FontSize="12"
+                           Text="{Binding NoteDisplay}"
+                           TextAlignment="Left"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+    <Grid Margin="16,12,16,12">
+        <!-- Placeholder when no song is opened -->
+        <Border Visibility="{Binding HasSongOpen, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center">
+            <noSong:NoSongPlaceholder DataContext="{Binding Placeholder}" />
+        </Border>
+
+        <!-- Studio Main Interface -->
+        <Grid Visibility="{Binding HasSongOpen, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- Top Header Bar -->
+            <Border Grid.Row="0"
+                    Margin="0,0,0,12"
+                    Padding="12,8"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Song Info -->
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding CurrentFile.Title, FallbackValue='No Song Opened'}"
+                                   FontSize="15"
+                                   FontWeight="SemiBold"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding CurrentFile.Artist, FallbackValue='Unknown Artist'}"
+                                   FontSize="11"
+                                   Opacity="0.7"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+
+                    <!-- Active Key Badge at Playhead -->
+                    <Border Grid.Column="1"
+                            Margin="12,0"
+                            Padding="10,4"
+                            Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                            BorderBrush="{DynamicResource SubtleFillColorTertiaryBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <ui:SymbolIcon Symbol="MusicNote216"
+                                           Filled="True"
+                                           FontSize="12"
+                                           Margin="0,0,6,0"
+                                           Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                            <TextBlock Text="{Binding ActiveKeyAtPlayheadDisplay}"
+                                       FontSize="12"
+                                       FontWeight="Medium"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Drawer Switcher Buttons -->
+                    <Border Grid.Column="2"
+                            Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                            BorderBrush="{DynamicResource SubtleFillColorTertiaryBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="2">
+                        <StackPanel Orientation="Horizontal">
+                            <!-- Tracks Drawer Toggle -->
+                            <ui:Button Padding="10,5"
+                                       Command="{s:Action ToggleTracksDrawer}"
+                                       ToolTip="Toggle Tracks Drawer">
+                                <ui:Button.Style>
+                                    <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                        <Setter Property="Appearance" Value="Transparent" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsTracksDrawerActive}" Value="True">
+                                                <Setter Property="Appearance" Value="Primary" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ui:Button.Style>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <ui:SymbolIcon Symbol="Layer20" Filled="True" FontSize="14" Margin="0,0,6,0" />
+                                    <TextBlock Text="Tracks" FontSize="12" FontWeight="Medium" />
+                                </StackPanel>
+                            </ui:Button>
+
+                            <!-- Song Settings Drawer Toggle -->
+                            <ui:Button Padding="10,5"
+                                       Margin="2,0,0,0"
+                                       Command="{s:Action ToggleSettingsDrawer}"
+                                       ToolTip="Toggle Song Settings Drawer">
+                                <ui:Button.Style>
+                                    <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                        <Setter Property="Appearance" Value="Transparent" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsSettingsDrawerActive}" Value="True">
+                                                <Setter Property="Appearance" Value="Primary" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ui:Button.Style>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <ui:SymbolIcon Symbol="Settings16" Filled="True" FontSize="14" Margin="0,0,6,0" />
+                                    <TextBlock Text="Song Settings" FontSize="12" FontWeight="Medium" />
+                                </StackPanel>
+                            </ui:Button>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- Main Working Area -->
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition x:Name="DockedSidebarColumn" Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Center Area: Piano Roll + Bottom Card -->
+                <Grid Grid.Column="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Modular Interactive Piano Roll Component -->
+                    <pianoRoll:InteractivePianoRollControl x:Name="InteractiveRoll"
+                                                          Grid.Row="0"
+                                                          MidiFile="{Binding CurrentFile}"
+                                                          CurrentTime="{Binding CurrentTime}"
+                                                          Duration="{Binding Duration}"
+                                                          KeyChangeMarkers="{Binding KeyChangeMarkers}"
+                                                          SelectedMarker="{Binding SelectedMarker, Mode=TwoWay}"
+                                                          ZoomLevel="{Binding ZoomLevel, Mode=TwoWay}"
+                                                          KeyHeight="{Binding KeyHeight, Mode=TwoWay}"
+                                                          ScrubRequested="OnPianoRollScrubRequested" />
+
+                    <!-- Bottom Settings & Marker Modulation Card -->
+                    <Border Grid.Row="1"
+                            Margin="0,8,0,0"
+                            Padding="12,10"
+                            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Key Offset Selector & Add Button -->
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="Key Offset:"
+                                           VerticalAlignment="Center"
+                                           FontWeight="SemiBold"
+                                           FontSize="12"
+                                           Margin="0,0,8,0" />
+
+                                <button:StandardDropdown ItemsSource="{Binding KeyOptions}"
+                                                         SelectedItem="{Binding SelectedKeyOption, Mode=TwoWay}"
+                                                         ItemTemplate="{StaticResource OffsetNoteTemplate}"
+                                                         SelectedItemTemplate="{StaticResource OffsetNoteTemplate}"
+                                                         Width="135"
+                                                         VerticalAlignment="Center"
+                                                         Margin="0,0,8,0" />
+
+                                <ui:Button Appearance="Primary"
+                                           Command="{s:Action AddOffsetAtPlayheadAsync}"
+                                           Padding="10,6"
+                                           VerticalAlignment="Center"
+                                           ToolTip="Add or update key offset at current playhead position">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <ui:SymbolIcon Symbol="Add16" FontSize="12" Margin="0,0,6,0" />
+                                        <TextBlock Text="Add Offset at Playhead" FontSize="12" FontWeight="SemiBold" />
+                                    </StackPanel>
+                                </ui:Button>
+                            </StackPanel>
+
+                            <!-- Center Status / Modulation summary -->
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding KeyChangeMarkers.Count, StringFormat='{}{0} key marker(s) on timeline'}"
+                                       VerticalAlignment="Center"
+                                       HorizontalAlignment="Center"
+                                       FontSize="11"
+                                       Opacity="0.6" />
+
+                            <!-- Marker Navigation & Auto-detect -->
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <ui:Button Appearance="Secondary"
+                                           Command="{s:Action AutoDetectKeyChangesAsync}"
+                                           Padding="8,6"
+                                           Margin="0,0,6,0"
+                                           ToolTip="Auto-detect key signature modulations from MIDI events">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <ui:SymbolIcon Symbol="Flash16"
+                                                       Filled="True"
+                                                       FontSize="12"
+                                                       Margin="0,0,4,0"
+                                                       Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                                        <TextBlock Text="Auto-Detect" FontSize="11" />
+                                    </StackPanel>
+                                </ui:Button>
+
+                                <controls:Button Variant="Ghost"
+                                                 Icon="ChevronLeft16"
+                                                 IconFontSize="14"
+                                                 Width="28"
+                                                 Height="28"
+                                                 Padding="0"
+                                                 Margin="0,0,4,0"
+                                                 Command="{s:Action NavigatePrevMarker}"
+                                                 ToolTip="Jump to previous key marker" />
+
+                                <controls:Button Variant="Ghost"
+                                                 Icon="ChevronRight16"
+                                                 IconFontSize="14"
+                                                 Width="28"
+                                                 Height="28"
+                                                 Padding="0"
+                                                 Margin="0,0,6,0"
+                                                 Command="{s:Action NavigateNextMarker}"
+                                                 ToolTip="Jump to next key marker" />
+
+                                <controls:Button Variant="Ghost"
+                                                 ColorMode="Danger"
+                                                 Icon="Delete16"
+                                                 IconFilled="True"
+                                                 IconFontSize="14"
+                                                 Width="28"
+                                                 Height="28"
+                                                 Padding="0"
+                                                 Command="{s:Action DeleteSelectedMarkerAsync}"
+                                                 IsEnabled="{Binding HasSelectedMarker}"
+                                                 ToolTip="Delete selected marker" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <!-- Column 1: Docked Sidebar Host (Wide Screen >= 1050px) -->
+                <Border x:Name="DockedSidebarHost"
+                        Grid.Column="1"
+                        Width="328"
+                        ClipToBounds="True"
+                        HorizontalAlignment="Right">
+                    <local:StudioSidebarControl x:Name="DockedSidebar"
+                                                Width="320"
+                                                Margin="8,0,0,0"
+                                                HorizontalAlignment="Right" />
+                </Border>
+
+                <!-- Overlay Drawer (Narrow Screen < 1050px) -->
+                <Border x:Name="OverlayDrawer"
+                        Grid.Column="0"
+                        Grid.ColumnSpan="2"
+                        HorizontalAlignment="Right"
+                        Width="328"
+                        Panel.ZIndex="100"
+                        ClipToBounds="True"
+                        Visibility="Collapsed">
+                    <local:StudioSidebarControl x:Name="OverlaySidebarControl"
+                                                Width="320"
+                                                Margin="8,0,0,0"
+                                                HorizontalAlignment="Right">
+                        <local:StudioSidebarControl.Effect>
+                            <DropShadowEffect BlurRadius="16" ShadowDepth="4" Direction="180" Opacity="0.3" />
+                        </local:StudioSidebarControl.Effect>
+                    </local:StudioSidebarControl>
+                </Border>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>

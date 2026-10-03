@@ -62,6 +62,20 @@ public class MidiTrack : INotifyPropertyChanged
         }
     }
 
+    private int _totalTracks = 1;
+    public int TotalTracks
+    {
+        get => _totalTracks;
+        set
+        {
+            if (_totalTracks != value)
+            {
+                _totalTracks = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     private HashSet<int>? _noteNumbers; // Cached note numbers for fast lookup
     private Dictionary<int, List<(long StartUs, long EndUs)>>? _noteTimingsUs;
     private const int GlowDurationMs = 150; // How long the glow stays on

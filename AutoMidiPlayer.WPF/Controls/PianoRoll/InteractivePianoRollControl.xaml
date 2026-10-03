@@ -1,0 +1,58 @@
+<UserControl x:Class="AutoMidiPlayer.WPF.Controls.PianoRoll.InteractivePianoRollControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:AutoMidiPlayer.WPF.Controls.PianoRoll"
+             mc:Ignorable="d" 
+             d:DesignHeight="450" d:DesignWidth="800">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Sub-component 1: Horizontal Piano Roll -->
+        <Border Grid.Row="0"
+                CornerRadius="8"
+                BorderThickness="1"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                ClipToBounds="True">
+            <local:HorizontalPianoRoll x:Name="PianoRoll"
+                                       HorizontalAlignment="Stretch"
+                                       VerticalAlignment="Stretch"
+                                       MidiFile="{Binding MidiFile, RelativeSource={RelativeSource AncestorType=local:InteractivePianoRollControl}}"
+                                       CurrentTime="{Binding CurrentTime, RelativeSource={RelativeSource AncestorType=local:InteractivePianoRollControl}}"
+                                       KeyChangeMarkers="{Binding KeyChangeMarkers, RelativeSource={RelativeSource AncestorType=local:InteractivePianoRollControl}}"
+                                       ZoomLevel="{Binding ZoomLevel, RelativeSource={RelativeSource AncestorType=local:InteractivePianoRollControl}, Mode=TwoWay}"
+                                       KeyHeight="{Binding KeyHeight, RelativeSource={RelativeSource AncestorType=local:InteractivePianoRollControl}, Mode=TwoWay}"
+                                       IsSyncEnabled="{Binding IsSyncEnabled, RelativeSource={RelativeSource AncestorType=local:InteractivePianoRollControl}, Mode=TwoWay}"
+                                       ViewTime="{Binding ViewTime, RelativeSource={RelativeSource AncestorType=local:InteractivePianoRollControl}, Mode=TwoWay}"
+                                       ScrubRequested="OnPianoRollScrubRequested"
+                                       MarkerClicked="OnPianoRollMarkerClicked"
+                                       ZoomAdjustRequested="OnPianoRollZoomAdjustRequested"
+                                       HoverTimeChanged="OnPianoRollHoverTimeChanged"
+                                       ViewTimeChanged="OnPianoRollViewTimeChanged" />
+        </Border>
+
+        <!-- Sub-component 2: MIDI Timeline Scrubber -->
+        <local:MidiTimelineScrubber x:Name="Timeline"
+                                    Grid.Row="1"
+                                    Margin="0,8,0,0"
+                                    MidiFile="{Binding MidiFile, RelativeSource={RelativeSource AncestorType=local:InteractivePianoRollControl}}"
+                                    CurrentTime="{Binding CurrentTime, RelativeSource={RelativeSource AncestorType=local:InteractivePianoRollControl}}"
+                                    Duration="{Binding Duration, RelativeSource={RelativeSource AncestorType=local:InteractivePianoRollControl}}"
+                                    KeyChangeMarkers="{Binding KeyChangeMarkers, RelativeSource={RelativeSource AncestorType=local:InteractivePianoRollControl}}"
+                                    SelectedMarker="{Binding SelectedMarker, RelativeSource={RelativeSource AncestorType=local:InteractivePianoRollControl}, Mode=TwoWay}"
+                                    ZoomLevel="{Binding ZoomLevel, RelativeSource={RelativeSource AncestorType=local:InteractivePianoRollControl}, Mode=TwoWay}"
+                                    KeyHeight="{Binding KeyHeight, RelativeSource={RelativeSource AncestorType=local:InteractivePianoRollControl}, Mode=TwoWay}"
+                                    IsSyncEnabled="{Binding IsSyncEnabled, RelativeSource={RelativeSource AncestorType=local:InteractivePianoRollControl}, Mode=TwoWay}"
+                                    ViewTime="{Binding ViewTime, RelativeSource={RelativeSource AncestorType=local:InteractivePianoRollControl}}"
+                                    ScrubRequested="OnTimelineScrubRequested"
+                                    MarkerClicked="OnTimelineMarkerClicked"
+                                    ZoomAdjustRequested="OnTimelineZoomAdjustRequested"
+                                    ZoomResetRequested="OnTimelineZoomResetRequested"
+                                    HoverTimeChanged="OnTimelineHoverTimeChanged"
+                                    SyncChanged="OnTimelineSyncChanged" />
+    </Grid>
+</UserControl>

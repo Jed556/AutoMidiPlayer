@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
+using System.Text.Json;
 
 namespace AutoMidiPlayer.Data.Entities;
 
@@ -76,6 +79,54 @@ public class Song
     /// Maximum onset distance, in milliseconds, for notes to be detected as one chord.
     /// </summary>
     public uint? ChordDetectionMilliseconds { get; set; }
+
+    private string? _keyChanges;
+    private List<KeyChangeMarker>? _cachedKeyChangeMarkers;
+
+    /// <summary>
+    /// JSON-serialized list of timed key modulation markers.
+    /// </summary>
+    public string? KeyChanges
+    {
+        get => _keyChanges;
+        set
+        {
+            _keyChanges = value;
+            _cachedKeyChangeMarkers = null;
+        }
+    }
+
+    [NotMapped]
+    public List<KeyChangeMarker> KeyChangeMarkers
+    {
+        get
+        {
+            if (_cachedKeyChangeMarkers != null) return _cachedKeyChangeMarkers;
+            if (string.IsNullOrWhiteSpace(KeyChanges)) return _cachedKeyChangeMarkers = new();
+            try { return _cachedKeyChangeMarkers = JsonSerializer.Deserialize<List<KeyChangeMarker>>(KeyChanges) ?? new(); }
+            catch { return _cachedKeyChangeMarkers = new(); }
+        }
+        set
+        {
+            _cachedKeyChangeMarkers = value;
+            KeyChanges = value is { Count: > 0 } ? JsonSerializer.Serialize(value) : null;
+        }
+    }
+
+    public KeyChangeMarker? GetKeyMarkerAtTime(TimeSpan time, long lookaheadMs = 35)
+    {
+        var markers = KeyChangeMarkers;
+        if (markers.Count == 0) return null;
+        var ms = (long)time.TotalMilliseconds + lookaheadMs;
+        return markers.Where(m => m.TimeMs <= ms).MaxBy(m => m.TimeMs);
+    }
+
+    public int GetEffectiveKeyOffsetAtTime(TimeSpan time)
+    {
+        var marker = GetKeyMarkerAtTime(time);
+        var offset = marker?.KeyOffset ?? Key;
+        return MusicConstants.GetEffectiveKeyOffset(offset, BaseKey);
+    }
 
     /// <summary>
     /// Computes SHA-256 hash of a file's content.
