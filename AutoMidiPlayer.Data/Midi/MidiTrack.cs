@@ -111,8 +111,10 @@ public class MidiTrack : INotifyPropertyChanged
 
         Track = track;
         Index = index;
-        TrackName = track.Events.OfType<SequenceTrackNameEvent>().FirstOrDefault()?.Text;
-        InstrumentName = track.Events.OfType<InstrumentNameEvent>().FirstOrDefault()?.Text;
+        var rawTrackName = track.Events.OfType<SequenceTrackNameEvent>().FirstOrDefault()?.Text;
+        TrackName = string.IsNullOrWhiteSpace(rawTrackName) ? null : rawTrackName.Trim();
+        var rawInstrumentName = track.Events.OfType<InstrumentNameEvent>().FirstOrDefault()?.Text;
+        InstrumentName = string.IsNullOrWhiteSpace(rawInstrumentName) ? null : rawInstrumentName.Trim();
 
         if (string.IsNullOrWhiteSpace(InstrumentName))
         {
@@ -289,8 +291,12 @@ public class MidiTrack : INotifyPropertyChanged
         get => _isChecked;
         set
         {
-            _isChecked = value;
-            _events.Publish(this);
+            if (_isChecked != value)
+            {
+                _isChecked = value;
+                _events.Publish(this);
+                OnPropertyChanged();
+            }
         }
     }
 

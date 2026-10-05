@@ -27,6 +27,7 @@ public partial class StudioView : UserControl
     private void OnViewLoaded(object sender, RoutedEventArgs e)
     {
         UpdateResponsiveLayout(animate: false);
+        InteractiveRoll?.FitKeyHeightToViewport();
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -36,12 +37,35 @@ public partial class StudioView : UserControl
             oldVm.PropertyChanged -= OnViewModelPropertyChanged;
         }
 
+        if (e.OldValue is StudioViewModel oldStudioVm)
+        {
+            oldStudioVm.SongDataReloaded -= OnSongDataReloaded;
+        }
+
         if (e.NewValue is INotifyPropertyChanged newVm)
         {
             newVm.PropertyChanged += OnViewModelPropertyChanged;
         }
 
+        if (e.NewValue is StudioViewModel newStudioVm)
+        {
+            newStudioVm.SongDataReloaded += OnSongDataReloaded;
+        }
+
         UpdateResponsiveLayout(animate: false);
+    }
+
+    private void OnSongDataReloaded(object? sender, EventArgs e)
+    {
+        if (Dispatcher.CheckAccess())
+        {
+            InteractiveRoll?.RefreshNotesAndTimeline();
+            InteractiveRoll?.FitKeyHeightToViewport();
+        }
+        else
+        {
+            Dispatcher.BeginInvoke(new Action(() => OnSongDataReloaded(sender, e)));
+        }
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)

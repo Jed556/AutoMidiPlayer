@@ -2,11 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Media;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Entities;
 using AutoMidiPlayer.Data.Midi;
+using AutoMidiPlayer.WPF.Core;
 using AutoMidiPlayer.WPF.Helpers;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
@@ -16,10 +20,11 @@ namespace AutoMidiPlayer.WPF.Controls.PianoRoll;
 
 public class TimelineCanvas : FrameworkElement
 {
-    public readonly record struct MinimapNote(int Pitch, long StartMs, long LengthMs, int TrackIndex);
+    public readonly record struct MinimapNote(int RawPitch, int Pitch, long StartMs, long LengthMs, int TrackIndex);
 
     private static readonly SolidColorBrush TrackBackgroundBrush;
     private static readonly SolidColorBrush[] TrackBrushes;
+    private static readonly SolidColorBrush[] DisabledTrackBrushes;
     private static readonly SolidColorBrush PlayheadBrush;
     private static readonly Pen PlayheadPen;
     private static readonly SolidColorBrush MarkerPinBrush;
@@ -37,6 +42,12 @@ public class TimelineCanvas : FrameworkElement
     {
         TrackBackgroundBrush = CreateFrozenBrush(Color.FromArgb(40, 0, 0, 0));
         TrackBrushes = TrackColorPalette.AllBrushes;
+        DisabledTrackBrushes = new SolidColorBrush[TrackBrushes.Length];
+        for (var i = 0; i < TrackBrushes.Length; i++)
+        {
+            var c = TrackBrushes[i].Color;
+            DisabledTrackBrushes[i] = CreateFrozenBrush(Color.FromArgb((byte)(c.A * 0.25), c.R, c.G, c.B));
+        }
         PlayheadBrush = CreateFrozenBrush(Color.FromRgb(255, 255, 255));
         PlayheadPen = new Pen(CreateFrozenBrush(Color.FromRgb(255, 255, 255)), 2);
         PlayheadPen.Freeze();
@@ -84,16 +95,131 @@ public class TimelineCanvas : FrameworkElement
     private DrawingGroup? _staticBackgroundCache;
     private double _lastCachedWidth = -1;
     private double _lastCachedHeight = -1;
+    private readonly TranslateTransform _playheadTransform = new();
+
+    private readonly HashSet<int> _disabledTrackIndices = new();
+    private readonly bool[] _disabledTrackLookup = new bool[256];
+    private readonly List<INotifyPropertyChanged> _subscribedTrackItems = new();
+    private INotifyCollectionChanged? _subscribedTrackCollection;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool IsTrackDisabled(int trackIndex)
+    {
+        return (uint)trackIndex < (uint)_disabledTrackLookup.Length
+            ? _disabledTrackLookup[trackIndex]
+            : _disabledTrackIndices.Contains(trackIndex);
+    }
 
     public TimelineCanvas()
     {
-        Loaded += (_, _) => AutoMidiPlayer.WPF.Services.SystemThemeService.ThemeResourcesChanged += OnThemeResourcesChanged;
-        Unloaded += (_, _) => AutoMidiPlayer.WPF.Services.SystemThemeService.ThemeResourcesChanged -= OnThemeResourcesChanged;
+        Loaded += (_, _) =>
+        {
+            AutoMidiPlayer.WPF.Services.SystemThemeService.ThemeResourcesChanged += OnThemeResourcesChanged;
+            UpdateTrackSubscriptions();
+        };
+        Unloaded += (_, _) =>
+        {
+            AutoMidiPlayer.WPF.Services.SystemThemeService.ThemeResourcesChanged -= OnThemeResourcesChanged;
+            UnsubscribeTrackEvents();
+        };
     }
 
     private void OnThemeResourcesChanged()
     {
         Dispatcher.BeginInvoke(InvalidateVisualCache);
+    }
+
+    public static readonly DependencyProperty MidiTracksProperty =
+        DependencyProperty.Register(
+            nameof(MidiTracks),
+            typeof(IEnumerable<MidiTrack>),
+            typeof(TimelineCanvas),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, OnMidiTracksChanged));
+
+    private static void OnMidiTracksChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is TimelineCanvas canvas)
+        {
+            canvas.UpdateTrackSubscriptions();
+        }
+    }
+
+    public IEnumerable<MidiTrack>? MidiTracks
+    {
+        get => (IEnumerable<MidiTrack>?)GetValue(MidiTracksProperty);
+        set => SetValue(MidiTracksProperty, value);
+    }
+
+    private void UpdateTrackSubscriptions()
+    {
+        UnsubscribeTrackEvents();
+
+        if (MidiTracks is INotifyCollectionChanged notifyCollection)
+        {
+            _subscribedTrackCollection = notifyCollection;
+            notifyCollection.CollectionChanged += OnTrackCollectionChanged;
+        }
+
+        if (MidiTracks != null)
+        {
+            foreach (var track in MidiTracks)
+            {
+                track.PropertyChanged += OnTrackItemPropertyChanged;
+                _subscribedTrackItems.Add(track);
+            }
+        }
+
+        UpdateDisabledTrackIndices();
+    }
+
+    private void UnsubscribeTrackEvents()
+    {
+        if (_subscribedTrackCollection != null)
+        {
+            _subscribedTrackCollection.CollectionChanged -= OnTrackCollectionChanged;
+            _subscribedTrackCollection = null;
+        }
+
+        foreach (var item in _subscribedTrackItems)
+        {
+            item.PropertyChanged -= OnTrackItemPropertyChanged;
+        }
+        _subscribedTrackItems.Clear();
+    }
+
+    private void OnTrackCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        UpdateTrackSubscriptions();
+    }
+
+    private void OnTrackItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(e.PropertyName) || e.PropertyName == nameof(MidiTrack.IsChecked))
+        {
+            UpdateDisabledTrackIndices();
+        }
+    }
+
+    private void UpdateDisabledTrackIndices()
+    {
+        _disabledTrackIndices.Clear();
+        Array.Clear(_disabledTrackLookup, 0, _disabledTrackLookup.Length);
+        if (MidiTracks != null)
+        {
+            foreach (var t in MidiTracks)
+            {
+                if (!t.IsChecked)
+                {
+                    _disabledTrackIndices.Add(t.Index);
+                    if ((uint)t.Index < (uint)_disabledTrackLookup.Length)
+                    {
+                        _disabledTrackLookup[t.Index] = true;
+                    }
+                }
+            }
+        }
+
+        InvalidateVisualCache();
     }
 
     public static readonly DependencyProperty VisiblePastMsProperty =
@@ -193,6 +319,69 @@ public class TimelineCanvas : FrameworkElement
         set => SetValue(DurationProperty, value);
     }
 
+    public static readonly DependencyProperty DisplayModeProperty =
+        DependencyProperty.Register(
+            nameof(DisplayMode),
+            typeof(PianoRollDisplayMode),
+            typeof(TimelineCanvas),
+            new FrameworkPropertyMetadata(PianoRollDisplayMode.Auto, FrameworkPropertyMetadataOptions.AffectsRender, OnDisplayModeChanged));
+
+    private static void OnDisplayModeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is TimelineCanvas canvas)
+        {
+            canvas.UpdateNotePitches();
+        }
+    }
+
+    public PianoRollDisplayMode DisplayMode
+    {
+        get => (PianoRollDisplayMode)GetValue(DisplayModeProperty);
+        set => SetValue(DisplayModeProperty, value);
+    }
+
+    public static readonly DependencyProperty InstrumentIdProperty =
+        DependencyProperty.Register(
+            nameof(InstrumentId),
+            typeof(string),
+            typeof(TimelineCanvas),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, OnInstrumentIdChanged));
+
+    private static void OnInstrumentIdChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is TimelineCanvas canvas)
+        {
+            canvas.UpdateNotePitches();
+        }
+    }
+
+    public string? InstrumentId
+    {
+        get => (string?)GetValue(InstrumentIdProperty);
+        set => SetValue(InstrumentIdProperty, value);
+    }
+
+    public static readonly DependencyProperty PitchRevisionProperty =
+        DependencyProperty.Register(
+            nameof(PitchRevision),
+            typeof(int),
+            typeof(TimelineCanvas),
+            new FrameworkPropertyMetadata(0, FrameworkPropertyMetadataOptions.AffectsRender, OnPitchRevisionChanged));
+
+    private static void OnPitchRevisionChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is TimelineCanvas canvas)
+        {
+            canvas.UpdateNotePitches();
+        }
+    }
+
+    public int PitchRevision
+    {
+        get => (int)GetValue(PitchRevisionProperty);
+        set => SetValue(PitchRevisionProperty, value);
+    }
+
     public static readonly DependencyProperty KeyChangeMarkersProperty =
         DependencyProperty.Register(
             nameof(KeyChangeMarkers),
@@ -231,7 +420,35 @@ public class TimelineCanvas : FrameworkElement
     {
         if (d is TimelineCanvas canvas)
         {
-            canvas.InvalidateVisualCache();
+            if (e.OldValue is System.Collections.Specialized.INotifyCollectionChanged oldColl)
+            {
+                oldColl.CollectionChanged -= canvas.OnMarkersCollectionChanged;
+            }
+            if (e.NewValue is System.Collections.Specialized.INotifyCollectionChanged newColl)
+            {
+                newColl.CollectionChanged += canvas.OnMarkersCollectionChanged;
+            }
+
+            if (canvas.DisplayMode == PianoRollDisplayMode.Auto)
+            {
+                canvas.UpdateNotePitches();
+            }
+            else
+            {
+                canvas.InvalidateVisualCache();
+            }
+        }
+    }
+
+    private void OnMarkersCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        if (DisplayMode == PianoRollDisplayMode.Auto)
+        {
+            UpdateNotePitches();
+        }
+        else
+        {
+            InvalidateVisualCache();
         }
     }
 
@@ -290,7 +507,7 @@ public class TimelineCanvas : FrameworkElement
                     {
                         var startMs = (long)note.TimeAs<MetricTimeSpan>(tempoMap).TotalMilliseconds;
                         var lenMs = (long)note.LengthAs<MetricTimeSpan>(tempoMap).TotalMilliseconds;
-                        list.Add(new MinimapNote(note.NoteNumber, startMs, lenMs, t));
+                        list.Add(new MinimapNote(note.NoteNumber, note.NoteNumber, startMs, lenMs, t));
                     }
                 }
             }
@@ -300,16 +517,16 @@ public class TimelineCanvas : FrameworkElement
                 {
                     var startMs = (long)note.TimeAs<MetricTimeSpan>(tempoMap).TotalMilliseconds;
                     var lenMs = (long)note.LengthAs<MetricTimeSpan>(tempoMap).TotalMilliseconds;
-                    list.Add(new MinimapNote(note.NoteNumber, startMs, lenMs, (int)note.Channel));
+                    list.Add(new MinimapNote(note.NoteNumber, note.NoteNumber, startMs, lenMs, (int)note.Channel));
                 }
             }
 
             _notes = list.OrderBy(n => n.StartMs).ToArray();
             _trackCount = _notes.Length > 0 ? _notes.Select(n => n.TrackIndex).Distinct().Count() : 1;
+            UpdateNotePitchesInternal();
+
             if (_notes.Length > 0)
             {
-                _minPitch = _notes.Min(n => n.Pitch);
-                _maxPitch = _notes.Max(n => n.Pitch);
                 var lastNote = _notes.Max(n => n.StartMs + n.LengthMs);
                 _totalDurationMs = Math.Max(_totalDurationMs, Math.Max(1L, lastNote));
             }
@@ -322,6 +539,43 @@ public class TimelineCanvas : FrameworkElement
         }
 
         InvalidateVisualCache();
+    }
+
+    public void UpdateNotePitches()
+    {
+        UpdateNotePitchesInternal();
+        InvalidateVisualCache();
+        InvalidateVisual();
+    }
+
+    private void UpdateNotePitchesInternal()
+    {
+        if (_notes.Length == 0) return;
+
+        var song = MidiFile?.Song;
+        var mode = DisplayMode;
+        var settings = AutoMidiPlayer.Data.Properties.Settings.Default;
+        var instrumentId = !string.IsNullOrWhiteSpace(InstrumentId)
+            ? InstrumentId
+            : PianoRollCanvas.ResolveCurrentInstrumentId();
+        var instrumentKeyCount = Keyboard.GetNotes(instrumentId).Count;
+        var threshold = settings.AutoCorrectThreshold;
+        var isAutoCorrect = threshold > 0
+            && instrumentKeyCount <= threshold
+            && (song?.Transpose == Transpose.Smart)
+            && (song?.BaseKey is not null and not 0);
+
+        for (var i = 0; i < _notes.Length; i++)
+        {
+            var note = _notes[i];
+            var displayPitch = PianoRollNoteCalculator.CalculateDisplayPitch(
+                note.RawPitch, note.StartMs, mode, song, instrumentId, isAutoCorrect);
+
+            _notes[i] = new MinimapNote(note.RawPitch, displayPitch, note.StartMs, note.LengthMs, note.TrackIndex);
+        }
+
+        _minPitch = _notes.Min(n => n.Pitch);
+        _maxPitch = _notes.Max(n => n.Pitch);
     }
 
     public long TotalDurationMs => Math.Max(1L, Math.Max(_totalDurationMs, (long)Duration.TotalMilliseconds));
@@ -402,7 +656,8 @@ public class TimelineCanvas : FrameworkElement
         dc.DrawLine(PlayheadPen, new Point(playheadX, 0), new Point(playheadX, height));
 
         // Playhead handle at top
-        dc.PushTransform(new TranslateTransform(playheadX, 0));
+        _playheadTransform.X = playheadX;
+        dc.PushTransform(_playheadTransform);
         dc.DrawGeometry(PlayheadBrush, null, PlayheadHandleGeometry);
         dc.Pop();
     }
@@ -420,15 +675,65 @@ public class TimelineCanvas : FrameworkElement
             {
                 var pitchSpan = Math.Max(12, _maxPitch - _minPitch);
                 var noteAreaH = Math.Max(10, height - 16);
-                var singleTrackBrush = _trackCount == 1 ? TrackColorPalette.GetBrush(0, 1) : null;
+                var isSingleTrack = _trackCount == 1;
+                var singleTrackBrush = isSingleTrack ? TrackColorPalette.GetBrush(0, 1) : null;
+                var disabledSingleTrackBrush = isSingleTrack && singleTrackBrush != null
+                    ? CreateFrozenBrush(Color.FromArgb((byte)(singleTrackBrush.Color.A * 0.25), singleTrackBrush.Color.R, singleTrackBrush.Color.G, singleTrackBrush.Color.B))
+                    : null;
+                var lastRightByTrackPitch = new double[TrackBrushes.Length * 128];
+                Array.Fill(lastRightByTrackPitch, -1.0);
 
-                foreach (var note in _notes)
+                void DrawTimelineNote(MinimapNote note, bool isDisabled)
                 {
                     var x = (note.StartMs / (double)totalMs) * width;
                     var y = (1.0 - (double)(note.Pitch - _minPitch) / pitchSpan) * (noteAreaH - 4) + 2;
                     var w = Math.Max(2.0, (note.LengthMs / (double)totalMs) * width);
-                    var brush = singleTrackBrush ?? TrackBrushes[Math.Abs(note.TrackIndex) % TrackBrushes.Length];
-                    dc.DrawRoundedRectangle(brush, null, new Rect(x, y, w, 2.5), 1.0, 1.0);
+                    var trackIdx = isSingleTrack ? 0 : (Math.Abs(note.TrackIndex) % TrackBrushes.Length);
+                    var pitch = Math.Clamp(note.Pitch, 0, 127);
+                    var trackerKey = (trackIdx << 7) | pitch;
+
+                    var lastRight = lastRightByTrackPitch[trackerKey];
+                    if (x + w <= lastRight + 0.5)
+                        return;
+
+                    if (x < lastRight)
+                    {
+                        w -= (lastRight - x);
+                        x = lastRight;
+                        if (w <= 0.5) return;
+                    }
+
+                    lastRightByTrackPitch[trackerKey] = x + w;
+                    var brush = isDisabled
+                        ? (disabledSingleTrackBrush ?? DisabledTrackBrushes[trackIdx])
+                        : (singleTrackBrush ?? TrackBrushes[trackIdx]);
+
+                    dc.DrawRectangle(brush, null, new Rect(x, y, w, 2.0));
+                }
+
+                if (_disabledTrackIndices.Count > 0)
+                {
+                    // Pass 1: Disabled notes first (at the back with low opacity)
+                    foreach (var note in _notes)
+                    {
+                        if (IsTrackDisabled(note.TrackIndex))
+                            DrawTimelineNote(note, isDisabled: true);
+                    }
+                    // Reset coalescing tracker for enabled pass so enabled notes draw properly over disabled ones
+                    Array.Fill(lastRightByTrackPitch, -1.0);
+                    // Pass 2: Enabled notes on top
+                    foreach (var note in _notes)
+                    {
+                        if (!IsTrackDisabled(note.TrackIndex))
+                            DrawTimelineNote(note, isDisabled: false);
+                    }
+                }
+                else
+                {
+                    foreach (var note in _notes)
+                    {
+                        DrawTimelineNote(note, isDisabled: false);
+                    }
                 }
             }
 

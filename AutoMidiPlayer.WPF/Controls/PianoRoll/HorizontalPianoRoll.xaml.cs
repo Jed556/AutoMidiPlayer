@@ -16,6 +16,63 @@ public partial class HorizontalPianoRoll : UserControl
     public event EventHandler<TimeSpan?>? HoverTimeChanged;
     public event EventHandler<TimeSpan?>? ViewTimeChanged;
 
+    public static readonly DependencyProperty DisplayModeProperty =
+        DependencyProperty.Register(
+            nameof(DisplayMode),
+            typeof(PianoRollDisplayMode),
+            typeof(HorizontalPianoRoll),
+            new PropertyMetadata(PianoRollDisplayMode.Auto, (d, e) =>
+            {
+                if (d is HorizontalPianoRoll roll && roll.Canvas != null)
+                {
+                    roll.Canvas.DisplayMode = (PianoRollDisplayMode)e.NewValue;
+                }
+            }));
+
+    public PianoRollDisplayMode DisplayMode
+    {
+        get => (PianoRollDisplayMode)GetValue(DisplayModeProperty);
+        set => SetValue(DisplayModeProperty, value);
+    }
+
+    public static readonly DependencyProperty InstrumentIdProperty =
+        DependencyProperty.Register(
+            nameof(InstrumentId),
+            typeof(string),
+            typeof(HorizontalPianoRoll),
+            new PropertyMetadata(null, (d, e) =>
+            {
+                if (d is HorizontalPianoRoll roll && roll.Canvas != null)
+                {
+                    roll.Canvas.InstrumentId = (string?)e.NewValue;
+                }
+            }));
+
+    public string? InstrumentId
+    {
+        get => (string?)GetValue(InstrumentIdProperty);
+        set => SetValue(InstrumentIdProperty, value);
+    }
+
+    public static readonly DependencyProperty PitchRevisionProperty =
+        DependencyProperty.Register(
+            nameof(PitchRevision),
+            typeof(int),
+            typeof(HorizontalPianoRoll),
+            new PropertyMetadata(0, (d, e) =>
+            {
+                if (d is HorizontalPianoRoll roll && roll.Canvas != null)
+                {
+                    roll.Canvas.PitchRevision = (int)e.NewValue;
+                }
+            }));
+
+    public int PitchRevision
+    {
+        get => (int)GetValue(PitchRevisionProperty);
+        set => SetValue(PitchRevisionProperty, value);
+    }
+
     public static readonly DependencyProperty IsSyncEnabledProperty =
         DependencyProperty.Register(
             nameof(IsSyncEnabled),
@@ -72,6 +129,25 @@ public partial class HorizontalPianoRoll : UserControl
         get => (TimeSpan?)GetValue(HoverTimeProperty);
         set => SetValue(HoverTimeProperty, value);
     }
+    public static readonly DependencyProperty MidiTracksProperty =
+        DependencyProperty.Register(
+            nameof(MidiTracks),
+            typeof(IEnumerable<MidiTrack>),
+            typeof(HorizontalPianoRoll),
+            new PropertyMetadata(null, (d, e) =>
+            {
+                if (d is HorizontalPianoRoll roll && roll.Canvas != null)
+                {
+                    roll.Canvas.MidiTracks = (IEnumerable<MidiTrack>?)e.NewValue;
+                }
+            }));
+
+    public IEnumerable<MidiTrack>? MidiTracks
+    {
+        get => (IEnumerable<MidiTrack>?)GetValue(MidiTracksProperty);
+        set => SetValue(MidiTracksProperty, value);
+    }
+
     public static readonly DependencyProperty MidiFileProperty =
         DependencyProperty.Register(
             nameof(MidiFile),
@@ -190,6 +266,8 @@ public partial class HorizontalPianoRoll : UserControl
                 Canvas.IsSyncEnabled = IsSyncEnabled;
                 Canvas.ViewTime = ViewTime;
                 Canvas.KeyHeight = KeyHeight;
+                Canvas.InstrumentId = InstrumentId;
+                Canvas.PitchRevision = PitchRevision;
             }
             Canvas?.RebuildNoteIndex();
             UpdateScrollBounds();
@@ -198,10 +276,26 @@ public partial class HorizontalPianoRoll : UserControl
 
     public bool IsOverflowing => Canvas?.IsOverflowing ?? false;
     public PianoRollCanvas RollCanvas => Canvas;
+    public int PitchCount => Canvas?.PitchCount ?? 49;
 
     public void RefreshNotes()
     {
         Canvas.RebuildNoteIndex();
+        UpdateScrollBounds();
+    }
+
+    public void FitKeyHeightToViewport()
+    {
+        if (Canvas == null) return;
+        var pitchCount = Canvas.PitchCount;
+        var viewportHeight = Canvas.ActualHeight;
+
+        if (pitchCount <= 0 || viewportHeight <= 0)
+            return;
+
+        var target = Math.Clamp(viewportHeight / pitchCount, 6.0, 50.0);
+        KeyHeight = target;
+        Canvas.KeyHeight = target;
         UpdateScrollBounds();
     }
 
@@ -211,7 +305,7 @@ public partial class HorizontalPianoRoll : UserControl
         var totalHeight = Canvas.TotalContentHeight;
         var viewportHeight = Canvas.ActualHeight;
 
-        if (totalHeight > viewportHeight && viewportHeight > 0)
+        if (totalHeight > viewportHeight + 1.0 && viewportHeight > 0)
         {
             VerticalScrollBar.Visibility = Visibility.Visible;
             VerticalScrollBar.Maximum = totalHeight - viewportHeight;

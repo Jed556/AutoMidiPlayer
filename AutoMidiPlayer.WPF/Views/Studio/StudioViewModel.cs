@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Media;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Entities;
 using AutoMidiPlayer.Data.Midi;
 using AutoMidiPlayer.Data.Notification;
 using AutoMidiPlayer.WPF.Controls.NoSongPlaceholder;
+using AutoMidiPlayer.WPF.Controls.PianoRoll;
 using AutoMidiPlayer.WPF.Controls.Snackbar;
 using AutoMidiPlayer.WPF.Core;
 using AutoMidiPlayer.WPF.Services;
@@ -20,7 +22,11 @@ using IContainer = StyletIoC.IContainer;
 
 namespace AutoMidiPlayer.WPF.ViewModels;
 
-public class StudioViewModel : Screen, IHandle<OpenedFileChangedNotification>, IHandle<MidiFile>
+public class StudioViewModel : Screen,
+    IHandle<OpenedFileChangedNotification>,
+    IHandle<MidiFile>,
+    IHandle<InstrumentViewModel>,
+    IHandle<SettingsPageViewModel>
 {
     private readonly IContainer _ioc;
     private readonly MainWindowViewModel _main;
@@ -36,6 +42,7 @@ public class StudioViewModel : Screen, IHandle<OpenedFileChangedNotification>, I
     private double _keyHeight = 16.0;
     private bool _isRenderingHooked;
     private string _lastActiveKeyDisplay = string.Empty;
+    private string _lastActiveDisplayModeText = string.Empty;
     private KeyChangeMarker? _lastActiveMarker;
     private int _lastActiveKey = int.MinValue;
 
@@ -48,8 +55,13 @@ public class StudioViewModel : Screen, IHandle<OpenedFileChangedNotification>, I
         _events.Subscribe(this);
         _timeWatcher = PlaybackCurrentTimeWatcher.Instance;
 
+        SongSettings.SettingsRebuildRequired += HandleSongSettingsRebuildRequired;
+        SongSettings.PropertyChanged += HandleSongSettingsPropertyChanged;
+        _main.ActiveGamesChanged += HandleActiveGamesChanged;
+
         KeyOptions = MusicConstants.GenerateKeyOptions();
         _selectedKeyOption = KeyOptions.FirstOrDefault(k => k.Value == 0);
+        _selectedDisplayMode = DisplayModes[0];
     }
 
     #region Properties - Components & Delegates
@@ -58,6 +70,29 @@ public class StudioViewModel : Screen, IHandle<OpenedFileChangedNotification>, I
     public MainWindowViewModel Main => _main;
     public PlaybackControlsService Controls => _main.PlaybackControls;
     public SongService SongSettings => _main.SongSettings;
+    public string CurrentInstrumentId => _main.InstrumentView?.SelectedInstrument.Key ?? string.Empty;
+    public int PitchRevision { get; private set; }
+
+    public void NotifyPitchUpdateRequired()
+    {
+        if (Application.Current?.Dispatcher?.CheckAccess() == false)
+        {
+            Application.Current.Dispatcher.BeginInvoke(NotifyPitchUpdateRequired);
+            return;
+        }
+
+        _lastActiveMarker = null;
+        _lastActiveKey = int.MinValue;
+        _lastActiveKeyDisplay = string.Empty;
+        _lastActiveDisplayModeText = string.Empty;
+        UpdateActiveKeyDisplay();
+        NotifyOfPropertyChange(nameof(CurrentInstrumentId));
+        PitchRevision++;
+        NotifyOfPropertyChange(nameof(PitchRevision));
+    }
+
+    public event EventHandler? SongDataReloaded;
+
     public BindableCollection<MidiTrack> MidiTracks => _main.TrackView.MidiTracks;
 
     public MidiFile? CurrentFile => _main.QueueView.OpenedFile;
@@ -89,19 +124,7 @@ public class StudioViewModel : Screen, IHandle<OpenedFileChangedNotification>, I
     public MusicConstants.KeyOption? SelectedKeyOption
     {
         get => _selectedKeyOption;
-        set
-        {
-            if (SetAndNotify(ref _selectedKeyOption, value))
-            {
-                if (SelectedMarker != null && value != null && SelectedMarker.KeyOffset != value.Value)
-                {
-                    SelectedMarker.KeyOffset = value.Value;
-                    var noteName = MusicConstants.GetNoteName(value.Value);
-                    SelectedMarker.Label = $"{noteName} ({(value.Value >= 0 ? "+" : "")}{value.Value})";
-                    _ = SaveMarkersToSongAsync();
-                }
-            }
-        }
+        set => SetAndNotify(ref _selectedKeyOption, value);
     }
 
     public TimeSpan CurrentTime
@@ -119,10 +142,15 @@ public class StudioViewModel : Screen, IHandle<OpenedFileChangedNotification>, I
     private void UpdateActiveKeyDisplay()
     {
         var display = ActiveKeyAtPlayheadDisplay;
-        if (!string.Equals(_lastActiveKeyDisplay, display, StringComparison.Ordinal))
+        var modeText = ActiveDisplayModeText;
+        if (!string.Equals(_lastActiveKeyDisplay, display, StringComparison.Ordinal) ||
+            !string.Equals(_lastActiveDisplayModeText, modeText, StringComparison.Ordinal))
         {
             _lastActiveKeyDisplay = display;
+            _lastActiveDisplayModeText = modeText;
             NotifyOfPropertyChange(nameof(ActiveKeyAtPlayheadDisplay));
+            NotifyOfPropertyChange(nameof(ActiveDisplayModeText));
+            NotifyOfPropertyChange(nameof(ActiveDisplayModeTooltip));
         }
     }
 
@@ -200,6 +228,126 @@ public class StudioViewModel : Screen, IHandle<OpenedFileChangedNotification>, I
     public bool IsSettingsDrawerActive => IsSidebarOpen && ActiveSidebarTab == "Settings";
     public string ActiveDrawerTitle => ActiveSidebarTab == "Tracks" ? "Tracks" : "Song Settings";
 
+    public List<NoteDisplayModeOption> DisplayModes { get; } =
+    [
+        new()
+        {
+            Mode = PianoRollDisplayMode.Auto,
+            Name = "Auto",
+            Description = "Display according to markers & transposes"
+        },
+        new()
+        {
+            Mode = PianoRollDisplayMode.Transpose,
+            Name = "Transpose",
+            Description = "Display transposed equivalents (Up, Smart, Down, Ignore)"
+        },
+        new()
+        {
+            Mode = PianoRollDisplayMode.SongDefault,
+            Name = "Song Default",
+            Description = "Original sequence (unmodified MIDI)"
+        }
+    ];
+
+    private NoteDisplayModeOption _selectedDisplayMode = null!;
+    public NoteDisplayModeOption SelectedDisplayMode
+    {
+        get => _selectedDisplayMode;
+        set
+        {
+            if (SetAndNotify(ref _selectedDisplayMode, value))
+            {
+                _lastActiveDisplayModeText = ActiveDisplayModeText;
+                NotifyOfPropertyChange(nameof(ActiveDisplayModeText));
+                NotifyOfPropertyChange(nameof(ActiveDisplayModeTooltip));
+                NotifyPitchUpdateRequired();
+            }
+        }
+    }
+
+    private static string FormatTimestampWithMs(TimeSpan time)
+    {
+        if (time < TimeSpan.Zero)
+            time = TimeSpan.Zero;
+
+        return (int)time.TotalHours > 0
+            ? $"{(int)time.TotalHours}:{time.Minutes:D2}:{time.Seconds:D2}:{time.Milliseconds:D3}"
+            : $"{time.Minutes:D2}:{time.Seconds:D2}:{time.Milliseconds:D3}";
+    }
+
+    public string ActiveDisplayModeText
+    {
+        get
+        {
+            if (CurrentFile?.Song is null)
+                return $"Active: Auto ({MusicConstants.GetNoteName(0)} +0) from Song Default";
+
+            var song = CurrentFile.Song;
+            var marker = song.GetKeyMarkerAtTime(CurrentTime);
+
+            var hasTranspose = SongSettings.IsTransposeActive
+                || SongSettings.KeyOffset != 0
+                || (song.Transpose != null && song.Transpose != Transpose.Ignore)
+                || song.Key != 0
+                || SongSettings.IsAutoCorrectActive;
+
+            var songOffset = hasTranspose ? SongSettings.EffectiveKeyOffset : 0;
+            var songNoteName = MusicConstants.GetNoteName(songOffset);
+            var defaultNoteName = MusicConstants.GetNoteName(0);
+            var fallbackSource = hasTranspose ? "Transpose Mode" : "Song Default";
+
+            return SelectedDisplayMode?.Mode switch
+            {
+                PianoRollDisplayMode.SongDefault =>
+                    $"Active: Song Default ({defaultNoteName} +0) from Song Default",
+
+                PianoRollDisplayMode.Transpose =>
+                    $"Active: Transpose ({songNoteName} {(songOffset >= 0 ? "+" : "")}{songOffset}) from {fallbackSource}",
+
+                _ => marker != null
+                    ? $"Active: Auto ({MusicConstants.GetNoteName(marker.KeyOffset)} {(marker.KeyOffset >= 0 ? "+" : "")}{marker.KeyOffset}) from Marker at {FormatTimestampWithMs(marker.Time)}"
+                    : $"Active: Auto ({songNoteName} {(songOffset >= 0 ? "+" : "")}{songOffset}) from {fallbackSource}"
+            };
+        }
+    }
+
+    public string ActiveDisplayModeTooltip
+    {
+        get
+        {
+            if (CurrentFile?.Song is null)
+                return "Note Display Mode";
+
+            var song = CurrentFile.Song;
+            var marker = song.GetKeyMarkerAtTime(CurrentTime);
+
+            var hasTranspose = SongSettings.IsTransposeActive
+                || SongSettings.KeyOffset != 0
+                || (song.Transpose != null && song.Transpose != Transpose.Ignore)
+                || song.Key != 0
+                || SongSettings.IsAutoCorrectActive;
+
+            var songOffset = hasTranspose ? SongSettings.EffectiveKeyOffset : 0;
+            var songNoteName = MusicConstants.GetNoteName(songOffset);
+            var fallbackSource = hasTranspose ? "Transpose Mode" : "Song Default";
+
+            var offset = marker?.KeyOffset ?? songOffset;
+            var noteName = MusicConstants.GetNoteName(offset);
+            var isModulated = marker != null;
+
+            return SelectedDisplayMode?.Mode switch
+            {
+                PianoRollDisplayMode.SongDefault =>
+                    "Song Default: Displaying original sequence exactly as authored in the MIDI file.",
+                PianoRollDisplayMode.Transpose =>
+                    $"Transpose: Displaying notes transposed by song key offset ({songNoteName} {(songOffset >= 0 ? "+" : "")}{songOffset}) and {SongSettings.TransposeMode} mode.",
+                _ =>
+                    $"Auto: Displaying notes dynamically according to timeline markers and transpositions.\nActive at playhead: {noteName} ({(offset >= 0 ? "+" : "")}{offset}) [{(isModulated ? $"Marker at {FormatTimestampWithMs(marker!.Time)}" : fallbackSource)}]"
+            };
+        }
+    }
+
     public string ActiveKeyAtPlayheadDisplay
     {
         get
@@ -209,13 +357,20 @@ public class StudioViewModel : Screen, IHandle<OpenedFileChangedNotification>, I
 
             var song = CurrentFile.Song;
             var marker = song.GetKeyMarkerAtTime(CurrentTime);
-            var offset = marker?.KeyOffset ?? song.Key;
+            var hasTranspose = SongSettings.IsTransposeActive
+                || SongSettings.KeyOffset != 0
+                || (song.Transpose != null && song.Transpose != Transpose.Ignore)
+                || song.Key != 0
+                || SongSettings.IsAutoCorrectActive;
+
+            var fallbackSource = hasTranspose ? "Transpose Mode" : "Song Default";
+            var offset = marker?.KeyOffset ?? (hasTranspose ? SongSettings.EffectiveKeyOffset : 0);
             var noteName = MusicConstants.GetNoteName(offset);
             var isModulated = marker != null;
 
             return isModulated
                 ? $"Active: {noteName} ({(offset >= 0 ? "+" : "")}{offset}) [Modulated at {marker!.TimeString}]"
-                : $"Active: {noteName} ({(offset >= 0 ? "+" : "")}{offset}) [Song Default]";
+                : $"Active: {noteName} ({(offset >= 0 ? "+" : "")}{offset}) [{fallbackSource}]";
         }
     }
 
@@ -327,6 +482,46 @@ public class StudioViewModel : Screen, IHandle<OpenedFileChangedNotification>, I
         ReloadSongData();
     }
 
+    public void Handle(InstrumentViewModel message)
+    {
+        NotifyPitchUpdateRequired();
+    }
+
+    public void Handle(SettingsPageViewModel message)
+    {
+        NotifyPitchUpdateRequired();
+    }
+
+    private void HandleSongSettingsRebuildRequired()
+    {
+        NotifyPitchUpdateRequired();
+    }
+
+    private void HandleSongSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(SongService.KeyOffset)
+            or nameof(SongService.EffectiveKeyOffset)
+            or nameof(SongService.Transpose)
+            or nameof(SongService.TransposeMode)
+            or nameof(SongService.SelectedKeyOption))
+        {
+            NotifyPitchUpdateRequired();
+        }
+    }
+
+    private void HandleActiveGamesChanged()
+    {
+        NotifyPitchUpdateRequired();
+    }
+
+    protected override void OnClose()
+    {
+        base.OnClose();
+        SongSettings.SettingsRebuildRequired -= HandleSongSettingsRebuildRequired;
+        SongSettings.PropertyChanged -= HandleSongSettingsPropertyChanged;
+        _main.ActiveGamesChanged -= HandleActiveGamesChanged;
+    }
+
     private void HandleControlsPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(PlaybackControlsService.IsPlaying))
@@ -407,6 +602,12 @@ public class StudioViewModel : Screen, IHandle<OpenedFileChangedNotification>, I
 
     public void ReloadSongData()
     {
+        if (Application.Current?.Dispatcher?.CheckAccess() == false)
+        {
+            Application.Current.Dispatcher.BeginInvoke(ReloadSongData);
+            return;
+        }
+
         CurrentFile?.EnsureMidiLoaded();
         NotifyOfPropertyChange(nameof(CurrentFile));
         NotifyOfPropertyChange(nameof(HasSongOpen));
@@ -422,7 +623,10 @@ public class StudioViewModel : Screen, IHandle<OpenedFileChangedNotification>, I
         }
         SelectedMarker = null;
         _lastActiveKeyDisplay = string.Empty;
+        _lastActiveDisplayModeText = string.Empty;
         UpdateActiveKeyDisplay();
+        NotifyPitchUpdateRequired();
+        SongDataReloaded?.Invoke(this, EventArgs.Empty);
     }
 
     #endregion
@@ -483,8 +687,7 @@ public class StudioViewModel : Screen, IHandle<OpenedFileChangedNotification>, I
 
     public void ScrubTo(TimeSpan time)
     {
-        Controls.SongPosition = time.TotalSeconds;
-        Controls.OnSongPositionChanged();
+        Controls.Seek(time);
         CurrentTime = time;
     }
 
@@ -557,7 +760,7 @@ public class StudioViewModel : Screen, IHandle<OpenedFileChangedNotification>, I
 
         if (detected.Count == 0)
         {
-            SnackbarService.Info("Auto-Detect", "No Key Signature events found in this MIDI file.");
+            SnackbarService.Info("Scan Keys", "No Key Signature events found in this MIDI file.");
             return;
         }
 
@@ -576,7 +779,7 @@ public class StudioViewModel : Screen, IHandle<OpenedFileChangedNotification>, I
         foreach (var m in sorted) KeyChangeMarkers.Add(m);
 
         await SaveMarkersToSongAsync();
-        SnackbarService.Success("Auto-Detect Complete", $"Detected and added {detected.Count} key changes.");
+        SnackbarService.Success("Scan Keys Complete", $"Detected and added {detected.Count} key changes.");
     }
 
     public async Task DeleteSelectedMarkerAsync()
@@ -639,6 +842,7 @@ public class StudioViewModel : Screen, IHandle<OpenedFileChangedNotification>, I
             await db.SaveChangesAsync();
 
             NotifyOfPropertyChange(nameof(ActiveKeyAtPlayheadDisplay));
+            NotifyPitchUpdateRequired();
         }
         catch (Exception ex)
         {
@@ -647,4 +851,11 @@ public class StudioViewModel : Screen, IHandle<OpenedFileChangedNotification>, I
     }
 
     #endregion
+}
+
+public class NoteDisplayModeOption
+{
+    public PianoRollDisplayMode Mode { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
 }

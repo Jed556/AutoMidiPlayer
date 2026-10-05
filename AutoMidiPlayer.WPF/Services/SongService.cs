@@ -303,10 +303,17 @@ public class SongService(IContainer ioc) : PropertyChangedBase
     /// </summary>
     public int GetEffectiveKeyOffset(Song? song = null)
     {
+        var isAutoCorrect = IsAutoCorrectActiveForCurrentInstrument();
         if (song is not null)
-            return MusicConstants.GetEffectiveKeyOffset(song.Key, song.BaseKey);
+        {
+            return isAutoCorrect
+                ? MusicConstants.GetEffectiveKeyOffset(song.Key, song.BaseKey)
+                : song.Key;
+        }
 
-        return MusicConstants.GetEffectiveKeyOffset(KeyOffset, CurrentFile?.Song.BaseKey);
+        return isAutoCorrect
+            ? MusicConstants.GetEffectiveKeyOffset(KeyOffset, CurrentFile?.Song.BaseKey)
+            : KeyOffset;
     }
 
     private void UpdateKeyOptionsForCurrentSong()

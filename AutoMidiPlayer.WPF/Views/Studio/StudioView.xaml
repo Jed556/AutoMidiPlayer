@@ -33,6 +33,12 @@
                            Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
             </StackPanel>
         </DataTemplate>
+        <DataTemplate x:Key="NoteDisplayModeItemTemplate">
+            <StackPanel Margin="4,3" MinWidth="220">
+                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                <TextBlock Margin="0,2,0,0" FontSize="11" Opacity="0.7" Text="{Binding Description}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+            </StackPanel>
+        </DataTemplate>
     </UserControl.Resources>
     <Grid Margin="16,12,16,12">
         <!-- Placeholder when no song is opened -->
@@ -76,27 +82,29 @@
                                    TextTrimming="CharacterEllipsis" />
                     </StackPanel>
 
-                    <!-- Active Key Badge at Playhead -->
-                    <Border Grid.Column="1"
-                            Margin="12,0"
-                            Padding="10,4"
-                            Background="{DynamicResource SubtleFillColorSecondaryBrush}"
-                            BorderBrush="{DynamicResource SubtleFillColorTertiaryBrush}"
-                            BorderThickness="1"
-                            CornerRadius="6"
-                            VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <ui:SymbolIcon Symbol="MusicNote216"
-                                           Filled="True"
+                    <!-- Active Key / Display Mode Dropdown -->
+                    <button:StandardDropdown Grid.Column="1"
+                                             Margin="12,0"
+                                             VerticalAlignment="Center"
+                                             ItemsSource="{Binding DisplayModes}"
+                                             SelectedItem="{Binding SelectedDisplayMode, Mode=TwoWay}"
+                                             ItemTemplate="{StaticResource NoteDisplayModeItemTemplate}"
+                                             PopupMaxWidth="320"
+                                             ToolTip="{Binding ActiveDisplayModeTooltip}">
+                        <button:StandardDropdown.ButtonContent>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <ui:SymbolIcon Symbol="MusicNote216"
+                                               Filled="True"
+                                               FontSize="12"
+                                               Margin="0,0,6,0"
+                                               Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                                <TextBlock Text="{Binding ActiveDisplayModeText}"
                                            FontSize="12"
-                                           Margin="0,0,6,0"
-                                           Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" />
-                            <TextBlock Text="{Binding ActiveKeyAtPlayheadDisplay}"
-                                       FontSize="12"
-                                       FontWeight="Medium"
-                                       VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Border>
+                                           FontWeight="Medium"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </button:StandardDropdown.ButtonContent>
+                    </button:StandardDropdown>
 
                     <!-- Drawer Switcher Buttons -->
                     <Border Grid.Column="2"
@@ -121,7 +129,7 @@
                                     </Style>
                                 </ui:Button.Style>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <ui:SymbolIcon Symbol="Layer20" Filled="True" FontSize="14" Margin="0,0,6,0" />
+                                    <ui:SymbolIcon Symbol="AppsListDetail24" FontSize="14" Margin="0,0,6,0" />
                                     <TextBlock Text="Tracks" FontSize="12" FontWeight="Medium" />
                                 </StackPanel>
                             </ui:Button>
@@ -168,6 +176,7 @@
                     <!-- Modular Interactive Piano Roll Component -->
                     <pianoRoll:InteractivePianoRollControl x:Name="InteractiveRoll"
                                                           Grid.Row="0"
+                                                          MidiTracks="{Binding MidiTracks}"
                                                           MidiFile="{Binding CurrentFile}"
                                                           CurrentTime="{Binding CurrentTime}"
                                                           Duration="{Binding Duration}"
@@ -175,6 +184,9 @@
                                                           SelectedMarker="{Binding SelectedMarker, Mode=TwoWay}"
                                                           ZoomLevel="{Binding ZoomLevel, Mode=TwoWay}"
                                                           KeyHeight="{Binding KeyHeight, Mode=TwoWay}"
+                                                          DisplayMode="{Binding SelectedDisplayMode.Mode}"
+                                                          InstrumentId="{Binding CurrentInstrumentId}"
+                                                          PitchRevision="{Binding PitchRevision}"
                                                           ScrubRequested="OnPianoRollScrubRequested" />
 
                     <!-- Bottom Settings & Marker Modulation Card -->
@@ -204,7 +216,7 @@
                                                          SelectedItem="{Binding SelectedKeyOption, Mode=TwoWay}"
                                                          ItemTemplate="{StaticResource OffsetNoteTemplate}"
                                                          SelectedItemTemplate="{StaticResource OffsetNoteTemplate}"
-                                                         Width="135"
+                                                         Width="92"
                                                          VerticalAlignment="Center"
                                                          Margin="0,0,8,0" />
 
@@ -215,7 +227,7 @@
                                            ToolTip="Add or update key offset at current playhead position">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                         <ui:SymbolIcon Symbol="Add16" FontSize="12" Margin="0,0,6,0" />
-                                        <TextBlock Text="Add Offset at Playhead" FontSize="12" FontWeight="SemiBold" />
+                                        <TextBlock Text="Add Offset" FontSize="12" FontWeight="SemiBold" />
                                     </StackPanel>
                                 </ui:Button>
                             </StackPanel>
@@ -234,14 +246,14 @@
                                            Command="{s:Action AutoDetectKeyChangesAsync}"
                                            Padding="8,6"
                                            Margin="0,0,6,0"
-                                           ToolTip="Auto-detect key signature modulations from MIDI events">
+                                           ToolTip="Scan the MIDI file for embedded key signatures and add offset markers automatically">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                         <ui:SymbolIcon Symbol="Flash16"
                                                        Filled="True"
                                                        FontSize="12"
                                                        Margin="0,0,4,0"
                                                        Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" />
-                                        <TextBlock Text="Auto-Detect" FontSize="11" />
+                                        <TextBlock Text="Scan Keys" FontSize="11" />
                                     </StackPanel>
                                 </ui:Button>
 

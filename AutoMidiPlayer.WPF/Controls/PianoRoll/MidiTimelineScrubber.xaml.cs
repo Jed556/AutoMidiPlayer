@@ -19,6 +19,63 @@ public partial class MidiTimelineScrubber : UserControl
     public event EventHandler<TimeSpan?>? HoverTimeChanged;
     public event EventHandler<bool>? SyncChanged;
 
+    public static readonly DependencyProperty DisplayModeProperty =
+        DependencyProperty.Register(
+            nameof(DisplayMode),
+            typeof(PianoRollDisplayMode),
+            typeof(MidiTimelineScrubber),
+            new PropertyMetadata(PianoRollDisplayMode.Auto, (d, e) =>
+            {
+                if (d is MidiTimelineScrubber scrubber && scrubber.Canvas != null)
+                {
+                    scrubber.Canvas.DisplayMode = (PianoRollDisplayMode)e.NewValue;
+                }
+            }));
+
+    public PianoRollDisplayMode DisplayMode
+    {
+        get => (PianoRollDisplayMode)GetValue(DisplayModeProperty);
+        set => SetValue(DisplayModeProperty, value);
+    }
+
+    public static readonly DependencyProperty InstrumentIdProperty =
+        DependencyProperty.Register(
+            nameof(InstrumentId),
+            typeof(string),
+            typeof(MidiTimelineScrubber),
+            new PropertyMetadata(null, (d, e) =>
+            {
+                if (d is MidiTimelineScrubber scrubber && scrubber.Canvas != null)
+                {
+                    scrubber.Canvas.InstrumentId = (string?)e.NewValue;
+                }
+            }));
+
+    public string? InstrumentId
+    {
+        get => (string?)GetValue(InstrumentIdProperty);
+        set => SetValue(InstrumentIdProperty, value);
+    }
+
+    public static readonly DependencyProperty PitchRevisionProperty =
+        DependencyProperty.Register(
+            nameof(PitchRevision),
+            typeof(int),
+            typeof(MidiTimelineScrubber),
+            new PropertyMetadata(0, (d, e) =>
+            {
+                if (d is MidiTimelineScrubber scrubber && scrubber.Canvas != null)
+                {
+                    scrubber.Canvas.PitchRevision = (int)e.NewValue;
+                }
+            }));
+
+    public int PitchRevision
+    {
+        get => (int)GetValue(PitchRevisionProperty);
+        set => SetValue(PitchRevisionProperty, value);
+    }
+
     public static readonly DependencyProperty IsSyncEnabledProperty =
         DependencyProperty.Register(
             nameof(IsSyncEnabled),
@@ -76,6 +133,25 @@ public partial class MidiTimelineScrubber : UserControl
         set => SetValue(HoverTimeProperty, value);
     }
 
+    public static readonly DependencyProperty MidiTracksProperty =
+        DependencyProperty.Register(
+            nameof(MidiTracks),
+            typeof(IEnumerable<MidiTrack>),
+            typeof(MidiTimelineScrubber),
+            new PropertyMetadata(null, (d, e) =>
+            {
+                if (d is MidiTimelineScrubber scrubber && scrubber.Canvas != null)
+                {
+                    scrubber.Canvas.MidiTracks = (IEnumerable<MidiTrack>?)e.NewValue;
+                }
+            }));
+
+    public IEnumerable<MidiTrack>? MidiTracks
+    {
+        get => (IEnumerable<MidiTrack>?)GetValue(MidiTracksProperty);
+        set => SetValue(MidiTracksProperty, value);
+    }
+
     public static readonly DependencyProperty MidiFileProperty =
         DependencyProperty.Register(
             nameof(MidiFile),
@@ -100,7 +176,14 @@ public partial class MidiTimelineScrubber : UserControl
             nameof(CurrentTime),
             typeof(TimeSpan),
             typeof(MidiTimelineScrubber),
-            new PropertyMetadata(TimeSpan.Zero, (d, e) => ((MidiTimelineScrubber)d).Canvas.CurrentTime = (TimeSpan)e.NewValue));
+            new PropertyMetadata(TimeSpan.Zero, (d, e) =>
+            {
+                var scrubber = (MidiTimelineScrubber)d;
+                if (!scrubber._isDraggingScrubber)
+                {
+                    scrubber.Canvas.CurrentTime = (TimeSpan)e.NewValue;
+                }
+            }));
 
     public TimeSpan CurrentTime
     {
@@ -231,6 +314,7 @@ public partial class MidiTimelineScrubber : UserControl
     public MidiTimelineScrubber()
     {
         InitializeComponent();
+        ScrubberArea.LostMouseCapture += OnScrubberLostMouseCapture;
         ZoomText.Text = "100%";
         UpdateKeyHeightText(KeyHeight);
         Loaded += (_, _) =>
@@ -241,6 +325,11 @@ public partial class MidiTimelineScrubber : UserControl
             {
                 Canvas.MidiFile = MidiFile;
             }
+            if (Canvas != null)
+            {
+                Canvas.InstrumentId = InstrumentId;
+                Canvas.PitchRevision = PitchRevision;
+            }
             Canvas?.RebuildMinimap();
         };
     }
@@ -248,6 +337,14 @@ public partial class MidiTimelineScrubber : UserControl
     public void RefreshMinimap()
     {
         Canvas.RebuildMinimap();
+    }
+
+    private void OnScrubberLostMouseCapture(object sender, MouseEventArgs e)
+    {
+        if (_isDraggingScrubber)
+        {
+            _isDraggingScrubber = false;
+        }
     }
 
     private void OnScrubberMouseDown(object sender, MouseButtonEventArgs e)
@@ -265,10 +362,10 @@ public partial class MidiTimelineScrubber : UserControl
             return;
         }
 
-        // Otherwise start scrubbing
+        // Otherwise start scrubbing (drag preview until mouse up)
         _isDraggingScrubber = true;
         ScrubberArea.CaptureMouse();
-        SeekToPosition(pos.X);
+        UpdateScrubberPreview(pos.X);
     }
 
     private void OnScrubberMouseMove(object sender, MouseEventArgs e)
@@ -276,7 +373,7 @@ public partial class MidiTimelineScrubber : UserControl
         var pos = e.GetPosition(Canvas);
         if (_isDraggingScrubber && ScrubberArea.IsMouseCaptured)
         {
-            SeekToPosition(pos.X);
+            UpdateScrubberPreview(pos.X);
         }
 
         if (Canvas != null && Canvas.ActualWidth > 0 && pos.X >= 0 && pos.X <= Canvas.ActualWidth)
@@ -312,9 +409,11 @@ public partial class MidiTimelineScrubber : UserControl
             _isDraggingScrubber = false;
             ScrubberArea.ReleaseMouseCapture();
 
+            var pos = e.GetPosition(Canvas);
+            SeekToPosition(pos.X);
+
             if (Canvas != null)
             {
-                var pos = e.GetPosition(Canvas);
                 if (pos.X < 0 || pos.X > Canvas.ActualWidth || pos.Y < 0 || pos.Y > Canvas.ActualHeight)
                 {
                     Canvas.HoverTime = null;
@@ -324,15 +423,31 @@ public partial class MidiTimelineScrubber : UserControl
         }
     }
 
+    private void UpdateScrubberPreview(double mouseX)
+    {
+        if (Canvas == null || Canvas.ActualWidth <= 0) return;
+
+        var ratio = Math.Clamp(mouseX / Canvas.ActualWidth, 0.0, 1.0);
+        var totalMs = Canvas.TotalDurationMs > 0 ? Canvas.TotalDurationMs : (long)Duration.TotalMilliseconds;
+        var targetMs = ratio * totalMs;
+        var time = TimeSpan.FromMilliseconds(targetMs);
+        Canvas.CurrentTime = time;
+    }
+
     private void SeekToPosition(double mouseX)
     {
         var width = Canvas.ActualWidth;
         if (width <= 0) return;
 
         var ratio = Math.Clamp(mouseX / width, 0.0, 1.0);
-        var totalMs = Canvas != null ? Canvas.TotalDurationMs : (long)Duration.TotalMilliseconds;
+        var totalMs = Canvas != null && Canvas.TotalDurationMs > 0 ? Canvas.TotalDurationMs : (long)Duration.TotalMilliseconds;
         var targetMs = ratio * totalMs;
-        ScrubRequested?.Invoke(this, TimeSpan.FromMilliseconds(targetMs));
+        var time = TimeSpan.FromMilliseconds(targetMs);
+        if (Canvas != null)
+        {
+            Canvas.CurrentTime = time;
+        }
+        ScrubRequested?.Invoke(this, time);
     }
 
     private void OnZoomInClick(object sender, RoutedEventArgs e)

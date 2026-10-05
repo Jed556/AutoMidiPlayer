@@ -32,7 +32,100 @@ public partial class InteractivePianoRollControl : UserControl
             if (ctrl.Timeline != null) ctrl.Timeline.MidiFile = file;
             ctrl.RefreshNotesAndTimeline();
             ctrl.UpdateTimelineViewport();
+            ctrl.FitKeyHeightToViewport();
         }
+    }
+
+    public static readonly DependencyProperty DisplayModeProperty =
+        DependencyProperty.Register(
+            nameof(DisplayMode),
+            typeof(PianoRollDisplayMode),
+            typeof(InteractivePianoRollControl),
+            new FrameworkPropertyMetadata(PianoRollDisplayMode.Auto, (d, e) =>
+            {
+                if (d is InteractivePianoRollControl ctrl)
+                {
+                    var mode = (PianoRollDisplayMode)e.NewValue;
+                    if (ctrl.PianoRoll != null) ctrl.PianoRoll.DisplayMode = mode;
+                    if (ctrl.Timeline != null) ctrl.Timeline.DisplayMode = mode;
+                    ctrl.UpdateNotePitches();
+                    ctrl.FitKeyHeightToViewport();
+                }
+            }));
+
+    public PianoRollDisplayMode DisplayMode
+    {
+        get => (PianoRollDisplayMode)GetValue(DisplayModeProperty);
+        set => SetValue(DisplayModeProperty, value);
+    }
+
+    public static readonly DependencyProperty InstrumentIdProperty =
+        DependencyProperty.Register(
+            nameof(InstrumentId),
+            typeof(string),
+            typeof(InteractivePianoRollControl),
+            new FrameworkPropertyMetadata(null, (d, e) =>
+            {
+                if (d is InteractivePianoRollControl ctrl)
+                {
+                    var id = (string?)e.NewValue;
+                    if (ctrl.PianoRoll != null) ctrl.PianoRoll.InstrumentId = id;
+                    if (ctrl.Timeline != null) ctrl.Timeline.InstrumentId = id;
+                    ctrl.UpdateNotePitches();
+                    ctrl.FitKeyHeightToViewport();
+                }
+            }));
+
+    public string? InstrumentId
+    {
+        get => (string?)GetValue(InstrumentIdProperty);
+        set => SetValue(InstrumentIdProperty, value);
+    }
+
+    public static readonly DependencyProperty PitchRevisionProperty =
+        DependencyProperty.Register(
+            nameof(PitchRevision),
+            typeof(int),
+            typeof(InteractivePianoRollControl),
+            new FrameworkPropertyMetadata(0, (d, e) =>
+            {
+                if (d is InteractivePianoRollControl ctrl)
+                {
+                    var rev = (int)e.NewValue;
+                    if (ctrl.PianoRoll != null) ctrl.PianoRoll.PitchRevision = rev;
+                    if (ctrl.Timeline != null) ctrl.Timeline.PitchRevision = rev;
+                    ctrl.UpdateNotePitches();
+                    ctrl.FitKeyHeightToViewport();
+                }
+            }));
+
+    public int PitchRevision
+    {
+        get => (int)GetValue(PitchRevisionProperty);
+        set => SetValue(PitchRevisionProperty, value);
+    }
+
+    public static readonly DependencyProperty MidiTracksProperty =
+        DependencyProperty.Register(
+            nameof(MidiTracks),
+            typeof(IEnumerable<MidiTrack>),
+            typeof(InteractivePianoRollControl),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, OnMidiTracksChanged));
+
+    private static void OnMidiTracksChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is InteractivePianoRollControl ctrl)
+        {
+            var tracks = (IEnumerable<MidiTrack>?)e.NewValue;
+            if (ctrl.PianoRoll != null) ctrl.PianoRoll.MidiTracks = tracks;
+            if (ctrl.Timeline != null) ctrl.Timeline.MidiTracks = tracks;
+        }
+    }
+
+    public IEnumerable<MidiTrack>? MidiTracks
+    {
+        get => (IEnumerable<MidiTrack>?)GetValue(MidiTracksProperty);
+        set => SetValue(MidiTracksProperty, value);
     }
 
     public MidiFile? MidiFile
@@ -180,7 +273,23 @@ public partial class InteractivePianoRollControl : UserControl
             nameof(KeyHeight),
             typeof(double),
             typeof(InteractivePianoRollControl),
-            new FrameworkPropertyMetadata(16.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+            new FrameworkPropertyMetadata(16.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnKeyHeightChanged));
+
+    private static void OnKeyHeightChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is InteractivePianoRollControl ctrl)
+        {
+            var val = (double)e.NewValue;
+            if (ctrl.PianoRoll != null && Math.Abs(ctrl.PianoRoll.KeyHeight - val) > 0.001)
+            {
+                ctrl.PianoRoll.SetCurrentValue(HorizontalPianoRoll.KeyHeightProperty, val);
+            }
+            if (ctrl.Timeline != null && Math.Abs(ctrl.Timeline.KeyHeight - val) > 0.001)
+            {
+                ctrl.Timeline.SetCurrentValue(MidiTimelineScrubber.KeyHeightProperty, val);
+            }
+        }
+    }
 
     public double KeyHeight
     {
@@ -199,9 +308,27 @@ public partial class InteractivePianoRollControl : UserControl
             if (Timeline != null && Timeline.MidiFile != file) Timeline.MidiFile = file;
             UpdateTimelineViewport();
             RefreshNotesAndTimeline();
+            FitKeyHeightToViewport();
         };
         SizeChanged += (_, _) => UpdateTimelineViewport();
-        PianoRoll.SizeChanged += (_, _) => UpdateTimelineViewport();
+        PianoRoll.SizeChanged += (_, _) =>
+        {
+            UpdateTimelineViewport();
+            if (_pendingFitOnLayout && PianoRoll.Canvas?.ActualHeight > 0)
+            {
+                FitKeyHeightToViewport();
+            }
+        };
+        if (PianoRoll.Canvas != null)
+        {
+            PianoRoll.Canvas.SizeChanged += (_, _) =>
+            {
+                if (_pendingFitOnLayout && PianoRoll.Canvas.ActualHeight > 0)
+                {
+                    FitKeyHeightToViewport();
+                }
+            };
+        }
         PreviewMouseWheel += OnPreviewMouseWheel;
         Unloaded += (_, _) => StopZoomAnimation();
     }
@@ -224,6 +351,12 @@ public partial class InteractivePianoRollControl : UserControl
     {
         PianoRoll.RefreshNotes();
         Timeline.RefreshMinimap();
+    }
+
+    public void UpdateNotePitches()
+    {
+        PianoRoll?.Canvas?.UpdateNotePitches();
+        Timeline?.Canvas?.UpdateNotePitches();
     }
 
     private void OnTimelineScrubRequested(object? sender, TimeSpan time)
@@ -373,7 +506,40 @@ public partial class InteractivePianoRollControl : UserControl
 
     public void ResetKeyHeight()
     {
-        KeyHeight = 16.0;
+        FitKeyHeightToViewport();
+    }
+
+    private void OnTimelineKeyHeightResetRequested(object? sender, EventArgs e)
+    {
+        FitKeyHeightToViewport();
+    }
+
+    private bool _pendingFitOnLayout;
+
+    public void FitKeyHeightToViewport()
+    {
+        if (MidiFile == null || PianoRoll?.Canvas == null)
+        {
+            _pendingFitOnLayout = false;
+            return;
+        }
+
+        var canvas = PianoRoll.Canvas;
+        var pitchCount = canvas.PitchCount;
+        var viewportHeight = canvas.ActualHeight;
+
+        if (viewportHeight <= 0)
+        {
+            _pendingFitOnLayout = true;
+            return;
+        }
+
+        _pendingFitOnLayout = false;
+        if (pitchCount <= 0) return;
+
+        var target = Math.Clamp(viewportHeight / pitchCount, 6.0, 50.0);
+        KeyHeight = target;
+        canvas.VerticalOffset = 0.0;
     }
 
     private void OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
