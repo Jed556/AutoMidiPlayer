@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using AutoMidiPlayer.Data.Properties;
+using AutoMidiPlayer.WPF.Services;
 
 namespace AutoMidiPlayer.WPF.Core.Games;
 
@@ -206,10 +207,11 @@ public static class GameRegistry
     {
         var now = Stopwatch.GetTimestamp();
         var nowMs = (long)(now * 1000.0 / Stopwatch.Frequency);
+        var ttl = (GarbageManService.IsPlaybackActive?.Invoke() == true) ? 5000 : 3000;
 
         lock (_snapshotLock)
         {
-            if (_cachedRunningProcesses is not null && (nowMs - _lastSnapshotTimestampMs) < SnapshotCacheTtlMs)
+            if (_cachedRunningProcesses is not null && (nowMs - _lastSnapshotTimestampMs) < ttl)
             {
                 return _cachedRunningProcesses;
             }
@@ -319,23 +321,28 @@ public static class GameRegistry
 
     private static bool IsGameRunningCore(GameDefinition game, HashSet<string> runningProcesses)
     {
-        var processNames = new HashSet<string>(game.ProcessNames, StringComparer.OrdinalIgnoreCase);
-
-        // Also check configured location process name
-        var configuredPath = game.GetLocation();
-        if (!string.IsNullOrWhiteSpace(configuredPath))
+        var matched = false;
+        foreach (var name in game.ProcessNames)
         {
-            var configuredName = Path.GetFileNameWithoutExtension(configuredPath);
-            if (!string.IsNullOrWhiteSpace(configuredName))
-                processNames.Add(configuredName);
+            if (!string.IsNullOrWhiteSpace(name) && runningProcesses.Contains(name))
+            {
+                matched = true;
+                break;
+            }
         }
 
-        if (processNames.Count == 0)
-            return false;
+        if (!matched)
+        {
+            var configuredPath = game.GetLocation();
+            if (!string.IsNullOrWhiteSpace(configuredPath))
+            {
+                var configuredName = Path.GetFileNameWithoutExtension(configuredPath);
+                if (!string.IsNullOrWhiteSpace(configuredName) && runningProcesses.Contains(configuredName))
+                    matched = true;
+            }
+        }
 
-        // Check if any process name matches the running process snapshot
-        var isAnyProcessRunning = processNames.Any(name => runningProcesses.Contains(name));
-        if (!isAnyProcessRunning)
+        if (!matched)
             return false;
 
         // If the game definition does not require window title matching, we are done
@@ -343,7 +350,16 @@ public static class GameRegistry
             return true;
 
         // For games with specific WindowNames (e.g. Roblox, HPMA launcher), verify window title
-        return CheckGameWindowMatches(game, processNames);
+        var allNames = new List<string>(game.ProcessNames);
+        var confPath = game.GetLocation();
+        if (!string.IsNullOrWhiteSpace(confPath))
+        {
+            var confName = Path.GetFileNameWithoutExtension(confPath);
+            if (!string.IsNullOrWhiteSpace(confName))
+                allNames.Add(confName);
+        }
+
+        return CheckGameWindowMatches(game, allNames);
     }
 
     private static bool CheckGameWindowMatches(GameDefinition game, IEnumerable<string> processNames)

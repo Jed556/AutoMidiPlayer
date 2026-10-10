@@ -14,10 +14,21 @@ public partial class MidiTimelineScrubber : UserControl
 
     public event EventHandler<TimeSpan>? ScrubRequested;
     public event EventHandler<KeyChangeMarker>? MarkerClicked;
+    public event EventHandler<KeyChangeMarker>? MarkerDeleteRequested;
+    public event EventHandler<KeyChangeMarker>? MarkerEditRequested;
     public event EventHandler<double>? ZoomAdjustRequested;
     public event EventHandler? ZoomResetRequested;
     public event EventHandler<TimeSpan?>? HoverTimeChanged;
     public event EventHandler<bool>? SyncChanged;
+
+    private readonly System.Windows.Threading.DispatcherTimer _markerHideTimer = new()
+    {
+        Interval = TimeSpan.FromMilliseconds(250)
+    };
+    private bool _isMarkerHovered;
+    private bool _isPopupHovered;
+    private KeyChangeMarker? _activeHoverMarker;
+    private double? _lastReportedScrubberHoverMs;
 
     public static readonly DependencyProperty DisplayModeProperty =
         DependencyProperty.Register(
@@ -222,7 +233,18 @@ public partial class MidiTimelineScrubber : UserControl
             nameof(SelectedMarker),
             typeof(KeyChangeMarker),
             typeof(MidiTimelineScrubber),
-            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, (d, e) => ((MidiTimelineScrubber)d).Canvas.SelectedMarker = (KeyChangeMarker)e.NewValue));
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnSelectedMarkerChanged));
+
+    private static void OnSelectedMarkerChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var scrubber = (MidiTimelineScrubber)d;
+        var selected = (KeyChangeMarker?)e.NewValue;
+        scrubber.Canvas.SelectedMarker = selected;
+        if (scrubber.MarkerPopup?.IsOpen == true && scrubber._activeHoverMarker != null)
+        {
+            scrubber.MarkerPopupContent.IsMarkerSelected = (scrubber._activeHoverMarker == selected);
+        }
+    }
 
     public KeyChangeMarker? SelectedMarker
     {
@@ -314,6 +336,7 @@ public partial class MidiTimelineScrubber : UserControl
     public MidiTimelineScrubber()
     {
         InitializeComponent();
+        _markerHideTimer.Tick += OnMarkerHideTimerTick;
         ScrubberArea.LostMouseCapture += OnScrubberLostMouseCapture;
         ZoomText.Text = "100%";
         UpdateKeyHeightText(KeyHeight);
@@ -329,6 +352,7 @@ public partial class MidiTimelineScrubber : UserControl
             {
                 Canvas.InstrumentId = InstrumentId;
                 Canvas.PitchRevision = PitchRevision;
+                Canvas.CurrentTime = CurrentTime;
             }
             Canvas?.RebuildMinimap();
         };
@@ -349,6 +373,8 @@ public partial class MidiTimelineScrubber : UserControl
 
     private void OnScrubberMouseDown(object sender, MouseButtonEventArgs e)
     {
+        e.Handled = true;
+        HideMarkerPopupImmediate();
         var pos = e.GetPosition(Canvas);
 
         // Check if user clicked on a marker
@@ -363,6 +389,7 @@ public partial class MidiTimelineScrubber : UserControl
         }
 
         // Otherwise start scrubbing (drag preview until mouse up)
+        SelectedMarker = null;
         _isDraggingScrubber = true;
         ScrubberArea.CaptureMouse();
         UpdateScrubberPreview(pos.X);
@@ -370,9 +397,11 @@ public partial class MidiTimelineScrubber : UserControl
 
     private void OnScrubberMouseMove(object sender, MouseEventArgs e)
     {
+        e.Handled = true;
         var pos = e.GetPosition(Canvas);
         if (_isDraggingScrubber && ScrubberArea.IsMouseCaptured)
         {
+            HideMarkerPopupImmediate();
             UpdateScrubberPreview(pos.X);
         }
 
@@ -382,24 +411,158 @@ public partial class MidiTimelineScrubber : UserControl
             var ratio = Math.Clamp(pos.X / width, 0.0, 1.0);
             var totalMs = Canvas.TotalDurationMs;
             var targetMs = ratio * totalMs;
-            var time = TimeSpan.FromMilliseconds(targetMs);
-            Canvas.HoverTime = time;
-            HoverTimeChanged?.Invoke(this, time);
+
+            if (!_lastReportedScrubberHoverMs.HasValue || Math.Abs(targetMs - _lastReportedScrubberHoverMs.Value) >= 10)
+            {
+                _lastReportedScrubberHoverMs = targetMs;
+                var time = TimeSpan.FromMilliseconds(targetMs);
+                Canvas.HoverTime = time;
+                HoverTimeChanged?.Invoke(this, time);
+            }
+
+            if (!_isDraggingScrubber)
+            {
+                var hitMarker = Canvas.HitTestMarker(pos);
+                if (hitMarker != null)
+                {
+                    var markerX = (hitMarker.TimeMs / (double)totalMs) * width;
+                    ShowMarkerPopup(hitMarker, markerX);
+                }
+                else if (_isMarkerHovered)
+                {
+                    _isMarkerHovered = false;
+                    if (!_isPopupHovered)
+                    {
+                        StartMarkerHideTimer();
+                    }
+                }
+            }
         }
         else
         {
-            if (Canvas != null) Canvas.HoverTime = null;
-            HoverTimeChanged?.Invoke(this, null);
+            if (_lastReportedScrubberHoverMs.HasValue)
+            {
+                _lastReportedScrubberHoverMs = null;
+                if (Canvas != null) Canvas.HoverTime = null;
+                HoverTimeChanged?.Invoke(this, null);
+            }
+
+            if (_isMarkerHovered)
+            {
+                _isMarkerHovered = false;
+                if (!_isPopupHovered)
+                {
+                    StartMarkerHideTimer();
+                }
+            }
         }
     }
 
     private void OnScrubberMouseLeave(object sender, MouseEventArgs e)
     {
+        e.Handled = true;
         if (!_isDraggingScrubber)
         {
-            if (Canvas != null) Canvas.HoverTime = null;
-            HoverTimeChanged?.Invoke(this, null);
+            if (_lastReportedScrubberHoverMs.HasValue)
+            {
+                _lastReportedScrubberHoverMs = null;
+                if (Canvas != null) Canvas.HoverTime = null;
+                HoverTimeChanged?.Invoke(this, null);
+            }
+
+            _isMarkerHovered = false;
+            if (!_isPopupHovered)
+            {
+                StartMarkerHideTimer();
+            }
         }
+    }
+
+    private void ShowMarkerPopup(KeyChangeMarker marker, double markerX)
+    {
+        _isMarkerHovered = true;
+        _markerHideTimer.Stop();
+
+        if (MarkerPopup == null || MarkerPopupContent == null || Canvas == null)
+            return;
+
+        if (_activeHoverMarker != marker)
+        {
+            _activeHoverMarker = marker;
+            MarkerPopupContent.SetMarker(marker, isAbove: true, isSelected: marker == SelectedMarker);
+        }
+        else
+        {
+            MarkerPopupContent.IsMarkerSelected = (marker == SelectedMarker);
+        }
+
+        const double popupWidth = 84.0;
+        var clampedX = Math.Clamp(markerX - (popupWidth / 2.0), 0, Math.Max(0, Canvas.ActualWidth - popupWidth));
+        MarkerPopup.HorizontalOffset = clampedX;
+        MarkerPopup.VerticalOffset = 4;
+
+        if (!MarkerPopup.IsOpen)
+        {
+            MarkerPopup.IsOpen = true;
+            MarkerPopupContent.PlayEntranceAnimation();
+        }
+    }
+
+    private void StartMarkerHideTimer()
+    {
+        _markerHideTimer.Stop();
+        _markerHideTimer.Start();
+    }
+
+    private void OnMarkerHideTimerTick(object? sender, EventArgs e)
+    {
+        _markerHideTimer.Stop();
+        if (!_isMarkerHovered && !_isPopupHovered && MarkerPopup.IsOpen)
+        {
+            MarkerPopupContent.PlayExitAnimation(() =>
+            {
+                MarkerPopup.IsOpen = false;
+                _activeHoverMarker = null;
+            });
+        }
+    }
+
+    private void HideMarkerPopupImmediate()
+    {
+        _markerHideTimer.Stop();
+        _isMarkerHovered = false;
+        _isPopupHovered = false;
+        _activeHoverMarker = null;
+        if (MarkerPopup != null)
+        {
+            MarkerPopup.IsOpen = false;
+        }
+    }
+
+    private void OnMarkerPopupMouseEnter(object sender, MouseEventArgs e)
+    {
+        _isPopupHovered = true;
+        _markerHideTimer.Stop();
+    }
+
+    private void OnMarkerPopupMouseLeave(object sender, MouseEventArgs e)
+    {
+        _isPopupHovered = false;
+        if (!_isMarkerHovered)
+        {
+            StartMarkerHideTimer();
+        }
+    }
+
+    private void OnMarkerPopupDeleteRequested(object? sender, KeyChangeMarker marker)
+    {
+        HideMarkerPopupImmediate();
+        MarkerDeleteRequested?.Invoke(this, marker);
+    }
+
+    private void OnMarkerPopupEditRequested(object? sender, KeyChangeMarker marker)
+    {
+        MarkerEditRequested?.Invoke(this, marker);
     }
 
     private void OnScrubberMouseUp(object sender, MouseButtonEventArgs e)
@@ -416,11 +579,13 @@ public partial class MidiTimelineScrubber : UserControl
             {
                 if (pos.X < 0 || pos.X > Canvas.ActualWidth || pos.Y < 0 || pos.Y > Canvas.ActualHeight)
                 {
+                    _lastReportedScrubberHoverMs = null;
                     Canvas.HoverTime = null;
                     HoverTimeChanged?.Invoke(this, null);
                 }
             }
         }
+        e.Handled = true;
     }
 
     private void UpdateScrubberPreview(double mouseX)

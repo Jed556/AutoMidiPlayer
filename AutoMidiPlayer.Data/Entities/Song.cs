@@ -81,7 +81,7 @@ public class Song
     public uint? ChordDetectionMilliseconds { get; set; }
 
     private string? _keyChanges;
-    private List<KeyChangeMarker>? _cachedKeyChangeMarkers;
+    private volatile List<KeyChangeMarker>? _cachedKeyChangeMarkers;
 
     /// <summary>
     /// JSON-serialized list of timed key modulation markers.
@@ -103,22 +103,51 @@ public class Song
         {
             if (_cachedKeyChangeMarkers != null) return _cachedKeyChangeMarkers;
             if (string.IsNullOrWhiteSpace(KeyChanges)) return _cachedKeyChangeMarkers = new();
-            try { return _cachedKeyChangeMarkers = JsonSerializer.Deserialize<List<KeyChangeMarker>>(KeyChanges) ?? new(); }
+            try
+            {
+                var list = JsonSerializer.Deserialize<List<KeyChangeMarker>>(KeyChanges) ?? new();
+                list.Sort((a, b) => a.TimeMs.CompareTo(b.TimeMs));
+                return _cachedKeyChangeMarkers = list;
+            }
             catch { return _cachedKeyChangeMarkers = new(); }
         }
         set
         {
+            if (value != null)
+                value.Sort((a, b) => a.TimeMs.CompareTo(b.TimeMs));
             _cachedKeyChangeMarkers = value;
-            KeyChanges = value is { Count: > 0 } ? JsonSerializer.Serialize(value) : null;
+            _keyChanges = value is { Count: > 0 } ? JsonSerializer.Serialize(value) : null;
         }
     }
 
-    public KeyChangeMarker? GetKeyMarkerAtTime(TimeSpan time, long lookaheadMs = 35)
+    public KeyChangeMarker? GetKeyMarkerAtTime(TimeSpan time, long lookaheadMs = 0)
     {
         var markers = KeyChangeMarkers;
-        if (markers.Count == 0) return null;
-        var ms = (long)time.TotalMilliseconds + lookaheadMs;
-        return markers.Where(m => m.TimeMs <= ms).MaxBy(m => m.TimeMs);
+        var count = markers.Count;
+        if (count == 0) return null;
+
+        var ms = (long)Math.Round(time.TotalMilliseconds) + lookaheadMs;
+
+        // Binary search for the latest marker with TimeMs <= ms
+        int low = 0;
+        int high = count - 1;
+        int bestIndex = -1;
+
+        while (low <= high)
+        {
+            int mid = low + ((high - low) >> 1);
+            if (markers[mid].TimeMs <= ms)
+            {
+                bestIndex = mid;
+                low = mid + 1;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+
+        return bestIndex >= 0 ? markers[bestIndex] : null;
     }
 
     public int GetEffectiveKeyOffsetAtTime(TimeSpan time)

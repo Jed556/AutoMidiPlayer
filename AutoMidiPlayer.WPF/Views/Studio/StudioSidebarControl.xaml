@@ -39,7 +39,8 @@
             BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
             BorderThickness="1"
             CornerRadius="8"
-            Padding="12">
+            Padding="12"
+            ClipToBounds="True">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -54,11 +55,14 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- Drawer Title & Badge -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <Grid Grid.Column="0" ClipToBounds="True">
                     <!-- Tracks Icon & Title -->
-                    <StackPanel Orientation="Horizontal"
-                                VerticalAlignment="Center"
-                                Visibility="{Binding IsTracksTabActive, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                    <StackPanel x:Name="TracksHeaderPanel"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <StackPanel.RenderTransform>
+                            <TranslateTransform x:Name="TracksHeaderTransform" />
+                        </StackPanel.RenderTransform>
                         <ui:SymbolIcon Symbol="AppsListDetail24"
                                        FontSize="16"
                                        Margin="0,0,8,0"
@@ -80,9 +84,12 @@
                     </StackPanel>
 
                     <!-- Song Settings Icon & Title -->
-                    <StackPanel Orientation="Horizontal"
-                                VerticalAlignment="Center"
-                                Visibility="{Binding IsSettingsTabActive, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                    <StackPanel x:Name="SettingsHeaderPanel"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <StackPanel.RenderTransform>
+                            <TranslateTransform x:Name="SettingsHeaderTransform" />
+                        </StackPanel.RenderTransform>
                         <ui:SymbolIcon Symbol="Settings16"
                                        Filled="True"
                                        FontSize="16"
@@ -93,7 +100,7 @@
                                    FontWeight="SemiBold"
                                    VerticalAlignment="Center" />
                     </StackPanel>
-                </StackPanel>
+                </Grid>
 
                 <!-- Close Drawer Chevron Button -->
                 <controls:Button Grid.Column="1"
@@ -110,8 +117,13 @@
             <!-- Content Area -->
             <Grid Grid.Row="1">
                 <!-- Tracks View -->
-                <Grid Visibility="{Binding IsTracksTabActive, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <Grid x:Name="TracksContentGrid">
+                    <Grid.RenderTransform>
+                        <TranslateTransform x:Name="TracksContentTransform" />
+                    </Grid.RenderTransform>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  helpers:ScrollEdgeFadeBehavior.IsEnabled="True">
                         <ItemsControl ItemsSource="{Binding MidiTracks}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -237,32 +249,48 @@
                 </Grid>
 
                 <!-- Song Settings View -->
-                <Grid Visibility="{Binding IsSettingsTabActive, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <Grid x:Name="SettingsContentGrid">
+                    <Grid.RenderTransform>
+                        <TranslateTransform x:Name="SettingsContentTransform" />
+                    </Grid.RenderTransform>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  helpers:ScrollEdgeFadeBehavior.IsEnabled="True">
                         <StackPanel Margin="0,4,0,0">
-                            <!-- Relative Key Offset -->
-                            <TextBlock Text="Key Offset"
-                                       FontWeight="SemiBold"
-                                       FontSize="12"
-                                       Margin="0,0,0,4" />
-                            <button:StandardDropdown ItemsSource="{Binding SongSettings.KeyOptions}"
-                                                     SelectedItem="{Binding SongSettings.SelectedKeyOption, Mode=TwoWay}"
-                                                     ItemTemplate="{StaticResource OffsetNoteTemplate}"
-                                                     SelectedItemTemplate="{StaticResource OffsetNoteTemplate}"
-                                                     HorizontalAlignment="Stretch"
-                                                     Margin="0,0,0,12" />
+                            <!-- Key Offset and Playback Speed (Same Row) -->
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
 
-                            <!-- Playback Speed -->
-                            <TextBlock Text="Playback Speed"
-                                       FontWeight="SemiBold"
-                                       FontSize="12"
-                                       Margin="0,0,0,4" />
-                            <button:StandardDropdown ItemsSource="{Binding SongSettings.SpeedOptions}"
-                                                     SelectedItem="{Binding SongSettings.SelectedSpeedOption, Mode=TwoWay}"
-                                                     ItemTemplate="{StaticResource DisplayTemplate}"
-                                                     SelectedItemTemplate="{StaticResource DisplayTemplate}"
-                                                     HorizontalAlignment="Stretch"
-                                                     Margin="0,0,0,12" />
+                                <!-- Relative Key Offset -->
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Key Offset"
+                                               FontWeight="SemiBold"
+                                               FontSize="12"
+                                               Margin="0,0,0,4" />
+                                    <button:StandardDropdown ItemsSource="{Binding SongSettings.KeyOptions}"
+                                                             SelectedItem="{Binding SongSettings.SelectedKeyOption, Mode=TwoWay}"
+                                                             ItemTemplate="{StaticResource OffsetNoteTemplate}"
+                                                             SelectedItemTemplate="{StaticResource OffsetNoteTemplate}"
+                                                             HorizontalAlignment="Stretch" />
+                                </StackPanel>
+
+                                <!-- Playback Speed -->
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Playback Speed"
+                                               FontWeight="SemiBold"
+                                               FontSize="12"
+                                               Margin="0,0,0,4" />
+                                    <button:StandardDropdown ItemsSource="{Binding SongSettings.SpeedOptions}"
+                                                             SelectedItem="{Binding SongSettings.SelectedSpeedOption, Mode=TwoWay}"
+                                                             ItemTemplate="{StaticResource DisplayTemplate}"
+                                                             SelectedItemTemplate="{StaticResource DisplayTemplate}"
+                                                             HorizontalAlignment="Stretch" />
+                                </StackPanel>
+                            </Grid>
 
                             <!-- Transpose Mode -->
                             <TextBlock Text="Transpose Mode"

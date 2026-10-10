@@ -25,18 +25,11 @@ public class TimelineCanvas : FrameworkElement
     private static readonly SolidColorBrush TrackBackgroundBrush;
     private static readonly SolidColorBrush[] TrackBrushes;
     private static readonly SolidColorBrush[] DisabledTrackBrushes;
-    private static readonly SolidColorBrush PlayheadBrush;
-    private static readonly Pen PlayheadPen;
     private static readonly SolidColorBrush MarkerPinBrush;
     private static readonly Pen MarkerPen;
-    private static readonly SolidColorBrush RulerTextBrush;
     private static readonly Typeface RulerTypeface;
     private static readonly Typeface MarkerTypeface;
-    private static readonly SolidColorBrush ViewportFillBrush;
-    private static readonly Pen ViewportBorderPen;
-    private static readonly SolidColorBrush ViewportGripBrush;
     private static readonly StreamGeometry PlayheadHandleGeometry;
-    private static readonly Pen HoverLinePen;
 
     static TimelineCanvas()
     {
@@ -48,25 +41,13 @@ public class TimelineCanvas : FrameworkElement
             var c = TrackBrushes[i].Color;
             DisabledTrackBrushes[i] = CreateFrozenBrush(Color.FromArgb((byte)(c.A * 0.25), c.R, c.G, c.B));
         }
-        PlayheadBrush = CreateFrozenBrush(Color.FromRgb(255, 255, 255));
-        PlayheadPen = new Pen(CreateFrozenBrush(Color.FromRgb(255, 255, 255)), 2);
-        PlayheadPen.Freeze();
-
-        HoverLinePen = new Pen(CreateFrozenBrush(Color.FromArgb(120, 255, 255, 255)), 1.2);
-        HoverLinePen.Freeze();
 
         MarkerPinBrush = CreateFrozenBrush(Color.FromRgb(255, 183, 3));      // Amber
         MarkerPen = new Pen(MarkerPinBrush, 1.5);
         MarkerPen.Freeze();
 
-        RulerTextBrush = CreateFrozenBrush(Color.FromArgb(140, 255, 255, 255));
         RulerTypeface = new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
         MarkerTypeface = new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
-
-        ViewportFillBrush = CreateFrozenBrush(Color.FromArgb(32, 255, 255, 255));
-        ViewportBorderPen = new Pen(CreateFrozenBrush(Color.FromArgb(200, 255, 255, 255)), 1.5);
-        ViewportBorderPen.Freeze();
-        ViewportGripBrush = CreateFrozenBrush(Color.FromArgb(240, 255, 255, 255));
 
         PlayheadHandleGeometry = new StreamGeometry();
         using (var ctx = PlayheadHandleGeometry.Open())
@@ -86,6 +67,17 @@ public class TimelineCanvas : FrameworkElement
         brush.Freeze();
         return brush;
     }
+
+    private SolidColorBrush _playheadBrush = null!;
+    private Pen _playheadPen = null!;
+    private Pen _hoverLinePen = null!;
+    private SolidColorBrush _rulerTextBrush = null!;
+    private SolidColorBrush _viewportFillBrush = null!;
+    private Pen _viewportBorderPen = null!;
+    private SolidColorBrush _viewportGripBrush = null!;
+
+    private bool _lastIsDark;
+    private bool _themeInitialized;
 
     private MinimapNote[] _notes = Array.Empty<MinimapNote>();
     private int _minPitch = 36;
@@ -112,10 +104,13 @@ public class TimelineCanvas : FrameworkElement
 
     public TimelineCanvas()
     {
+        EnsureThemeResources();
         Loaded += (_, _) =>
         {
             AutoMidiPlayer.WPF.Services.SystemThemeService.ThemeResourcesChanged += OnThemeResourcesChanged;
             UpdateTrackSubscriptions();
+            EnsureThemeResources();
+            InvalidateVisual();
         };
         Unloaded += (_, _) =>
         {
@@ -126,7 +121,65 @@ public class TimelineCanvas : FrameworkElement
 
     private void OnThemeResourcesChanged()
     {
-        Dispatcher.BeginInvoke(InvalidateVisualCache);
+        Dispatcher.BeginInvoke(() =>
+        {
+            EnsureThemeResources();
+            InvalidateVisualCache();
+        });
+    }
+
+    private void EnsureThemeResources()
+    {
+        var theme = Wpf.Ui.Appearance.ApplicationThemeManager.GetAppTheme();
+        var isDark = theme switch
+        {
+            Wpf.Ui.Appearance.ApplicationTheme.Dark => true,
+            Wpf.Ui.Appearance.ApplicationTheme.Light => false,
+            _ => AutoMidiPlayer.WPF.Services.SystemThemeService.GetSystemTheme() == Wpf.Ui.Appearance.ApplicationTheme.Dark
+        };
+
+        if (_themeInitialized && isDark == _lastIsDark)
+            return;
+
+        _lastIsDark = isDark;
+        _themeInitialized = true;
+
+        if (isDark)
+        {
+            // Dark Mode: White / Light shades
+            _playheadBrush = CreateFrozenBrush(Color.FromRgb(255, 255, 255));
+            _playheadPen = new Pen(_playheadBrush, 2.0);
+            _playheadPen.Freeze();
+
+            _hoverLinePen = new Pen(CreateFrozenBrush(Color.FromArgb(120, 255, 255, 255)), 1.2);
+            _hoverLinePen.Freeze();
+
+            _viewportFillBrush = CreateFrozenBrush(Color.FromArgb(32, 255, 255, 255));
+            _viewportBorderPen = new Pen(CreateFrozenBrush(Color.FromArgb(200, 255, 255, 255)), 1.5);
+            _viewportBorderPen.Freeze();
+
+            _viewportGripBrush = CreateFrozenBrush(Color.FromArgb(240, 255, 255, 255));
+            _rulerTextBrush = CreateFrozenBrush(Color.FromArgb(140, 255, 255, 255));
+        }
+        else
+        {
+            // Light Mode: Black / Dark shades
+            _playheadBrush = CreateFrozenBrush(Color.FromRgb(24, 24, 28));
+            _playheadPen = new Pen(_playheadBrush, 2.0);
+            _playheadPen.Freeze();
+
+            _hoverLinePen = new Pen(CreateFrozenBrush(Color.FromArgb(120, 0, 0, 0)), 1.2);
+            _hoverLinePen.Freeze();
+
+            _viewportFillBrush = CreateFrozenBrush(Color.FromArgb(32, 0, 0, 0));
+            _viewportBorderPen = new Pen(CreateFrozenBrush(Color.FromArgb(180, 0, 0, 0)), 1.5);
+            _viewportBorderPen.Freeze();
+
+            _viewportGripBrush = CreateFrozenBrush(Color.FromArgb(220, 0, 0, 0));
+            _rulerTextBrush = CreateFrozenBrush(Color.FromArgb(140, 0, 0, 0));
+        }
+
+        _staticBackgroundCache = null;
     }
 
     public static readonly DependencyProperty MidiTracksProperty =
@@ -521,15 +574,25 @@ public class TimelineCanvas : FrameworkElement
                 }
             }
 
-            _notes = list.OrderBy(n => n.StartMs).ToArray();
-            _trackCount = _notes.Length > 0 ? _notes.Select(n => n.TrackIndex).Distinct().Count() : 1;
-            UpdateNotePitchesInternal();
+            var notesArray = list.ToArray();
+            Array.Sort(notesArray, static (a, b) => a.StartMs.CompareTo(b.StartMs));
+            _notes = notesArray;
 
-            if (_notes.Length > 0)
+            long lastNote = 0;
+            var uniqueTracks = new HashSet<int>();
+            for (var i = 0; i < notesArray.Length; i++)
             {
-                var lastNote = _notes.Max(n => n.StartMs + n.LengthMs);
+                var end = notesArray[i].StartMs + notesArray[i].LengthMs;
+                if (end > lastNote)
+                    lastNote = end;
+                uniqueTracks.Add(notesArray[i].TrackIndex);
+            }
+            _trackCount = Math.Max(1, uniqueTracks.Count);
+            if (notesArray.Length > 0)
+            {
                 _totalDurationMs = Math.Max(_totalDurationMs, Math.Max(1L, lastNote));
             }
+            UpdateNotePitchesInternal();
         }
         catch (Exception ex)
         {
@@ -601,6 +664,7 @@ public class TimelineCanvas : FrameworkElement
     protected override void OnRender(DrawingContext dc)
     {
         base.OnRender(dc);
+        EnsureThemeResources();
 
         var width = ActualWidth;
         var height = ActualHeight;
@@ -634,31 +698,31 @@ public class TimelineCanvas : FrameworkElement
             var boxW = Math.Max(2, xEnd - xStart);
             var boxRect = new Rect(xStart, 1, boxW, height - 2);
 
-            // Shaded translucent white highlight window with rounded borders
-            dc.DrawRoundedRectangle(ViewportFillBrush, ViewportBorderPen, boxRect, 3, 3);
+            // Shaded translucent highlight window with crisp accent border
+            dc.DrawRectangle(_viewportFillBrush, _viewportBorderPen, boxRect);
 
             // Right tactile grip line
             if (boxW > 14)
             {
-                dc.DrawRoundedRectangle(ViewportGripBrush, null, new Rect(xStart + boxW - 3, 4, 2, height - 8), 1, 1);
+                dc.DrawRectangle(_viewportGripBrush, null, new Rect(xStart + boxW - 3, 4, 2, height - 8));
             }
         }
 
-        // Draw faint hover guide line if hovering
+        // Draw hover guide line if hovering
         if (HoverTime.HasValue && totalMs > 0)
         {
             var hx = Math.Clamp((HoverTime.Value.TotalMilliseconds / (double)totalMs) * width, 0, width);
-            dc.DrawLine(HoverLinePen, new Point(hx, 0), new Point(hx, height));
+            dc.DrawLine(_hoverLinePen, new Point(hx, 0), new Point(hx, height));
         }
 
         // Draw only the dynamic playhead (ultra-lightweight!)
         // Vertical playhead line
-        dc.DrawLine(PlayheadPen, new Point(playheadX, 0), new Point(playheadX, height));
+        dc.DrawLine(_playheadPen, new Point(playheadX, 0), new Point(playheadX, height));
 
         // Playhead handle at top
         _playheadTransform.X = playheadX;
         dc.PushTransform(_playheadTransform);
-        dc.DrawGeometry(PlayheadBrush, null, PlayheadHandleGeometry);
+        dc.DrawGeometry(_playheadBrush, null, PlayheadHandleGeometry);
         dc.Pop();
     }
 
@@ -668,7 +732,7 @@ public class TimelineCanvas : FrameworkElement
         using (var dc = group.Open())
         {
             // 1. Background
-            dc.DrawRoundedRectangle(TrackBackgroundBrush, null, new Rect(0, 0, width, height), 4, 4);
+            dc.DrawRectangle(TrackBackgroundBrush, null, new Rect(0, 0, width, height));
 
             // 2. Minimap Notes
             if (_notes.Length > 0)
@@ -764,7 +828,7 @@ public class TimelineCanvas : FrameworkElement
                         FlowDirection.LeftToRight,
                         RulerTypeface,
                         9,
-                        RulerTextBrush,
+                        _rulerTextBrush,
                         dpi);
 
                     var textX = Math.Clamp(x - (formatted.Width / 2), 2, width - formatted.Width - 2);
@@ -806,7 +870,7 @@ public class TimelineCanvas : FrameworkElement
                     var badgeH = formatted.Height + 2;
                     var badgeRect = new Rect(x - (badgeW / 2), 1, badgeW, badgeH);
 
-                    dc.DrawRoundedRectangle(brush, pen, badgeRect, 3, 3);
+                    dc.DrawRectangle(brush, pen, badgeRect);
                     dc.DrawText(formatted, new Point(badgeRect.X + 4, badgeRect.Y + 1));
                 }
             }

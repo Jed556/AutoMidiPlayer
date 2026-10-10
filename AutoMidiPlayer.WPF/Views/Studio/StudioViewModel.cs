@@ -13,11 +13,14 @@ using AutoMidiPlayer.WPF.Controls.NoSongPlaceholder;
 using AutoMidiPlayer.WPF.Controls.PianoRoll;
 using AutoMidiPlayer.WPF.Controls.Snackbar;
 using AutoMidiPlayer.WPF.Core;
+using AutoMidiPlayer.WPF.Dialogs;
+using AutoMidiPlayer.WPF.Helpers;
 using AutoMidiPlayer.WPF.Services;
 using Melanchall.DryWetMidi.Interaction;
 using Melanchall.DryWetMidi.Multimedia;
 using Stylet;
 using StyletIoC;
+using Wpf.Ui.Controls;
 using IContainer = StyletIoC.IContainer;
 
 namespace AutoMidiPlayer.WPF.ViewModels;
@@ -69,6 +72,7 @@ public class StudioViewModel : Screen,
     public NoSongPlaceholderComponent Placeholder { get; }
     public MainWindowViewModel Main => _main;
     public PlaybackControlsService Controls => _main.PlaybackControls;
+    public bool IsPlaying => Controls.IsPlaying;
     public SongService SongSettings => _main.SongSettings;
     public string CurrentInstrumentId => _main.InstrumentView?.SelectedInstrument.Key ?? string.Empty;
     public int PitchRevision { get; private set; }
@@ -108,6 +112,9 @@ public class StudioViewModel : Screen,
             if (SetAndNotify(ref _selectedMarker, value))
             {
                 NotifyOfPropertyChange(nameof(HasSelectedMarker));
+                NotifyOfPropertyChange(nameof(OffsetButtonText));
+                NotifyOfPropertyChange(nameof(OffsetButtonIcon));
+                NotifyOfPropertyChange(nameof(OffsetButtonTooltip));
                 if (value != null)
                 {
                     _selectedKeyOption = KeyOptions.FirstOrDefault(k => k.Value == value.KeyOffset);
@@ -118,6 +125,12 @@ public class StudioViewModel : Screen,
     }
 
     public bool HasSelectedMarker => SelectedMarker != null;
+
+    public string OffsetButtonText => HasSelectedMarker ? "Set" : "Add";
+    public SymbolRegular OffsetButtonIcon => HasSelectedMarker ? SymbolRegular.Edit16 : SymbolRegular.Add16;
+    public string OffsetButtonTooltip => HasSelectedMarker
+        ? "Update key offset of selected marker"
+        : "Add key offset at current playhead position";
 
     public List<MusicConstants.KeyOption> KeyOptions { get; }
 
@@ -166,7 +179,7 @@ public class StudioViewModel : Screen,
         if (song is null) return;
 
         var marker = song.GetKeyMarkerAtTime(CurrentTime);
-        var offset = marker?.KeyOffset ?? song.Key;
+        var offset = marker?.KeyOffset ?? SongSettings.KeyOffset;
 
         if (marker != _lastActiveMarker || offset != _lastActiveKey)
         {
@@ -281,7 +294,15 @@ public class StudioViewModel : Screen,
         get
         {
             if (CurrentFile?.Song is null)
-                return $"Active: Auto ({MusicConstants.GetNoteName(0)} +0) from Song Default";
+            {
+                var defaultNote = MusicConstants.GetNoteName(0);
+                return SelectedDisplayMode?.Mode switch
+                {
+                    PianoRollDisplayMode.SongDefault => $"Active: Song Default ({defaultNote} +0)",
+                    PianoRollDisplayMode.Transpose => $"Active: Transpose ({defaultNote} +0)",
+                    _ => $"Active: Auto ({defaultNote} +0) from Song Default"
+                };
+            }
 
             var song = CurrentFile.Song;
             var marker = song.GetKeyMarkerAtTime(CurrentTime);
@@ -300,10 +321,10 @@ public class StudioViewModel : Screen,
             return SelectedDisplayMode?.Mode switch
             {
                 PianoRollDisplayMode.SongDefault =>
-                    $"Active: Song Default ({defaultNoteName} +0) from Song Default",
+                    $"Active: Song Default ({defaultNoteName} +0)",
 
                 PianoRollDisplayMode.Transpose =>
-                    $"Active: Transpose ({songNoteName} {(songOffset >= 0 ? "+" : "")}{songOffset}) from {fallbackSource}",
+                    $"Active: Transpose ({songNoteName} {(songOffset >= 0 ? "+" : "")}{songOffset})",
 
                 _ => marker != null
                     ? $"Active: Auto ({MusicConstants.GetNoteName(marker.KeyOffset)} {(marker.KeyOffset >= 0 ? "+" : "")}{marker.KeyOffset}) from Marker at {FormatTimestampWithMs(marker.Time)}"
@@ -433,7 +454,13 @@ public class StudioViewModel : Screen,
         _main.QueueView.PropertyChanged += HandleQueuePropertyChanged;
         _main.PlaybackEngine.NotePlayed += HandleNotePlayed;
 
+        // Immediately anchor the playhead to the actual playback position so the
+        // piano roll renders at the correct time from the very first frame.
+        // Without this, CurrentTime stays stale from the last deactivation.
+        CurrentTime = _main.PlaybackEngine.AccuratePlaybackTime;
+
         ReloadSongData();
+        NotifyOfPropertyChange(nameof(IsPlaying));
 
         if (Controls.IsPlaying)
         {
@@ -528,6 +555,7 @@ public class StudioViewModel : Screen,
         {
             if (Controls.IsPlaying) StartSmoothClock();
             else StopSmoothClock();
+            NotifyOfPropertyChange(nameof(IsPlaying));
         }
     }
 
@@ -561,19 +589,7 @@ public class StudioViewModel : Screen,
             return;
         }
 
-        var playback = _main.PlaybackEngine.Playback;
-        if (playback is { IsRunning: true })
-        {
-            try
-            {
-                var metric = playback.GetCurrentTime<MetricTimeSpan>();
-                CurrentTime = (TimeSpan)metric;
-            }
-            catch
-            {
-                // Playback might be resetting
-            }
-        }
+        CurrentTime = _main.PlaybackEngine.AccuratePlaybackTime;
     }
 
     private void HandleCurrentTimeTick(object? sender, PlaybackCurrentTimeChangedEventArgs e)
@@ -597,7 +613,10 @@ public class StudioViewModel : Screen,
 
     private void HandleSongPositionChanged(object? sender, EventArgs e)
     {
-        CurrentTime = Controls.CurrentTime;
+        if (!_isRenderingHooked)
+        {
+            CurrentTime = Controls.CurrentTime;
+        }
     }
 
     public void ReloadSongData()
@@ -622,6 +641,8 @@ public class StudioViewModel : Screen,
             }
         }
         SelectedMarker = null;
+        _lastActiveMarker = null;
+        _lastActiveKey = int.MinValue;
         _lastActiveKeyDisplay = string.Empty;
         _lastActiveDisplayModeText = string.Empty;
         UpdateActiveKeyDisplay();
@@ -691,10 +712,42 @@ public class StudioViewModel : Screen,
         CurrentTime = time;
     }
 
+    public async Task SetOffsetAsync()
+    {
+        await AddOffsetAtPlayheadAsync();
+    }
+
     public async Task AddOffsetAtPlayheadAsync()
     {
         if (CurrentFile?.Song is null)
             return;
+
+        var offset = SelectedKeyOption?.Value ?? SongSettings.KeyOffset;
+        var noteName = MusicConstants.GetNoteName(offset);
+
+        // If a marker is currently selected, update its offset directly
+        if (SelectedMarker != null)
+        {
+            SelectedMarker.KeyOffset = offset;
+            SelectedMarker.Label = $"{noteName} ({(offset >= 0 ? "+" : "")}{offset})";
+
+            var duplicate = KeyChangeMarkers.FirstOrDefault(m => m != SelectedMarker && Math.Abs(m.TimeMs - SelectedMarker.TimeMs) < 300);
+            if (duplicate != null)
+            {
+                KeyChangeMarkers.Remove(duplicate);
+            }
+
+            var sorted = KeyChangeMarkers.OrderBy(m => m.TimeMs).ToList();
+            KeyChangeMarkers.Clear();
+            foreach (var m in sorted) KeyChangeMarkers.Add(m);
+
+            await SaveMarkersToSongAsync();
+            UpdateActiveKeyDisplayIfNeeded();
+            NotifyOfPropertyChange(nameof(SelectedMarker));
+
+            SnackbarService.Success("Key Offset Updated", $"Updated marker at {SelectedMarker.TimeString} to {SelectedMarker.Label}");
+            return;
+        }
 
         var ms = (long)CurrentTime.TotalMilliseconds;
 
@@ -722,9 +775,6 @@ public class StudioViewModel : Screen,
             }
         }
 
-        var offset = SelectedKeyOption?.Value ?? SongSettings.KeyOffset;
-        var noteName = MusicConstants.GetNoteName(offset);
-
         // Remove any existing marker close to this time (within 300ms)
         var existing = KeyChangeMarkers.FirstOrDefault(m => Math.Abs(m.TimeMs - ms) < 300);
         if (existing != null)
@@ -740,14 +790,15 @@ public class StudioViewModel : Screen,
         };
 
         KeyChangeMarkers.Add(newMarker);
-        var sorted = KeyChangeMarkers.OrderBy(m => m.TimeMs).ToList();
+        var sortedList = KeyChangeMarkers.OrderBy(m => m.TimeMs).ToList();
         KeyChangeMarkers.Clear();
-        foreach (var m in sorted) KeyChangeMarkers.Add(m);
+        foreach (var m in sortedList) KeyChangeMarkers.Add(m);
 
         SelectedMarker = newMarker;
         await SaveMarkersToSongAsync();
+        UpdateActiveKeyDisplayIfNeeded();
 
-        SnackbarService.Success("Key Offset Added", $"Set {newMarker.Label} at {newMarker.TimeString}");
+        SnackbarService.Success("Key Offset Set", $"Set {newMarker.Label} at {newMarker.TimeString}");
     }
 
     public async Task AutoDetectKeyChangesAsync()
@@ -784,15 +835,41 @@ public class StudioViewModel : Screen,
 
     public async Task DeleteSelectedMarkerAsync()
     {
-        if (SelectedMarker is null || CurrentFile?.Song is null)
+        if (SelectedMarker is null)
             return;
 
-        var removed = SelectedMarker;
-        KeyChangeMarkers.Remove(removed);
-        SelectedMarker = null;
+        await DeleteMarkerAsync(SelectedMarker);
+    }
 
+    public async Task DeleteMarkerAsync(KeyChangeMarker marker)
+    {
+        if (marker is null || CurrentFile?.Song is null)
+            return;
+
+        if (SelectedMarker == marker)
+            SelectedMarker = null;
+
+        KeyChangeMarkers.Remove(marker);
         await SaveMarkersToSongAsync();
-        SnackbarService.Info("Marker Removed", $"Removed key offset marker at {removed.TimeString}");
+        UpdateActiveKeyDisplayIfNeeded();
+        SnackbarService.Info("Marker Removed", $"Removed key offset marker at {marker.TimeString}");
+    }
+
+    public Task EditMarkerAsync(KeyChangeMarker marker)
+    {
+        if (marker is null || CurrentFile?.Song is null)
+            return Task.CompletedTask;
+
+        if (SelectedMarker == marker)
+        {
+            SelectedMarker = null;
+        }
+        else
+        {
+            SelectedMarker = marker;
+            ScrubTo(marker.Time);
+        }
+        return Task.CompletedTask;
     }
 
     public void NavigatePrevMarker()
@@ -843,6 +920,7 @@ public class StudioViewModel : Screen,
 
             NotifyOfPropertyChange(nameof(ActiveKeyAtPlayheadDisplay));
             NotifyPitchUpdateRequired();
+            SongSettings.UpdateAdjustmentState();
         }
         catch (Exception ex)
         {

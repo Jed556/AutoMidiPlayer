@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:local="clr-namespace:AutoMidiPlayer.WPF.Controls.PianoRoll"
+             xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              mc:Ignorable="d" 
              d:DesignHeight="400" d:DesignWidth="800"
@@ -20,6 +21,27 @@
                                HorizontalAlignment="Stretch"
                                VerticalAlignment="Stretch"
                                ClipToBounds="True" />
+
+        <!-- Separate Dedicated Hover Indicator Renderer Layer -->
+        <local:PianoRollHoverOverlay x:Name="HoverOverlay"
+                                     Grid.Column="0"
+                                     HorizontalAlignment="Stretch"
+                                     VerticalAlignment="Stretch"
+                                     IsHitTestVisible="False"
+                                     ClipToBounds="True" />
+
+        <!-- Marker Action Popup (Bottom/Below Marker in Piano Roll) -->
+        <Popup x:Name="MarkerPopup"
+               PlacementTarget="{Binding ElementName=Canvas}"
+               Placement="Relative"
+               AllowsTransparency="True"
+               PopupAnimation="None">
+            <controls:MarkerActionPopup x:Name="MarkerPopupContent"
+                                        DeleteRequested="OnMarkerPopupDeleteRequested"
+                                        EditRequested="OnMarkerPopupEditRequested"
+                                        MouseEnter="OnMarkerPopupMouseEnter"
+                                        MouseLeave="OnMarkerPopupMouseLeave" />
+        </Popup>
 
         <!-- Vertical Scrollbar matching the App's native Fluent ScrollBar style -->
         <ScrollBar Grid.Column="1"

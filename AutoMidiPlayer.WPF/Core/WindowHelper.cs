@@ -15,14 +15,45 @@ public static class WindowHelper
         .OpenSubKey(@"SOFTWARE\launcher", false)
         ?.GetValue("InstPath") as string;
 
+    private static string[]? _cachedActiveGameProcessNames;
+    private static long _lastProcessNamesRefreshTimestampMs;
+    private const long ProcessNamesCacheTtlMs = 3000;
+
+    private static IntPtr _lastForegroundWindow = IntPtr.Zero;
+    private static uint _lastForegroundProcessId = 0;
+    private static bool _lastFocusVerdict = false;
+    private static long _lastFocusCheckTimestampMs = 0;
+    private const long FocusCheckTtlMs = 120;
+
+    public static void InvalidateProcessNamesCache()
+    {
+        _cachedActiveGameProcessNames = null;
+        _lastForegroundWindow = IntPtr.Zero;
+        _lastForegroundProcessId = 0;
+        _lastFocusVerdict = false;
+        _lastFocusCheckTimestampMs = 0;
+    }
+
     private static string[] ActiveGameProcessNames
     {
         get
         {
+            var now = Stopwatch.GetTimestamp();
+            var nowMs = (long)(now * 1000.0 / Stopwatch.Frequency);
+
+            if (_cachedActiveGameProcessNames != null && (nowMs - _lastProcessNamesRefreshTimestampMs) < ProcessNamesCacheTtlMs)
+            {
+                return _cachedActiveGameProcessNames;
+            }
+
             var activeGame = GameRegistry.AllGames.FirstOrDefault(game => game.GetIsActive());
 
             if (activeGame is null)
-                return [];
+            {
+                _cachedActiveGameProcessNames = [];
+                _lastProcessNamesRefreshTimestampMs = nowMs;
+                return _cachedActiveGameProcessNames;
+            }
 
             var processNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -33,33 +64,61 @@ public static class WindowHelper
             foreach (var processName in activeGame.ProcessNames.Where(name => !string.IsNullOrWhiteSpace(name)))
                 processNames.Add(processName);
 
-            return [.. processNames];
+            var result = processNames.ToArray();
+            _cachedActiveGameProcessNames = result;
+            _lastProcessNamesRefreshTimestampMs = nowMs;
+            return result;
         }
     }
 
     public static bool IsGameFocused()
     {
-        var processNames = ActiveGameProcessNames;
-        if (processNames.Length == 0)
-            return false;
-
         var foregroundWindow = GetForegroundWindow();
         if (foregroundWindow == IntPtr.Zero)
+            return false;
+
+        var now = Stopwatch.GetTimestamp();
+        var nowMs = (long)(now * 1000.0 / Stopwatch.Frequency);
+
+        // Fast path: If foreground window is the exact same handle and recently checked, return cached result immediately
+        if (foregroundWindow == _lastForegroundWindow && (nowMs - _lastFocusCheckTimestampMs) < FocusCheckTtlMs)
+        {
+            return _lastFocusVerdict;
+        }
+
+        var processNames = ActiveGameProcessNames;
+        if (processNames.Length == 0)
             return false;
 
         GetWindowThreadProcessId(foregroundWindow, out var processId);
         if (processId == 0)
             return false;
 
-        try
+        bool isFocused;
+        // If window handle and process ID haven't changed, retain the verified verdict without re-inspecting process
+        if (foregroundWindow == _lastForegroundWindow && processId == _lastForegroundProcessId)
         {
-            using var process = Process.GetProcessById((int)processId);
-            return processNames.Contains(process.ProcessName, StringComparer.OrdinalIgnoreCase);
+            isFocused = _lastFocusVerdict;
         }
-        catch
+        else
         {
-            return false;
+            try
+            {
+                using var process = Process.GetProcessById((int)processId);
+                isFocused = processNames.Contains(process.ProcessName, StringComparer.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                isFocused = false;
+            }
         }
+
+        _lastForegroundWindow = foregroundWindow;
+        _lastForegroundProcessId = processId;
+        _lastFocusVerdict = isFocused;
+        _lastFocusCheckTimestampMs = nowMs;
+
+        return isFocused;
     }
 
     public static void EnsureGameOnTop()

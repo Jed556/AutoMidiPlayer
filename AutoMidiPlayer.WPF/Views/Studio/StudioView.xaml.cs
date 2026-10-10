@@ -20,13 +20,24 @@ public partial class StudioView : UserControl
         InitializeComponent();
         DockedSidebar.RenderTransform = _dockedSidebarTransform;
         OverlaySidebarControl.RenderTransform = _overlaySidebarTransform;
+        TracksDrawerButton.SizeChanged += OnDrawerButtonSizeChanged;
+        SettingsDrawerButton.SizeChanged += OnDrawerButtonSizeChanged;
         DataContextChanged += OnDataContextChanged;
         Loaded += OnViewLoaded;
+    }
+
+    private void OnDrawerButtonSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (e.NewSize.Width > 0)
+        {
+            UpdateDrawerSwitcherIndicator(animate: false);
+        }
     }
 
     private void OnViewLoaded(object sender, RoutedEventArgs e)
     {
         UpdateResponsiveLayout(animate: false);
+        UpdateDrawerSwitcherIndicator(animate: false);
         InteractiveRoll?.FitKeyHeightToViewport();
     }
 
@@ -53,6 +64,7 @@ public partial class StudioView : UserControl
         }
 
         UpdateResponsiveLayout(animate: false);
+        UpdateDrawerSwitcherIndicator(animate: false);
     }
 
     private void OnSongDataReloaded(object? sender, EventArgs e)
@@ -73,12 +85,20 @@ public partial class StudioView : UserControl
         if (e.PropertyName is nameof(StudioViewModel.IsSidebarOpen))
         {
             UpdateResponsiveLayout(animate: true);
+            UpdateDrawerSwitcherIndicator(animate: true);
+        }
+        else if (e.PropertyName is nameof(StudioViewModel.ActiveSidebarTab)
+            or nameof(StudioViewModel.IsTracksDrawerActive)
+            or nameof(StudioViewModel.IsSettingsDrawerActive))
+        {
+            UpdateDrawerSwitcherIndicator(animate: true);
         }
     }
 
     private void OnViewSizeChanged(object sender, SizeChangedEventArgs e)
     {
         UpdateResponsiveLayout(animate: false);
+        UpdateDrawerSwitcherIndicator(animate: false);
     }
 
     private void UpdateResponsiveLayout(bool animate = false)
@@ -223,5 +243,140 @@ public partial class StudioView : UserControl
     private void OnPianoRollScrubRequested(object? sender, TimeSpan time)
     {
         ViewModel?.ScrubTo(time);
+    }
+
+    private async void OnInteractiveRollMarkerDeleteRequested(object? sender, AutoMidiPlayer.Data.Entities.KeyChangeMarker marker)
+    {
+        if (ViewModel != null)
+        {
+            await ViewModel.DeleteMarkerAsync(marker);
+        }
+    }
+
+    private async void OnInteractiveRollMarkerEditRequested(object? sender, AutoMidiPlayer.Data.Entities.KeyChangeMarker marker)
+    {
+        if (ViewModel != null)
+        {
+            await ViewModel.EditMarkerAsync(marker);
+        }
+    }
+
+    private void UpdateDrawerSwitcherIndicator(bool animate = true)
+    {
+        var vm = ViewModel;
+        if (vm == null || TracksDrawerButton == null || SettingsDrawerButton == null || DrawerActiveIndicator == null || DrawerSwitcherContainer == null)
+            return;
+
+        bool isTracksActive = vm.IsTracksDrawerActive;
+        bool isSettingsActive = vm.IsSettingsDrawerActive;
+        bool isActive = isTracksActive || isSettingsActive;
+
+        if (!isActive)
+        {
+            if (!animate || !IsLoaded)
+            {
+                DrawerActiveIndicator.BeginAnimation(UIElement.OpacityProperty, null);
+                DrawerActiveIndicator.Opacity = 0.0;
+            }
+            else
+            {
+                var fadeOut = new DoubleAnimation
+                {
+                    To = 0.0,
+                    Duration = TimeSpan.FromMilliseconds(180),
+                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                };
+                DrawerActiveIndicator.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+            }
+            return;
+        }
+
+        FrameworkElement targetButton = isSettingsActive ? SettingsDrawerButton : TracksDrawerButton;
+
+        if (!targetButton.IsLoaded || targetButton.ActualWidth <= 0 || !targetButton.IsDescendantOf(DrawerSwitcherContainer))
+        {
+            return;
+        }
+
+        Point relativePos;
+        try
+        {
+            relativePos = targetButton.TranslatePoint(new Point(0, 0), DrawerSwitcherContainer);
+        }
+        catch
+        {
+            return;
+        }
+
+        double targetX = relativePos.X;
+        double targetWidth = targetButton.ActualWidth;
+
+        if (!animate || !IsLoaded || DrawerActiveIndicator.Opacity < 0.05)
+        {
+            if (Math.Abs(DrawerActiveIndicator.Width - targetWidth) < 0.5 &&
+                Math.Abs(DrawerActiveIndicatorTransform.X - targetX) < 0.5 &&
+                Math.Abs(DrawerActiveIndicator.Opacity - 1.0) < 0.05)
+            {
+                return;
+            }
+
+            DrawerActiveIndicatorTransform.BeginAnimation(TranslateTransform.XProperty, null);
+            DrawerActiveIndicator.BeginAnimation(FrameworkElement.WidthProperty, null);
+            DrawerActiveIndicator.BeginAnimation(UIElement.OpacityProperty, null);
+
+            DrawerActiveIndicatorTransform.X = targetX;
+            DrawerActiveIndicator.Width = targetWidth;
+
+            if (DrawerActiveIndicator.Opacity < 0.95)
+            {
+                if (animate && IsLoaded)
+                {
+                    var fadeIn = new DoubleAnimation
+                    {
+                        From = 0.0,
+                        To = 1.0,
+                        Duration = TimeSpan.FromMilliseconds(180),
+                        EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                    };
+                    DrawerActiveIndicator.BeginAnimation(UIElement.OpacityProperty, fadeIn);
+                }
+                else
+                {
+                    DrawerActiveIndicator.Opacity = 1.0;
+                }
+            }
+            return;
+        }
+
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var duration = TimeSpan.FromMilliseconds(240);
+
+        var moveAnim = new DoubleAnimation
+        {
+            To = targetX,
+            Duration = duration,
+            EasingFunction = ease
+        };
+
+        var widthAnim = new DoubleAnimation
+        {
+            To = targetWidth,
+            Duration = duration,
+            EasingFunction = ease
+        };
+
+        DrawerActiveIndicatorTransform.BeginAnimation(TranslateTransform.XProperty, moveAnim);
+        DrawerActiveIndicator.BeginAnimation(FrameworkElement.WidthProperty, widthAnim);
+
+        if (DrawerActiveIndicator.Opacity < 0.95)
+        {
+            var fadeIn = new DoubleAnimation
+            {
+                To = 1.0,
+                Duration = TimeSpan.FromMilliseconds(180),
+                EasingFunction = ease
+            };
+            DrawerActiveIndicator.BeginAnimation(UIElement.OpacityProperty, fadeIn);
+        }
     }
 }

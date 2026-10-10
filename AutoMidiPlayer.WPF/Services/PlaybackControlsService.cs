@@ -398,6 +398,7 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
             pb.Stop();
             pb.MoveToTime(new MetricTimeSpan(time));
             Engine.ResetChordPadsTriggered();
+            Engine.NotifySeek(time);
             if (Settings.UseSpeakers && isRunning)
                 pb.Start();
         }
@@ -416,7 +417,7 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
             if (_savePositionCounter >= 50)
             {
                 _savePositionCounter = 0;
-                Queue.SaveCurrentSong(time.TotalSeconds);
+                Queue.UpdateCurrentSongPosition(time.TotalSeconds);
             }
         }
     }

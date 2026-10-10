@@ -35,6 +35,19 @@
                                       VerticalAlignment="Stretch" />
             </Grid>
 
+            <!-- Marker Action Popup (Top/Above Timeline) -->
+            <Popup x:Name="MarkerPopup"
+                   PlacementTarget="{Binding ElementName=Canvas}"
+                   Placement="Top"
+                   AllowsTransparency="True"
+                   PopupAnimation="None">
+                <controls:MarkerActionPopup x:Name="MarkerPopupContent"
+                                            DeleteRequested="OnMarkerPopupDeleteRequested"
+                                            EditRequested="OnMarkerPopupEditRequested"
+                                            MouseEnter="OnMarkerPopupMouseEnter"
+                                            MouseLeave="OnMarkerPopupMouseLeave" />
+            </Popup>
+
             <!-- Controls on the Right: Sync Button + Zoom Controls + Key Height Controls -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                 <!-- Sync / Follow Playhead Lock Button (FL Studio style) -->

@@ -352,8 +352,11 @@ public class MidiTrack : INotifyPropertyChanged
             IsActive = true;
 
             // Create timer to turn off glow (DispatcherTimer runs on UI thread)
-            _glowTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(GlowDurationMs) };
-            _glowTimer.Tick += GlowTimer_Tick;
+            if (_glowTimer is null)
+            {
+                _glowTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(GlowDurationMs) };
+                _glowTimer.Tick += GlowTimer_Tick;
+            }
             _glowTimer.Start();
         }
         catch (Exception ex)
@@ -367,8 +370,6 @@ public class MidiTrack : INotifyPropertyChanged
         try
         {
             _glowTimer?.Stop();
-            if (_glowTimer is not null)
-                _glowTimer.Tick -= GlowTimer_Tick;
             IsActive = false;
         }
         catch (Exception ex)

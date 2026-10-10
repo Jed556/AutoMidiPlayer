@@ -38,6 +38,9 @@ public class SongService(IContainer ioc) : PropertyChangedBase
     private MusicConstants.SpeedOption? _selectedSpeedOption;
     private bool _suppressSongPersistenceAndEvents;
     private bool _isAutoCorrectActive;
+    private KeyChangeMarker? _activeMarker;
+    private int _lastActiveMarkerOffset;
+    private bool _isMarkerAdjustmentActive;
 
     #region Static Data
 
@@ -82,6 +85,8 @@ public class SongService(IContainer ioc) : PropertyChangedBase
                 NotifyOfPropertyChange(nameof(EffectiveKeyOffset));
                 NotifyOfPropertyChange(nameof(AutoCorrectRawNote));
                 NotifyOfPropertyChange(nameof(AutoCorrectEffectiveNote));
+                NotifyOfPropertyChange(nameof(AutoCorrectTooltip));
+                NotifyOfPropertyChange(nameof(AdjustmentTooltip));
 
                 // Persist + notify for playback rebuild
                 SaveCurrentSongKey();
@@ -199,8 +204,84 @@ public class SongService(IContainer ioc) : PropertyChangedBase
     /// <summary>
     /// Tooltip explaining that smart transpose auto-correction is active.
     /// </summary>
-    public string AutoCorrectTooltip =>
-        "Smart transpose is auto-correcting the key based on the detected song key";
+    public string AutoCorrectTooltip
+    {
+        get
+        {
+            var baseKey = CurrentFile?.Song.BaseKey;
+            var effectiveOffset = MusicConstants.GetEffectiveKeyOffset(KeyOffset, baseKey);
+            var note = MusicConstants.GetNoteName(effectiveOffset);
+            var offset = (effectiveOffset >= 0 ? "+" : "") + effectiveOffset;
+            return $"Smart transpose is auto-correcting the key to {note} {offset} based on the detected song key";
+        }
+    }
+
+    /// <summary>
+    /// The active timeline key change marker at the current playback time, if any.
+    /// </summary>
+    public KeyChangeMarker? ActiveMarker => _activeMarker;
+
+    /// <summary>
+    /// True when playback is currently at a timeline key change marker that adjusts pitch.
+    /// </summary>
+    public bool IsMarkerAdjustmentActive
+    {
+        get => _isMarkerAdjustmentActive;
+        private set => SetAndNotify(ref _isMarkerAdjustmentActive, value);
+    }
+
+    /// <summary>
+    /// True if either a timeline key change marker or smart transpose auto-correction
+    /// is actively modifying the pitch at the current playback position.
+    /// </summary>
+    public bool IsAdjustmentActive => IsMarkerAdjustmentActive || IsAutoCorrectActive;
+
+    /// <summary>
+    /// Display text showing the currently active adjusted note (from marker or auto-correction).
+    /// </summary>
+    public string AdjustmentNoteText
+    {
+        get
+        {
+            if (IsMarkerAdjustmentActive && _activeMarker != null)
+                return MusicConstants.GetNoteName(_activeMarker.KeyOffset);
+
+            if (IsAutoCorrectActive)
+                return AutoCorrectEffectiveNote;
+
+            return string.Empty;
+        }
+    }
+
+    /// <summary>
+    /// Tooltip explaining where the active pitch adjustment came from.
+    /// Matches the Studio View active mode display dropdown.
+    /// </summary>
+    public string AdjustmentTooltip
+    {
+        get
+        {
+            if (IsMarkerAdjustmentActive && _activeMarker != null)
+            {
+                var note = MusicConstants.GetNoteName(_activeMarker.KeyOffset);
+                var offset = (_activeMarker.KeyOffset >= 0 ? "+" : "") + _activeMarker.KeyOffset;
+                var timeStr = FormatTimestampWithMs(_activeMarker.Time);
+                return $"Set to {note} {offset}\nMarker at {timeStr}";
+            }
+
+            if (IsAutoCorrectActive)
+                return AutoCorrectTooltip;
+
+            return string.Empty;
+        }
+    }
+
+    private static string FormatTimestampWithMs(TimeSpan time)
+    {
+        return time.Hours > 0
+            ? $"{time.Hours:D2}:{time.Minutes:D2}:{time.Seconds:D2}:{time.Milliseconds:D3}"
+            : $"{time.Minutes:D2}:{time.Seconds:D2}:{time.Milliseconds:D3}";
+    }
 
     #endregion
 
@@ -254,9 +335,14 @@ public class SongService(IContainer ioc) : PropertyChangedBase
     public void ClearSettings()
     {
         CurrentFile = null;
+        _activeMarker = null;
+        _lastActiveMarkerOffset = 0;
+        _isMarkerAdjustmentActive = false;
         UpdateKeyOptionsForCurrentSong();
         Transpose = null;
         NotifyOfPropertyChange(nameof(TransposeDisplayText));
+        NotifyOfPropertyChange(nameof(ActiveMarker));
+        NotifyOfPropertyChange(nameof(IsMarkerAdjustmentActive));
         UpdateAutoCorrectState();
     }
 
@@ -346,12 +432,15 @@ public class SongService(IContainer ioc) : PropertyChangedBase
         IsAutoCorrectActive = IsAutoCorrectActiveForCurrentInstrument();
         NotifyOfPropertyChange(nameof(AutoCorrectRawNote));
         NotifyOfPropertyChange(nameof(AutoCorrectEffectiveNote));
+        NotifyOfPropertyChange(nameof(AutoCorrectTooltip));
         NotifyOfPropertyChange(nameof(KeyDisplayText));
 
         // If auto-correct state changed, regenerate key options so dropdown items
         // show the correct note names (effective vs. raw).
         if (wasActive != _isAutoCorrectActive)
             UpdateKeyOptionsForCurrentSong();
+
+        UpdateAdjustmentState();
     }
 
     /// <summary>
@@ -435,9 +524,80 @@ public class SongService(IContainer ioc) : PropertyChangedBase
 
     /// <summary>
     /// Called by MainWindowViewModel after construction to provide the back-reference
-    /// needed for cross-ViewModel operations (edit, delete).
+    /// needed for cross-ViewModel operations (edit, delete) and playback tracking.
     /// </summary>
-    public void SetMain(MainWindowViewModel main) => _main = main;
+    public void SetMain(MainWindowViewModel main)
+    {
+        if (_main?.PlaybackControls != null)
+        {
+            _main.PlaybackControls.SongPositionChanged -= HandleSongPositionChanged;
+        }
+
+        _main = main;
+
+        if (_main?.PlaybackControls != null)
+        {
+            _main.PlaybackControls.SongPositionChanged += HandleSongPositionChanged;
+        }
+
+        UpdateAdjustmentState();
+    }
+
+    private void HandleSongPositionChanged(object? sender, EventArgs e)
+    {
+        if (_activeMarker != null || (CurrentFile?.Song?.KeyChangeMarkers is { Count: > 0 }))
+        {
+            UpdateAdjustmentState();
+        }
+    }
+
+    /// <summary>
+    /// Updates the active marker and adjustment indicator state based on the current playback time.
+    /// </summary>
+    public void UpdateAdjustmentState()
+    {
+        if (Application.Current?.Dispatcher?.CheckAccess() == false)
+        {
+            Application.Current.Dispatcher.BeginInvoke(UpdateAdjustmentState);
+            return;
+        }
+
+        var markers = CurrentFile?.Song?.KeyChangeMarkers;
+        var hasMarkers = markers is { Count: > 0 };
+
+        KeyChangeMarker? newMarker = null;
+        if (hasMarkers && _main?.PlaybackControls != null)
+        {
+            newMarker = CurrentFile!.Song.GetKeyMarkerAtTime(_main.PlaybackControls.CurrentTime);
+        }
+
+        var markerChanged = !ReferenceEquals(_activeMarker, newMarker)
+            || (newMarker != null && newMarker.KeyOffset != _lastActiveMarkerOffset);
+
+        if (markerChanged)
+        {
+            _activeMarker = newMarker;
+            _lastActiveMarkerOffset = newMarker?.KeyOffset ?? 0;
+            _isMarkerAdjustmentActive = newMarker != null;
+            NotifyOfPropertyChange(nameof(ActiveMarker));
+            NotifyOfPropertyChange(nameof(IsMarkerAdjustmentActive));
+        }
+
+        var wasAutoCorrect = _isAutoCorrectActive;
+        var isAutoCorrect = IsAutoCorrectActiveForCurrentInstrument();
+        var autoCorrectChanged = wasAutoCorrect != isAutoCorrect;
+        if (autoCorrectChanged)
+        {
+            IsAutoCorrectActive = isAutoCorrect;
+        }
+
+        if (markerChanged || autoCorrectChanged)
+        {
+            NotifyOfPropertyChange(nameof(IsAdjustmentActive));
+            NotifyOfPropertyChange(nameof(AdjustmentNoteText));
+            NotifyOfPropertyChange(nameof(AdjustmentTooltip));
+        }
+    }
 
     #endregion
 

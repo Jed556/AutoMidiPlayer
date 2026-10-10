@@ -525,21 +525,49 @@ public static class Keyboard
         );
     }
 
+    private static readonly Dictionary<string, Dictionary<string, VirtualKeyCode?>> _overriddenPedalKeyCache = new();
+
     private static VirtualKeyCode? GetOverriddenPedalKey(string layoutName, string jsonDict, VirtualKeyCode? defaultKey)
     {
         if (string.IsNullOrWhiteSpace(jsonDict)) return defaultKey;
-        try
+
+        if (!_overriddenPedalKeyCache.TryGetValue(jsonDict, out var dict))
         {
-            var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, VirtualKeyCode?>>(jsonDict);
-            if (dict != null && dict.TryGetValue(layoutName, out var overrideKey))
+            try
             {
-                // If it exists in the dictionary, it overrides the default (even if it's explicitly set to null/unassigned)
-                return overrideKey;
+                dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, VirtualKeyCode?>>(jsonDict);
             }
+            catch
+            {
+                dict = null;
+            }
+            _overriddenPedalKeyCache[jsonDict] = dict ?? new();
         }
-        catch { /* Ignore invalid JSON */ }
-        
+
+        if (dict != null && dict.TryGetValue(layoutName, out var overrideKey))
+        {
+            // If it exists in the dictionary, it overrides the default (even if it's explicitly set to null/unassigned)
+            return overrideKey;
+        }
+
         return defaultKey;
+    }
+
+    private static readonly Dictionary<string, HashSet<int>> _instrumentNoteSets = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Get the pre-computed set of MIDI notes for fast O(1) containment checks without allocations.
+    /// </summary>
+    public static HashSet<int> GetNoteSet(string? instrumentId)
+    {
+        var key = instrumentId ?? string.Empty;
+        if (_instrumentNoteSets.TryGetValue(key, out var set))
+            return set;
+
+        var notes = GetNotes(instrumentId);
+        set = new HashSet<int>(notes);
+        _instrumentNoteSets[key] = set;
+        return set;
     }
 
     /// <summary>

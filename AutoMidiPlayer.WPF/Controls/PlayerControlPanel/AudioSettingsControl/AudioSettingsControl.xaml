@@ -112,22 +112,30 @@
                     </button:PlayerControlDropdown.ButtonContent>
                 </button:PlayerControlDropdown>
 
-                <!-- Auto-correction indicator: floats below dropdown without affecting layout -->
+                <!-- Pitch adjustment indicator: floats below dropdown without affecting layout -->
                 <StackPanel Orientation="Horizontal"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Bottom"
                             Margin="0,0,3,-12"
-                            ToolTip="{Binding SongSettings.AutoCorrectTooltip}"
-                            Visibility="{Binding SongSettings.IsAutoCorrectActive, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
-                    <TextBlock Text="{Binding SongSettings.AutoCorrectEffectiveNote}"
+                            ToolTip="{Binding SongSettings.AdjustmentTooltip}"
+                            Visibility="{Binding SongSettings.IsAdjustmentActive, Converter={x:Static s:BoolToVisibilityConverter.Instance}}">
+                    <TextBlock Text="{Binding SongSettings.AdjustmentNoteText}"
                                FontSize="10"
                                VerticalAlignment="Center"
                                Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"/>
+                    <ui:SymbolIcon Symbol="Location16"
+                                   Filled="True"
+                                   FontSize="10"
+                                   Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="1,1,0,0"
+                                   Visibility="{Binding SongSettings.IsMarkerAdjustmentActive, Converter={x:Static s:BoolToVisibilityConverter.Instance}}"/>
                     <ui:SymbolIcon Symbol="Checkmark12"
                                    FontSize="10"
                                    Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
                                    VerticalAlignment="Center"
-                                   Margin="1,1,0,0"/>
+                                   Margin="1,1,0,0"
+                                   Visibility="{Binding SongSettings.IsMarkerAdjustmentActive, Converter={x:Static s:BoolToVisibilityConverter.InverseInstance}}"/>
                 </StackPanel>
             </Grid>
 

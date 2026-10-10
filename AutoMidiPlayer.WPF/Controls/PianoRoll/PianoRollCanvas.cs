@@ -16,7 +16,6 @@ using AutoMidiPlayer.WPF.Helpers;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using MidiFile = AutoMidiPlayer.Data.Midi.MidiFile;
-using SkiaSharp;
 
 namespace AutoMidiPlayer.WPF.Controls.PianoRoll;
 
@@ -26,59 +25,51 @@ public class PianoRollCanvas : FrameworkElement
 
     public event EventHandler<TimeSpan>? ScrubRequested;
     public event EventHandler<KeyChangeMarker>? MarkerClicked;
+    public event EventHandler<(KeyChangeMarker Marker, double MarkerX, Point MousePos)?>? MarkerHoverChanged;
+    public event EventHandler<(double? HoverX, long HoverMs)>? HoverPositionChanged;
 
     private static readonly HashSet<int> BlackKeys = [1, 3, 6, 8, 10];
     private static readonly string[] NoteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    private static readonly string[] MidiPitchLabels = new string[128];
 
     // Frozen brushes and pens for 60+ FPS zero-allocation rendering
     private static readonly SolidColorBrush[] TrackBrushes;
-    private static readonly SKColor[] TrackSkColors;
-    private static readonly SKColor[] DisabledTrackSkColors;
+    private static readonly SolidColorBrush[] DisabledTrackBrushes;
     private static readonly SolidColorBrush WhiteKeyBrush;
     private static readonly SolidColorBrush BlackKeyBrush;
     private static readonly SolidColorBrush BlackKeyExtensionBrush;
-    private static readonly SolidColorBrush WhiteLaneBrush;
-    private static readonly SolidColorBrush BlackLaneBrush;
     private static readonly SolidColorBrush WhiteKeyTextBrush;
     private static readonly SolidColorBrush BlackKeyTextBrush;
-    private static readonly Pen GridLinePen;
     private static readonly Pen KeyBorderPen;
     private static readonly Typeface KeyFontTypeface;
     private static readonly Pen MarkerLinePen;
     private static readonly SolidColorBrush MarkerBadgeBrush;
     private static readonly Pen MarkerBadgePen;
     private static readonly Typeface MarkerTypeface;
-    private static readonly Pen HoverLinePen;
-    private static readonly SolidColorBrush HoverPillBrush;
-    private static readonly Pen HoverPillPen;
-    private static readonly SolidColorBrush HoverTextBrush;
-    private static readonly Typeface HoverTypeface;
-    private static readonly Pen PlayheadLinePen;
-    private static readonly SolidColorBrush PlayheadMarkerBrush;
     private static readonly Geometry PlayheadMarkerGeometry;
 
     static PianoRollCanvas()
     {
+        for (var p = 0; p < 128; p++)
+        {
+            var pitchClass = p % 12;
+            var octave = (p / 12) - 1;
+            MidiPitchLabels[p] = $"{NoteNames[pitchClass]}{octave}";
+        }
+
         TrackBrushes = TrackColorPalette.AllBrushes;
-        TrackSkColors = new SKColor[TrackBrushes.Length];
-        DisabledTrackSkColors = new SKColor[TrackBrushes.Length];
+        DisabledTrackBrushes = new SolidColorBrush[TrackBrushes.Length];
         for (var i = 0; i < TrackBrushes.Length; i++)
         {
             var c = TrackBrushes[i].Color;
-            TrackSkColors[i] = new SKColor(c.R, c.G, c.B, c.A);
-            DisabledTrackSkColors[i] = new SKColor(c.R, c.G, c.B, (byte)(c.A * 0.28));
+            DisabledTrackBrushes[i] = CreateFrozenBrush(Color.FromArgb((byte)(c.A * 0.28), c.R, c.G, c.B));
         }
 
         WhiteKeyBrush = CreateFrozenBrush(Color.FromArgb(220, 240, 240, 240));
         BlackKeyBrush = CreateFrozenBrush(Color.FromArgb(255, 26, 26, 30));
         BlackKeyExtensionBrush = CreateFrozenBrush(Color.FromArgb(255, 42, 42, 48));
-        WhiteLaneBrush = CreateFrozenBrush(Color.FromArgb(12, 255, 255, 255));
-        BlackLaneBrush = CreateFrozenBrush(Color.FromArgb(24, 0, 0, 0));
         WhiteKeyTextBrush = CreateFrozenBrush(Color.FromArgb(190, 20, 20, 20));
         BlackKeyTextBrush = CreateFrozenBrush(Color.FromArgb(190, 215, 215, 220));
-
-        GridLinePen = new Pen(CreateFrozenBrush(Color.FromArgb(20, 255, 255, 255)), 1);
-        GridLinePen.Freeze();
 
         KeyBorderPen = new Pen(CreateFrozenBrush(Color.FromArgb(40, 128, 128, 128)), 1);
         KeyBorderPen.Freeze();
@@ -96,20 +87,6 @@ public class PianoRollCanvas : FrameworkElement
         MarkerBadgePen.Freeze();
 
         MarkerTypeface = new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
-
-        HoverLinePen = new Pen(CreateFrozenBrush(Color.FromArgb(120, 255, 255, 255)), 1.2);
-        HoverLinePen.Freeze();
-
-        HoverPillBrush = CreateFrozenBrush(Color.FromArgb(220, 20, 20, 24));
-        HoverPillPen = new Pen(CreateFrozenBrush(Color.FromArgb(80, 255, 255, 255)), 1);
-        HoverPillPen.Freeze();
-
-        HoverTextBrush = CreateFrozenBrush(Color.FromArgb(235, 255, 255, 255));
-        HoverTypeface = new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Medium, FontStretches.Normal);
-
-        PlayheadMarkerBrush = CreateFrozenBrush(Color.FromRgb(255, 255, 255));
-        PlayheadLinePen = new Pen(PlayheadMarkerBrush, 1.8);
-        PlayheadLinePen.Freeze();
 
         var markerGeo = new StreamGeometry();
         using (var ctx = markerGeo.Open())
@@ -137,15 +114,21 @@ public class PianoRollCanvas : FrameworkElement
     private bool _hasDragged;
 
     // Zero-allocation batched note rendering buffers per track brush
-    private readonly List<Rect>[] _trackRectsSharp;
-    private readonly List<Rect>[] _trackRectsRound;
-    private readonly double[] _lastPitchRight = new double[128];
-    private readonly int[] _lastPitchTrack = new int[128];
+    private readonly List<Rect>[] _trackRects;
+    private readonly double[] _lastPitchStart = new double[TrackColorPalette.AllBrushes.Length * 128];
+    private readonly double[] _lastPitchEnd = new double[TrackColorPalette.AllBrushes.Length * 128];
+    private readonly TranslateTransform _lanesTransform = new();
+    private readonly TranslateTransform _keyboardTransform = new();
+    private readonly TranslateTransform _playheadTransform = new();
     private readonly Dictionary<string, FormattedText> _cachedMarkerLabels = new();
-    private FormattedText? _cachedHoverLabel;
-    private string? _cachedHoverText;
-    private double _cachedHoverDpi = -1;
+    private long _lastRenderTimestamp;
+    private long _lastCurrentTimeChangeTimestamp;
+    private long? _lastReportedHoverMs;
+    private KeyChangeMarker? _lastHitMarker;
     private double _cachedDpi = -1;
+
+    public bool IsPlaybackActive =>
+        System.Diagnostics.Stopwatch.GetElapsedTime(_lastCurrentTimeChangeTimestamp).TotalMilliseconds < 150;
 
     private RollNote[] _notes = Array.Empty<RollNote>();
     private long _maxNoteLengthMs = 0;
@@ -163,38 +146,27 @@ public class PianoRollCanvas : FrameworkElement
     private double _lastLanesPitchHeight = -1;
     private int _lastLanesMinPitch = -1;
     private int _lastLanesMaxPitch = -1;
-    private RectangleGeometry? _cachedLanesClip;
-    private double _lastLanesClipW = -1;
-    private double _lastLanesClipH = -1;
 
     private DrawingGroup? _cachedKeyboard;
     private double _lastKeyboardPitchHeight = -1;
     private int _lastKeyboardMinPitch = -1;
     private int _lastKeyboardMaxPitch = -1;
     private double _lastKeyboardWidth = -1;
-    private RectangleGeometry? _cachedKeyboardClip;
-    private double _lastKeyboardClipH = -1;
-
-    private BitmapSource? _cachedNoteBitmap;
-    private long _cachedNoteViewTimeMs;
-    private double _cachedNoteZoom = -1;
-    private double _cachedNotePitchHeight = -1;
-    private double _cachedNoteVerticalOffset = -1;
-    private double _cachedNoteWidth = -1;
-    private double _cachedNoteHeight = -1;
-    private const double NoteBitmapPaddingPx = 256;
-    private const double NoteBitmapRebuildDistancePx = NoteBitmapPaddingPx * 0.75;
-    // Keep the expensive note raster surface bounded while retaining the
-    // control's logical size for scrolling, clipping, and input coordinates.
-    private const double NoteBitmapMaxPixelWidth = 1920;
-    private const double NoteBitmapMaxPixelHeight = 1080;
 
     private double _lastReportedMaxScroll = -1;
     private bool _lastReportedIsOverflowing;
 
     private SolidColorBrush _activeKeyBrush = null!;
+    private SolidColorBrush _disabledActiveKeyBrush = null!;
     private SolidColorBrush _activeKeyTextBrush = null!;
+    private SolidColorBrush _playheadMarkerBrush = null!;
+    private Pen _playheadLinePen = null!;
+    private Pen _gridLinePen = null!;
+    private SolidColorBrush _whiteLaneBrush = null!;
+    private SolidColorBrush _blackLaneBrush = null!;
     private Color _lastAccentColor;
+    private bool _lastIsDark;
+    private bool _themeInitialized;
     private int _trackCount = 1;
 
     private readonly HashSet<int> _disabledTrackIndices = new();
@@ -212,19 +184,19 @@ public class PianoRollCanvas : FrameworkElement
 
     public PianoRollCanvas()
     {
-        _trackRectsSharp = new List<Rect>[TrackBrushes.Length];
-        _trackRectsRound = new List<Rect>[TrackBrushes.Length];
+        _trackRects = new List<Rect>[TrackBrushes.Length];
         for (var i = 0; i < TrackBrushes.Length; i++)
         {
-            _trackRectsSharp[i] = new List<Rect>(256);
-            _trackRectsRound[i] = new List<Rect>(256);
+            _trackRects[i] = new List<Rect>(1024);
         }
 
-        EnsureAccentResources();
+        EnsureThemeResources();
         Loaded += (_, _) =>
         {
             AutoMidiPlayer.WPF.Services.SystemThemeService.ThemeResourcesChanged += OnThemeResourcesChanged;
             UpdateTrackSubscriptions();
+            EnsureThemeResources();
+            InvalidateVisual();
         };
         Unloaded += (_, _) =>
         {
@@ -237,24 +209,64 @@ public class PianoRollCanvas : FrameworkElement
     {
         Dispatcher.BeginInvoke(() =>
         {
-            EnsureAccentResources();
+            EnsureThemeResources();
             InvalidateVisual();
         });
     }
 
-    private void EnsureAccentResources()
+    private void EnsureThemeResources()
     {
         var accent = AutoMidiPlayer.WPF.Core.AccentColorHelper.GetAccentColor();
-        if (_activeKeyBrush != null && accent == _lastAccentColor)
+        var theme = Wpf.Ui.Appearance.ApplicationThemeManager.GetAppTheme();
+        var isDark = theme switch
+        {
+            Wpf.Ui.Appearance.ApplicationTheme.Dark => true,
+            Wpf.Ui.Appearance.ApplicationTheme.Light => false,
+            _ => AutoMidiPlayer.WPF.Services.SystemThemeService.GetSystemTheme() == Wpf.Ui.Appearance.ApplicationTheme.Dark
+        };
+
+        if (_themeInitialized && accent == _lastAccentColor && isDark == _lastIsDark)
             return;
 
         _lastAccentColor = accent;
+        _lastIsDark = isDark;
+        _themeInitialized = true;
+
         _activeKeyBrush = CreateFrozenBrush(accent);
+        _disabledActiveKeyBrush = CreateFrozenBrush(Color.FromArgb((byte)(accent.A * 0.28), accent.R, accent.G, accent.B));
 
         var lum = (0.299 * accent.R + 0.587 * accent.G + 0.114 * accent.B) / 255.0;
         _activeKeyTextBrush = CreateFrozenBrush(lum > 0.5 ? Color.FromRgb(18, 18, 20) : Colors.White);
 
+        if (isDark)
+        {
+            // Dark Mode: White / Light shades
+            _playheadMarkerBrush = CreateFrozenBrush(Color.FromRgb(255, 255, 255));
+            _playheadLinePen = new Pen(_playheadMarkerBrush, 1.8);
+            _playheadLinePen.Freeze();
+
+            _gridLinePen = new Pen(CreateFrozenBrush(Color.FromArgb(20, 255, 255, 255)), 1);
+            _gridLinePen.Freeze();
+            _whiteLaneBrush = CreateFrozenBrush(Color.FromArgb(12, 255, 255, 255));
+            _blackLaneBrush = CreateFrozenBrush(Color.FromArgb(24, 0, 0, 0));
+        }
+        else
+        {
+            // Light Mode: Black / Dark shades
+            _playheadMarkerBrush = CreateFrozenBrush(Color.FromRgb(24, 24, 28));
+            _playheadLinePen = new Pen(_playheadMarkerBrush, 1.8);
+            _playheadLinePen.Freeze();
+
+            _gridLinePen = new Pen(CreateFrozenBrush(Color.FromArgb(20, 0, 0, 0)), 1);
+            _gridLinePen.Freeze();
+            _whiteLaneBrush = CreateFrozenBrush(Color.FromArgb(8, 0, 0, 0));
+            _blackLaneBrush = CreateFrozenBrush(Color.FromArgb(18, 0, 0, 0));
+        }
+        _cachedLanes = null;
+        _cachedKeyboard = null;
+        Array.Clear(_cachedLabelsNormal, 0, 128);
         Array.Clear(_cachedLabelsActive, 0, 128);
+        _cachedMarkerLabels.Clear();
         InvalidateNoteBitmap();
     }
 
@@ -370,7 +382,42 @@ public class PianoRollCanvas : FrameworkElement
             nameof(CurrentTime),
             typeof(TimeSpan),
             typeof(PianoRollCanvas),
-            new FrameworkPropertyMetadata(TimeSpan.Zero, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(TimeSpan.Zero, FrameworkPropertyMetadataOptions.AffectsRender, OnCurrentTimePropertyChanged));
+
+    private static void OnCurrentTimePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PianoRollCanvas canvas)
+        {
+            canvas._lastCurrentTimeChangeTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+            if (canvas.IsPlaybackActive || canvas.IsPlaying)
+            {
+                if (canvas._lastHitMarker != null)
+                {
+                    canvas._lastHitMarker = null;
+                    canvas.MarkerHoverChanged?.Invoke(canvas, null);
+                }
+            }
+
+            if (canvas._hoverX.HasValue)
+            {
+                var pixelsPerMs = 0.15 * canvas.ZoomLevel;
+                var currentTimeMs = (long)canvas.CurrentTime.TotalMilliseconds;
+                var effectiveViewTimeMs = (!canvas.IsSyncEnabled && canvas.ViewTime.HasValue)
+                    ? (long)canvas.ViewTime.Value.TotalMilliseconds
+                    : currentTimeMs;
+                var hoverMs = effectiveViewTimeMs + (long)((canvas._hoverX.Value - canvas.KeyboardWidth) / pixelsPerMs);
+                var totalMs = canvas.TotalDurationMs;
+                if (totalMs > 0) hoverMs = Math.Clamp(hoverMs, 0, totalMs);
+                else hoverMs = Math.Max(0, hoverMs);
+
+                canvas.HoverPositionChanged?.Invoke(canvas, (canvas._hoverX.Value, hoverMs));
+            }
+            else if (canvas.HoverTime.HasValue)
+            {
+                canvas.UpdateHoverFromExternal();
+            }
+        }
+    }
 
     public TimeSpan CurrentTime
     {
@@ -460,6 +507,7 @@ public class PianoRollCanvas : FrameworkElement
     public int MinPitch => _minPitch;
     public int MaxPitch => _maxPitch;
     public int PitchCount => Math.Max(1, _maxPitch - _minPitch + 1);
+    public bool HasNotes => _notes.Length > 0;
     public double TotalContentHeight => PitchCount * KeyHeight;
     public double MaxVerticalOffset => Math.Max(0.0, TotalContentHeight - ActualHeight);
     public bool IsOverflowing => TotalContentHeight > ActualHeight + 1.0 && ActualHeight > 0;
@@ -543,6 +591,29 @@ public class PianoRollCanvas : FrameworkElement
         set => SetValue(PitchRevisionProperty, value);
     }
 
+    public static readonly DependencyProperty IsPlayingProperty =
+        DependencyProperty.Register(
+            nameof(IsPlaying),
+            typeof(bool),
+            typeof(PianoRollCanvas),
+            new PropertyMetadata(false, (d, e) =>
+            {
+                if (d is PianoRollCanvas canvas && (bool)e.NewValue)
+                {
+                    if (canvas._lastHitMarker != null)
+                    {
+                        canvas._lastHitMarker = null;
+                        canvas.MarkerHoverChanged?.Invoke(canvas, null);
+                    }
+                }
+            }));
+
+    public bool IsPlaying
+    {
+        get => (bool)GetValue(IsPlayingProperty);
+        set => SetValue(IsPlayingProperty, value);
+    }
+
     public static readonly DependencyProperty KeyChangeMarkersProperty =
         DependencyProperty.Register(
             nameof(KeyChangeMarkers),
@@ -576,6 +647,34 @@ public class PianoRollCanvas : FrameworkElement
         {
             UpdateNotePitches();
         }
+        InvalidateVisual();
+    }
+
+    public (KeyChangeMarker marker, double markerX)? HitTestMarker(Point point)
+    {
+        var markers = KeyChangeMarkers;
+        if (markers is null || ActualWidth <= 0)
+            return null;
+
+        var pixelsPerMs = 0.15 * ZoomLevel;
+        var currentTimeMs = (long)CurrentTime.TotalMilliseconds;
+        var effectiveViewTimeMs = (!IsSyncEnabled && ViewTime.HasValue)
+            ? (long)ViewTime.Value.TotalMilliseconds
+            : currentTimeMs;
+
+        foreach (var marker in markers)
+        {
+            var markerX = KeyboardWidth + (marker.TimeMs - effectiveViewTimeMs) * pixelsPerMs;
+            if (markerX >= KeyboardWidth && markerX <= ActualWidth)
+            {
+                if (Math.Abs(point.X - markerX) <= 12)
+                {
+                    return (marker, markerX);
+                }
+            }
+        }
+
+        return null;
     }
 
     public IEnumerable<AutoMidiPlayer.Data.Entities.KeyChangeMarker>? KeyChangeMarkers
@@ -591,7 +690,44 @@ public class PianoRollCanvas : FrameworkElement
             nameof(HoverTime),
             typeof(TimeSpan?),
             typeof(PianoRollCanvas),
-            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+            new PropertyMetadata(null, OnHoverTimePropertyChanged));
+
+    private static void OnHoverTimePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PianoRollCanvas canvas)
+        {
+            canvas.UpdateHoverFromExternal();
+        }
+    }
+
+    private void UpdateHoverFromExternal()
+    {
+        if (_hoverX.HasValue)
+            return;
+
+        if (HoverTime.HasValue)
+        {
+            var targetMs = (long)HoverTime.Value.TotalMilliseconds;
+            var pixelsPerMs = 0.15 * ZoomLevel;
+            var currentTimeMs = (long)CurrentTime.TotalMilliseconds;
+            var effectiveViewTimeMs = (!IsSyncEnabled && ViewTime.HasValue)
+                ? (long)ViewTime.Value.TotalMilliseconds
+                : currentTimeMs;
+            var targetX = KeyboardWidth + (targetMs - effectiveViewTimeMs) * pixelsPerMs;
+            if (targetX >= KeyboardWidth && targetX <= ActualWidth)
+            {
+                HoverPositionChanged?.Invoke(this, (targetX, targetMs));
+            }
+            else
+            {
+                HoverPositionChanged?.Invoke(this, (null, 0));
+            }
+        }
+        else
+        {
+            HoverPositionChanged?.Invoke(this, (null, 0));
+        }
+    }
 
     public TimeSpan? HoverTime
     {
@@ -736,9 +872,20 @@ public class PianoRollCanvas : FrameworkElement
                 }
             }
 
-            _notes = noteList.OrderBy(n => n.StartMs).ToArray();
-            _maxNoteLengthMs = _notes.Length > 0 ? _notes.Max(n => n.LengthMs) : 0;
-            _trackCount = _notes.Length > 0 ? _notes.Select(n => n.TrackIndex).Distinct().Count() : 1;
+            var notesArray = noteList.ToArray();
+            Array.Sort(notesArray, static (a, b) => a.StartMs.CompareTo(b.StartMs));
+            _notes = notesArray;
+
+            long maxLen = 0;
+            var uniqueTracks = new HashSet<int>();
+            for (var i = 0; i < notesArray.Length; i++)
+            {
+                if (notesArray[i].LengthMs > maxLen)
+                    maxLen = notesArray[i].LengthMs;
+                uniqueTracks.Add(notesArray[i].TrackIndex);
+            }
+            _maxNoteLengthMs = maxLen;
+            _trackCount = Math.Max(1, uniqueTracks.Count);
 
             UpdateNotePitchesInternal();
         }
@@ -849,10 +996,10 @@ public class PianoRollCanvas : FrameworkElement
             {
                 var y = (_maxPitch - p) * pitchHeight;
                 var isBlack = BlackKeys.Contains(p % 12);
-                var laneBrush = isBlack ? BlackLaneBrush : WhiteLaneBrush;
+                var laneBrush = isBlack ? _blackLaneBrush : _whiteLaneBrush;
 
                 dc.DrawRectangle(laneBrush, null, new Rect(KeyboardWidth, y, laneWidth, pitchHeight));
-                dc.DrawLine(GridLinePen, new Point(KeyboardWidth, y), new Point(width, y));
+                dc.DrawLine(_gridLinePen, new Point(KeyboardWidth, y), new Point(width, y));
             }
         }
         group.Freeze();
@@ -873,8 +1020,7 @@ public class PianoRollCanvas : FrameworkElement
                 var y = (_maxPitch - p) * pitchHeight;
                 var pitchClass = p % 12;
                 var isBlack = BlackKeys.Contains(pitchClass);
-                var octave = (p / 12) - 1;
-                var label = $"{NoteNames[pitchClass]}{octave}";
+                var label = (p >= 0 && p < 128) ? MidiPitchLabels[p] : $"{NoteNames[pitchClass]}{(p / 12) - 1}";
 
                 if (isBlack)
                 {
@@ -967,8 +1113,8 @@ public class PianoRollCanvas : FrameworkElement
     protected override void OnRender(DrawingContext dc)
     {
         base.OnRender(dc);
-
-        EnsureAccentResources();
+        EnsureThemeResources();
+        _lastRenderTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
 
         var width = ActualWidth;
         var height = ActualHeight;
@@ -980,10 +1126,6 @@ public class PianoRollCanvas : FrameworkElement
         var totalHeight = pitchCount * pitchHeight;
         var maxScroll = Math.Max(0.0, totalHeight - height);
         var verticalOffset = Math.Clamp(VerticalOffset, 0.0, maxScroll);
-        if (Math.Abs(verticalOffset - VerticalOffset) > 0.001)
-        {
-            VerticalOffset = verticalOffset;
-        }
 
         if (Math.Abs(maxScroll - _lastReportedMaxScroll) > 0.5 || (totalHeight > height) != _lastReportedIsOverflowing)
         {
@@ -1023,17 +1165,9 @@ public class PianoRollCanvas : FrameworkElement
             _lastLanesMinPitch = _minPitch;
             _lastLanesMaxPitch = _maxPitch;
         }
-        if (_cachedLanesClip == null || Math.Abs(_lastLanesClipW - width) > 0.5 || Math.Abs(_lastLanesClipH - height) > 0.5)
-        {
-            _cachedLanesClip = new RectangleGeometry(new Rect(KeyboardWidth, 0, Math.Max(0, width - KeyboardWidth), height));
-            _cachedLanesClip.Freeze();
-            _lastLanesClipW = width;
-            _lastLanesClipH = height;
-        }
-        dc.PushClip(_cachedLanesClip);
-        dc.PushTransform(new TranslateTransform(0, -verticalOffset));
+        _lanesTransform.Y = -verticalOffset;
+        dc.PushTransform(_lanesTransform);
         dc.DrawDrawing(_cachedLanes);
-        dc.Pop();
         dc.Pop();
 
         // 2. Draw vertical time grid lines (every 1 second)
@@ -1050,44 +1184,282 @@ public class PianoRollCanvas : FrameworkElement
             var lineX = KeyboardWidth + (gridMs - effectiveViewTimeMs) * pixelsPerMs;
             if (lineX >= KeyboardWidth && lineX <= width)
             {
-                dc.DrawLine(GridLinePen, new Point(lineX, 0), new Point(lineX, height));
+                dc.DrawLine(_gridLinePen, new Point(lineX, 0), new Point(lineX, height));
             }
         }
 
         // Reset active keys
         Array.Clear(_activeKeys, 0, _activeKeys.Length);
 
-        // 3. Raster-cached note rendering and lightweight active-key detection
+        // 3. Direct hardware-accelerated zero-allocation note rendering and active-key detection
         if (_notes.Length > 0)
         {
-            var visibleEndMs = effectiveViewTimeMs + visibleHorizonMs + 500;
+            var visibleEndMs = effectiveViewTimeMs + (long)(rollWidth / pixelsPerMs) + 500;
             var startIndex = FindFirstPossibleNoteIndex(effectiveViewTimeMs);
+            var activeStartIndex = FindFirstPossibleNoteIndex(currentTimeMs);
 
-            for (var i = startIndex; i < _notes.Length; i++)
+            // Detect active keys at playhead
+            for (var i = activeStartIndex; i < _notes.Length; i++)
             {
                 var note = _notes[i];
-                if (note.StartMs > visibleEndMs)
+                if (note.StartMs > currentTimeMs)
                     break;
 
-                var noteEndMs = note.StartMs + note.LengthMs;
-                if (noteEndMs <= effectiveViewTimeMs)
-                    continue;
-
-                if (note.StartMs <= currentTimeMs && currentTimeMs <= noteEndMs)
+                if (currentTimeMs <= note.StartMs + note.LengthMs)
                 {
-                    if (!IsTrackDisabled(note.TrackIndex) && note.NoteNumber >= 0 && note.NoteNumber < _activeKeys.Length)
+                    if (!IsTrackDisabled(note.TrackIndex) && (uint)note.NoteNumber < (uint)_activeKeys.Length)
                         _activeKeys[note.NoteNumber] = true;
                 }
             }
 
-            EnsureNoteBitmap(effectiveViewTimeMs, width, height, pitchHeight, verticalOffset, pixelsPerMs, dpi);
-            if (_cachedNoteBitmap != null)
+            var radius = Math.Min(6.0, Math.Max(2.5, pitchHeight * 0.45));
+            Array.Fill(_lastPitchStart, -1.0);
+            Array.Fill(_lastPitchEnd, -1.0);
+
+            if (_disabledTrackIndices.Count > 0)
             {
-                var bitmapOffsetX = KeyboardWidth - (effectiveViewTimeMs - _cachedNoteViewTimeMs) * pixelsPerMs;
-                var bitmapOffsetY = verticalOffset - _cachedNoteVerticalOffset;
-                dc.PushClip(_cachedLanesClip!);
-                dc.DrawImage(_cachedNoteBitmap, new Rect(bitmapOffsetX, bitmapOffsetY, _cachedNoteWidth, _cachedNoteHeight));
-                dc.Pop();
+                // Pass 1: Disabled notes first (at the back with lower opacity)
+                for (var i = startIndex; i < _notes.Length; i++)
+                {
+                    var note = _notes[i];
+                    if (note.StartMs > visibleEndMs)
+                        break;
+
+                    if (!IsTrackDisabled(note.TrackIndex))
+                        continue;
+
+                    var noteEndMs = note.StartMs + note.LengthMs;
+                    if (noteEndMs <= effectiveViewTimeMs)
+                        continue;
+
+                    var noteX = KeyboardWidth + (note.StartMs - effectiveViewTimeMs) * pixelsPerMs;
+                    var noteW = Math.Max(3.0, note.LengthMs * pixelsPerMs);
+                    if (noteX < KeyboardWidth)
+                    {
+                        noteW -= (KeyboardWidth - noteX);
+                        noteX = KeyboardWidth;
+                    }
+
+                    if (noteW <= 0.5 || noteX > width)
+                        continue;
+
+                    if (noteX + noteW > width)
+                    {
+                        noteW = width - noteX;
+                        if (noteW <= 0.5) continue;
+                    }
+
+                    var noteY = (_maxPitch - note.NoteNumber) * pitchHeight - verticalOffset;
+                    var noteH = Math.Max(2, pitchHeight - 1);
+                    if (noteY + noteH < 0 || noteY > height)
+                        continue;
+
+                    if (noteY < 0)
+                    {
+                        noteH += noteY;
+                        noteY = 0;
+                        if (noteH <= 0.5) continue;
+                    }
+
+                    if (noteY + noteH > height)
+                    {
+                        noteH = height - noteY;
+                        if (noteH <= 0.5) continue;
+                    }
+
+                    var trackIdx = Math.Abs(note.TrackIndex) % TrackBrushes.Length;
+                    var pitch = Math.Clamp(note.NoteNumber, 0, 127);
+                    var trackerKey = (trackIdx << 7) | pitch;
+
+                    var lastStart = _lastPitchStart[trackerKey];
+                    var lastEnd = _lastPitchEnd[trackerKey];
+                    if (Math.Abs(noteX - lastStart) < 0.75 && (noteX + noteW) <= lastEnd + 0.75)
+                        continue;
+
+                    _lastPitchStart[trackerKey] = noteX;
+                    _lastPitchEnd[trackerKey] = noteX + noteW;
+
+                    _trackRects[trackIdx].Add(new Rect(noteX, noteY + 0.5, noteW, noteH));
+                }
+
+                for (var t = 0; t < TrackBrushes.Length; t++)
+                {
+                    var rects = _trackRects[t];
+                    var count = rects.Count;
+                    if (count == 0) continue;
+
+                    var brush = (_trackCount == 1) ? _disabledActiveKeyBrush : DisabledTrackBrushes[t];
+                    for (var r = 0; r < count; r++)
+                    {
+                        var rect = rects[r];
+                        var cornerR = Math.Min(radius, Math.Min(rect.Width * 0.45, rect.Height * 0.45));
+                        dc.DrawRoundedRectangle(brush, null, rect, cornerR, cornerR);
+                    }
+                    rects.Clear();
+                }
+
+                // Reset coalescing tracker for Pass 2 (enabled notes)
+                Array.Fill(_lastPitchStart, -1.0);
+                Array.Fill(_lastPitchEnd, -1.0);
+
+                // Pass 2: Enabled notes on top
+                for (var i = startIndex; i < _notes.Length; i++)
+                {
+                    var note = _notes[i];
+                    if (note.StartMs > visibleEndMs)
+                        break;
+
+                    if (IsTrackDisabled(note.TrackIndex))
+                        continue;
+
+                    var noteEndMs = note.StartMs + note.LengthMs;
+                    if (noteEndMs <= effectiveViewTimeMs)
+                        continue;
+
+                    var noteX = KeyboardWidth + (note.StartMs - effectiveViewTimeMs) * pixelsPerMs;
+                    var noteW = Math.Max(3.0, note.LengthMs * pixelsPerMs);
+                    if (noteX < KeyboardWidth)
+                    {
+                        noteW -= (KeyboardWidth - noteX);
+                        noteX = KeyboardWidth;
+                    }
+
+                    if (noteW <= 0.5 || noteX > width)
+                        continue;
+
+                    if (noteX + noteW > width)
+                    {
+                        noteW = width - noteX;
+                        if (noteW <= 0.5) continue;
+                    }
+
+                    var noteY = (_maxPitch - note.NoteNumber) * pitchHeight - verticalOffset;
+                    var noteH = Math.Max(2, pitchHeight - 1);
+                    if (noteY + noteH < 0 || noteY > height)
+                        continue;
+
+                    if (noteY < 0)
+                    {
+                        noteH += noteY;
+                        noteY = 0;
+                        if (noteH <= 0.5) continue;
+                    }
+
+                    if (noteY + noteH > height)
+                    {
+                        noteH = height - noteY;
+                        if (noteH <= 0.5) continue;
+                    }
+
+                    var trackIdx = Math.Abs(note.TrackIndex) % TrackBrushes.Length;
+                    var pitch = Math.Clamp(note.NoteNumber, 0, 127);
+                    var trackerKey = (trackIdx << 7) | pitch;
+
+                    var lastStart = _lastPitchStart[trackerKey];
+                    var lastEnd = _lastPitchEnd[trackerKey];
+                    if (Math.Abs(noteX - lastStart) < 0.75 && (noteX + noteW) <= lastEnd + 0.75)
+                        continue;
+
+                    _lastPitchStart[trackerKey] = noteX;
+                    _lastPitchEnd[trackerKey] = noteX + noteW;
+
+                    _trackRects[trackIdx].Add(new Rect(noteX, noteY + 0.5, noteW, noteH));
+                }
+
+                for (var t = 0; t < TrackBrushes.Length; t++)
+                {
+                    var rects = _trackRects[t];
+                    var count = rects.Count;
+                    if (count == 0) continue;
+
+                    var brush = (_trackCount == 1) ? _activeKeyBrush : TrackBrushes[t];
+                    for (var r = 0; r < count; r++)
+                    {
+                        var rect = rects[r];
+                        var cornerR = Math.Min(radius, Math.Min(rect.Width * 0.45, rect.Height * 0.45));
+                        dc.DrawRoundedRectangle(brush, null, rect, cornerR, cornerR);
+                    }
+                    rects.Clear();
+                }
+            }
+            else
+            {
+                // Fast path when all tracks are active
+                for (var i = startIndex; i < _notes.Length; i++)
+                {
+                    var note = _notes[i];
+                    if (note.StartMs > visibleEndMs)
+                        break;
+
+                    var noteEndMs = note.StartMs + note.LengthMs;
+                    if (noteEndMs <= effectiveViewTimeMs)
+                        continue;
+
+                    var noteX = KeyboardWidth + (note.StartMs - effectiveViewTimeMs) * pixelsPerMs;
+                    var noteW = Math.Max(3.0, note.LengthMs * pixelsPerMs);
+                    if (noteX < KeyboardWidth)
+                    {
+                        noteW -= (KeyboardWidth - noteX);
+                        noteX = KeyboardWidth;
+                    }
+
+                    if (noteW <= 0.5 || noteX > width)
+                        continue;
+
+                    if (noteX + noteW > width)
+                    {
+                        noteW = width - noteX;
+                        if (noteW <= 0.5) continue;
+                    }
+
+                    var noteY = (_maxPitch - note.NoteNumber) * pitchHeight - verticalOffset;
+                    var noteH = Math.Max(2, pitchHeight - 1);
+                    if (noteY + noteH < 0 || noteY > height)
+                        continue;
+
+                    if (noteY < 0)
+                    {
+                        noteH += noteY;
+                        noteY = 0;
+                        if (noteH <= 0.5) continue;
+                    }
+
+                    if (noteY + noteH > height)
+                    {
+                        noteH = height - noteY;
+                        if (noteH <= 0.5) continue;
+                    }
+
+                    var trackIdx = Math.Abs(note.TrackIndex) % TrackBrushes.Length;
+                    var pitch = Math.Clamp(note.NoteNumber, 0, 127);
+                    var trackerKey = (trackIdx << 7) | pitch;
+
+                    var lastStart = _lastPitchStart[trackerKey];
+                    var lastEnd = _lastPitchEnd[trackerKey];
+                    if (Math.Abs(noteX - lastStart) < 0.75 && (noteX + noteW) <= lastEnd + 0.75)
+                        continue;
+
+                    _lastPitchStart[trackerKey] = noteX;
+                    _lastPitchEnd[trackerKey] = noteX + noteW;
+
+                    _trackRects[trackIdx].Add(new Rect(noteX, noteY + 0.5, noteW, noteH));
+                }
+
+                for (var t = 0; t < TrackBrushes.Length; t++)
+                {
+                    var rects = _trackRects[t];
+                    var count = rects.Count;
+                    if (count == 0) continue;
+
+                    var brush = (_trackCount == 1) ? _activeKeyBrush : TrackBrushes[t];
+                    for (var r = 0; r < count; r++)
+                    {
+                        var rect = rects[r];
+                        var cornerR = Math.Min(radius, Math.Min(rect.Width * 0.45, rect.Height * 0.45));
+                        dc.DrawRoundedRectangle(brush, null, rect, cornerR, cornerR);
+                    }
+                    rects.Clear();
+                }
             }
         }
 
@@ -1117,67 +1489,6 @@ public class PianoRollCanvas : FrameworkElement
             }
         }
 
-        // 4.5. Draw hover guide line and timestamp pill
-        double? effectiveHoverX = null;
-        long hoverMs = 0;
-
-        if (_hoverX.HasValue && _hoverX.Value >= KeyboardWidth && _hoverX.Value <= width)
-        {
-            effectiveHoverX = _hoverX.Value;
-            hoverMs = effectiveViewTimeMs + (long)((effectiveHoverX.Value - KeyboardWidth) / pixelsPerMs);
-        }
-        else if (HoverTime.HasValue)
-        {
-            var targetMs = (long)HoverTime.Value.TotalMilliseconds;
-            var targetX = KeyboardWidth + (targetMs - effectiveViewTimeMs) * pixelsPerMs;
-            if (targetX >= KeyboardWidth && targetX <= width)
-            {
-                effectiveHoverX = targetX;
-                hoverMs = targetMs;
-            }
-        }
-
-        if (effectiveHoverX.HasValue)
-        {
-            var hx = effectiveHoverX.Value;
-            dc.DrawLine(HoverLinePen, new Point(hx, 0), new Point(hx, height));
-            var totalMs = TotalDurationMs;
-            if (totalMs > 0) hoverMs = Math.Clamp(hoverMs, 0, totalMs);
-            else hoverMs = Math.Max(0, hoverMs);
-
-            var hoverTime = TimeSpan.FromMilliseconds(hoverMs);
-            var timeText = hoverTime.TotalHours >= 1
-                ? hoverTime.ToString(@"h\:mm\:ss\.f", CultureInfo.InvariantCulture)
-                : hoverTime.ToString(@"m\:ss\.f", CultureInfo.InvariantCulture);
-
-            if (_cachedHoverLabel == null ||
-                !string.Equals(_cachedHoverText, timeText, StringComparison.Ordinal) ||
-                Math.Abs(_cachedHoverDpi - dpi) > 0.001)
-            {
-                _cachedHoverLabel = new FormattedText(
-                    timeText,
-                    CultureInfo.InvariantCulture,
-                    FlowDirection.LeftToRight,
-                    HoverTypeface,
-                    9.5,
-                    HoverTextBrush,
-                    dpi);
-                _cachedHoverText = timeText;
-                _cachedHoverDpi = dpi;
-            }
-
-            var formattedHover = _cachedHoverLabel;
-
-            var pillW = formattedHover.Width + 8;
-            var pillH = formattedHover.Height + 2;
-            var pillX = Math.Clamp(hx - (pillW / 2), KeyboardWidth + 2, width - pillW - 2);
-            var pillY = height - pillH - 3;
-            var pillRect = new Rect(pillX, pillY, pillW, pillH);
-
-            dc.DrawRoundedRectangle(HoverPillBrush, HoverPillPen, pillRect, 3, 3);
-            dc.DrawText(formattedHover, new Point(pillRect.X + 4, pillRect.Y + 1));
-        }
-
         // 5. Draw cached stationary keyboard
         if (_cachedKeyboard == null || Math.Abs(_lastKeyboardPitchHeight - pitchHeight) > 0.001 || _lastKeyboardMinPitch != _minPitch || _lastKeyboardMaxPitch != _maxPitch || Math.Abs(_lastKeyboardWidth - KeyboardWidth) > 0.1)
         {
@@ -1188,16 +1499,9 @@ public class PianoRollCanvas : FrameworkElement
             _lastKeyboardWidth = KeyboardWidth;
         }
 
-        if (_cachedKeyboardClip == null || Math.Abs(_lastKeyboardClipH - height) > 0.5)
-        {
-            _cachedKeyboardClip = new RectangleGeometry(new Rect(0, 0, KeyboardWidth, height));
-            _cachedKeyboardClip.Freeze();
-            _lastKeyboardClipH = height;
-        }
-        dc.PushClip(_cachedKeyboardClip);
-        dc.PushTransform(new TranslateTransform(0, -verticalOffset));
+        _keyboardTransform.Y = -verticalOffset;
+        dc.PushTransform(_keyboardTransform);
         dc.DrawDrawing(_cachedKeyboard);
-        dc.Pop();
         dc.Pop();
 
         // 5. Draw active key overlays on top (only for pressed keys)
@@ -1213,8 +1517,7 @@ public class PianoRollCanvas : FrameworkElement
 
             var pitchClass = p % 12;
             var isBlack = BlackKeys.Contains(pitchClass);
-            var octave = (p / 12) - 1;
-            var label = $"{NoteNames[pitchClass]}{octave}";
+            var label = (p >= 0 && p < 128) ? MidiPitchLabels[p] : $"{NoteNames[pitchClass]}{(p / 12) - 1}";
 
             // Highlight full key with active accent
             dc.DrawRectangle(_activeKeyBrush, KeyBorderPen, new Rect(0, y, KeyboardWidth, pitchHeight));
@@ -1237,9 +1540,11 @@ public class PianoRollCanvas : FrameworkElement
             var playheadX = KeyboardWidth + (currentTimeMs - effectiveViewTimeMs) * pixelsPerMs;
             if (playheadX >= KeyboardWidth && playheadX <= width)
             {
-                dc.DrawLine(PlayheadLinePen, new Point(playheadX, 0), new Point(playheadX, height));
-                dc.PushTransform(new TranslateTransform(playheadX, 0));
-                dc.DrawGeometry(PlayheadMarkerBrush, null, PlayheadMarkerGeometry);
+                dc.DrawLine(_playheadLinePen, new Point(playheadX, 0), new Point(playheadX, height));
+                _playheadTransform.X = playheadX;
+                _playheadTransform.Y = 0;
+                dc.PushTransform(_playheadTransform);
+                dc.DrawGeometry(_playheadMarkerBrush, null, PlayheadMarkerGeometry);
                 dc.Pop();
             }
         }
@@ -1247,188 +1552,7 @@ public class PianoRollCanvas : FrameworkElement
 
     private void InvalidateNoteBitmap()
     {
-        _cachedNoteBitmap = null;
-        _cachedNoteZoom = -1;
-        _cachedNotePitchHeight = -1;
-        _cachedNoteVerticalOffset = -1;
-        _cachedNoteWidth = -1;
-        _cachedNoteHeight = -1;
     }
-
-    private void EnsureNoteBitmap(
-        long effectiveViewTimeMs,
-        double width,
-        double height,
-        double pitchHeight,
-        double verticalOffset,
-        double pixelsPerMs,
-        double dpi)
-    {
-        var rollWidth = Math.Max(1, width - KeyboardWidth);
-        var noteWidth = Math.Ceiling(rollWidth + NoteBitmapPaddingPx * 2);
-        var noteHeight = Math.Ceiling(height);
-        var cachedCenterTimeMs = _cachedNoteBitmap == null
-            ? 0
-            : _cachedNoteViewTimeMs + (long)(NoteBitmapPaddingPx / pixelsPerMs);
-        var horizontalDrift = _cachedNoteBitmap == null
-            ? double.PositiveInfinity
-            : Math.Abs(effectiveViewTimeMs - cachedCenterTimeMs) * pixelsPerMs;
-
-        var needsRebuild = _cachedNoteBitmap == null ||
-            horizontalDrift > NoteBitmapRebuildDistancePx ||
-            Math.Abs(_cachedNoteZoom - ZoomLevel) > 0.001 ||
-            Math.Abs(_cachedNotePitchHeight - pitchHeight) > 0.001 ||
-            Math.Abs(_cachedNoteVerticalOffset - verticalOffset) > 0.001 ||
-            Math.Abs(_cachedNoteWidth - noteWidth) > 0.5 ||
-            Math.Abs(_cachedNoteHeight - noteHeight) > 0.5;
-
-        if (!needsRebuild)
-            return;
-
-        var cacheStartTimeMs = effectiveViewTimeMs - (long)(NoteBitmapPaddingPx / pixelsPerMs);
-        var rasterScale = Math.Min(
-            dpi,
-            Math.Min(
-                NoteBitmapMaxPixelWidth / noteWidth,
-                NoteBitmapMaxPixelHeight / noteHeight));
-        rasterScale = Math.Max(0.25, rasterScale);
-        var pixelWidth = (int)Math.Max(1, Math.Ceiling(noteWidth * rasterScale));
-        var pixelHeight = (int)Math.Max(1, Math.Ceiling(noteHeight * rasterScale));
-        var imageInfo = new SKImageInfo(pixelWidth, pixelHeight, SKColorType.Bgra8888, SKAlphaType.Premul);
-        using var surface = SKSurface.Create(imageInfo);
-        if (surface == null)
-        {
-            throw new InvalidOperationException("Unable to create the Skia note cache surface.");
-        }
-
-        var skiaCanvas = surface.Canvas;
-        skiaCanvas.Clear(SKColors.Transparent);
-        skiaCanvas.Scale((float)rasterScale);
-
-        using var paint = new SKPaint
-        {
-            Style = SKPaintStyle.Fill,
-            IsAntialias = true
-        };
-
-        var visibleEndMs = cacheStartTimeMs + (long)(noteWidth / pixelsPerMs) + 500;
-        var startIndex = FindFirstPossibleNoteIndex(cacheStartTimeMs);
-        var allowRounding = ZoomLevel >= 0.5 && pitchHeight >= 5.0;
-        var radius = Math.Min(6.0, Math.Max(2.5, pitchHeight * 0.45));
-
-        var singleTrackColor = _trackCount == 1 ? ToSkColor(_activeKeyBrush.Color) : default;
-        var disabledSingleTrackColor = _trackCount == 1
-            ? new SKColor(_activeKeyBrush.Color.R, _activeKeyBrush.Color.G, _activeKeyBrush.Color.B, (byte)(_activeKeyBrush.Color.A * 0.28))
-            : default;
-
-        void DrawNote(RollNote note, bool isDisabled)
-        {
-            var noteEndMs = note.StartMs + note.LengthMs;
-            if (noteEndMs <= cacheStartTimeMs)
-                return;
-
-            var noteX = (note.StartMs - cacheStartTimeMs) * pixelsPerMs;
-            var noteW = Math.Max(3.0, note.LengthMs * pixelsPerMs);
-            if (noteX < 0)
-            {
-                noteW += noteX;
-                noteX = 0;
-            }
-
-            if (noteW <= 0.5)
-                return;
-
-            var noteY = (_maxPitch - note.NoteNumber) * pitchHeight - verticalOffset;
-            var noteH = Math.Max(2, pitchHeight - 1);
-            if (noteY + noteH < 0 || noteY > height)
-                return;
-
-            var trackIdx = Math.Abs(note.TrackIndex) % TrackBrushes.Length;
-
-            paint.Color = isDisabled
-                ? (_trackCount == 1 ? disabledSingleTrackColor : DisabledTrackSkColors[trackIdx])
-                : (_trackCount == 1 ? singleTrackColor : TrackSkColors[trackIdx]);
-
-            var rect = new SKRect((float)noteX, (float)(noteY + 0.5), (float)(noteX + noteW), (float)(noteY + noteH + 0.5));
-
-            if (allowRounding && noteW >= 6.0)
-            {
-                var cornerRadius = (float)Math.Min(radius, noteW * 0.45);
-                skiaCanvas.DrawRoundRect(rect, cornerRadius, cornerRadius, paint);
-            }
-            else
-            {
-                skiaCanvas.DrawRect(rect, paint);
-            }
-        }
-
-        if (_disabledTrackIndices.Count > 0)
-        {
-            // Pass 1: Draw disabled notes FIRST at the very back with low opacity
-            for (var i = startIndex; i < _notes.Length; i++)
-            {
-                var note = _notes[i];
-                if (note.StartMs > visibleEndMs)
-                    break;
-
-                if (IsTrackDisabled(note.TrackIndex))
-                {
-                    DrawNote(note, isDisabled: true);
-                }
-            }
-
-            // Pass 2: Draw enabled notes SECOND on top with normal opacity
-            for (var i = startIndex; i < _notes.Length; i++)
-            {
-                var note = _notes[i];
-                if (note.StartMs > visibleEndMs)
-                    break;
-
-                if (!IsTrackDisabled(note.TrackIndex))
-                {
-                    DrawNote(note, isDisabled: false);
-                }
-            }
-        }
-        else
-        {
-            // Fast path when all tracks are enabled
-            for (var i = startIndex; i < _notes.Length; i++)
-            {
-                var note = _notes[i];
-                if (note.StartMs > visibleEndMs)
-                    break;
-
-                DrawNote(note, isDisabled: false);
-            }
-        }
-
-        surface.Flush();
-        var pixelBytes = new byte[pixelWidth * pixelHeight * 4];
-        var pixmap = surface.PeekPixels() ?? throw new InvalidOperationException("Skia surface pixels are unavailable.");
-        pixmap.GetPixelSpan().CopyTo(pixelBytes);
-        var bitmap = BitmapSource.Create(
-            pixelWidth,
-            pixelHeight,
-            96 * rasterScale,
-            96 * rasterScale,
-            PixelFormats.Pbgra32,
-            null,
-            pixelBytes,
-            pixelWidth * 4);
-        bitmap.Freeze();
-
-        _cachedNoteBitmap = bitmap;
-        _cachedNoteViewTimeMs = cacheStartTimeMs;
-        _cachedNoteZoom = ZoomLevel;
-        _cachedNotePitchHeight = pitchHeight;
-        _cachedNoteVerticalOffset = verticalOffset;
-        _cachedNoteWidth = noteWidth;
-        _cachedNoteHeight = noteHeight;
-    }
-
-    private static SKColor ToSkColor(Color color)
-        => new(color.R, color.G, color.B, color.A);
 
     private int FindFirstPossibleNoteIndex(long targetMs)
     {
@@ -1470,6 +1594,7 @@ public class PianoRollCanvas : FrameworkElement
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonDown(e);
+        MarkerHoverChanged?.Invoke(this, null);
         var pos = e.GetPosition(this);
         if (pos.X >= KeyboardWidth && pos.X <= ActualWidth && ActualWidth > KeyboardWidth + 10)
         {
@@ -1507,6 +1632,7 @@ public class PianoRollCanvas : FrameworkElement
             _dragAnchorTimeMs = effectiveViewTimeMs;
             _dragAnchorMouseX = pos.X;
             _hoverX = pos.X;
+            HoverPositionChanged?.Invoke(this, (pos.X, clickedMs));
 
             InvalidateVisual();
             e.Handled = true;
@@ -1516,10 +1642,12 @@ public class PianoRollCanvas : FrameworkElement
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
+        e.Handled = true;
         var pos = e.GetPosition(this);
 
         if (_isDragging && IsMouseCaptured)
         {
+            MarkerHoverChanged?.Invoke(this, null);
             var deltaX = pos.X - _dragAnchorMouseX;
             var pixelsPerMs = 0.15 * ZoomLevel;
 
@@ -1552,15 +1680,32 @@ public class PianoRollCanvas : FrameworkElement
             }
 
             _hoverX = Math.Clamp(pos.X, KeyboardWidth, ActualWidth);
+            var currentEffectiveMs = (!IsSyncEnabled && ViewTime.HasValue) ? (long)ViewTime.Value.TotalMilliseconds : (long)CurrentTime.TotalMilliseconds;
+            var currentHoverMs = currentEffectiveMs + (long)((_hoverX.Value - KeyboardWidth) / pixelsPerMs);
+            HoverPositionChanged?.Invoke(this, (_hoverX.Value, currentHoverMs));
             InvalidateVisual();
-            e.Handled = true;
             return;
         }
 
         if (pos.X >= KeyboardWidth && pos.X <= ActualWidth)
         {
             _hoverX = pos.X;
-            Cursor = Cursors.Hand;
+            if (Cursor != Cursors.Hand) Cursor = Cursors.Hand;
+
+            var hitMarker = HitTestMarker(pos);
+            if (hitMarker?.marker != _lastHitMarker)
+            {
+                _lastHitMarker = hitMarker?.marker;
+                if (hitMarker.HasValue)
+                {
+                    MarkerHoverChanged?.Invoke(this, (hitMarker.Value.marker, hitMarker.Value.markerX, pos));
+                }
+                else
+                {
+                    MarkerHoverChanged?.Invoke(this, null);
+                }
+            }
+
             var pixelsPerMs = 0.15 * ZoomLevel;
             var effectiveViewTimeMs = (!IsSyncEnabled && ViewTime.HasValue)
                 ? (long)ViewTime.Value.TotalMilliseconds
@@ -1569,17 +1714,29 @@ public class PianoRollCanvas : FrameworkElement
             var totalMs = TotalDurationMs;
             if (totalMs > 0) hoverMs = Math.Clamp(hoverMs, 0, totalMs);
             else hoverMs = Math.Max(0, hoverMs);
-            HoverTimeChanged?.Invoke(this, TimeSpan.FromMilliseconds(hoverMs));
-            InvalidateVisual();
+
+            if (!_lastReportedHoverMs.HasValue || Math.Abs(hoverMs - _lastReportedHoverMs.Value) >= 10)
+            {
+                _lastReportedHoverMs = hoverMs;
+                HoverTimeChanged?.Invoke(this, TimeSpan.FromMilliseconds(hoverMs));
+            }
+
+            HoverPositionChanged?.Invoke(this, (pos.X, hoverMs));
         }
         else
         {
+            if (_lastHitMarker != null)
+            {
+                _lastHitMarker = null;
+                MarkerHoverChanged?.Invoke(this, null);
+            }
             if (_hoverX.HasValue)
             {
                 _hoverX = null;
-                Cursor = Cursors.Arrow;
+                _lastReportedHoverMs = null;
+                if (Cursor != Cursors.Arrow) Cursor = Cursors.Arrow;
                 HoverTimeChanged?.Invoke(this, null);
-                InvalidateVisual();
+                HoverPositionChanged?.Invoke(this, (null, 0));
             }
         }
     }
@@ -1614,8 +1771,10 @@ public class PianoRollCanvas : FrameworkElement
             if (posUp.X < KeyboardWidth || posUp.X > ActualWidth)
             {
                 _hoverX = null;
-                Cursor = Cursors.Arrow;
+                _lastReportedHoverMs = null;
+                if (Cursor != Cursors.Arrow) Cursor = Cursors.Arrow;
                 HoverTimeChanged?.Invoke(this, null);
+                HoverPositionChanged?.Invoke(this, (null, 0));
             }
             InvalidateVisual();
             e.Handled = true;
@@ -1625,14 +1784,21 @@ public class PianoRollCanvas : FrameworkElement
     protected override void OnMouseLeave(MouseEventArgs e)
     {
         base.OnMouseLeave(e);
+        e.Handled = true;
+        if (_lastHitMarker != null)
+        {
+            _lastHitMarker = null;
+            MarkerHoverChanged?.Invoke(this, null);
+        }
         if (!_isDragging)
         {
             if (_hoverX.HasValue)
             {
                 _hoverX = null;
-                Cursor = Cursors.Arrow;
+                _lastReportedHoverMs = null;
+                if (Cursor != Cursors.Arrow) Cursor = Cursors.Arrow;
                 HoverTimeChanged?.Invoke(this, null);
-                InvalidateVisual();
+                HoverPositionChanged?.Invoke(this, (null, 0));
             }
         }
     }

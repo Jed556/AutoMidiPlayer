@@ -12,9 +12,19 @@ public partial class HorizontalPianoRoll : UserControl
 {
     public event EventHandler<TimeSpan>? ScrubRequested;
     public event EventHandler<KeyChangeMarker>? MarkerClicked;
+    public event EventHandler<KeyChangeMarker>? MarkerDeleteRequested;
+    public event EventHandler<KeyChangeMarker>? MarkerEditRequested;
     public event EventHandler<double>? ZoomAdjustRequested;
     public event EventHandler<TimeSpan?>? HoverTimeChanged;
     public event EventHandler<TimeSpan?>? ViewTimeChanged;
+
+    private readonly System.Windows.Threading.DispatcherTimer _markerHideTimer = new()
+    {
+        Interval = TimeSpan.FromMilliseconds(250)
+    };
+    private bool _isMarkerHovered;
+    private bool _isPopupHovered;
+    private KeyChangeMarker? _activeHoverMarker;
 
     public static readonly DependencyProperty DisplayModeProperty =
         DependencyProperty.Register(
@@ -71,6 +81,32 @@ public partial class HorizontalPianoRoll : UserControl
     {
         get => (int)GetValue(PitchRevisionProperty);
         set => SetValue(PitchRevisionProperty, value);
+    }
+
+    public static readonly DependencyProperty IsPlayingProperty =
+        DependencyProperty.Register(
+            nameof(IsPlaying),
+            typeof(bool),
+            typeof(HorizontalPianoRoll),
+            new PropertyMetadata(false, (d, e) =>
+            {
+                if (d is HorizontalPianoRoll roll)
+                {
+                    if (roll.Canvas != null)
+                    {
+                        roll.Canvas.IsPlaying = (bool)e.NewValue;
+                    }
+                    if ((bool)e.NewValue)
+                    {
+                        roll.HideMarkerPopupImmediate();
+                    }
+                }
+            }));
+
+    public bool IsPlaying
+    {
+        get => (bool)GetValue(IsPlayingProperty);
+        set => SetValue(IsPlayingProperty, value);
     }
 
     public static readonly DependencyProperty IsSyncEnabledProperty =
@@ -172,7 +208,15 @@ public partial class HorizontalPianoRoll : UserControl
             nameof(CurrentTime),
             typeof(TimeSpan),
             typeof(HorizontalPianoRoll),
-            new PropertyMetadata(TimeSpan.Zero, (d, e) => ((HorizontalPianoRoll)d).Canvas.CurrentTime = (TimeSpan)e.NewValue));
+            new PropertyMetadata(TimeSpan.Zero, (d, e) =>
+            {
+                var roll = (HorizontalPianoRoll)d;
+                if (roll.Canvas != null)
+                {
+                    roll.Canvas.CurrentTime = (TimeSpan)e.NewValue;
+                    roll.UpdateMarkerPopupPositionDuringPlayback();
+                }
+            }));
 
     public TimeSpan CurrentTime
     {
@@ -197,6 +241,29 @@ public partial class HorizontalPianoRoll : UserControl
     {
         get => (IEnumerable<AutoMidiPlayer.Data.Entities.KeyChangeMarker>?)GetValue(KeyChangeMarkersProperty);
         set => SetValue(KeyChangeMarkersProperty, value);
+    }
+
+    public static readonly DependencyProperty SelectedMarkerProperty =
+        DependencyProperty.Register(
+            nameof(SelectedMarker),
+            typeof(KeyChangeMarker),
+            typeof(HorizontalPianoRoll),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnSelectedMarkerChanged));
+
+    private static void OnSelectedMarkerChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var roll = (HorizontalPianoRoll)d;
+        var selected = (KeyChangeMarker?)e.NewValue;
+        if (roll.MarkerPopup?.IsOpen == true && roll._activeHoverMarker != null)
+        {
+            roll.MarkerPopupContent.IsMarkerSelected = (roll._activeHoverMarker == selected);
+        }
+    }
+
+    public KeyChangeMarker? SelectedMarker
+    {
+        get => (KeyChangeMarker?)GetValue(SelectedMarkerProperty);
+        set => SetValue(SelectedMarkerProperty, value);
     }
 
     public static readonly DependencyProperty ZoomLevelProperty =
@@ -236,9 +303,15 @@ public partial class HorizontalPianoRoll : UserControl
     public HorizontalPianoRoll()
     {
         InitializeComponent();
+        _markerHideTimer.Tick += OnMarkerHideTimerTick;
         Canvas.ScrubRequested += (s, time) => ScrubRequested?.Invoke(this, time);
         Canvas.MarkerClicked += (s, marker) => MarkerClicked?.Invoke(this, marker);
+        Canvas.MarkerHoverChanged += OnCanvasMarkerHoverChanged;
         Canvas.HoverTimeChanged += (s, time) => HoverTimeChanged?.Invoke(this, time);
+        Canvas.HoverPositionChanged += (s, e) =>
+        {
+            HoverOverlay?.SetHover(e.HoverX, e.HoverMs, Canvas.KeyboardWidth, Canvas.TotalDurationMs);
+        };
         Canvas.ViewTimeChanged += (s, time) =>
         {
             ViewTime = time;
@@ -268,9 +341,14 @@ public partial class HorizontalPianoRoll : UserControl
                 Canvas.KeyHeight = KeyHeight;
                 Canvas.InstrumentId = InstrumentId;
                 Canvas.PitchRevision = PitchRevision;
+                Canvas.CurrentTime = CurrentTime;
+                Canvas.InvalidateVisual();
             }
-            Canvas?.RebuildNoteIndex();
-            UpdateScrollBounds();
+            if (Canvas?.HasNotes != true)
+            {
+                Canvas?.RebuildNoteIndex();
+            }
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, UpdateScrollBounds);
         };
     }
 
@@ -305,14 +383,20 @@ public partial class HorizontalPianoRoll : UserControl
         var totalHeight = Canvas.TotalContentHeight;
         var viewportHeight = Canvas.ActualHeight;
 
-        if (totalHeight > viewportHeight + 1.0 && viewportHeight > 0)
+        if (viewportHeight <= 0)
+        {
+            // Layout arrangement not yet complete; do not destroy scroll offset
+            return;
+        }
+
+        if (totalHeight > viewportHeight + 1.0)
         {
             VerticalScrollBar.Visibility = Visibility.Visible;
             VerticalScrollBar.Maximum = totalHeight - viewportHeight;
             VerticalScrollBar.ViewportSize = viewportHeight;
             VerticalScrollBar.SmallChange = Canvas.KeyHeight;
             VerticalScrollBar.LargeChange = Canvas.KeyHeight * 4;
-            VerticalScrollBar.Value = Canvas.VerticalOffset;
+            VerticalScrollBar.Value = Math.Clamp(Canvas.VerticalOffset, 0, VerticalScrollBar.Maximum);
         }
         else
         {
@@ -375,5 +459,145 @@ public partial class HorizontalPianoRoll : UserControl
                 e.Handled = true;
             }
         }
+    }
+
+    private void OnCanvasMarkerHoverChanged(object? sender, (KeyChangeMarker Marker, double MarkerX, Point MousePos)? e)
+    {
+        if (e.HasValue)
+        {
+            ShowMarkerPopup(e.Value.Marker, e.Value.MarkerX, e.Value.MousePos.Y);
+        }
+        else
+        {
+            if (_isMarkerHovered)
+            {
+                _isMarkerHovered = false;
+                if (!_isPopupHovered)
+                {
+                    StartMarkerHideTimer();
+                }
+            }
+        }
+    }
+
+    private void ShowMarkerPopup(KeyChangeMarker marker, double markerX, double mouseY)
+    {
+        if (IsPlaying || (Canvas != null && Canvas.IsPlaybackActive))
+            return;
+
+        _isMarkerHovered = true;
+        _markerHideTimer.Stop();
+
+        if (MarkerPopup == null || MarkerPopupContent == null || Canvas == null)
+            return;
+
+        if (_activeHoverMarker != marker)
+        {
+            _activeHoverMarker = marker;
+            MarkerPopupContent.SetMarker(marker, isAbove: false, isSelected: marker == SelectedMarker);
+        }
+        else
+        {
+            MarkerPopupContent.IsMarkerSelected = (marker == SelectedMarker);
+        }
+
+        const double popupWidth = 84.0;
+        var clampedX = Math.Clamp(markerX - (popupWidth / 2.0), Canvas.KeyboardWidth, Math.Max(Canvas.KeyboardWidth, Canvas.ActualWidth - popupWidth));
+        var anchorY = mouseY <= 50 ? 22.0 : Math.Min(mouseY + 4, Math.Max(22.0, Canvas.ActualHeight - 70));
+
+        MarkerPopup.HorizontalOffset = clampedX;
+        MarkerPopup.VerticalOffset = anchorY;
+
+        if (!MarkerPopup.IsOpen)
+        {
+            MarkerPopup.IsOpen = true;
+            MarkerPopupContent.PlayEntranceAnimation();
+        }
+    }
+
+    public void UpdateMarkerPopupPositionDuringPlayback()
+    {
+        if (MarkerPopup?.IsOpen == true && (IsPlaying || (Canvas != null && Canvas.IsPlaybackActive)))
+        {
+            HideMarkerPopupImmediate();
+            return;
+        }
+
+        if (MarkerPopup?.IsOpen != true || _activeHoverMarker == null || _isPopupHovered || Canvas == null)
+            return;
+
+        var pixelsPerMs = 0.15 * ZoomLevel;
+        var effectiveViewTimeMs = (!IsSyncEnabled && ViewTime.HasValue)
+            ? (long)ViewTime.Value.TotalMilliseconds
+            : (long)CurrentTime.TotalMilliseconds;
+
+        var markerX = Canvas.KeyboardWidth + (_activeHoverMarker.TimeMs - effectiveViewTimeMs) * pixelsPerMs;
+        if (markerX < Canvas.KeyboardWidth || markerX > Canvas.ActualWidth)
+        {
+            HideMarkerPopupImmediate();
+        }
+        else
+        {
+            var popupWidth = MarkerPopupContent.ActualWidth > 0 ? MarkerPopupContent.ActualWidth : 80;
+            var clampedX = Math.Clamp(markerX - (popupWidth / 2), Canvas.KeyboardWidth, Math.Max(Canvas.KeyboardWidth, Canvas.ActualWidth - popupWidth));
+            MarkerPopup.HorizontalOffset = clampedX;
+        }
+    }
+
+    private void StartMarkerHideTimer()
+    {
+        _markerHideTimer.Stop();
+        _markerHideTimer.Start();
+    }
+
+    private void OnMarkerHideTimerTick(object? sender, EventArgs e)
+    {
+        _markerHideTimer.Stop();
+        if (!_isMarkerHovered && !_isPopupHovered && MarkerPopup.IsOpen)
+        {
+            MarkerPopupContent.PlayExitAnimation(() =>
+            {
+                MarkerPopup.IsOpen = false;
+                _activeHoverMarker = null;
+            });
+        }
+    }
+
+    private void HideMarkerPopupImmediate()
+    {
+        _markerHideTimer.Stop();
+        _isMarkerHovered = false;
+        _isPopupHovered = false;
+        _activeHoverMarker = null;
+        if (MarkerPopup != null)
+        {
+            MarkerPopup.IsOpen = false;
+        }
+    }
+
+    private void OnMarkerPopupMouseEnter(object sender, MouseEventArgs e)
+    {
+        _isPopupHovered = true;
+        _markerHideTimer.Stop();
+    }
+
+    private void OnMarkerPopupMouseLeave(object sender, MouseEventArgs e)
+    {
+        _isPopupHovered = false;
+        if (!_isMarkerHovered)
+        {
+            StartMarkerHideTimer();
+        }
+    }
+
+    private void OnMarkerPopupDeleteRequested(object? sender, KeyChangeMarker marker)
+    {
+        HideMarkerPopupImmediate();
+        MarkerDeleteRequested?.Invoke(this, marker);
+    }
+
+    private void OnMarkerPopupEditRequested(object? sender, KeyChangeMarker marker)
+    {
+        MarkerEditRequested?.Invoke(this, marker);
     }
 }
