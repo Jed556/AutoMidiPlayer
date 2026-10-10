@@ -62,6 +62,20 @@ public class MidiTrack : INotifyPropertyChanged
         }
     }
 
+    private int _totalTracks = 1;
+    public int TotalTracks
+    {
+        get => _totalTracks;
+        set
+        {
+            if (_totalTracks != value)
+            {
+                _totalTracks = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     private HashSet<int>? _noteNumbers; // Cached note numbers for fast lookup
     private Dictionary<int, List<(long StartUs, long EndUs)>>? _noteTimingsUs;
     private const int GlowDurationMs = 150; // How long the glow stays on
@@ -97,8 +111,10 @@ public class MidiTrack : INotifyPropertyChanged
 
         Track = track;
         Index = index;
-        TrackName = track.Events.OfType<SequenceTrackNameEvent>().FirstOrDefault()?.Text;
-        InstrumentName = track.Events.OfType<InstrumentNameEvent>().FirstOrDefault()?.Text;
+        var rawTrackName = track.Events.OfType<SequenceTrackNameEvent>().FirstOrDefault()?.Text;
+        TrackName = string.IsNullOrWhiteSpace(rawTrackName) ? null : rawTrackName.Trim();
+        var rawInstrumentName = track.Events.OfType<InstrumentNameEvent>().FirstOrDefault()?.Text;
+        InstrumentName = string.IsNullOrWhiteSpace(rawInstrumentName) ? null : rawInstrumentName.Trim();
 
         if (string.IsNullOrWhiteSpace(InstrumentName))
         {
@@ -275,8 +291,12 @@ public class MidiTrack : INotifyPropertyChanged
         get => _isChecked;
         set
         {
-            _isChecked = value;
-            _events.Publish(this);
+            if (_isChecked != value)
+            {
+                _isChecked = value;
+                _events.Publish(this);
+                OnPropertyChanged();
+            }
         }
     }
 
@@ -332,8 +352,11 @@ public class MidiTrack : INotifyPropertyChanged
             IsActive = true;
 
             // Create timer to turn off glow (DispatcherTimer runs on UI thread)
-            _glowTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(GlowDurationMs) };
-            _glowTimer.Tick += GlowTimer_Tick;
+            if (_glowTimer is null)
+            {
+                _glowTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(GlowDurationMs) };
+                _glowTimer.Tick += GlowTimer_Tick;
+            }
             _glowTimer.Start();
         }
         catch (Exception ex)
@@ -347,8 +370,6 @@ public class MidiTrack : INotifyPropertyChanged
         try
         {
             _glowTimer?.Stop();
-            if (_glowTimer is not null)
-                _glowTimer.Tick -= GlowTimer_Tick;
             IsActive = false;
         }
         catch (Exception ex)

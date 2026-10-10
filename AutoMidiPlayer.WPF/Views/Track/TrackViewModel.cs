@@ -240,6 +240,7 @@ public class TrackViewModel : Screen
             var track = new MidiTrack(events, trackChunks[i], i, midiFile, isChecked);
 
             track.DisplayTrackNumber = i;
+            track.TotalTracks = trackChunks.Count;
 
             MidiTracks.Add(track);
         }

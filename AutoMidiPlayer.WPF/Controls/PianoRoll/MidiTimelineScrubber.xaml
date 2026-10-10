@@ -1,0 +1,146 @@
+<UserControl x:Class="AutoMidiPlayer.WPF.Controls.PianoRoll.MidiTimelineScrubber"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
+             xmlns:local="clr-namespace:AutoMidiPlayer.WPF.Controls.PianoRoll"
+             mc:Ignorable="d" 
+             d:DesignHeight="54" d:DesignWidth="800">
+    <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="6"
+            Padding="8,4">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Scrubber Track Area -->
+            <Grid x:Name="ScrubberArea"
+                  Grid.Column="0"
+                  Margin="0,0,12,0"
+                  Cursor="Hand"
+                  ClipToBounds="True"
+                  Background="Transparent"
+                  MouseLeftButtonDown="OnScrubberMouseDown"
+                  MouseMove="OnScrubberMouseMove"
+                  MouseLeftButtonUp="OnScrubberMouseUp"
+                  MouseLeave="OnScrubberMouseLeave">
+                <local:TimelineCanvas x:Name="Canvas"
+                                      HorizontalAlignment="Stretch"
+                                      VerticalAlignment="Stretch" />
+            </Grid>
+
+            <!-- Marker Action Popup (Top/Above Timeline) -->
+            <Popup x:Name="MarkerPopup"
+                   PlacementTarget="{Binding ElementName=Canvas}"
+                   Placement="Top"
+                   AllowsTransparency="True"
+                   PopupAnimation="None">
+                <controls:MarkerActionPopup x:Name="MarkerPopupContent"
+                                            DeleteRequested="OnMarkerPopupDeleteRequested"
+                                            EditRequested="OnMarkerPopupEditRequested"
+                                            MouseEnter="OnMarkerPopupMouseEnter"
+                                            MouseLeave="OnMarkerPopupMouseLeave" />
+            </Popup>
+
+            <!-- Controls on the Right: Sync Button + Zoom Controls + Key Height Controls -->
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <!-- Sync / Follow Playhead Lock Button (FL Studio style) -->
+                <ui:Button x:Name="SyncButton"
+                           Appearance="Primary"
+                           Width="28"
+                           Height="28"
+                           Padding="0"
+                           Margin="0,0,6,0"
+                           Click="OnSyncButtonClick"
+                           ToolTip="Follow Playhead: Locked (Click to unlock view)">
+                    <ui:SymbolIcon x:Name="SyncIcon" Symbol="LockClosed16" FontSize="12" />
+                </ui:Button>
+
+                <!-- Horizontal Zoom Controls -->
+                <Border Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                        CornerRadius="4"
+                        Padding="2">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <controls:Button x:Name="ZoomOutButton"
+                                         Variant="Ghost"
+                                         Icon="Subtract16"
+                                         IconFontSize="12"
+                                         Width="24"
+                                         Height="24"
+                                         Padding="0"
+                                         Click="OnZoomOutClick"
+                                         ToolTip="Horizontal Zoom Out (Ctrl+MouseWheel)" />
+
+                        <TextBlock x:Name="ZoomText"
+                                   Text="100%"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Width="42"
+                                   TextAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Cursor="Hand"
+                                   MouseLeftButtonDown="OnZoomTextClick"
+                                   ToolTip="Click to reset horizontal zoom to 100%"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                        <controls:Button x:Name="ZoomInButton"
+                                         Variant="Ghost"
+                                         Icon="Add16"
+                                         IconFontSize="12"
+                                         Width="24"
+                                         Height="24"
+                                         Padding="0"
+                                         Click="OnZoomInClick"
+                                         ToolTip="Horizontal Zoom In (Ctrl+MouseWheel)" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Key Height Controls (FL Studio vertical zoom) -->
+                <Border Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                        CornerRadius="4"
+                        Padding="2"
+                        Margin="6,0,0,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <controls:Button x:Name="KeyHeightDownButton"
+                                         Variant="Ghost"
+                                         Icon="Subtract16"
+                                         IconFontSize="12"
+                                         Width="24"
+                                         Height="24"
+                                         Padding="0"
+                                         Click="OnKeyHeightDownClick"
+                                         ToolTip="Decrease Key Height (Alt+MouseWheel)" />
+
+                        <TextBlock x:Name="KeyHeightText"
+                                   Text="16px"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Width="42"
+                                   TextAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Cursor="Hand"
+                                   MouseLeftButtonDown="OnKeyHeightTextClick"
+                                   ToolTip="Click to reset key height to 16px"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                        <controls:Button x:Name="KeyHeightUpButton"
+                                         Variant="Ghost"
+                                         Icon="Add16"
+                                         IconFontSize="12"
+                                         Width="24"
+                                         Height="24"
+                                         Padding="0"
+                                         Click="OnKeyHeightUpClick"
+                                         ToolTip="Increase Key Height (Alt+MouseWheel)" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>

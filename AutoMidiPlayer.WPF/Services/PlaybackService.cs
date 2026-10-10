@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using AutoMidiPlayer.Data;
 using AutoMidiPlayer.Data.Entities;
 using AutoMidiPlayer.Data.Midi;
@@ -55,11 +57,66 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
     private DateTime _suppressFocusLossUntilUtc = DateTime.MinValue;
     private DateTime _playbackStartedAtUtc = DateTime.MinValue;
     private long _scheduledEventTicks;
+    private TimeSpan _scheduledEventMetricTime = TimeSpan.Zero;
+    private readonly Stopwatch _smoothStopwatch = new();
+    private TimeSpan _smoothBaseTime = TimeSpan.Zero;
+    private double _smoothSpeed = 1.0;
+    private bool _cachedIsGameRunning = true;
+    private long _lastGameRunningCheckTimestampMs = 0;
+    private const long GameRunningCheckThrottleMs = 2500;
+
+    /// <summary>
+    /// Thread-safe, lock-free, microsecond-accurate playback time for smooth UI rendering and timeline tracking.
+    /// Does not lock DryWetMidi's Playback object.
+    /// </summary>
+    public TimeSpan AccuratePlaybackTime
+    {
+        get
+        {
+            if (Playback is not { IsRunning: true })
+                return Controls?.CurrentTime ?? TimeSpan.Zero;
+
+            var elapsedTicks = (long)(_smoothStopwatch.ElapsedTicks * _smoothSpeed);
+            return _smoothBaseTime + TimeSpan.FromTicks(elapsedTicks);
+        }
+    }
+
+    private bool IsGameRunningFast(GameDefinition selectedGame)
+    {
+        var now = Stopwatch.GetTimestamp();
+        var nowMs = (long)(now * 1000.0 / Stopwatch.Frequency);
+
+        if ((nowMs - _lastGameRunningCheckTimestampMs) < GameRunningCheckThrottleMs)
+        {
+            return _cachedIsGameRunning;
+        }
+
+        var isRunning = GameRegistry.IsGameRunning(selectedGame);
+        _cachedIsGameRunning = isRunning;
+        _lastGameRunningCheckTimestampMs = nowMs;
+        return isRunning;
+    }
+
+    private void RaiseNotePlayed(int sourceNote, long eventTimeUs)
+    {
+        var handler = NotePlayed;
+        if (handler is null) return;
+
+        ThreadPool.UnsafeQueueUserWorkItem(static state =>
+        {
+            if (state is (PlaybackEngineService svc, int note, long time))
+            {
+                svc.NotePlayed?.Invoke(svc, new NotePlayedEventArgs(note, time));
+            }
+        }, (this, sourceNote, eventTimeUs));
+    }
+
     private bool _loggedSongContextForNotes;
     private bool _pedalStateNeedsResync;
     private readonly Dictionary<int, (int SourceNote, int OutputNote, string KeyName, int Velocity, long StartMs)> _activeNotes = new();
     private readonly Dictionary<(int Channel, int NoteNumber), int> _activeSpeakerNotes = new();
     private readonly HashSet<(int Note, string Layout, string Instrument)> _activeGameNotes = new();
+    private readonly Dictionary<(int Channel, int NoteNumber), (int OutputNote, string Layout, string Instrument)> _activePhysicalNotes = new();
     private readonly Dictionary<ChordPadEventKey, DetectedChordPad> _chordPadsByEvent = new();
     private readonly List<DetectedChordPad> _detectedChordPads = new();
 
@@ -298,12 +355,21 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         playback.EventCallback = (rawEvent, rawTime, playbackTime) =>
         {
             _scheduledEventTicks = rawTime;
+            _scheduledEventMetricTime = playbackTime;
             return rawEvent;
         };
+        playback.NoteCallback = (rawNoteData, rawTime, rawLength, playbackTime) =>
+        {
+            _scheduledEventTicks = rawTime;
+            _scheduledEventMetricTime = playbackTime;
+            return rawNoteData;
+        };
         _scheduledEventTicks = 0;
+        _scheduledEventMetricTime = TimeSpan.Zero;
         _activeNotes.Clear();
         _activeSpeakerNotes.Clear();
         _activeGameNotes.Clear();
+        _activePhysicalNotes.Clear();
         foreach (var pedal in AllPedals) pedal.Clear();
         _loggedSongContextForNotes = false;
         playback.Finished += (_, _) =>
@@ -311,6 +377,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             // DryWetMidi does NOT fire the Stopped event when playback finishes
             // naturally — only Finished is raised. Stop the time watcher here so
             // it doesn't keep overriding the slider position after the song ends.
+            _smoothStopwatch.Stop();
             _timeWatcher.Stop();
             ReleaseSustainIfActive();
             SilenceSpeakers();
@@ -328,13 +395,24 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         playback.Started += (_, _) =>
         {
             _playbackStartedAtUtc = DateTime.UtcNow;
-            _scheduledEventTicks = 0;
+            _smoothBaseTime = Controls.CurrentTime;
+            _smoothSpeed = playback.Speed;
+            _smoothStopwatch.Restart();
             _activeNotes.Clear();
             _activeSpeakerNotes.Clear();
             _activeGameNotes.Clear();
-            _scheduledEventTicks = TimeConverter.ConvertFrom(
-                playback.GetCurrentTime<MetricTimeSpan>(),
-                playback.TempoMap);
+            _activePhysicalNotes.Clear();
+            try
+            {
+                var metric = (TimeSpan)playback.GetCurrentTime<MetricTimeSpan>();
+                _scheduledEventMetricTime = metric;
+                _scheduledEventTicks = TimeConverter.ConvertFrom(new MetricTimeSpan(metric), playback.TempoMap);
+            }
+            catch
+            {
+                _scheduledEventMetricTime = Controls.CurrentTime;
+                _scheduledEventTicks = 0;
+            }
             ResetChordPadsTriggered();
             foreach (var pedal in AllPedals) pedal.Clear();
             _loggedSongContextForNotes = false;
@@ -390,6 +468,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
         playback.Stopped += (_, _) =>
         {
+            _smoothStopwatch.Stop();
             _timeWatcher.Stop();
             ReleaseSustainIfActive();
             SilenceSpeakers();
@@ -413,6 +492,9 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                 // Enumeration already finished - playback has no events
             }
             SavedPosition = null;
+            _smoothBaseTime = time;
+            _smoothSpeed = playback.Speed;
+            _smoothStopwatch.Restart();
 
             Controls.UpdateButtons();
             Controls.MoveSlider(time);
@@ -421,6 +503,34 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
         Controls.UpdateButtons();
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Synchronizes internal event metric time and smooth clock immediately on seek.
+    /// </summary>
+    public void NotifySeek(TimeSpan time)
+    {
+        var tempoMap = Playback?.TempoMap ?? Queue?.OpenedFile?.OriginalTempoMap;
+        _scheduledEventMetricTime = time;
+        if (tempoMap != null)
+        {
+            try
+            {
+                _scheduledEventTicks = TimeConverter.ConvertFrom(new MetricTimeSpan(time), tempoMap);
+            }
+            catch
+            {
+                _scheduledEventTicks = 0;
+            }
+        }
+        else
+        {
+            _scheduledEventTicks = 0;
+        }
+
+        _smoothBaseTime = time;
+        _smoothSpeed = Playback?.Speed ?? SongSettings.Speed;
+        _smoothStopwatch.Restart();
     }
 
     /// <summary>
@@ -443,6 +553,9 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         }
 
         Playback.Speed = speed;
+        _smoothBaseTime = AccuratePlaybackTime;
+        _smoothSpeed = speed;
+        _smoothStopwatch.Restart();
     }
 
     #endregion
@@ -451,8 +564,11 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
     private void OnNoteEvent(object? sender, MidiEventPlayedEventArgs e)
     {
-        ReconcilePedalStates();
-        SyncPedalStatesToUI();
+        if (_pedalStateNeedsResync)
+        {
+            ReconcilePedalStates();
+            SyncPedalStatesToUI();
+        }
 
         if (e.Event is ControlChangeEvent ccEvent && (ccEvent.ControlNumber == 64 || ccEvent.ControlNumber == 66 || ccEvent.ControlNumber == 67))
         {
@@ -640,6 +756,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             KeyboardPlayer.NoteUp(activeNote.Note, activeNote.Layout, activeNote.Instrument);
         }
         _activeGameNotes.Clear();
+        _activePhysicalNotes.Clear();
     }
 
     private void SilenceSpeakers()
@@ -676,7 +793,31 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             var instrument = InstrumentPage.SelectedInstrument.Key;
             var sourceNote = (int)noteEvent.NoteNumber;
             var isNoteOn = noteEvent.EventType == MidiEventType.NoteOn && noteEvent.Velocity > 0;
-            var noteForKeyboard = ApplyNoteSettings(instrument, noteEvent.NoteNumber);
+            var isNoteOff = noteEvent.EventType == MidiEventType.NoteOff || (noteEvent.EventType == MidiEventType.NoteOn && noteEvent.Velocity <= 0);
+
+            var eventTime = GetCurrentEventMetricTime();
+            var eventTimeUs = eventTime.Ticks / 10;
+
+            int noteForKeyboard;
+            if (isNoteOn)
+            {
+                noteForKeyboard = ApplyNoteSettings(instrument, noteEvent.NoteNumber, eventTime);
+                _activePhysicalNotes[(noteEvent.Channel, noteEvent.NoteNumber)] = (noteForKeyboard, layout, instrument);
+            }
+            else
+            {
+                if (_activePhysicalNotes.Remove((noteEvent.Channel, noteEvent.NoteNumber), out var active))
+                {
+                    noteForKeyboard = active.OutputNote;
+                    layout = active.Layout;
+                    instrument = active.Instrument;
+                }
+                else
+                {
+                    noteForKeyboard = ApplyNoteSettings(instrument, noteEvent.NoteNumber, eventTime);
+                }
+            }
+
             var noteForListen = noteForKeyboard; // Listen mode plays the same note as keyboard output
             var hasMappedKey = KeyboardPlayer.TryGetKey(layout, instrument, noteForKeyboard, out var mappedKey);
             var transposeMode = Settings.TransposeNotes && SongSettings.Transpose is not null
@@ -693,7 +834,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                     return;
 
                 if (isNoteOn)
-                    NotePlayed?.Invoke(this, new NotePlayedEventArgs(sourceNote, Controls.CurrentTime.Ticks / 10));
+                    RaiseNotePlayed(sourceNote, eventTimeUs);
 
                 if (ShouldLogPlayedNotes)
                     LogNoteInputOutput("speakers", noteEvent, sourceNote, noteForKeyboard, hasMappedKey, mappedKey);
@@ -703,7 +844,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             }
 
             var selectedGame = _main.SelectedGame?.Definition;
-            var isGameRunning = selectedGame is not null && GameRegistry.IsGameRunning(selectedGame);
+            var isGameRunning = selectedGame is not null && IsGameRunningFast(selectedGame);
 
             if (!isGameRunning)
             {
@@ -714,7 +855,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                     return;
 
                 if (isNoteOn)
-                    NotePlayed?.Invoke(this, new NotePlayedEventArgs(sourceNote, Controls.CurrentTime.Ticks / 10));
+                    RaiseNotePlayed(sourceNote, eventTimeUs);
 
                 if (ShouldLogPlayedNotes)
                     LogNoteInputOutput("auto-listen", noteEvent, sourceNote, noteForKeyboard, hasMappedKey, mappedKey);
@@ -732,7 +873,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                 return;
             }
 
-            if (TryPlayChordPad(noteEvent, sourceNote, layout, instrument, noteForKeyboard))
+            if (TryPlayChordPad(noteEvent, sourceNote, layout, instrument, noteForKeyboard, eventTimeUs))
                 return;
 
             var useHoldNotes = Queue.OpenedFile?.Song.HoldNotes ?? false;
@@ -758,7 +899,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
                     if (!hasMappedKey)
                         return;
 
-                    NotePlayed?.Invoke(this, new NotePlayedEventArgs(sourceNote, Controls.CurrentTime.Ticks / 10));
+                    RaiseNotePlayed(sourceNote, eventTimeUs);
 
                     if (ShouldLogPlayedNotes)
                         LogNoteInputOutput("game", noteEvent, sourceNote, noteForKeyboard, hasMappedKey, mappedKey);
@@ -786,7 +927,8 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         int sourceNote,
         string layout,
         string instrument,
-        int noteForKeyboard)
+        int noteForKeyboard,
+        long eventTimeUs)
     {
         var eventKey = new ChordPadEventKey(
             _scheduledEventTicks,
@@ -817,7 +959,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
 
         // Keep the track view's glow state representative of the source MIDI even though the
         // output is a single game chord-pad key.
-        NotePlayed?.Invoke(this, new NotePlayedEventArgs(sourceNote, Controls.CurrentTime.Ticks / 10));
+        RaiseNotePlayed(sourceNote, eventTimeUs);
 
         if (detectedChordPad.WasTriggered)
             return true;
@@ -864,8 +1006,9 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         foreach (var chord in chordTrack.GetChords(chordDetectionSettings))
         {
             var notes = chord.Notes.ToArray();
+            var chordMetricTime = (TimeSpan)chord.TimeAs<MetricTimeSpan>(tempoMap);
             var pitchClasses = notes
-                .Select(note => Mod12(ApplyNoteSettings(instrument, (int)note.NoteNumber)))
+                .Select(note => Mod12(ApplyNoteSettings(instrument, (int)note.NoteNumber, chordMetricTime)))
                 .ToHashSet();
 
             var chordPad = instrumentConfig.ChordPads
@@ -937,24 +1080,56 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
         (int)noteEvent.NoteNumber,
         (int)noteEvent.Channel);
 
-    private int ApplyNoteSettings(string instrumentId, int noteId)
+    private TimeSpan GetCurrentEventMetricTime()
+    {
+        var playback = Playback;
+        if (playback is { IsRunning: true } && _scheduledEventTicks >= 0)
+        {
+            return _scheduledEventMetricTime;
+        }
+
+        if (playback is { IsRunning: true })
+        {
+            try
+            {
+                return (TimeSpan)playback.GetCurrentTime<MetricTimeSpan>();
+            }
+            catch
+            {
+                // Fall back if playback is resetting or transitioning
+            }
+        }
+
+        return Controls.CurrentTime;
+    }
+
+    private int ApplyNoteSettings(string instrumentId, int noteId, TimeSpan? eventTime = null)
     {
         var instrumentKeyCount = Keyboard.GetNotes(instrumentId).Count;
         var threshold = Settings.AutoCorrectThreshold;
+        var song = Queue.OpenedFile?.Song;
+        var targetTime = eventTime ?? GetCurrentEventMetricTime();
+
+        var dynamicMarker = song?.GetKeyMarkerAtTime(targetTime, lookaheadMs: 10);
+        var activeKeyOffset = dynamicMarker?.KeyOffset ?? SongSettings.KeyOffset;
+        var activeTranspose = dynamicMarker?.Transpose ?? (Settings.TransposeNotes && SongSettings.Transpose is not null ? SongSettings.Transpose.Value.Key : (Transpose?)null);
 
         if (threshold > 0 && instrumentKeyCount <= threshold)
         {
             // Auto-correct: apply full base key + relative offset
-            noteId += SongSettings.GetEffectiveKeyOffset(Queue.OpenedFile?.Song);
+            var effectiveOffset = dynamicMarker != null
+                ? MusicConstants.GetEffectiveKeyOffset(activeKeyOffset, song?.BaseKey)
+                : SongSettings.GetEffectiveKeyOffset(song);
+            noteId += effectiveOffset;
         }
         else
         {
             // Wide-range instrument: only apply the relative user offset (no base key shift)
-            noteId += SongSettings.KeyOffset;
+            noteId += activeKeyOffset;
         }
 
-        return Settings.TransposeNotes && SongSettings.Transpose is not null
-            ? KeyboardPlayer.TransposeNote(instrumentId, ref noteId, SongSettings.Transpose.Value.Key)
+        return activeTranspose.HasValue
+            ? KeyboardPlayer.TransposeNote(instrumentId, ref noteId, activeTranspose.Value)
             : noteId;
     }
 
@@ -1124,6 +1299,8 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
     {
         var selectedGame = _main.SelectedGame?.Definition;
         var isGameRunning = selectedGame is not null && GameRegistry.IsGameRunning(selectedGame);
+        _cachedIsGameRunning = isGameRunning;
+        _lastGameRunningCheckTimestampMs = (long)(Stopwatch.GetTimestamp() * 1000.0 / Stopwatch.Frequency);
 
         Logger.LogStep(
             "PLAYBACK_ENGINE_START_ATTEMPT",
@@ -1185,6 +1362,7 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
     {
         _loggedSongContextForNotes = false;
         _scheduledEventTicks = 0;
+        _scheduledEventMetricTime = TimeSpan.Zero;
         _activeNotes.Clear();
         _activeSpeakerNotes.Clear();
         foreach (var pedal in AllPedals) pedal.Clear();
@@ -1298,6 +1476,21 @@ public class PlaybackEngineService : PropertyChangedBase, IHandle<MidiFile>, IHa
             $"PLAYBACK_LOAD_COMPLETED title='{file.Title}' | path='{file.Path}' | tracks={TrackView.MidiTracks.Count} | autoPlay={autoPlay}");
 
         _events.Publish(new OpenedFileChangedNotification(file));
+
+        // Yield to allow UI Dispatcher to process OpenedFileChangedNotification
+        // and finish rebuilding the piano roll and timeline note indices.
+        if (Application.Current?.Dispatcher is { } dispatcher)
+        {
+            try
+            {
+                await dispatcher.InvokeAsync(() => { }, DispatcherPriority.Background);
+            }
+            catch (TaskCanceledException) { }
+        }
+
+        // Sweep up the heavy MIDI loading and note indexing debris so the heap
+        // is pristine and compacted before playback starts or user interacts.
+        await GarbageManService.TakeOutTheTrashAsync(aggressive: true);
 
         // Only auto-play if this is still the most recent load request
         if (autoPlay && epoch == _loadEpoch && Playback is not null)

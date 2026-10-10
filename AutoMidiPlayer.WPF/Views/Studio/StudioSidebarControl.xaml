@@ -1,0 +1,351 @@
+<UserControl x:Class="AutoMidiPlayer.WPF.Views.StudioSidebarControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:controls="clr-namespace:AutoMidiPlayer.WPF.Controls"
+             xmlns:s="https://github.com/canton7/Stylet"
+             xmlns:helpers="clr-namespace:AutoMidiPlayer.WPF.Helpers"
+             xmlns:button="clr-namespace:AutoMidiPlayer.WPF.Controls.SelectorPopupButton.Button"
+             s:View.ActionTarget="{Binding}"
+             d:DesignHeight="600" d:DesignWidth="320">
+    <UserControl.Resources>
+        <DataTemplate x:Key="OffsetNoteTemplate">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock MinWidth="24"
+                           HorizontalAlignment="Right"
+                           FontSize="12"
+                           Text="{Binding OffsetDisplay}"
+                           TextAlignment="Right"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                <TextBlock Margin="6,0,0,0"
+                           HorizontalAlignment="Left"
+                           FontSize="12"
+                           Text="{Binding NoteDisplay}"
+                           TextAlignment="Left"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate x:Key="DisplayTemplate">
+            <TextBlock FontSize="12"
+                       Text="{Binding Display}"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </DataTemplate>
+    </UserControl.Resources>
+    <Border Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="12"
+            ClipToBounds="True">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- Top Drawer Header -->
+            <Grid Grid.Row="0" Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Drawer Title & Badge -->
+                <Grid Grid.Column="0" ClipToBounds="True">
+                    <!-- Tracks Icon & Title -->
+                    <StackPanel x:Name="TracksHeaderPanel"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <StackPanel.RenderTransform>
+                            <TranslateTransform x:Name="TracksHeaderTransform" />
+                        </StackPanel.RenderTransform>
+                        <ui:SymbolIcon Symbol="AppsListDetail24"
+                                       FontSize="16"
+                                       Margin="0,0,8,0"
+                                       Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                        <TextBlock Text="Tracks"
+                                   FontSize="15"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center" />
+                        <Border Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                CornerRadius="10"
+                                Padding="8,2"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center">
+                            <TextBlock Text="{Binding MidiTracks.Count, StringFormat='{}{0}'}"
+                                       FontSize="11"
+                                       FontWeight="Medium"
+                                       Opacity="0.8" />
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Song Settings Icon & Title -->
+                    <StackPanel x:Name="SettingsHeaderPanel"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <StackPanel.RenderTransform>
+                            <TranslateTransform x:Name="SettingsHeaderTransform" />
+                        </StackPanel.RenderTransform>
+                        <ui:SymbolIcon Symbol="Settings16"
+                                       Filled="True"
+                                       FontSize="16"
+                                       Margin="0,0,8,0"
+                                       Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                        <TextBlock Text="Song Settings"
+                                   FontSize="15"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Close Drawer Chevron Button -->
+                <controls:Button Grid.Column="1"
+                                 Variant="Ghost"
+                                 Icon="ChevronRight16"
+                                 IconFontSize="14"
+                                 Width="28"
+                                 Height="28"
+                                 Padding="0"
+                                 Command="{s:Action CloseSidebar}"
+                                 ToolTip="Close Drawer" />
+            </Grid>
+
+            <!-- Content Area -->
+            <Grid Grid.Row="1">
+                <!-- Tracks View -->
+                <Grid x:Name="TracksContentGrid">
+                    <Grid.RenderTransform>
+                        <TranslateTransform x:Name="TracksContentTransform" />
+                    </Grid.RenderTransform>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  helpers:ScrollEdgeFadeBehavior.IsEnabled="True">
+                        <ItemsControl ItemsSource="{Binding MidiTracks}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,6">
+                                        <!-- Glow Layer (behind card) -->
+                                        <Border x:Name="GlowBorder"
+                                                BorderThickness="1.5"
+                                                CornerRadius="6"
+                                                BorderBrush="{Binding Converter={x:Static helpers:TrackBrushConverter.Instance}}"
+                                                Opacity="0"
+                                                IsHitTestVisible="False">
+                                            <Border.Effect>
+                                                <DropShadowEffect
+                                                    Color="{Binding Converter={x:Static helpers:TrackColorConverter.Instance}}"
+                                                    BlurRadius="18"
+                                                    ShadowDepth="0"
+                                                    Opacity="0.9" />
+                                            </Border.Effect>
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                            <DataTrigger.EnterActions>
+                                                                <BeginStoryboard>
+                                                                    <Storyboard>
+                                                                        <DoubleAnimation
+                                                                            Storyboard.TargetProperty="Opacity"
+                                                                            To="1"
+                                                                            Duration="0:0:0.05" />
+                                                                    </Storyboard>
+                                                                </BeginStoryboard>
+                                                            </DataTrigger.EnterActions>
+                                                            <DataTrigger.ExitActions>
+                                                                <BeginStoryboard>
+                                                                    <Storyboard>
+                                                                        <DoubleAnimation
+                                                                            Storyboard.TargetProperty="Opacity"
+                                                                            To="0"
+                                                                            Duration="0:0:0.25" />
+                                                                    </Storyboard>
+                                                                </BeginStoryboard>
+                                                            </DataTrigger.ExitActions>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                        </Border>
+
+                                        <!-- Track Card Content -->
+                                        <Border x:Name="TrackBorder"
+                                                Padding="8,6"
+                                                Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="6">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="{Binding Converter={x:Static helpers:TrackBrushConverter.Instance}}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsChecked}" Value="False">
+                                                            <Setter Property="Opacity" Value="0.5" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <!-- Track Index matching Tracks view text style, colored with track color coding -->
+                                                <TextBlock Grid.Column="0"
+                                                           Text="{Binding DisplayTrackNumber, StringFormat='{}{0:00}', TargetNullValue='', FallbackValue=''}"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,10,0"
+                                                           FontSize="16"
+                                                           FontWeight="Bold"
+                                                           Foreground="{Binding Converter={x:Static helpers:TrackBrushConverter.Instance}}" />
+
+                                                <!-- Track Name / Instrument -->
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding TrackName, TargetNullValue=Unknown}"
+                                                               FontWeight="SemiBold"
+                                                               FontSize="12"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               ToolTip="{Binding TrackName, TargetNullValue=Unknown}" />
+                                                    <TextBlock Text="{Binding InstrumentName}"
+                                                               FontSize="10"
+                                                               Opacity="0.7"
+                                                               TextTrimming="CharacterEllipsis">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding InstrumentName}" Value="{x:Null}">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding InstrumentName}" Value="">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+
+                                                <!-- Track Toggle -->
+                                                <CheckBox Grid.Column="2"
+                                                          IsChecked="{Binding IsChecked, Mode=TwoWay}"
+                                                          VerticalAlignment="Center"
+                                                          Margin="4,0,0,0" />
+                                            </Grid>
+                                        </Border>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+
+                <!-- Song Settings View -->
+                <Grid x:Name="SettingsContentGrid">
+                    <Grid.RenderTransform>
+                        <TranslateTransform x:Name="SettingsContentTransform" />
+                    </Grid.RenderTransform>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  helpers:ScrollEdgeFadeBehavior.IsEnabled="True">
+                        <StackPanel Margin="0,4,0,0">
+                            <!-- Key Offset and Playback Speed (Same Row) -->
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Relative Key Offset -->
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Key Offset"
+                                               FontWeight="SemiBold"
+                                               FontSize="12"
+                                               Margin="0,0,0,4" />
+                                    <button:StandardDropdown ItemsSource="{Binding SongSettings.KeyOptions}"
+                                                             SelectedItem="{Binding SongSettings.SelectedKeyOption, Mode=TwoWay}"
+                                                             ItemTemplate="{StaticResource OffsetNoteTemplate}"
+                                                             SelectedItemTemplate="{StaticResource OffsetNoteTemplate}"
+                                                             HorizontalAlignment="Stretch" />
+                                </StackPanel>
+
+                                <!-- Playback Speed -->
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Playback Speed"
+                                               FontWeight="SemiBold"
+                                               FontSize="12"
+                                               Margin="0,0,0,4" />
+                                    <button:StandardDropdown ItemsSource="{Binding SongSettings.SpeedOptions}"
+                                                             SelectedItem="{Binding SongSettings.SelectedSpeedOption, Mode=TwoWay}"
+                                                             ItemTemplate="{StaticResource DisplayTemplate}"
+                                                             SelectedItemTemplate="{StaticResource DisplayTemplate}"
+                                                             HorizontalAlignment="Stretch" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Transpose Mode -->
+                            <TextBlock Text="Transpose Mode"
+                                       FontWeight="SemiBold"
+                                       FontSize="12"
+                                       Margin="0,0,0,4" />
+                            <button:StandardDropdown ItemsSource="{Binding SongSettings.TransposeNames}"
+                                                     SelectedItem="{Binding SongSettings.Transpose, Mode=TwoWay}"
+                                                     DisplayMemberPath="Value"
+                                                     HorizontalAlignment="Stretch"
+                                                     Margin="0,0,0,12" />
+
+                            <!-- Hold Notes Toggle -->
+                            <Border Margin="0,0,0,8"
+                                    Padding="8,6"
+                                    Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                    CornerRadius="6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Hold Notes" FontWeight="SemiBold" FontSize="12" />
+                                        <TextBlock Text="Release note on NoteOff" FontSize="10" Opacity="0.7" />
+                                    </StackPanel>
+                                    <ui:ToggleSwitch Grid.Column="1"
+                                                     IsChecked="{Binding HoldNotes, Mode=TwoWay}"
+                                                     VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+
+                            <!-- Auto Chord Detection Toggle -->
+                            <Border Margin="0,0,0,8"
+                                    Padding="8,6"
+                                    Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                    CornerRadius="6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Auto Chord Detection" FontWeight="SemiBold" FontSize="12" />
+                                        <TextBlock Text="Play chords as game chord-pads" FontSize="10" Opacity="0.7" />
+                                    </StackPanel>
+                                    <ui:ToggleSwitch Grid.Column="1"
+                                                     IsChecked="{Binding AutoChord, Mode=TwoWay}"
+                                                     VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>

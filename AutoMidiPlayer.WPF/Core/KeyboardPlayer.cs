@@ -30,7 +30,12 @@ public static class KeyboardPlayer
 
     // Win32 API for direct keyboard input (more compatible with games)
     [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint SendInput(uint nInputs, [In] ref INPUT pInputs, int cbSize);
+
+    [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+    private static readonly int InputSize = Marshal.SizeOf(typeof(INPUT));
 
     [DllImport("user32.dll")]
     private static extern uint MapVirtualKey(uint uCode, uint uMapType);
@@ -94,21 +99,44 @@ public static class KeyboardPlayer
     /// </summary>
     public static bool UseWindowMessage { get; set; } = false;
 
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string InstrumentId, Transpose Direction), int[]> _transposeLookupTables = new();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string InstrumentId, int Note), int> _smartTransposeCache = new();
+
     public static int TransposeNote(
         string instrumentId, ref int noteId,
         Transpose direction = Transpose.Ignore)
     {
         if (direction is Transpose.Ignore) return noteId;
+
+        if ((uint)noteId < 128)
+        {
+            var table = GetOrBuildTransposeTable(instrumentId, direction);
+            if (table != null)
+            {
+                noteId = table[noteId];
+                return noteId;
+            }
+        }
+
+        noteId = TransposeNoteUncached(instrumentId, noteId, direction);
+        return noteId;
+    }
+
+    private static int[]? GetOrBuildTransposeTable(string instrumentId, Transpose direction)
+    {
+        if (string.IsNullOrEmpty(instrumentId) || direction == Transpose.Ignore)
+            return null;
+
+        var key = (instrumentId, direction);
+        if (_transposeLookupTables.TryGetValue(key, out var cachedTable))
+            return cachedTable;
+
         var notes = Keyboard.GetNotes(instrumentId);
         if (notes.Count == 0)
-            return noteId;
-        var noteSet = new HashSet<int>(notes);
+            return null;
 
-        if (direction is Transpose.Smart)
-        {
-            noteId = SmartTransposeNote(notes, noteSet, noteId);
-            return noteId;
-        }
+        var noteSet = Keyboard.GetNoteSet(instrumentId);
+        var table = new int[128];
 
         var minNote = notes[0];
         var maxNote = notes[0];
@@ -118,6 +146,24 @@ public static class KeyboardPlayer
             if (notes[i] > maxNote) maxNote = notes[i];
         }
 
+        for (int n = 0; n < 128; n++)
+        {
+            if (direction == Transpose.Smart)
+            {
+                table[n] = SmartTransposeNote(instrumentId, notes, noteSet, n);
+            }
+            else
+            {
+                table[n] = TransposeLinear(notes, noteSet, minNote, maxNote, n, direction);
+            }
+        }
+
+        _transposeLookupTables[key] = table;
+        return table;
+    }
+
+    private static int TransposeLinear(IList<int> notes, HashSet<int> noteSet, int minNote, int maxNote, int noteId, Transpose direction)
+    {
         while (true)
         {
             if (noteSet.Contains(noteId))
@@ -139,10 +185,34 @@ public static class KeyboardPlayer
         }
     }
 
-    private static int SmartTransposeNote(IList<int> notes, HashSet<int> noteSet, int originalNote)
+    private static int TransposeNoteUncached(string instrumentId, int noteId, Transpose direction)
+    {
+        var notes = Keyboard.GetNotes(instrumentId);
+        if (notes.Count == 0) return noteId;
+        var noteSet = Keyboard.GetNoteSet(instrumentId);
+
+        if (direction is Transpose.Smart)
+            return SmartTransposeNote(instrumentId, notes, noteSet, noteId);
+
+        var minNote = notes[0];
+        var maxNote = notes[0];
+        for (var i = 1; i < notes.Count; i++)
+        {
+            if (notes[i] < minNote) minNote = notes[i];
+            if (notes[i] > maxNote) maxNote = notes[i];
+        }
+
+        return TransposeLinear(notes, noteSet, minNote, maxNote, noteId, direction);
+    }
+
+    private static int SmartTransposeNote(string instrumentId, IList<int> notes, HashSet<int> noteSet, int originalNote)
     {
         if (noteSet.Contains(originalNote))
             return originalNote;
+
+        var cacheKey = (instrumentId, originalNote);
+        if (_smartTransposeCache.TryGetValue(cacheKey, out var cachedNote))
+            return cachedNote;
 
         var minNote = notes[0];
         var maxNote = notes[0];
@@ -157,7 +227,10 @@ public static class KeyboardPlayer
         var targetNote = FoldNoteIntoRangeByOctaves(originalNote, minNote, maxNote);
 
         if (noteSet.Contains(targetNote))
+        {
+            _smartTransposeCache[cacheKey] = targetNote;
             return targetNote;
+        }
 
         var (tonic, modeIndex) = DetectBestScale(notes, targetNote);
         var scalePitchClasses = BuildScalePitchClassSet(tonic, modeIndex);
@@ -181,6 +254,7 @@ public static class KeyboardPlayer
             }
         }
 
+        _smartTransposeCache[cacheKey] = best;
         return best;
     }
 
@@ -393,7 +467,7 @@ public static class KeyboardPlayer
             }
         };
 
-        _ = SendInput(1, [input], Marshal.SizeOf(typeof(INPUT)));
+        _ = SendInput(1, ref input, InputSize);
     }
 
     private static void SendKeyStrokeWindow(Keyboard.KeyStroke keyStroke, IntPtr hWnd, KeyAction action)
@@ -439,18 +513,18 @@ public static class KeyboardPlayer
             return;
         }
 
-        _ = Task.Run(async () =>
+        // Direct timer callback avoids Task.Run + async state machine overhead on every keystroke
+        _ = new Timer(_ =>
         {
             try
             {
-                await Task.Delay(delayMs).ConfigureAwait(false);
                 action();
             }
             catch
             {
                 // Best-effort delayed key-up dispatch.
             }
-        });
+        }, null, delayMs, Timeout.Infinite);
     }
 
     /// <summary>

@@ -1135,6 +1135,50 @@ public class FileService(IContainer ioc)
 
     private static int Mod12(int value) => ((value % 12) + 12) % 12;
 
+    public static List<KeyChangeMarker> DetectKeyChangesFromMidi(Melanchall.DryWetMidi.Core.MidiFile midi, TempoMap tempoMap)
+    {
+        var result = new List<KeyChangeMarker>();
+        try
+        {
+            var timedEvents = midi.GetTimedEvents()
+                .Where(e => e.Event is KeySignatureEvent)
+                .OrderBy(e => e.Time);
+
+            int? lastOffset = null;
+            foreach (var timedEvent in timedEvents)
+            {
+                var keySig = (KeySignatureEvent)timedEvent.Event;
+                var isMinor = keySig.Scale == 1;
+                var tonicPitchClass = Mod12((isMinor ? 9 : 0) + (keySig.Key * 7));
+                var keyOffset = NormalizeDetectedKeyOffset(tonicPitchClass);
+
+                if (lastOffset.HasValue && lastOffset.Value == keyOffset)
+                    continue;
+
+                var metricTime = TimeConverter.ConvertTo<MetricTimeSpan>(timedEvent.Time, tempoMap);
+                var ms = (long)metricTime.TotalMilliseconds;
+
+                var noteName = MusicConstants.GetNoteName(keyOffset);
+                var label = $"{noteName} {(isMinor ? "min" : "maj")}";
+
+                result.Add(new KeyChangeMarker
+                {
+                    TimeMs = ms,
+                    KeyOffset = keyOffset,
+                    Label = label
+                });
+
+                lastOffset = keyOffset;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException(ex, "Failed to detect key changes from MIDI file.");
+        }
+
+        return result;
+    }
+
     private async Task AddFile(
         string fileName,
         bool notifyFileErrors = true,

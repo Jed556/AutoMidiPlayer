@@ -32,6 +32,15 @@ public static class GarbageManService
     /// </summary>
     public static void TakeOutTheTrash(bool aggressive = false)
     {
+        _ = TakeOutTheTrashAsync(aggressive);
+    }
+
+    /// <summary>
+    /// Performs a full Gen 2 garbage collection with finalizer drain and working set trimming asynchronously.
+    /// Awaitable so callers (e.g. song loading) can guarantee the sweep completes before starting playback.
+    /// </summary>
+    public static async Task TakeOutTheTrashAsync(bool aggressive = false)
+    {
         if (IsPlaybackActive?.Invoke() == true)
             return;
 
@@ -55,7 +64,7 @@ public static class GarbageManService
             return; // Don't overwork the GarbageMan
 
         _lastCollection = now;
-        _ = Task.Run(DoSweep);
+        await Task.Run(DoSweep);
     }
 
     [System.Runtime.InteropServices.DllImport("psapi.dll")]

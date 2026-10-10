@@ -124,6 +124,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
         // TrackView only handles track list management
         TrackView = new(ioc, this, new Controls.NoSongPlaceholder.NoSongPlaceholderComponent(this));
+        StudioView = new(ioc, this, new Controls.NoSongPlaceholder.NoSongPlaceholderComponent(this));
         SongsView = new(ioc, this);
         PianoSheetView = new(this, new Controls.NoSongPlaceholder.NoSongPlaceholderComponent(this));
 
@@ -217,6 +218,8 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
 
     public TrackViewModel TrackView { get; }
 
+    public StudioViewModel StudioView { get; }
+
     public PianoSheetViewModel PianoSheetView { get; }
 
     public QueueViewModel QueueView { get; }
@@ -231,6 +234,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
     {
         "About" => "About",
         "Tracks" => "Tracks",
+        "Studio" => "Studio",
         "Sheet" => "Sheet",
         "Instrument" => "Instrument",
         "Queue" => "Queue",
@@ -244,6 +248,7 @@ public class MainWindowViewModel : Conductor<IScreen>, IHandle<MidiFile>
     {
         "About" => AboutView,
         "Tracks" => TrackView,
+        "Studio" => StudioView,
         "Sheet" => PianoSheetView,
         "Instrument" => InstrumentView,
         "Queue" => QueueView,

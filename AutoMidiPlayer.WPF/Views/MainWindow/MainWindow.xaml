@@ -583,8 +583,12 @@
                                                    Icon="{ui:SymbolIcon AppsListDetail24}"
                                                    Tag="{Binding TrackView}"
                                                    Click="{s:Action NavigateToItem}"/>
+                            <ui:NavigationViewItem Content="Studio"
+                                                   Icon="{ui:SymbolIcon CalendarMonth32}"
+                                                   Tag="{Binding StudioView}"
+                                                   Click="{s:Action NavigateToItem}"/>
                             <ui:NavigationViewItem Content="Sheet"
-                                                   Icon="{ui:SymbolIcon ImmersiveReader16}"
+                                                   Icon="{ui:SymbolIcon ReadingList16}"
                                                    Tag="{Binding PianoSheetView}"
                                                    Click="{s:Action NavigateToItem}"/>
                             <ui:NavigationViewItem Content="Instrument"

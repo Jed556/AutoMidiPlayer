@@ -477,9 +477,9 @@ public class QueueViewModel : Screen
     }
 
     /// <summary>
-    /// Save the currently playing song ID and position
+    /// Update the current song position in memory without hitting the disk synchronously.
     /// </summary>
-    public void SaveCurrentSong(double positionSeconds)
+    public void UpdateCurrentSongPosition(double positionSeconds)
     {
         if (OpenedFile is not null)
         {
@@ -491,6 +491,14 @@ public class QueueViewModel : Screen
             Settings.CurrentSongId = string.Empty;
             Settings.CurrentSongPosition = 0;
         }
+    }
+
+    /// <summary>
+    /// Save the currently playing song ID and position
+    /// </summary>
+    public void SaveCurrentSong(double positionSeconds)
+    {
+        UpdateCurrentSongPosition(positionSeconds);
         Settings.Save();
     }
 

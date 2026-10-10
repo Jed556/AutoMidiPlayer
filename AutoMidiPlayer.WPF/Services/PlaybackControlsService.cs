@@ -364,6 +364,16 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
 
     #region Slider & Time
 
+    public void Seek(TimeSpan time)
+    {
+        _ignoreSliderChange = true;
+        SongPosition = time.TotalSeconds;
+        SetDisplaySongPosition(time);
+        _ignoreSliderChange = false;
+
+        SeekPlayback(time);
+    }
+
     public void OnSongPositionChanged()
     {
         if (_ignoreSliderChange)
@@ -372,6 +382,12 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
             return;
         }
 
+        SeekPlayback(_songPosition);
+        _ignoreSliderChange = false;
+    }
+
+    private void SeekPlayback(TimeSpan time)
+    {
         var pb = Engine.Playback;
         if (pb is null)
             return;
@@ -380,14 +396,13 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
         {
             var isRunning = pb.IsRunning;
             pb.Stop();
-            pb.MoveToTime(new MetricTimeSpan(_songPosition));
+            pb.MoveToTime(new MetricTimeSpan(time));
             Engine.ResetChordPadsTriggered();
+            Engine.NotifySeek(time);
             if (Settings.UseSpeakers && isRunning)
                 pb.Start();
         }
         catch (ObjectDisposedException) { }
-
-        _ignoreSliderChange = false;
     }
 
     public void OnSongTick(object? sender, PlaybackCurrentTimeChangedEventArgs e)
@@ -402,7 +417,7 @@ public class PlaybackControlsService : PropertyChangedBase, IHandle<PlayTimerNot
             if (_savePositionCounter >= 50)
             {
                 _savePositionCounter = 0;
-                Queue.SaveCurrentSong(time.TotalSeconds);
+                Queue.UpdateCurrentSongPosition(time.TotalSeconds);
             }
         }
     }

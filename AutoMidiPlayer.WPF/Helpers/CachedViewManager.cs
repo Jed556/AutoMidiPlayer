@@ -26,7 +26,7 @@ public class CachedViewManager : ViewManager
 
         // Only cache heavy main navigation pages to avoid memory leaks on dialogs
         bool shouldCache = isPageCachingEnabled &&
-                           model is SettingsPageViewModel or SongsViewModel or QueueViewModel or TrackViewModel or PianoSheetViewModel or InstrumentViewModel or AboutViewModel;
+                           model is SettingsPageViewModel or SongsViewModel or QueueViewModel or TrackViewModel or StudioViewModel or PianoSheetViewModel or InstrumentViewModel or AboutViewModel;
 
         if (shouldCache && _viewCache.TryGetValue(modelType, out var cachedView))
         {

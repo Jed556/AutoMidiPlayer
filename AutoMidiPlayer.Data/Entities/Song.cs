@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
+using System.Text.Json;
 
 namespace AutoMidiPlayer.Data.Entities;
 
@@ -76,6 +79,83 @@ public class Song
     /// Maximum onset distance, in milliseconds, for notes to be detected as one chord.
     /// </summary>
     public uint? ChordDetectionMilliseconds { get; set; }
+
+    private string? _keyChanges;
+    private volatile List<KeyChangeMarker>? _cachedKeyChangeMarkers;
+
+    /// <summary>
+    /// JSON-serialized list of timed key modulation markers.
+    /// </summary>
+    public string? KeyChanges
+    {
+        get => _keyChanges;
+        set
+        {
+            _keyChanges = value;
+            _cachedKeyChangeMarkers = null;
+        }
+    }
+
+    [NotMapped]
+    public List<KeyChangeMarker> KeyChangeMarkers
+    {
+        get
+        {
+            if (_cachedKeyChangeMarkers != null) return _cachedKeyChangeMarkers;
+            if (string.IsNullOrWhiteSpace(KeyChanges)) return _cachedKeyChangeMarkers = new();
+            try
+            {
+                var list = JsonSerializer.Deserialize<List<KeyChangeMarker>>(KeyChanges) ?? new();
+                list.Sort((a, b) => a.TimeMs.CompareTo(b.TimeMs));
+                return _cachedKeyChangeMarkers = list;
+            }
+            catch { return _cachedKeyChangeMarkers = new(); }
+        }
+        set
+        {
+            if (value != null)
+                value.Sort((a, b) => a.TimeMs.CompareTo(b.TimeMs));
+            _cachedKeyChangeMarkers = value;
+            _keyChanges = value is { Count: > 0 } ? JsonSerializer.Serialize(value) : null;
+        }
+    }
+
+    public KeyChangeMarker? GetKeyMarkerAtTime(TimeSpan time, long lookaheadMs = 0)
+    {
+        var markers = KeyChangeMarkers;
+        var count = markers.Count;
+        if (count == 0) return null;
+
+        var ms = (long)Math.Round(time.TotalMilliseconds) + lookaheadMs;
+
+        // Binary search for the latest marker with TimeMs <= ms
+        int low = 0;
+        int high = count - 1;
+        int bestIndex = -1;
+
+        while (low <= high)
+        {
+            int mid = low + ((high - low) >> 1);
+            if (markers[mid].TimeMs <= ms)
+            {
+                bestIndex = mid;
+                low = mid + 1;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+
+        return bestIndex >= 0 ? markers[bestIndex] : null;
+    }
+
+    public int GetEffectiveKeyOffsetAtTime(TimeSpan time)
+    {
+        var marker = GetKeyMarkerAtTime(time);
+        var offset = marker?.KeyOffset ?? Key;
+        return MusicConstants.GetEffectiveKeyOffset(offset, BaseKey);
+    }
 
     /// <summary>
     /// Computes SHA-256 hash of a file's content.
