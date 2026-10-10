@@ -100,7 +100,7 @@ jobs:
           7z a AutoMidiPlayer_${{ needs.prepare.outputs.version }}_win-x64-net-install.zip .\install-fd\* -mx9
 
       - name: Upload net-install artifact
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: net-install-zip
           path: AutoMidiPlayer_${{ needs.prepare.outputs.version }}_win-x64-net-install.zip
@@ -146,7 +146,7 @@ jobs:
           Remove-Item "$stagedExe" -Force
 
       - name: Upload portable artifact
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: portable-zip
           path: AutoMidiPlayer_${{ needs.prepare.outputs.version }}_win-x64-portable.zip
@@ -163,13 +163,13 @@ jobs:
 
     steps:
       - name: Download net-install artifact
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           name: net-install-zip
           path: artifacts/net-install
 
       - name: Download portable artifact
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           name: portable-zip
           path: artifacts/portable
