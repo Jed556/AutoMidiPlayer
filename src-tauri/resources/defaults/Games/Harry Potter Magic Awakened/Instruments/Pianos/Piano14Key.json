@@ -1,0 +1,12 @@
+{
+  "id": "hpma-piano-14k",
+  "name": "Piano",
+  "category": "Pianos",
+  "type": "diatonic14",
+  "layoutStyle": "genshin",
+  "keys": [
+    [60, 62, 64, 65, 67, 69, 71],
+    [48, 50, 52, 53, 55, 57, 59]
+  ],
+  "supportedLayouts": ["HPMA_QWERTY_14Key"]
+}

@@ -1,0 +1,24 @@
+name: "Feature Request"
+description: "Suggest a new feature for Auto MIDI Player."
+title: "short description"
+labels: [feat]
+body:
+  - type: markdown
+    attributes:
+      value: "Thank you for suggesting a new feature! Please fill out the form below."
+  - type: textarea
+    id: why-needed
+    attributes:
+      label: "Why is this needed?"
+      description: "Why is this feature needed?"
+      placeholder: "Describe the need or problem this feature addresses."
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: "Proposed solution"
+      description: "Describe your proposed solution or approach."
+      placeholder: "How do you suggest implementing this?"
+    validations:
+      required: false

@@ -1,0 +1,13 @@
+{
+  "id": "heartopia-lyre-3r",
+  "name": "Lyre (3 Row)",
+  "category": "Strings",
+  "type": "diatonic15",
+  "layoutStyle": "heartopia",
+  "keys": [
+    [60, 62, 64, 65, 67],
+    [69, 71, 72, 74, 76],
+    [77, 79, 81, 83, 84]
+  ],
+  "supportedLayouts": ["Heartopia_QWERTY_3Row"]
+}

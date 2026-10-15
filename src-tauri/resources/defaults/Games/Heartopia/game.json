@@ -1,0 +1,9 @@
+{
+  "id": "Heartopia",
+  "displayName": "Heartopia",
+  "shortName": "Heartopia",
+  "processNames": ["xdt"],
+  "icon": "icon.png",
+  "defaultInstrument": "Piano (22 Key)",
+  "defaultLayout": "Heartopia_QWERTY_22Key"
+}

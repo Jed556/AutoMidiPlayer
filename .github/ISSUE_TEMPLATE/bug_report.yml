@@ -1,0 +1,75 @@
+name: "Bug Report"
+description: "Report a bug to help us improve."
+title: "short description"
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Thank you for taking the time to report a bug! Please fill out the form below."
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: "What happened?"
+      description: "Describe the bug in detail."
+      placeholder: "A clear and concise description of what the bug is."
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: "Operating System"
+      description: "Select all operating systems where you observed the bug (you may choose multiple)."
+      multiple: true
+      options:
+        - Windows 10
+        - Windows 11
+    validations:
+      required: true
+  - type: dropdown
+    id: game
+    attributes:
+      label: "Game"
+      description: "Select the game/s in which you're seeing this issue."
+      multiple: true
+      options:
+        - Genshin Impact
+        - Wuthering Waves
+        - Heartopia
+        - Roblox
+        - Sky
+        - Neverness to Everness
+        - "Blue Protocol: Star Resonance"
+        - "Harry Potter: Magic Awakened"
+        - Core Keeper
+    validations:
+      required: false
+  - type: input
+    id: instrument
+    attributes:
+      label: "Instrument"
+      description: "Instrument name/s as shown in app."
+      placeholder: "e.g. Cello 𝄐, Piano (37 key), Lyre (2 row)"
+    validations:
+      required: false
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: "Steps to reproduce"
+      description: "How can we reproduce the bug?"
+      placeholder: "1. Go to '...'\n2. Click on '...'\n3. Scroll down to '...'\n4. See error"
+    validations:
+      required: false
+  - type: upload
+    id: logs
+    attributes:
+      label: Upload Logs
+      description: If applicable, add log files to help explain your problem.
+    validations:
+      required: false
+  - type: upload
+    id: midis
+    attributes:
+      label: Upload MIDI Files
+      description: If applicable, add MIDI files to help understand your problem. To upload MIDI files, you need to change the file extension to `.txt` first (Uploading `.mid`/`.midi` files in issue forms is not supported).
+    validations:
+      required: false

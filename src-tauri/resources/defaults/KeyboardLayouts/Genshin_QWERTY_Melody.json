@@ -1,0 +1,11 @@
+{
+  "id": "Genshin_QWERTY_Melody",
+  "name": "QWERTY (Melody)",
+  "keys": [
+    ["a", "s", "d", "f", "g", "h", "j"],
+    ["z", "x", "c", "v", "b", "n", "m"]
+  ],
+  "chordKeys": [
+    "q", "w", "e", "r", "t", "y", "u"
+  ]
+}

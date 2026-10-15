@@ -1,0 +1,304 @@
+@property --header-gradient-color {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(29, 185, 84, 0.45);
+}
+
+@property --resizer-line {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(255, 255, 255, 0.35);
+}
+
+@property --resizer-line-hover {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(255, 255, 255, 0.65);
+}
+
+@property --mask-left-title {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #000000;
+}
+
+@property --mask-left-artist {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #000000;
+}
+
+@property --mask-left-btn {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #000000;
+}
+
+@property --gradient-sweep-mask {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #000000;
+}
+
+@property --accordion-mask {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #000000;
+}
+
+:root {
+  --accent-color: #1DB954;
+  --accent-glow: rgba(29, 185, 84, 0.25);
+  --accent-subtle: rgba(29, 185, 84, 0.12);
+  --danger-color: #EF4444;
+  --warning-color: #F59E0B;
+  --font-family: 'Segoe UI Variable Text', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+
+  /* Default Dark Mode (Spotify Aesthetic) */
+  --bg-app: #000000;
+  --bg-color: #000000;
+  --bg-mica: #000000;
+  --bg-primary: #121212;
+  --surface-color: #121212;
+  --surface-transparent: rgba(18, 18, 18, 0);
+  --card-bg: #1F1F1F;
+  --bg-card: #1F1F1F;
+  --bg-secondary: #1F1F1F;
+  --bg-dialog: #1F1F1F;
+  --card-highlight: #3F3F3F;
+  --bg-hover: rgba(255, 255, 255, 0.08);
+  --bg-tertiary: rgba(255, 255, 255, 0.08);
+  --card-stroke: transparent;
+  --card-stroke-hover: transparent;
+  --card-hover-bg: #3F3F3F;
+  --card-shadow: none;
+  --card-shadow-hover: 0 8px 16px rgba(0, 0, 0, 0.35);
+  --card-inset-bg: rgba(0, 0, 0, 0.25);
+  --card-inset-stroke: rgba(255, 255, 255, 0.06);
+  --card-inset-shadow: none;
+  --track-groove-bg: rgba(255, 255, 255, 0.08);
+  --switch-bg: var(--control-fill);
+  --switch-border: var(--control-stroke);
+  --switch-hover-bg: var(--control-fill-hover);
+  --switch-hover-border: var(--control-stroke-hover);
+  --switch-thumb-off: var(--text-secondary);
+  --switch-thumb-off-hover: var(--text-primary);
+  --switch-thumb-checked: var(--bg-app);
+  --accent: #1DB954;
+  --accent-color: #1DB954;
+  --accent-glow: rgba(29, 185, 84, 0.25);
+  --accent-subtle: rgba(29, 185, 84, 0.12);
+  --text-primary: #FFFFFF;
+  --text-secondary: rgba(255, 255, 255, 0.7);
+  --text-tertiary: rgba(255, 255, 255, 0.45);
+  --control-fill: rgba(255, 255, 255, 0.07);
+  --control-fill-hover: #3F3F3F;
+  --control-fill-active: #4F4F4F;
+  --control-stroke: rgba(255, 255, 255, 0.12);
+  --control-stroke-hover: rgba(255, 255, 255, 0.20);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-medium: rgba(255, 255, 255, 0.16);
+  --divider-color: rgba(255, 255, 255, 0.08);
+  --popup-shadow: 0 16px 24px rgba(0, 0, 0, 0.4), 0 6px 8px rgba(0, 0, 0, 0.25);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 8px 16px rgba(0, 0, 0, 0.35);
+  --shadow-xl: 0 24px 32px rgba(0, 0, 0, 0.5), 0 8px 16px rgba(0, 0, 0, 0.25);
+  --hero-artwork-shadow: 0 4px 60px rgba(0, 0, 0, 0.5);
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --anim-duration: 0.20s;
+  --anim-duration-ms: 200ms;
+  --anim-fast: 0.15s;
+  --anim-normal: 0.20s;
+  --anim-slow: 0.25s;
+  --transition-fast: var(--anim-fast, 0.15s) cubic-bezier(0, 0, 0.2, 1);
+  --transition-normal: var(--anim-normal, 0.20s) cubic-bezier(0, 0, 0.2, 1);
+  --transition-slow: var(--anim-slow, 0.25s) cubic-bezier(0.1, 0.9, 0.2, 1);
+  --sidebar-width: 80px;
+  --titlebar-height: 42px;
+  --player-panel-height: 90px;
+  --status-success: #1DB954;
+  --resizer-line: rgba(255, 255, 255, 0.35);
+  --resizer-line-hover: rgba(255, 255, 255, 0.65);
+}
+
+:root.light,
+:root[data-theme="light"] {
+  /* Consistent Inverted Spotify Calculations */
+  --bg-app: #FFFFFF;
+  --bg-color: #FFFFFF;
+  --bg-mica: #FFFFFF;
+  --bg-primary: #EDEDED;
+  --surface-color: #EDEDED;
+  --surface-transparent: rgba(237, 237, 237, 0);
+  --bg-secondary: #E0E0E0;
+  --card-bg: #E0E0E0;
+  --bg-card: #E0E0E0;
+  --bg-dialog: #E0E0E0;
+  --card-highlight: #C0C0C0;
+  --bg-hover: rgba(0, 0, 0, 0.06);
+  --bg-tertiary: rgba(0, 0, 0, 0.06);
+  --card-stroke: transparent;
+  --card-stroke-hover: transparent;
+  --card-hover-bg: #C0C0C0;
+  --card-shadow: none;
+  --card-shadow-hover: 0 8px 16px rgba(0, 0, 0, 0.1);
+  --card-inset-bg: rgba(0, 0, 0, 0.05);
+  --card-inset-stroke: rgba(0, 0, 0, 0.06);
+  --card-inset-shadow: none;
+  --track-groove-bg: rgba(0, 0, 0, 0.08);
+  --switch-bg: var(--control-fill);
+  --switch-border: var(--control-stroke);
+  --switch-hover-bg: var(--control-fill-hover);
+  --switch-hover-border: var(--control-stroke-hover);
+  --switch-thumb-off: var(--text-secondary);
+  --switch-thumb-off-hover: var(--text-primary);
+  --switch-thumb-checked: var(--bg-app);
+  --text-primary: #000000;
+  --text-secondary: rgba(0, 0, 0, 0.7);
+  --text-tertiary: rgba(0, 0, 0, 0.45);
+  --control-fill: rgba(0, 0, 0, 0.05);
+  --control-fill-hover: #C0C0C0;
+  --control-fill-active: #B0B0B0;
+  --control-stroke: rgba(0, 0, 0, 0.12);
+  --control-stroke-hover: rgba(0, 0, 0, 0.22);
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-medium: rgba(0, 0, 0, 0.16);
+  --divider-color: rgba(0, 0, 0, 0.08);
+  --popup-shadow: 0 16px 24px rgba(0, 0, 0, 0.12), 0 6px 8px rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 8px 16px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 24px 32px rgba(0, 0, 0, 0.14), 0 8px 16px rgba(0, 0, 0, 0.05);
+  --hero-artwork-shadow: 0 4px 40px rgba(0, 0, 0, 0.18);
+  --status-success: #1DB954;
+  --resizer-line: rgba(0, 0, 0, 0.28);
+  --resizer-line-hover: rgba(0, 0, 0, 0.50);
+  --player-panel-height: 90px;
+}
+
+:root.no-animations,
+:root.no-animations *,
+:root.no-animations *::before,
+:root.no-animations *::after {
+  --anim-duration: 0s !important;
+  --anim-duration-ms: 0ms !important;
+  --anim-fast: 0s !important;
+  --anim-normal: 0s !important;
+  --anim-slow: 0s !important;
+  transition-duration: 0s !important;
+  animation-duration: 0s !important;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--card-bg, #1f1f1f);
+  color: var(--text-primary);
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom Fluent Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--control-fill-hover);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--control-fill-active);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 12px var(--accent-glow); }
+  50% { box-shadow: 0 0 24px var(--accent-color); }
+}
+
+.animate-fade-in {
+  animation: fadeIn var(--anim-normal, 0.18s) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-in {
+  animation: slideInRight var(--anim-normal, 0.2s) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Synchronized global theme transition: smoothly cross-fades all UI elements at the exact same time */
+html.theme-transitioning,
+html.theme-transitioning *,
+html.theme-transitioning *::before,
+html.theme-transitioning *::after {
+  transition: background-color var(--anim-normal, 0.20s) ease,
+              background var(--anim-normal, 0.20s) ease,
+              color var(--anim-normal, 0.20s) ease,
+              border-color var(--anim-normal, 0.20s) ease,
+              box-shadow var(--anim-normal, 0.20s) ease !important;
+  transition-delay: 0s !important;
+}
+
+/* Keep both theme snapshots fully rendered while the new theme expands. */
+html.theme-revealing,
+html.theme-revealing *,
+html.theme-revealing *::before,
+html.theme-revealing *::after {
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+}
+
+.theme-reveal-layer {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  contain: paint;
+  isolation: isolate;
+  z-index: 2147483647;
+  pointer-events: none !important;
+}
+
+html.theme-revealing .amp-tooltip-portal-root {
+  visibility: hidden !important;
+}
+
+.theme-reveal-layer *,
+.theme-reveal-layer *::before,
+.theme-reveal-layer *::after {
+  pointer-events: none !important;
+  animation: none !important;
+  transition: none !important;
+}
+
+/* Global table column resizing cursor */
+body.col-resizing,
+body.col-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+

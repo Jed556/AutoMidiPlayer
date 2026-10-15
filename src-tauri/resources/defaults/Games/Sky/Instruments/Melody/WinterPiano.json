@@ -1,0 +1,13 @@
+{
+  "id": "sky-winter-piano",
+  "name": "Winter Piano",
+  "category": "Melody",
+  "type": "diatonic15",
+  "layoutStyle": "sky",
+  "keys": [
+    [72, 74, 76, 77, 79],
+    [81, 83, 84, 86, 88],
+    [89, 91, 93, 95, 96]
+  ],
+  "supportedLayouts": ["Sky_QWERTY_15"]
+}

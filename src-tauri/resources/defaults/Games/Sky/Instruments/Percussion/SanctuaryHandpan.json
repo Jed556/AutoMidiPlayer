@@ -1,0 +1,12 @@
+{
+  "id": "sky-sanctuary-handpan",
+  "name": "Sanctuary Handpan",
+  "category": "Percussion",
+  "type": "drum8",
+  "layoutStyle": "drums",
+  "keys": [
+    [50, 57, 60, 62],
+    [65, 67, 69, 72]
+  ],
+  "supportedLayouts": ["Sky_QWERTY_8"]
+}

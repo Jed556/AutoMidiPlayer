@@ -1,0 +1,13 @@
+{
+  "id": "nte-piano-36k",
+  "name": "Piano (36 Key)",
+  "category": "Pianos",
+  "type": "chromatic36",
+  "layoutStyle": "genshin",
+  "keys": [
+    [84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95],
+    [72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83],
+    [60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71]
+  ],
+  "supportedLayouts": ["NTE_QWERTY_36Keys"]
+}

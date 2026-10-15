@@ -1,0 +1,9 @@
+{
+  "id": "Heartopia_QWERTY_22Key",
+  "name": "QWERTY",
+  "keys": [
+    ["q", "w", "e", "r", "t", "y", "u", "i"],
+    ["a", "s", "d", "f", "g", "h", "j"],
+    ["z", "x", "c", "v", "b", "n", "m"]
+  ]
+}

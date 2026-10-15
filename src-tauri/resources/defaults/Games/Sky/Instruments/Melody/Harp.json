@@ -1,0 +1,13 @@
+{
+  "id": "sky-harp",
+  "name": "Harp",
+  "category": "Melody",
+  "type": "diatonic15",
+  "layoutStyle": "sky",
+  "keys": [
+    [48, 50, 52, 53, 55],
+    [57, 59, 60, 62, 64],
+    [65, 67, 69, 71, 72]
+  ],
+  "supportedLayouts": ["Sky_QWERTY_15"]
+}

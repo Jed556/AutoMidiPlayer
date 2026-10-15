@@ -1,0 +1,9 @@
+{
+  "id": "Genshin_DVORAKLeft",
+  "name": "DVORAKLeft",
+  "keys": [
+    ["w", "b", "j", "y", "g", "r", "t"],
+    ["k", "u", "f", "5", "c", "h", "8"],
+    ["l", "x", "d", "v", "e", "n", "6"]
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "id": "Genshin_QWERTY_Two_Octaves",
+  "name": "QWERTY (Two Octaves)",
+  "keys": [
+    ["q", "w", "e", "r", "t", "y", "u"],
+    ["a", "s", "d", "f", "g", "h", "j"]
+  ]
+}

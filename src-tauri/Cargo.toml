@@ -1,0 +1,47 @@
+[package]
+name = "auto-midi-player"
+version = "8.0.0"
+description = "MIDI auto player for games"
+authors = ["Jed556 <jguiriba11@gmail.com>"]
+license = "GPL-3.0-or-later"
+repository = "https://github.com/Jed556/AutoMidiPlayer"
+homepage = "https://github.com/Jed556/AutoMidiPlayer"
+readme = "../README.md"
+edition = "2021"
+rust-version = "1.90"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.3", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
+tauri = { version = "2.12.4", features = ["protocol-asset"] }
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-updater = "2"
+amp-core = { path = "../crates/amp-core" }
+sysinfo = "0.33"
+trash = "5.2.9"
+include_dir = "0.7"
+sentry = "0.49.3"
+reqwest = { version = "0.13.5", default-features = false, features = ["native-tls"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_System_Threading"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+x11rb = "0.13"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.10"
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSWorkspace", "NSRunningApplication", "libc"] }

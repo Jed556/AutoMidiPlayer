@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "src-tauri",
+    "crates/amp-core"
+]
+resolver = "2"

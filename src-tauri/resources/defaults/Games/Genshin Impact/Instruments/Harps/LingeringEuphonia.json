@@ -1,0 +1,21 @@
+{
+  "id": "lingering-euphonia",
+  "name": "Lingering Euphonia",
+  "category": "Harps",
+  "type": "diatonic14",
+  "layoutStyle": "genshin",
+  "keys": [
+    [60, 62, 64, 65, 67, 69, 71],
+    [48, 50, 52, 53, 55, 57, 59]
+  ],
+  "supportedLayouts": ["Genshin_QWERTY_Melody"],
+  "chordPads": [
+    { "name": "C", "pitchClasses": [0, 4, 7] },
+    { "name": "Dm", "pitchClasses": [2, 5, 9] },
+    { "name": "Em", "pitchClasses": [4, 7, 11] },
+    { "name": "F", "pitchClasses": [0, 5, 9] },
+    { "name": "G", "pitchClasses": [2, 7, 11] },
+    { "name": "Am", "pitchClasses": [0, 4, 9] },
+    { "name": "G7", "pitchClasses": [2, 5, 7, 11] }
+  ]
+}

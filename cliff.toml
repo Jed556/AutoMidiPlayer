@@ -1,0 +1,22 @@
+[changelog]
+body = "{{ version }}"
+trim = true
+render_always = true
+
+[git]
+conventional_commits = true
+filter_unconventional = false
+filter_commits = false
+protect_breaking_commits = false
+# Only stable tags divide release histories. --tag still names the generated
+# prerelease, while earlier beta/RC commits remain in its cumulative context.
+tag_pattern = '^v[0-9]+\.[0-9]+\.[0-9]+$'
+use_branch_tags = true
+sort_commits = "oldest"
+# Keep hidden commits in the context so contributor discovery covers all types.
+commit_parsers = [
+  { message = '^feat(\(|!|:)', group = "What's New?" },
+  { message = '^fix(\(|!|:)', group = "Bug Fixes" },
+  { message = '^(ref|refactor|ui)(\(|!|:)', group = "Changes" },
+  { message = '.*', group = "Hidden" },
+]

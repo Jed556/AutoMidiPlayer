@@ -1,0 +1,9 @@
+{
+  "id": "Core Keeper",
+  "displayName": "Core Keeper",
+  "shortName": "Core Keeper",
+  "processNames": ["CoreKeeper"],
+  "icon": "icon.png",
+  "defaultInstrument": "Pocket Piano",
+  "defaultLayout": "CoreKeeper_QWERTY"
+}

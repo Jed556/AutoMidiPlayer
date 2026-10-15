@@ -1,0 +1,9 @@
+{
+  "id": "Sky",
+  "displayName": "Sky: Children of the Light",
+  "shortName": "Sky",
+  "processNames": ["Sky"],
+  "icon": "icon.png",
+  "defaultInstrument": "Harp",
+  "defaultLayout": "Sky_QWERTY_15"
+}

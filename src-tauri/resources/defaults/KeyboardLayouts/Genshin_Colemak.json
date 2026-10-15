@@ -1,0 +1,9 @@
+{
+  "id": "Genshin_Colemak",
+  "name": "Colemak",
+  "keys": [
+    ["q", "w", "k", "s", "f", "o", "i"],
+    ["a", "d", "g", "e", "t", "h", "y"],
+    ["z", "x", "c", "v", "b", "j", "m"]
+  ]
+}

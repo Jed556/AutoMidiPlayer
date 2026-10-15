@@ -1,0 +1,13 @@
+{
+  "id": "wuwa-instrument-21key",
+  "name": "21-Key Instrument",
+  "category": "Instruments",
+  "type": "diatonic21",
+  "layoutStyle": "genshin",
+  "keys": [
+    [72, 74, 76, 77, 79, 81, 83],
+    [60, 62, 64, 65, 67, 69, 71],
+    [48, 50, 52, 53, 55, 57, 59]
+  ],
+  "supportedLayouts": ["WutheringWaves_QWERTY"]
+}

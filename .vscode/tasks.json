@@ -1,0 +1,66 @@
+{
+  "version": "2.0.0",
+  "options": {
+    "env": {
+      "PATH": "${env:USERPROFILE}\\.cargo\\bin;${env:LOCALAPPDATA}\\pnpm\\bin;${env:PATH}"
+    }
+  },
+  "tasks": [
+    {
+      "label": "tauri: dev",
+      "type": "shell",
+      "command": "pnpm dev",
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Running",
+          "endsPattern": "Listening"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "frontend: dev",
+      "type": "shell",
+      "command": "pnpm dev:frontend",
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "VITE",
+          "endsPattern": "ready in"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "tauri: build",
+      "type": "shell",
+      "command": "pnpm build",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": ["$rustc"]
+    },
+    {
+      "label": "frontend: build",
+      "type": "shell",
+      "command": "pnpm build:frontend",
+      "problemMatcher": ["$tsc"]
+    }
+  ]
+}

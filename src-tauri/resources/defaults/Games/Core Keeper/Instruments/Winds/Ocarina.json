@@ -1,0 +1,12 @@
+{
+  "id": "corekeeper-ocarina",
+  "name": "Ocarina",
+  "category": "Winds",
+  "type": "chromatic24",
+  "layoutStyle": "genshin",
+  "keys": [
+    [84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95],
+    [72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83]
+  ],
+  "supportedLayouts": ["CoreKeeper_QWERTY"]
+}

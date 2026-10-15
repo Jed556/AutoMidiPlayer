@@ -1,0 +1,13 @@
+{
+  "id": "sky-contrabass",
+  "name": "Contrabass",
+  "category": "Bass",
+  "type": "diatonic15",
+  "layoutStyle": "sky",
+  "keys": [
+    [24, 26, 28, 29, 31],
+    [33, 35, 36, 38, 40],
+    [41, 43, 45, 47, 48]
+  ],
+  "supportedLayouts": ["Sky_QWERTY_15"]
+}

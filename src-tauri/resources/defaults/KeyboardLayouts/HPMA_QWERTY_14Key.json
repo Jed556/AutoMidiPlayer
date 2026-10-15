@@ -1,0 +1,8 @@
+{
+  "id": "HPMA_QWERTY_14Key",
+  "name": "QWERTY",
+  "keys": [
+    [",", ".", "/", "q", "w", "e", "r"],
+    ["z", "x", "c", "v", "b", "n", "m"]
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "id": "Genshin_AZERTY",
+  "name": "AZERTY",
+  "keys": [
+    ["a", "z", "e", "r", "t", "y", "u"],
+    ["q", "s", "d", "f", "g", "h", "j"],
+    ["w", "x", "c", "v", "b", "n", ","]
+  ]
+}

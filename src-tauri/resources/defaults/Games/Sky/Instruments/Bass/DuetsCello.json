@@ -1,0 +1,13 @@
+{
+  "id": "sky-duets-cello",
+  "name": "Duets Cello",
+  "category": "Bass",
+  "type": "diatonic15",
+  "layoutStyle": "sky",
+  "keys": [
+    [36, 38, 40, 41, 43],
+    [45, 47, 48, 50, 52],
+    [53, 55, 57, 59, 60]
+  ],
+  "supportedLayouts": ["Sky_QWERTY_15"]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "djem-djem-drum",
+  "name": "Djem Djem Drum",
+  "category": "Percussion",
+  "type": "drum8",
+  "layoutStyle": "drums",
+  "keys": [
+    [60, 62, 64, 65],
+    [67, 69, 71, 72]
+  ],
+  "supportedLayouts": ["Genshin_QWERTY_Drums"]
+}

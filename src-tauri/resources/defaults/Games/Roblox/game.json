@@ -1,0 +1,10 @@
+{
+  "id": "Roblox",
+  "displayName": "Roblox",
+  "shortName": "Roblox",
+  "processNames": ["RobloxPlayerBeta", "RobloxPlayer", "Roblox Game Client"],
+  "windowNames": ["Roblox"],
+  "icon": "icon.png",
+  "defaultInstrument": "Piano (61 Key)",
+  "defaultLayout": "Roblox_QWERTY_61Key"
+}

@@ -1,0 +1,9 @@
+{
+  "id": "Genshin Impact",
+  "displayName": "Genshin Impact",
+  "shortName": "Genshin",
+  "processNames": ["GenshinImpact", "YuanShen"],
+  "icon": "icon.png",
+  "defaultInstrument": "Windsong Lyre",
+  "defaultLayout": "Genshin_QWERTY"
+}

@@ -1,0 +1,13 @@
+{
+  "id": "sky-kalimba",
+  "name": "Kalimba",
+  "category": "Melody",
+  "type": "diatonic15",
+  "layoutStyle": "sky",
+  "keys": [
+    [60, 62, 64, 65, 67],
+    [69, 71, 72, 74, 76],
+    [77, 79, 81, 83, 84]
+  ],
+  "supportedLayouts": ["Sky_QWERTY_15"]
+}

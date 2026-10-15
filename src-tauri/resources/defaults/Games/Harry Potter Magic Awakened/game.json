@@ -1,0 +1,10 @@
+{
+  "id": "HPMA",
+  "displayName": "Harry Potter: Magic Awakened",
+  "shortName": "HPMA",
+  "processNames": ["launcher"],
+  "windowNames": ["Harry Potter: Magic Awakened"],
+  "icon": "icon.png",
+  "defaultInstrument": "Piano",
+  "defaultLayout": "HPMA_QWERTY_14Key"
+}

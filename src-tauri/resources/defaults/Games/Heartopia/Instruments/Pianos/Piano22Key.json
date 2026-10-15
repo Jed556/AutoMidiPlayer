@@ -1,0 +1,13 @@
+{
+  "id": "heartopia-piano-22k",
+  "name": "Piano (22 Key)",
+  "category": "Pianos",
+  "type": "diatonic22",
+  "layoutStyle": "heartopia",
+  "keys": [
+    [72, 74, 76, 77, 79, 81, 83, 84],
+    [60, 62, 64, 65, 67, 69, 71],
+    [48, 50, 52, 53, 55, 57, 59]
+  ],
+  "supportedLayouts": ["Heartopia_QWERTY_22Key"]
+}

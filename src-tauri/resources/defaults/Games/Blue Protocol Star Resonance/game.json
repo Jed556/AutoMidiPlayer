@@ -1,0 +1,9 @@
+{
+  "id": "BPSR",
+  "displayName": "Blue Protocol: Star Resonance",
+  "shortName": "BPSR",
+  "processNames": ["BPSR", "StarSEA_STEAM"],
+  "icon": "icon.png",
+  "defaultInstrument": "Piano (61 Key)",
+  "defaultLayout": "BPSR_QWERTY_61Key"
+}

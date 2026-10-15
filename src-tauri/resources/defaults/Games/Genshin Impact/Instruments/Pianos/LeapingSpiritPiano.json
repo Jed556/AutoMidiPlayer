@@ -1,0 +1,13 @@
+{
+  "id": "leaping-spirit-piano",
+  "name": "Leaping Spirit Piano",
+  "category": "Pianos",
+  "type": "diatonic21",
+  "layoutStyle": "genshin",
+  "keys": [
+    [72, 74, 76, 77, 79, 81, 83],
+    [60, 62, 64, 65, 67, 69, 71],
+    [48, 50, 52, 53, 55, 57, 59]
+  ],
+  "supportedLayouts": ["Genshin_QWERTY", "Genshin_QWERTZ", "Genshin_AZERTY", "Genshin_DVORAK", "Genshin_DVORAKLeft", "Genshin_DVORAKRight", "Genshin_Colemak"]
+}

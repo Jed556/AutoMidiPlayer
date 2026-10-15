@@ -1,0 +1,9 @@
+{
+  "id": "Wuthering Waves",
+  "displayName": "Wuthering Waves",
+  "shortName": "WuWa",
+  "processNames": ["Client-Win64-Shipping", "Wuthering Waves"],
+  "icon": "icon.png",
+  "defaultInstrument": "21-Key Instrument",
+  "defaultLayout": "WutheringWaves_QWERTY"
+}

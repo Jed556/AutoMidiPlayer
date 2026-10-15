@@ -1,0 +1,194 @@
+<div align="center">
+  <br>
+  <p>
+    <a href="https://github.com/Jed556/AutoMidiPlayer"><img src="https://raw.githubusercontent.com/wiki/Jed556/AutoMidiPlayer/Assets/Branding.png" width="500" alt="Auto MIDI Player【AMP】" /></a> 
+  </p>
+  <p>
+    <a href="https://github.com/Jed556/AutoMidiPlayer/releases"><img alt="Beta" src="https://img.shields.io/github/v/release/Jed556/AutoMidiPlayer?include_prereleases&color=35566D&label=Beta&logo=data:image/svg+xml;base64,PCFET0NUWVBFIHN2ZyBQVUJMSUMgIi0vL1czQy8vRFREIFNWRyAxLjEvL0VOIiAiaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTEuZHRkIj4KDTwhLS0gVXBsb2FkZWQgdG86IFNWRyBSZXBvLCB3d3cuc3ZncmVwby5jb20sIFRyYW5zZm9ybWVkIGJ5OiBTVkcgUmVwbyBNaXhlciBUb29scyAtLT4KPHN2ZyB3aWR0aD0iODAwcHgiIGhlaWdodD0iODAwcHgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiBzdHJva2U9IiNmZmZmZmYiPgoNPGcgaWQ9IlNWR1JlcG9fYmdDYXJyaWVyIiBzdHJva2Utd2lkdGg9IjAiLz4KDTxnIGlkPSJTVkdSZXBvX3RyYWNlckNhcnJpZXIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgoNPGcgaWQ9IlNWR1JlcG9faWNvbkNhcnJpZXIiPiA8cGF0aCBkPSJNNyA4TDMgMTEuNjkyM0w3IDE2TTE3IDhMMjEgMTEuNjkyM0wxNyAxNk0xNCA0TDEwIDIwIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+IDwvZz4KDTwvc3ZnPg=="></a>
+    <a href="https://github.com/Jed556/AutoMidiPlayer/releases/latest"><img alt="Stable" src="https://img.shields.io/github/v/release/Jed556/AutoMidiPlayer?color=35566D&label=Stable&logo=data:image/svg+xml;base64,PCFET0NUWVBFIHN2ZyBQVUJMSUMgIi0vL1czQy8vRFREIFNWRyAxLjEvL0VOIiAiaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTEuZHRkIj4KDTwhLS0gVXBsb2FkZWQgdG86IFNWRyBSZXBvLCB3d3cuc3ZncmVwby5jb20sIFRyYW5zZm9ybWVkIGJ5OiBTVkcgUmVwbyBNaXhlciBUb29scyAtLT4KPHN2ZyB3aWR0aD0iODAwcHgiIGhlaWdodD0iODAwcHgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiBzdHJva2U9IiNmZmZmZmYiPgoNPGcgaWQ9IlNWR1JlcG9fYmdDYXJyaWVyIiBzdHJva2Utd2lkdGg9IjAiLz4KDTxnIGlkPSJTVkdSZXBvX3RyYWNlckNhcnJpZXIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgoNPGcgaWQ9IlNWR1JlcG9faWNvbkNhcnJpZXIiPiA8cGF0aCBkPSJNMjAuNSA3LjI3NzgzTDEyIDEyLjAwMDFNMTIgMTIuMDAwMUwzLjQ5OTk3IDcuMjc3ODNNMTIgMTIuMDAwMUwxMiAyMS41MDAxTTE0IDIwLjg4OUwxMi43NzcgMjEuNTY4NEMxMi40OTM0IDIxLjcyNiAxMi4zNTE2IDIxLjgwNDcgMTIuMjAxNSAyMS44MzU2QzEyLjA2ODUgMjEuODYzIDExLjkzMTUgMjEuODYzIDExLjc5ODYgMjEuODM1NkMxMS42NDg0IDIxLjgwNDcgMTEuNTA2NiAyMS43MjYgMTEuMjIzIDIxLjU2ODRMMy44MjI5NyAxNy40NTczQzMuNTIzNDYgMTcuMjkwOSAzLjM3MzY4IDE3LjIwNzcgMy4yNjQ2MyAxNy4wODkzQzMuMTY4MTYgMTYuOTg0NyAzLjA5NTE1IDE2Ljg2MDYgMy4wNTA0OCAxNi43MjU0QzMgMTYuNTcyNiAzIDE2LjQwMTMgMyAxNi4wNTg2VjcuOTQxNTNDMyA3LjU5ODg5IDMgNy40Mjc1NyAzLjA1MDQ4IDcuMjc0NzdDMy4wOTUxNSA3LjEzOTU5IDMuMTY4MTYgNy4wMTU1MSAzLjI2NDYzIDYuOTEwODJDMy4zNzM2OCA2Ljc5MjQ4IDMuNTIzNDUgNi43MDkyOCAzLjgyMjk3IDYuNTQyODhMMTEuMjIzIDIuNDMxNzdDMTEuNTA2NiAyLjI3NDIxIDExLjY0ODQgMi4xOTU0MyAxMS43OTg2IDIuMTY0NTRDMTEuOTMxNSAyLjEzNzIxIDEyLjA2ODUgMi4xMzcyMSAxMi4yMDE1IDIuMTY0NTRDMTIuMzUxNiAyLjE5NTQzIDEyLjQ5MzQgMi4yNzQyMSAxMi43NzcgMi40MzE3N0wyMC4xNzcgNi41NDI4OEMyMC40NzY2IDYuNzA5MjggMjAuNjI2MyA2Ljc5MjQ4IDIwLjczNTQgNi45MTA4MkMyMC44MzE4IDcuMDE1NTEgMjAuOTA0OSA3LjEzOTU5IDIwLjk0OTUgNy4yNzQ3N0MyMSA3LjQyNzU3IDIxIDcuNTk4ODkgMjEgNy45NDE1M0wyMSAxMi41MDAxTTcuNSA0LjUwMDA4TDE2LjUgOS41MDAwOE0xNiAxOC4wMDAxTDE4IDIwLjAwMDFMMjIgMTYuMDAwMSIgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPiA8L2c+Cg08L3N2Zz4="></a>
+    <a href="https://github.com/Jed556/AutoMidiPlayer/releases/latest"><img alt="Downloads" src="https://img.shields.io/github/downloads/Jed556/AutoMidiPlayer/total?label=Downloads&logo=data:image/svg+xml;base64,PCFET0NUWVBFIHN2ZyBQVUJMSUMgIi0vL1czQy8vRFREIFNWRyAxLjEvL0VOIiAiaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTEuZHRkIj4KDTwhLS0gVXBsb2FkZWQgdG86IFNWRyBSZXBvLCB3d3cuc3ZncmVwby5jb20sIFRyYW5zZm9ybWVkIGJ5OiBTVkcgUmVwbyBNaXhlciBUb29scyAtLT4KPHN2ZyB3aWR0aD0iODAwcHgiIGhlaWdodD0iODAwcHgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KDTxnIGlkPSJTVkdSZXBvX2JnQ2FycmllciIgc3Ryb2tlLXdpZHRoPSIwIi8+Cg08ZyBpZD0iU1ZHUmVwb190cmFjZXJDYXJyaWVyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KDTxnIGlkPSJTVkdSZXBvX2ljb25DYXJyaWVyIj4gPHBhdGggZD0iTTExIDMuMDEyNTRDMTAuOTk4MyAyLjQ2MDI2IDExLjQ0NDYgMi4wMTExNCAxMS45OTY5IDIuMDA5NDFDMTIuNTQ5MiAyLjAwNzY4IDEyLjk5ODMgMi40NTM5OSAxMyAzLjAwNjI3TDExIDMuMDEyNTRaIiBmaWxsPSIjZmZmZmZmIi8+IDxwYXRoIGQ9Ik0xNC4zMTU4IDEwLjI5NTFMMTMuMDI2OSAxMS41OTJMMTMgMy4wMDYyN0wxMSAzLjAxMjU0TDExLjAyNjkgMTEuNTk4M0w5LjczMDAzIDEwLjMwOTVDOS4zMzgyOCA5LjkyMDE4IDguNzA1MSA5LjkyMjE0IDguMzE1OCAxMC4zMTM5QzcuOTI2NSAxMC43MDU2IDcuOTI4NDkgMTEuMzM4OCA4LjMyMDI0IDExLjcyODFMOC4zMjI3NSAxMS43MzA2TDguMzIzNzQgMTEuNzMxNkwxMi4wMzkgMTUuNDIzNkwxNS43MjA2IDExLjcxODdMMTUuNzI2MiAxMS43MTMxTDE1LjcyNyAxMS43MTIzTDE1LjcyNzggMTEuNzExNUwxNS43MzM3IDExLjcwNTZMMTUuNzM0NCAxMS43MDQ5TDE0LjMxNTggMTAuMjk1MVoiIGZpbGw9IiNmZmZmZmYiLz4gPHBhdGggZD0iTTE1LjczNDQgMTEuNzA0OUMxNi4xMjM3IDExLjMxMzEgMTYuMTIxNyAxMC42Nzk5IDE1LjczIDEwLjI5MDZDMTUuMzM4MiA5LjkwMTM0IDE0LjcwNSA5LjkwMzM1IDE0LjMxNTggMTAuMjk1MUwxNS43MzQ0IDExLjcwNDlaIiBmaWxsPSIjZmZmZmZmIi8+IDxwYXRoIGQ9Ik00IDEyQzQgMTAuODk1NCA0Ljg5NTQzIDEwIDYgMTBDNi41NTIyOCAxMCA3IDkuNTUyMjggNyA5QzcgOC40NDc3MSA2LjU1MjI4IDggNiA4QzMuNzkwODYgOCAyIDkuNzkwODYgMiAxMlYxOEMyIDIwLjIwOTEgMy43OTA4NiAyMiA2IDIySDE3QzE5Ljc2MTQgMjIgMjIgMTkuNzYxNCAyMiAxN1YxMkMyMiA5Ljc5MDg2IDIwLjIwOTEgOCAxOCA4QzE3LjQ0NzcgOCAxNyA4LjQ0NzcxIDE3IDlDMTcgOS41NTIyOCAxNy40NDc3IDEwIDE4IDEwQzE5LjEwNDYgMTAgMjAgMTAuODk1NCAyMCAxMlYxN0MyMCAxOC42NTY5IDE4LjY1NjkgMjAgMTcgMjBINkM0Ljg5NTQzIDIwIDQgMTkuMTA0NiA0IDE4VjEyWiIgZmlsbD0iI2ZmZmZmZiIvPiA8L2c+Cg08L3N2Zz4="></a>
+  </p>
+</div>
+
+<div align="center">
+  <p>A feature-rich MIDI-to-key player for in-game instruments, built with Svelte 5, Tauri v2, and Rust.</p>
+  <i>If you liked this project, consider <a href="CONTRIBUTING.md">contributing</a> or giving a 🌟 star. Thank you~</i>
+</div>
+<br/>
+
+---
+
+### Supported Games and Instruments
+- **Genshin Impact** - All 11 instruments as of August 2026
+- **Wuthering Waves** - 21-key instruments (shared QWERTY mapping)
+- **Neverness to Everness (NTE)** - Piano (21-key & 36-key)
+- **Where Winds Meet** - Guqin
+- **Blue Protocol: Star Resonance** - Piano (61-key & 88-key)
+- **Sky: Children of the Light** - All available Sky instruments as of February 2026
+- **Roblox** - Piano (61-key & 88-key)
+- **Heartopia** - Piano (All variations), 15-key instruments (e.g. lyre, wooden bass, violin, etc.)
+- **Core Keeper** - All instruments (shared 24-key chromatic layout; sounding range C2–B3 up to C5–B6 per instrument)
+- **Harry Potter: Magic Awakened (HPMA)** - Piano (14-key & 36-key)
+
+See the [Support wiki page][wiki-support] for details on supported games, instruments, and keyboard layouts.
+
+## Quick Start
+
+1. [Download][latest] the package for your platform. Windows offers an installer or a portable ZIP; macOS uses a DMG; Linux offers AppImage and deb packages.
+2. Open a .mid file by pressing the **+** button at the top left.
+3. Enable the tracks that you want to be played back.
+4. Press play and it will automatically switch to the target game window.
+5. Automatically stops playing if you switch to a different window.
+
+> [!NOTE]
+> If you get a SmartScreen popup, click on "More info" and then "Run anyway"
+> The reason this appears is because the application is not signed. Signing costs money which can get very expensive.
+
+## Features
+
+### Core Features
+* **Multi-game support** - Play on Genshin Impact, Wuthering Waves, Sky, Roblox, Heartopia, Neverness to Everness, Blue Protocol: Star Resonance, Harry Potter: Magic Awakened, Core Keeper, and Where Winds Meet
+* **Spotify-style UI** - Modern player interface with fixed bottom controls
+* **Studio View** - Piano roll interface with scrubbing and mid-song key changes
+* **Per-song Settings** - Key offset, transpose, speed, and BPM settings are saved for each song
+
+### Instrument Playback
+* Test MIDI files through speakers before playing in-game
+* Change keyboard layouts (QWERTY, QWERTZ, AZERTY, DVORAK, etc.)
+* Hold and merge nearby notes. _Some songs sound better when merged ([#4](https://github.com/sabihoshi/GenshinLyreMidiPlayer/issues/4))_
+* Smart transposition with key auto-correction for instruments with limited note ranges
+* Sustain pedal support
+* Play using your own MIDI Input Device
+
+<img width="1561" height="984" alt="image" src="https://github.com/user-attachments/assets/aebd26f5-9317-4f00-ae0c-8fec71fdde01" />
+
+### Discovery (Online MIDI)
+Browse, search, and download thousands of MIDI files directly inside the app without opening a browser.
+* **Online Repositories** - Browse MIDI tracks from various online repositories.
+* **In-App Synthesizer Preview** - Listen to song previews before downloading or adding to your library
+* **Detailed Track Breakdown** - Inspect tracks, channels, instruments, note counts, BPM, ratings, and download counts
+* **Library Import** - Download and add tracks directly into your song list with original track names preserved
+
+<img width="1561" height="984" alt="image" src="https://github.com/user-attachments/assets/60f43e53-2bab-4bd2-82d8-562b956d35d9" />
+
+### MIDI Track Management
+* Play multiple tracks of a MIDI file simultaneously
+* Turn on/off tracks in realtime
+
+<img width="1561" height="984" alt="image" src="https://github.com/user-attachments/assets/758c6bc3-4aac-41ce-9d2a-0a3ee57abc59" />
+
+### Studio View
+A piano roll interface to inspect notes, scrub through songs, and set mid-song key changes.
+* Real-time horizontal piano roll with keyboard guide and note highlighting
+* Add key change markers to modulate keys throughout the song (or auto-detect them from the MIDI file)
+* Timeline scrubber with zoom controls and playhead tracking
+* Quick drawer to toggle tracks and tweak song settings
+
+<img width="1561" height="984" alt="image" src="https://github.com/user-attachments/assets/ec1a8fa1-e76a-4e79-b7a8-b65e8ed3ab99" />
+
+### Piano Sheet
+The Piano Sheet allows you to easily share songs to other people, or for yourself to try. You can change the delimiter as well as the split size, and spacing. This will use the current keyboard layout that you have chosen.
+
+<img width="1561" height="984" alt="image" src="https://github.com/user-attachments/assets/e50f1578-23f5-49c6-a488-c5625cd68d2d" />
+
+### Queue
+A queue allows you to play songs without having to open or delete a song or file.
+
+<img width="1561" height="984" alt="image" src="https://github.com/user-attachments/assets/0f6b3afa-834f-41f1-8a3f-d23a9c14d58e" />
+
+### Theming
+You can set the player to light mode/dark mode and change its accent color.
+
+## About
+
+### What are MIDI files?
+MIDI files (.mid) are a set of instructions that play various instruments on what are called tracks. You can enable specific tracks that you want it to play. It converts the notes on the track into keyboard inputs for the game. Currently it is tuned to C major.
+
+### Can this get me banned?
+The short answer is that it's uncertain. Use it at your own risk. Do not play songs that will spam the keyboard, listen to the MIDI file first and make sure to play only one instrument so that the tool doesn't spam keyboard inputs.
+* For Genshin Impact, here is [miHoYo's response](https://genshin.mihoyo.com/en/news/detail/5763) to using 3rd party tools.
+* For Wuthering Waves, review KURO's [User Agreement](https://wutheringwaves.kurogames.com/p/agreement_public.html) restrictions on unauthorized third-party software.
+* For Neverness to Everness, see their [Data collected to prevent cheating and unauthorized software](https://static.pwsdk.com/nte/privacy/privacy.html).
+* For Where Winds Meet, check their [Ban Report page](https://www.wherewindsmeetgame.com/news/official/BanReport.html) for included violations.
+* For Blue Protocol: Star Resonance, check their [Terms of Service](https://www.playbpsr.com/terms).
+* For Sky, see their policy on [third-party apps](https://thatgamecompany.helpshift.com/hc/en/17-sky-children-of-the-light/faq/1250-can-i-use-or-create-third-party-applications-like-mods-or-bots/).
+* For Roblox, refer to their [third-party services Terms of Use](https://en.help.roblox.com/hc/en-us/articles/115004647846-Roblox-Terms-of-Use#third-party-services).
+* For Heartopia, here is their [Official Discord message](https://discord.com/channels/1128257488375005215/1460985755529773301/1465702188700405986) about using 3rd party tools.
+* For Core Keeper, read Fireshine Games' [Legal page](https://fireshinegames.co.uk/legal/).
+* For Harry Potter: Magic Awakened, check the User Conduct section in NetEase's [Terms of Use](https://protocol.unisdk.easebar.com/release/latest_v487.html).
+
+## Documentation
+
+For setup details, feature walkthroughs, safety notes, and troubleshooting, use the wiki links below.
+
+- [Wiki Home][wiki-home]
+- [Disclaimer][wiki-disclaimer]
+- [Getting Started][wiki-getting-started]
+- [How To Use][wiki-how-to-use]
+- [How it Works][wiki-how-it-works]
+- [Support (Supported Games, Instruments, and Keyboards)][wiki-support]
+- [FAQ General][wiki-faq]
+
+## Build from Source
+
+If you just want to run the app, download the latest [release][latest].
+
+### Requirements
+* [Git](https://git-scm.com)
+* [Node.js](https://nodejs.org) (v24+) & [pnpm](https://pnpm.io)
+* [Rust](https://www.rust-lang.org) (MSVC toolchain on Windows, native toolchain on Linux/macOS)
+* [Tauri platform prerequisites](https://v2.tauri.app/start/prerequisites/)
+
+### Build and run
+```bash
+git clone https://github.com/Jed556/AutoMidiPlayer.git
+cd AutoMidiPlayer-rewrite
+
+# Install frontend dependencies
+pnpm install
+
+# Start Tauri desktop app in dev mode (Vite + Rust)
+pnpm dev
+
+# Start frontend dev server only (browser mode)
+pnpm dev:frontend
+
+# Build native packages for the current platform
+pnpm build
+```
+
+For publish options and advanced setup, see [Getting Started][wiki-getting-started].
+For documentation and release setup, see the [project wiki](https://github.com/Jed556/AutoMidiPlayer/wiki).
+
+## Contributing
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md).  
+For adding notes, instruments, games, or keyboard mappings, see [Getting Started][wiki-getting-started]
+
+# Special Thanks
+This project was originally forked from **[sabihoshi/GenshinLyreMidiPlayer][GenshinLyreMidiPlayer]** [v4.0.5](https://github.com/sabihoshi/GenshinLyreMidiPlayer/releases/tag/v4.0.5) and later detached into its own repository to enable multi-game support and features that do not fit the original Genshin Impact-only design. Huge thanks for the original work!
+
+# License
+
+* This project’s source code is licensed under the [GNU General Public License v3.0](LICENSE).
+* This project is based on [sabihoshi/GenshinLyreMidiPlayer][GenshinLyreMidiPlayer]. Original attribution and upstream notices are preserved in [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md).
+* "**Auto MIDI Player**" and its logo are trademarks of Jed556. Trademark and branding use are governed by [TRADEMARK.md](TRADEMARK.md).
+* This project is not affiliated with or endorsed by miHoYo, KURO GAMES, XD, thatgamecompany, Roblox Corporation, Hotta Studio, Pugstorm, Everstone Studio, or any other rights holder. Genshin Impact™, Wuthering Waves™, Heartopia™, Sky: Children of the Light™, Roblox™, Neverness to Everness™, Core Keeper™, Where Winds Meet™, and other game titles and properties belong to their respective owners.
+* Third-party libraries and other resources used by this project may be distributed under different licenses and are listed in [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md).
+
+<br/>
+
+> Demo videos and screenshots are for illustrative purposes only and may not reflect the latest version of the application. Actual features, UI, and supported games/instruments may vary. Please refer to the [latest release][latest] and Wiki for up-to-date information.
+
+> [!NOTE]
+> I don't have knowledge about music theory, if you find any issues with note mappings or transpositions, please open an issue or PR. Thank you! 💖
+
+[latest]: https://github.com/Jed556/AutoMidiPlayer/releases/latest
+[GenshinLyreMidiPlayer]: https://github.com/sabihoshi/GenshinLyreMidiPlayer
+[wiki-home]: https://github.com/Jed556/AutoMidiPlayer/wiki
+[wiki-getting-started]: https://github.com/Jed556/AutoMidiPlayer/wiki/Getting-Started
+[wiki-how-to-use]: https://github.com/Jed556/AutoMidiPlayer/wiki/How-to-Use
+[wiki-how-it-works]: https://github.com/Jed556/AutoMidiPlayer/wiki/How-it-Works
+[wiki-support]: https://github.com/Jed556/AutoMidiPlayer/wiki/Support
+[wiki-faq]: https://github.com/Jed556/AutoMidiPlayer/wiki/FAQ-General
+[wiki-disclaimer]: https://github.com/Jed556/AutoMidiPlayer/wiki/Disclaimer

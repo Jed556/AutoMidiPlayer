@@ -1,0 +1,12 @@
+{
+  "id": "sky-large-bell",
+  "name": "Large Bell",
+  "category": "Percussion",
+  "type": "drum8",
+  "layoutStyle": "drums",
+  "keys": [
+    [60, 62, 67, 69],
+    [72, 74, 79, 81]
+  ],
+  "supportedLayouts": ["Sky_QWERTY_8"]
+}

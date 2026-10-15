@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.github.com https://raw.githubusercontent.com;" />
+    <title>Auto MIDI Player</title>
+    <link rel="icon" type="image/svg+xml" href="./logo-fill.svg" />
+    <link rel="preload" href="./logo-fill.svg" as="image" type="image/svg+xml" />
+    <style>
+      html, body { margin: 0; background: #1f1f1f; color-scheme: dark; }
+      #boot-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: grid;
+        place-items: center;
+        background: var(--card-bg, #1f1f1f);
+      }
+      #boot-screen img {
+        width: 88px;
+        height: 88px;
+        filter: grayscale(1);
+        opacity: 0.65;
+        animation: boot-pulse 1800ms cubic-bezier(0.45, 0, 0.55, 1) infinite;
+        animation-duration: 1800ms !important;
+      }
+      #boot-status {
+        position: absolute;
+        top: calc(50% + 108px);
+        left: 24px;
+        right: 24px;
+        color: rgba(255, 255, 255, 0.45);
+        font: 13px/1.5 'Segoe UI Variable Text', 'Segoe UI', sans-serif;
+        text-align: center;
+      }
+      #boot-status-text { margin: 0; animation: boot-text-in 240ms ease-out both; }
+      #boot-progress {
+        width: min(200px, 100%);
+        height: 2px;
+        margin: 18px auto 0;
+        border-radius: 2px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.08);
+      }
+      #boot-progress-fill {
+        display: block;
+        width: 100%;
+        height: 100%;
+        background: currentColor;
+        transform: scaleX(0);
+        transform-origin: left;
+      }
+      @keyframes boot-text-in { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes boot-pulse {
+        0%, 100% { opacity: 0.65; }
+        50% { opacity: 0.9; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #boot-screen img { animation: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="boot-screen" data-tauri-drag-region>
+      <img src="./logo-fill.svg" alt="Auto MIDI Player" draggable="false" />
+      <div id="boot-status">
+        <p id="boot-status-text" role="status" aria-live="polite">Initializing application…</p>
+        <div id="boot-progress" role="progressbar" aria-label="Initializing application" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div id="boot-progress-fill"></div>
+        </div>
+      </div>
+    </div>
+    <div id="app"></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

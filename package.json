@@ -1,0 +1,46 @@
+{
+  "name": "auto-midi-player",
+  "version": "8.0.0",
+  "description": "MIDI auto player for games.",
+  "author": {
+    "name": "Jed556",
+    "url": "https://github.com/Jed556"
+  },
+  "homepage": "https://github.com/Jed556/AutoMidiPlayer/wiki",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jed556/AutoMidiPlayer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Jed556/AutoMidiPlayer/issues"
+  },
+  "type": "module",
+  "packageManager": "pnpm@12.14.0",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "dev:frontend": "vite",
+    "build:frontend": "vite build",
+    "tauri": "tauri",
+    "release:notes": "node scripts/release.mjs preview",
+    "release:validate": "node scripts/release.mjs validate",
+    "release:docs": "node scripts/stage-release-docs.mjs",
+    "licenses:generate": "node scripts/generate-licenses.mjs",
+    "test:licenses": "node --test tests/licenses.test.mjs",
+    "test:release": "node --test tests/release.test.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.1.1",
+    "@tauri-apps/plugin-dialog": "^2.0.0",
+    "@tauri-apps/plugin-shell": "^2.0.0"
+  },
+  "devDependencies": {
+    "@fluentui/svg-icons": "^1.1.344",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@tauri-apps/cli": "^2.1.1",
+    "@types/node": "^26.6.5",
+    "svelte": "^5.57.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4"
+  }
+}
