@@ -19,6 +19,24 @@ pub fn note_durations(events: &[TimedNoteEvent]) -> Vec<Option<u64>> {
     durations
 }
 
+/// Source notes whose NoteOn was processed before a seek/resume boundary, but
+/// whose matching NoteOff has not been processed. Preserve FIFO ownership even
+/// for skipped taps so their future NoteOff cannot consume a newer note owner.
+pub(super) fn pending_note_owners(events: &[TimedNoteEvent], end_index: usize) -> Vec<usize> {
+    let mut pending = HashMap::<(usize, u8, u8), VecDeque<usize>>::new();
+    for (index, event) in events[..end_index].iter().enumerate() {
+        let owners = pending.entry((event.track_index, event.channel, event.note)).or_default();
+        if event.is_note_on && event.velocity > 0 {
+            owners.push_back(index);
+        } else {
+            owners.pop_front();
+        }
+    }
+    let mut owners: Vec<_> = pending.into_values().flatten().collect();
+    owners.sort_unstable();
+    owners
+}
+
 pub(super) fn is_tap(hold_notes: bool, threshold_ms: u64, duration_us: Option<u64>, speed: f64) -> bool {
     // Use the same 200ms fallback as Studio for an unpaired MIDI NoteOn.
     !hold_notes || duration_us.unwrap_or(200_000) as f64 / speed <= threshold_ms as f64 * 1000.0
@@ -148,6 +166,25 @@ impl KeyReleases {
 mod tests {
     use super::*;
     use std::time::Duration;
+
+    #[test]
+    fn seek_owners_keep_fifo_order_for_same_pitch_overlaps_and_separate_tracks() {
+        let event = |time_us, track_index, channel, is_note_on| TimedNoteEvent {
+            time_us, track_index, channel, note: 60, is_note_on,
+            velocity: if is_note_on { 80 } else { 0 },
+        };
+        let events = [
+            event(0, 0, 0, true), event(10, 0, 0, true),
+            event(20, 1, 0, true), event(30, 0, 1, true),
+            event(40, 0, 0, false), event(50, 0, 0, false),
+            event(60, 1, 0, false), event(70, 0, 1, false),
+        ];
+        assert_eq!(pending_note_owners(&events, 0), Vec::<usize>::new());
+        assert_eq!(pending_note_owners(&events, 4), vec![0, 1, 2, 3]);
+        assert_eq!(pending_note_owners(&events, 5), vec![1, 2, 3]);
+        assert_eq!(pending_note_owners(&events, 6), vec![2, 3]);
+        assert!(pending_note_owners(&events, 8).is_empty());
+    }
 
     #[test]
     fn orange_c4_repress_has_a_release_gap_without_losing_the_42_second_owner() {
