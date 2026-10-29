@@ -1,5 +1,5 @@
 import type { StorageUsage } from '$shared/types/ipc';
-import type { AppSettings, HotkeyBinding, MouseStopClickOption, ThemeMode } from '$shared/types/settings';
+import type { AppSettings, HotkeyBinding, MouseStopClickOption, ThemeMode, UiPreferences } from '$shared/types/settings';
 import type { TransposeMode } from '$shared/types/midi';
 import { DEFAULT_APP_SETTINGS } from '$shared/defaults/settings';
 import { getAutoCorrectTicks, getDefaultAutoCorrectThreshold, resolveAutoCorrectThreshold } from '$shared/defaults/autoCorrect';
@@ -89,19 +89,20 @@ class SettingsStore {
       if (this.settings.theme) {
         themeStore.setTheme(this.settings.theme);
       }
+      if (!this.settings.onboardingCompleted) this.suspendHotkeys();
       this.syncHotkeys();
       await this.syncSongDefaults();
-      updateStore.configureTimer(this.settings, false);
-      telemetry.setEnabled(this.settings.telemetryOptIn);
+      if (this.settings.onboardingCompleted) updateStore.configureTimer(this.settings, false);
+      await telemetry.setEnabled(this.settings.onboardingCompleted && this.settings.telemetryOptIn);
       logger.setVerbosity(this.settings.crashLogVerbosity);
       logger.setDebugMode(this.settings.debugModeEnabled);
-      await this.syncMidiFolder();
+      if (this.settings.onboardingCompleted) await this.syncMidiFolder();
     } catch (err) {
       console.warn('[SettingsStore] Failed to load persisted settings:', err);
     }
   }
 
-  syncSongDefaults() {
+  syncSongDefaults(strict = false) {
     return api.settings.updateSongDefaults({
       defaultBaseKeyOffset: this.settings.defaultBaseKeyOffset ?? 0,
       defaultKeyOffset: this.settings.defaultKeyOffset ?? 0,
@@ -112,7 +113,50 @@ class SettingsStore {
       defaultTapThresholdMs: this.settings.defaultTapThresholdMs ?? 0,
       defaultMergeNotes: this.settings.defaultMergeNotes ?? true,
       defaultMergeToleranceMs: this.settings.defaultMergeToleranceMs ?? 25,
-    }).catch(console.error);
+    }).then(result => {
+      if (strict && !result) throw new Error('Unable to save song defaults.');
+      return result;
+    }).catch(error => {
+      if (strict) throw error;
+      console.error(error);
+    });
+  }
+
+  /** Commit the draft before anything can import a song with old defaults. */
+  async finishOnboarding(draft: Partial<AppSettings>, preferences: Pick<UiPreferences, 'locale' | 'animationTiming'> = {}) {
+    const telemetryOptIn = draft.telemetryOptIn ?? this.settings.telemetryOptIn;
+    await this.folderSync;
+    await api.songs.watchFolder(null);
+    this.settings = { ...this.settings, ...draft, telemetryOptIn: false, onboardingCompleted: false };
+    const { ui, activeGameId, selectedInstrumentIds, selectedLayoutIds, ...settings } = this.settings;
+    if (!await api.settings.updateSettings(settings)) throw new Error('Unable to save setup preferences.');
+    await this.syncSongDefaults(true);
+    const folder = this.settings.midiFolder.trim();
+    let count = 0;
+    try {
+      if (folder) {
+        const songs = await api.songs.scanFolder(folder);
+        const root = folder.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() + '/';
+        count = songs.filter(song => song.filePath.replace(/\\/g, '/').toLowerCase().startsWith(root)).length;
+        if (this.settings.autoScanMidiFolder) await api.songs.watchFolder(folder);
+      }
+      if (!await api.settings.updateSettings({
+        onboardingCompleted: true,
+        telemetryOptIn,
+        ui: { ...preferences, lastViewedPage: 'songs', selectedPlaylistId: 'songs' },
+      })) {
+        throw new Error('Unable to save setup completion.');
+      }
+    } catch (error) {
+      await api.songs.watchFolder(null).catch(console.error);
+      throw error;
+    }
+    this.settings.onboardingCompleted = true;
+    this.settings.telemetryOptIn = telemetryOptIn;
+    await telemetry.setEnabled(telemetryOptIn);
+    this.onAutoEnableListenModeChanged?.(this.settings.autoEnableListenMode);
+    updateStore.configureTimer(this.settings, false);
+    return count;
   }
 
   syncHotkeys() {
@@ -185,7 +229,7 @@ class SettingsStore {
     } else if (key === 'autoCheckUpdates' || key === 'updateCheckFrequency' || key === 'autoDownloadUpdates' || key === 'includeBetaUpdates') {
       updateStore.configureTimer(this.settings);
     } else if (key === 'telemetryOptIn') {
-      telemetry.setEnabled(value as boolean);
+      telemetry.setEnabled(this.settings.onboardingCompleted && value as boolean);
     } else if (key === 'crashLogVerbosity') {
       logger.setVerbosity(value as number);
     } else if (key === 'debugModeEnabled') {
@@ -404,7 +448,7 @@ class SettingsStore {
   resetAllDefaults() {
     this.isResettingAll = true;
     this.pendingOverlapBehavior = null;
-    this.settings = { ...DEFAULT_APP_SETTINGS };
+    this.settings = { ...DEFAULT_APP_SETTINGS, onboardingCompleted: this.settings.onboardingCompleted };
     this.settings.autoCorrectThreshold = getDefaultAutoCorrectThreshold(this.autoCorrectThresholdTicks);
     api.settings.resetSettings()
       .catch((error) => console.error('[SettingsStore] Failed to reset persisted settings:', error))

@@ -147,7 +147,7 @@ class Logger {
   }
 
   /**
-   * Opens the %LocalAppData%\AutoMidiPlayer\logs directory in Windows Explorer
+   * Opens the %LocalAppData%\Jed556\AutoMIDIPlayer\logs directory in Windows Explorer
    */
   async openLogsFolder(): Promise<boolean> {
     if (isTauriEnv) {

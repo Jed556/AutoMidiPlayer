@@ -35,6 +35,7 @@
     selectedId?: any; // alias for value
     placeholder?: string;
     title?: string;
+    ariaLabel?: string;
     showTooltips?: boolean;
     tooltipText?: string;
     variant?: 'standard' | 'ghost';
@@ -47,6 +48,7 @@
     align?: 'left' | 'right' | 'auto';
     scaleAnchor?: 'center' | 'corner';
     scaleOrigin?: 'center' | 'corner';
+    portalMenu?: boolean;
     onchange?: (value: any, option?: DropdownOption) => void;
     onselect?: (option: DropdownOption) => void;
     children?: Snippet;
@@ -60,6 +62,7 @@
     selectedId = $bindable(),
     placeholder = '',
     title = '',
+    ariaLabel,
     showTooltips = true,
     tooltipText = '',
     variant = 'standard',
@@ -68,6 +71,7 @@
     minWidth = '',
     class: customClass = '',
     disabled = false,
+    portalMenu = false,
     placement = 'auto',
     align = 'auto',
     scaleAnchor = 'center',
@@ -87,6 +91,36 @@
   let highlightedIndex = $state(-1);
   let dropdownRef = $state<HTMLDivElement | null>(null);
   let menuRef = $state<HTMLDivElement | null>(null);
+
+  // Keep menus out of a scrolling form's clipping boundary, within its dialog.
+  function positionMenu(node: HTMLDivElement) {
+    if (!portalMenu || !dropdownRef) return;
+    const target = dropdownRef.closest('[role="dialog"]') as HTMLElement | null;
+    const mounted = portal(node, target ?? document.body);
+    function position() {
+      if (!dropdownRef) return;
+      const rect = dropdownRef.getBoundingClientRect();
+      const height = node.offsetHeight;
+      const width = Math.max(rect.width, node.offsetWidth);
+      Object.assign(node.style, {
+        position: 'fixed', bottom: 'auto', right: 'auto',
+        minWidth: `${rect.width}px`,
+        left: `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`,
+        top: `${Math.max(8, Math.min(openUpward ? rect.top - height - 4 : rect.bottom + 4, window.innerHeight - height - 8))}px`,
+      });
+    }
+    position();
+    const observer = createFrameResizeObserver(position);
+    observer.observe(node);
+    window.addEventListener('resize', position);
+    document.addEventListener('scroll', position, true);
+    return { destroy() {
+      observer.disconnect();
+      window.removeEventListener('resize', position);
+      document.removeEventListener('scroll', position, true);
+      mounted.destroy();
+    } };
+  }
 
   // Sync value and selectedId aliases
   let effectiveValue = $derived(value !== undefined ? value : selectedId);
@@ -374,13 +408,13 @@
   }
 
   function handleDocumentClick(e: MouseEvent) {
-    if (dropdownRef && !dropdownRef.contains(e.target as Node) && !flyoutRef?.contains(e.target as Node)) {
+    if (dropdownRef && !dropdownRef.contains(e.target as Node) && !menuRef?.contains(e.target as Node) && !flyoutRef?.contains(e.target as Node)) {
       dropdown.isOpen = false;
     }
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (!dropdownRef?.contains(e.target as Node) && !flyoutRef?.contains(e.target as Node)) return;
+    if (!dropdownRef?.contains(e.target as Node) && !menuRef?.contains(e.target as Node) && !flyoutRef?.contains(e.target as Node)) return;
     if (!isOpen) {
       if ((e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') && document.activeElement === dropdownRef?.querySelector('button')) {
         e.preventDefault();
@@ -437,6 +471,7 @@
     {disabled}
     onclick={toggle}
     aria-haspopup="listbox"
+    aria-label={ariaLabel}
     aria-expanded={isOpen}
   >
     <div class="trigger-content">
@@ -463,6 +498,7 @@
       class:align-right={alignRight}
       class:anchor-corner={effectiveScaleAnchor === 'corner'}
       bind:this={menuRef}
+      use:positionMenu
       use:dropdown.layer
       role="listbox"
       in:popupScaleIn

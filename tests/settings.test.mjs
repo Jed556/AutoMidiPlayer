@@ -36,11 +36,12 @@ test('missing and legacy values migrate while Off and saved layout choices survi
 
 let harnessId = 0;
 async function harness(initial = {}) {
-  let saved = structuredClone(initial);
+  let saved = structuredClone({ onboardingCompleted: true, ...initial });
   let keyboardLayouts = layouts(15, 21, 32, 36, 37, 88);
   const noop = () => {};
   const folderCalls = [];
   const errors = [];
+  const telemetryCalls = [];
   const api = {
     settings: {
       getDataDirectory: async () => '',
@@ -66,7 +67,7 @@ async function harness(initial = {}) {
     './themeStore.svelte.js': { themeStore: { setAccentColor: noop, setTheme: noop } },
     './updateStore.svelte.js': { updateStore: { configureTimer: noop } },
     '../infrastructure/logger.js': { logger: { setVerbosity: noop, setDebugMode: noop } },
-    '../infrastructure/telemetry.js': { telemetry: { setEnabled: noop } },
+    '../infrastructure/telemetry.js': { telemetry: { setEnabled: async enabled => { telemetryCalls.push(enabled); return true; } } },
     '../i18n': { t: key => key },
   };
   const source = stripTypeScriptTypes(readFileSync(new URL('../src/renderer/lib/state/settingsStore.svelte.ts', import.meta.url), 'utf8'));
@@ -78,7 +79,7 @@ async function harness(initial = {}) {
     .replace("'svelte/internal/client'", JSON.stringify(import.meta.resolve('svelte/internal/client')));
   const { settingsStore: store } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
   delete globalThis[key];
-  return { store, api, folderCalls, errors, saved: () => saved, setLayouts: counts => { keyboardLayouts = layouts(...counts); } };
+  return { store, api, folderCalls, errors, telemetryCalls, saved: () => saved, setLayouts: counts => { keyboardLayouts = layouts(...counts); } };
 }
 
 test('settings initialization migrates and saves the old default, and reload preserves a chosen value', async () => {
@@ -317,4 +318,136 @@ test('cache cleanup prevents double clicks, refreshes usage, and recovers from r
   assert.match(h.errors.at(-1)[1], /File is in use/);
   assert.equal(h.store.isClearingCache, false);
   assert.equal(h.store.storageLoading, false);
+});
+
+test('unfinished onboarding defers folder monitoring and scans, even with a saved folder', async () => {
+  const h = await harness({ onboardingCompleted: false, midiFolder: 'C:/Music', autoScanMidiFolder: true });
+  const hotkeys = [];
+  h.api.settings.updateGlobalHotkeys = async enabled => { hotkeys.push(enabled); return true; };
+  await h.store.init();
+  assert.deepEqual(h.folderCalls, []);
+  assert.ok(hotkeys.length > 0 && hotkeys.every(enabled => !enabled));
+  h.store.resetAllDefaults();
+  await settle();
+  assert.equal(h.saved().onboardingCompleted, false);
+});
+
+test('Finish awaits saved preferences and native song defaults before importing, then records All Songs', async () => {
+  const h = await harness({ onboardingCompleted: false });
+  await h.store.init();
+  const calls = [];
+  let finishDefaults;
+  let finishPreferences;
+  h.api.settings.updateSettings = async patch => {
+    calls.push(['settings', JSON.parse(JSON.stringify(patch))]);
+    if (!patch.onboardingCompleted) await new Promise(resolve => { finishPreferences = resolve; });
+    return true;
+  };
+  h.api.settings.updateSongDefaults = defaults => {
+    calls.push(['defaults', defaults]);
+    return new Promise(resolve => { finishDefaults = resolve; });
+  };
+  h.api.songs.watchFolder = async path => { calls.push(['watch', path]); return true; };
+  h.api.songs.scanFolder = async path => {
+    calls.push(['scan', path]);
+    return [
+      { filePath: 'C:\\MIDIs\\One.mid' },
+      { filePath: 'c:/midis/subfolder/Two.midi' },
+      { filePath: 'C:/MIDIs-other/Unrelated.mid' },
+    ];
+  };
+  const finishing = h.store.finishOnboarding(
+    { midiFolder: 'C:/MIDIs/', defaultHoldNotes: true, defaultSpeed: 0.75, theme: 'System', accentColor: '#0078D4' },
+    { locale: 'zh-CN', animationTiming: 0.1 },
+  );
+  await settle();
+  assert.deepEqual(calls.map(call => call[0]), ['watch', 'settings']);
+  finishPreferences();
+  await settle();
+  assert.deepEqual(calls.map(call => call[0]), ['watch', 'settings', 'defaults']);
+  assert.equal(calls[2][1].defaultHoldNotes, true);
+  assert.equal(calls[2][1].defaultSpeed, 0.75);
+  assert.equal(calls[1][1].theme, 'System');
+  assert.equal(calls[1][1].accentColor, '#0078D4');
+  assert.equal(h.store.settings.onboardingCompleted, false);
+  finishDefaults(true);
+  assert.equal(await finishing, 2, 'Count only songs in the selected folder, including subfolders');
+  assert.deepEqual(calls.slice(3), [
+    ['scan', 'C:/MIDIs/'], ['watch', 'C:/MIDIs/'],
+    ['settings', { onboardingCompleted: true, telemetryOptIn: false, ui: { locale: 'zh-CN', animationTiming: 0.1, lastViewedPage: 'songs', selectedPlaylistId: 'songs' } }],
+  ]);
+  assert.equal(h.store.settings.onboardingCompleted, true);
+});
+
+test('Finish imports once with monitoring disabled, and supports setup without a folder', async () => {
+  const h = await harness({ onboardingCompleted: false });
+  await h.store.init();
+  await h.store.finishOnboarding({ midiFolder: 'C:/Music', autoScanMidiFolder: false });
+  assert.deepEqual(h.folderCalls, [['watch', null], ['scan', 'C:/Music']]);
+  assert.equal(h.saved().onboardingCompleted, true);
+  const empty = await harness({ onboardingCompleted: false });
+  await empty.store.init();
+  assert.equal(await empty.store.finishOnboarding({ midiFolder: '' }), 0);
+  assert.deepEqual(empty.folderCalls, [['watch', null]]);
+  await empty.store.init();
+  assert.equal(empty.store.settings.onboardingCompleted, true);
+  empty.store.resetAllDefaults();
+  await settle();
+  assert.equal(empty.saved().onboardingCompleted, true, 'Ordinary settings reset does not restart onboarding');
+});
+
+test('failed preference/default saves cannot scan; failed imports can be retried without completing setup', async () => {
+  for (const failure of ['preferences', 'defaults', 'scan', 'watch', 'completion']) {
+    const h = await harness({ onboardingCompleted: false });
+    await h.store.init();
+    const update = h.api.settings.updateSettings;
+    const defaults = h.api.settings.updateSongDefaults;
+    const scan = h.api.songs.scanFolder;
+    const watch = h.api.songs.watchFolder;
+    if (failure === 'preferences') h.api.settings.updateSettings = async () => false;
+    if (failure === 'defaults') h.api.settings.updateSongDefaults = async () => false;
+    if (failure === 'scan') h.api.songs.scanFolder = async () => { throw new Error('Cannot read folder'); };
+    if (failure === 'watch') h.api.songs.watchFolder = async path => { if (path) throw new Error('Cannot watch folder'); return watch(path); };
+    if (failure === 'completion') h.api.settings.updateSettings = async patch => patch.onboardingCompleted ? false : update(patch);
+    await assert.rejects(h.store.finishOnboarding({ midiFolder: 'C:/Music' }));
+    assert.equal(h.store.settings.onboardingCompleted, false);
+    assert.notEqual(h.saved().onboardingCompleted, true);
+    if (failure === 'preferences' || failure === 'defaults') assert.deepEqual(h.folderCalls, [['watch', null]]);
+    else assert.deepEqual(h.folderCalls.at(-1), ['watch', null]);
+    h.api.settings.updateSettings = update;
+    h.api.settings.updateSongDefaults = defaults;
+    h.api.songs.scanFolder = scan;
+    h.api.songs.watchFolder = watch;
+    await h.store.finishOnboarding({ midiFolder: 'C:/Music' });
+    assert.equal(h.store.settings.onboardingCompleted, true);
+  }
+});
+
+test('telemetry stays off throughout unfinished setup and commits the draft choice only on success', async () => {
+  for (const optedIn of [true, false]) {
+    const h = await harness({ onboardingCompleted: false, telemetryOptIn: true });
+    await h.store.init();
+    assert.deepEqual(h.telemetryCalls, [false], 'Even an interrupted saved opt-in cannot enable telemetry');
+    let finishScan;
+    h.api.songs.scanFolder = () => new Promise(resolve => { finishScan = resolve; });
+    const finishing = h.store.finishOnboarding({ midiFolder: 'C:/Music', telemetryOptIn: optedIn });
+    await settle();
+    assert.equal(h.saved().telemetryOptIn, false);
+    assert.deepEqual(h.telemetryCalls, [false]);
+    finishScan([]);
+    await finishing;
+    assert.equal(h.saved().telemetryOptIn, optedIn);
+    assert.equal(h.saved().onboardingCompleted, true);
+    assert.deepEqual(h.telemetryCalls, [false, optedIn]);
+  }
+});
+
+test('a failed onboarding scan never activates the selected telemetry opt-in', async () => {
+  const h = await harness({ onboardingCompleted: false });
+  await h.store.init();
+  h.api.songs.scanFolder = async () => { throw new Error('Folder unavailable'); };
+  await assert.rejects(h.store.finishOnboarding({ midiFolder: 'C:/Music', telemetryOptIn: true }));
+  assert.deepEqual(h.telemetryCalls, [false]);
+  assert.equal(h.saved().telemetryOptIn, false);
+  assert.equal(h.saved().onboardingCompleted, false);
 });

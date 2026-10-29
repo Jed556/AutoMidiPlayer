@@ -1506,6 +1506,9 @@ fn set_startup_stage(app: &AppHandle, stage: &str) {
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
+            // Move legacy data before any logger, database, or settings file is opened.
+            let migration_result = amp_core::paths::migrate_app_data();
+
             // Initialize logging system, panic hook, and sentry telemetry
             let _ = logging::init_logger(logging::ALL_STEPS_VERBOSITY, cfg!(debug_assertions));
             telemetry::register_panic_hook();
@@ -1516,6 +1519,10 @@ pub fn run() {
                 Some(file!()),
                 Some(line!()),
             );
+
+            if let Err(ref error) = migration_result {
+                log::warn!("Legacy app data migration encountered a non-fatal error: {error}");
+            }
 
             // Register dialog plugin
             app.handle().plugin(tauri_plugin_dialog::init())?;
@@ -1607,13 +1614,16 @@ pub fn run() {
                     let _ = apply_hotkeys_config(&app.clone(), &engine, true, &default_bindings);
 
                     set_startup_stage(&app, "Loading library database\u{2026}");
-                    // Initialize SQLite library database at %LocalAppData%\AutoMidiPlayer\AutoMidiPlayer.db
+                    // Initialize SQLite library database at %LocalAppData%\Jed556\AutoMIDIPlayer\AutoMidiPlayer.db
                     let db = Arc::new(LibraryDatabase::new_with_migration_callback(None, || {
                         set_startup_stage(&app, "Migrating library database\u{2026}");
                     }).expect("Failed to initialize library database"));
                     let settings = db.get_app_settings().unwrap_or_default();
-                    telemetry::init(settings.get("telemetryOptIn")
-                        .and_then(serde_json::Value::as_bool).unwrap_or(false));
+                    // First-run setup must not send diagnostics or opt-out refresh pings.
+                    if settings.get("onboardingCompleted").and_then(serde_json::Value::as_bool).unwrap_or(false) {
+                        telemetry::init(settings.get("telemetryOptIn")
+                            .and_then(serde_json::Value::as_bool).unwrap_or(false));
+                    }
                     engine.set_hold_delay_ms(settings.get("keyPressDelayMs")
                         .and_then(serde_json::Value::as_u64).unwrap_or(20).min(1000));
                     engine.set_overlap_behavior(settings.get("overlapBehavior")
@@ -1623,7 +1633,7 @@ pub fn run() {
                         .and_then(serde_json::Value::as_bool).unwrap_or(true));
 
                     set_startup_stage(&app, "Loading game configurations\u{2026}");
-                    // Initialize ConfigManager (extracts defaults to %LocalAppData%\AutoMidiPlayer if missing)
+                    // Initialize ConfigManager (extracts defaults to %LocalAppData%\Jed556\AutoMIDIPlayer if missing)
                     let config_manager = Arc::new(Mutex::new(ConfigManager::new()));
 
                     // Build dynamic GameProcessTarget list from config_manager

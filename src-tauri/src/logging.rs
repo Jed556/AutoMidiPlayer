@@ -71,24 +71,24 @@ impl LogChannel {
     }
 }
 
-/// Resolves the app data base directory: %LocalAppData%\AutoMidiPlayer
+/// Resolves the app data base directory: %LocalAppData%\Jed556\AutoMIDIPlayer
 pub fn get_appdata_dir() -> PathBuf {
     amp_core::paths::app_data_dir()
 }
 
-/// Returns the logs directory: %LocalAppData%\AutoMidiPlayer\logs
+/// Returns the logs directory: %LocalAppData%\Jed556\AutoMIDIPlayer\logs
 pub fn get_logs_dir() -> PathBuf {
     let dir = get_appdata_dir().join("logs");
     let _ = fs::create_dir_all(&dir);
     dir
 }
 
-/// Primary app log path: %LocalAppData%\AutoMidiPlayer\logs\app.log
+/// Primary app log path: %LocalAppData%\Jed556\AutoMIDIPlayer\logs\app.log
 pub fn get_primary_log_path() -> PathBuf {
     get_logs_dir().join(LogChannel::App.file_name())
 }
 
-/// Errors log path: %LocalAppData%\AutoMidiPlayer\logs\errors.log
+/// Errors log path: %LocalAppData%\Jed556\AutoMIDIPlayer\logs\errors.log
 pub fn get_errors_log_path() -> PathBuf {
     get_logs_dir().join(LogChannel::Errors.file_name())
 }
@@ -308,7 +308,7 @@ pub fn log_startup(
     write_log_line(LogChannel::App, &dist_msg, caller, file, line);
 }
 
-/// Deletes all channel log files in %LocalAppData%\AutoMidiPlayer\logs
+/// Deletes all channel log files in %LocalAppData%\Jed556\AutoMIDIPlayer\logs
 pub fn clear_logs() {
     let _guard = FILE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let logs_dir = get_logs_dir();
