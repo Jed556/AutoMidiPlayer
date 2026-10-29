@@ -36,10 +36,10 @@ class I18nService {
     }
   }
 
-  setLocale(locale: LocaleCode) {
+  setLocale(locale: LocaleCode, persist = true) {
     if (LOCALES[locale]) {
       this.currentLocale = locale;
-      saveUiPreferences({ locale });
+      if (persist) saveUiPreferences({ locale });
     }
   }
 

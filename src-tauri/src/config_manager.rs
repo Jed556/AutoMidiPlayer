@@ -49,7 +49,7 @@ impl ConfigManager {
         mgr
     }
 
-    /// Extracts bundled defaults into %LocalAppData%\AutoMidiPlayer without overwriting existing files
+    /// Extracts bundled defaults into %LocalAppData%\Jed556\AutoMIDIPlayer without overwriting existing files
     pub fn extract_defaults_if_missing(&self) {
         let _ = fs::create_dir_all(&self.games_dir);
         let _ = fs::create_dir_all(&self.layouts_dir);

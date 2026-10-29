@@ -30,7 +30,7 @@ pub struct LibraryDatabase {
 }
 
 impl LibraryDatabase {
-    /// Returns default location at %LocalAppData%\AutoMidiPlayer\AutoMidiPlayer.db
+    /// Returns default location at %LocalAppData%\Jed556\AutoMIDIPlayer\AutoMidiPlayer.db
     pub fn default_path() -> PathBuf {
         crate::paths::app_data_dir().join("AutoMidiPlayer.db")
     }

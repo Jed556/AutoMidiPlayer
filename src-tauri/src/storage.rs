@@ -2,7 +2,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     sync::Mutex,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 // Serialize scans and cleanup so the UI never measures a half-finished cleanup.

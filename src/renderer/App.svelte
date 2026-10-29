@@ -14,6 +14,7 @@
   // Layout components
   import TitleBar from './lib/components/Layout/TitleBar.svelte';
   import StartupScreen from './lib/components/Layout/StartupScreen.svelte';
+  import OnboardingScreen from './lib/components/Layout/OnboardingScreen.svelte';
   import NavigationDrawer from './lib/components/Layout/NavigationDrawer.svelte';
   import GameSelectorPopup from './lib/components/Layout/GameSelectorPopup.svelte';
   import PlayerControlPanel from './lib/components/PlayerControlPanel/PlayerControlPanel.svelte';
@@ -29,6 +30,16 @@
   let startupStatus = $state('startup.settings');
   let startupReady = $state(false);
   let showStartup = $state(true);
+  let showOnboarding = $state(false);
+
+  $effect(() => {
+    if (showOnboarding && settingsStore.settings.onboardingCompleted) {
+      libraryStore.selectedPlaylistId = 'songs';
+      uiStore.activeTab = 'songs';
+      uiStore.tabHistory = ['songs'];
+      uiStore.tabHistoryIndex = 0;
+    }
+  });
 
   $effect(() => {
     if (!startupReady || updateStore.isApplyingUpdate) return;
@@ -103,9 +114,10 @@
       themeStore.init();
       await Promise.all([animationStore.init(), settingsStore.init()]);
       if (disposed) return;
+      showOnboarding = !settingsStore.settings.onboardingCompleted;
 
       // Check concurrently with library/player loading, but settle before reveal.
-      const updateCheck = settingsStore.settings.autoCheckUpdates
+      const updateCheck = !showOnboarding && settingsStore.settings.autoCheckUpdates
         ? updateStore.checkForUpdates(false)
         : Promise.resolve();
 
@@ -168,7 +180,7 @@
   });
 
   function handleGlobalMouseUp(e: MouseEvent) {
-    if (showStartup) return;
+    if (showStartup || showOnboarding) return;
     if (e.button === 3) {
       // Mouse Back button (XButton1)
       e.preventDefault();
@@ -183,7 +195,7 @@
   }
 
   function handleGlobalAuxClick(e: MouseEvent) {
-    if (showStartup) return;
+    if (showStartup || showOnboarding) return;
     if (e.button === 3 || e.button === 4) {
       e.preventDefault();
       e.stopPropagation();
@@ -195,7 +207,7 @@
       if (e.key === 'F5' || (e.ctrlKey && e.key.toLowerCase() === 'r')) e.preventDefault();
       return;
     }
-    if (showStartup) return;
+    if (showStartup || showOnboarding) return;
     const activeEl = document.activeElement;
     const isInput = activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement || activeEl instanceof HTMLSelectElement;
 
@@ -256,10 +268,12 @@
   });
 
   let isResizing = $state(false);
+  let didResize = false;
 
   function handleResizeStart(e: MouseEvent) {
     if (e.button !== 0) return;
     e.preventDefault();
+    didResize = false;
     isResizing = true;
     document.body.classList.add('col-resizing');
 
@@ -269,6 +283,8 @@
 
     function onMouseMove(moveEvent: MouseEvent) {
       const delta = moveEvent.clientX - startX;
+      if (!didResize && Math.abs(delta) < 3) return;
+      didResize = true;
       let target = startWidth + delta;
       if (target < 150) {
         uiStore.setLibraryWidth(80);
@@ -288,8 +304,8 @@
     window.addEventListener('mouseup', onMouseUp);
   }
 
-  function handleDoubleClick() {
-    uiStore.toggleLibraryExpanded();
+  function handleResizeClick() {
+    if (!didResize) uiStore.toggleLibraryExpanded();
   }
 </script>
 
@@ -304,8 +320,22 @@
   />
 {/if}
 
+{#if startupReady && showOnboarding && !updateStore.isApplyingUpdate}
+  <OnboardingScreen onfinished={async () => {
+    await libraryStore.reload();
+    libraryStore.selectedPlaylistId = 'songs';
+    uiStore.activeTab = 'songs';
+    uiStore.tabHistory = ['songs'];
+    uiStore.tabHistoryIndex = 0;
+    await loadView('songs');
+    uiStore.persistPreferences('songs');
+    showOnboarding = false;
+    settingsStore.resumeHotkeys();
+  }} />
+{/if}
+
 {#if startupReady}
-<div class="app-root" inert={showStartup}>
+<div class="app-root" inert={showStartup || showOnboarding}>
   <!-- Frameless Title Bar -->
   <TitleBar />
 
@@ -319,10 +349,18 @@
       class="library-resizer"
       class:is-resizing={isResizing}
       onmousedown={handleResizeStart}
-      ondblclick={handleDoubleClick}
-      title="Drag / double-click to resize"
-      role="separator"
-      aria-orientation="vertical"
+      onclick={handleResizeClick}
+      onkeydown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          event.stopPropagation();
+          uiStore.toggleLibraryExpanded();
+        }
+      }}
+      title="Drag / click to resize"
+      role="button"
+      tabindex="0"
+      aria-label="Resize sidebar"
       data-tooltip-position="right"
       data-tooltip-follow="false"
     >

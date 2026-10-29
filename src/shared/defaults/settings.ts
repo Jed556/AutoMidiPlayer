@@ -5,6 +5,7 @@ import type { AppSettings } from '../types/settings.js';
  * data: the native settings store persists the user's changes separately.
  */
 export const DEFAULT_APP_SETTINGS: AppSettings = {
+  onboardingCompleted: false,
   ui: {
     animationTiming: 0.2,
     pedalsEnabled: true,
@@ -39,9 +40,9 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   autoDetectBaseKey: true,
   defaultTranspose: 'Smart',
   defaultSpeed: 1.0,
-  defaultHoldNotes: false,
+  defaultHoldNotes: true,
   defaultTapThresholdMs: 0,
-  defaultMergeNotes: true,
+  defaultMergeNotes: false,
   defaultMergeToleranceMs: 25,
   autoCheckUpdates: true,
   updateCheckFrequency: 'hourly',

@@ -59,6 +59,8 @@ export interface HotkeyBinding {
 }
 
 export interface AppSettings {
+  /** Set only after first-run setup has saved preferences and imported the library. */
+  onboardingCompleted: boolean;
   selectedInstrumentIds?: Record<string, string>;
   selectedLayoutIds?: Record<string, string>;
   /** Selected game profile, persisted alongside the rest of the application settings. */

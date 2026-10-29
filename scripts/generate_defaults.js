@@ -10,7 +10,7 @@ const defaultsDir = path.join(rootDir, 'src-tauri', 'resources', 'defaults');
 const publicImagesDir = path.join(rootDir, 'public', 'images', 'games');
 
 const localAppData = process.env.LOCALAPPDATA || path.join(process.env.USERPROFILE || '', 'AppData', 'Local');
-const localAppDataPlayerDir = path.join(localAppData, 'AutoMidiPlayer');
+const localAppDataPlayerDir = path.join(localAppData, 'Jed556', 'AutoMIDIPlayer');
 
 // Custom formatter that preserves multi-item rows for 2D arrays, making keyboard grids & notes human-readable
 function formatJson(data, currentIndent = 0) {

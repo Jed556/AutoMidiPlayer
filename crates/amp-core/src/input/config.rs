@@ -206,7 +206,7 @@ pub struct LoadedGameBundle {
     pub config_path: Option<String>,
 }
 
-/// Scans a directory of keyboard layouts (e.g. `%LocalAppData%/AutoMidiPlayer/KeyboardLayouts`)
+/// Scans a directory of keyboard layouts (e.g. `%LocalAppData%/Jed556/AutoMIDIPlayer/KeyboardLayouts`)
 pub fn scan_keyboard_layouts(layouts_dir: &Path) -> HashMap<String, KeyboardLayoutJson> {
     let mut layouts = HashMap::new();
     if !layouts_dir.exists() || !layouts_dir.is_dir() {
@@ -238,7 +238,7 @@ pub fn scan_keyboard_layouts(layouts_dir: &Path) -> HashMap<String, KeyboardLayo
     layouts
 }
 
-/// Scans a directory of games (e.g. `%LocalAppData%/AutoMidiPlayer/Games`), including recursive instrument discovery
+/// Scans a directory of games (e.g. `%LocalAppData%/Jed556/AutoMIDIPlayer/Games`), including recursive instrument discovery
 pub fn scan_games(games_dir: &Path) -> Vec<LoadedGameBundle> {
     let mut bundles = Vec::new();
     if !games_dir.exists() || !games_dir.is_dir() {
