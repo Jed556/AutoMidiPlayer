@@ -14,6 +14,7 @@
     collapseMargin?: 'left' | 'right' | 'top' | 'bottom' | 'none';
     marginAmount?: string;
     overflowVisibleOnComplete?: boolean;
+    reducedMotion?: boolean;
     children?: Snippet;
   }
 
@@ -27,6 +28,7 @@
     collapseMargin = 'none',
     marginAmount = '16px',
     overflowVisibleOnComplete = true,
+    reducedMotion = false,
     children
   }: Props = $props();
 
@@ -90,7 +92,7 @@
   function animateTransition(targetVisible: boolean) {
     if (!containerEl || !innerEl) return;
 
-    const isOff = animationStore.isOff || (typeof document !== 'undefined' && document.documentElement.classList.contains('no-animations'));
+    const isOff = reducedMotion || animationStore.isOff || (typeof document !== 'undefined' && document.documentElement.classList.contains('no-animations'));
     const durationSec = Math.max(0.12, animationStore.timing);
     const easeCurve = 'cubic-bezier(0.4, 0, 0.2, 1)';
 

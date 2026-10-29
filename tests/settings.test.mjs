@@ -114,6 +114,61 @@ test('layout refresh updates slider stops and reset uses the current layout defa
 
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
+test('re-press gap defaults to 20ms and survives save, reload, and overlap mode switches', async () => {
+  const h = await harness();
+  await h.store.init();
+  assert.equal(h.store.settings.repressGapMs, 20);
+  h.store.update('repressGapMs', 65);
+  await settle();
+  assert.equal(h.saved().repressGapMs, 65);
+  h.store.update('overlapBehavior', 'hold');
+  await settle();
+  await h.store.init();
+  assert.equal(h.store.settings.repressGapMs, 65);
+  h.store.update('overlapBehavior', 'retrigger');
+  await settle();
+  assert.equal(h.store.settings.repressGapMs, 65);
+  h.store.resetSongDefaults();
+  assert.equal(h.store.settings.repressGapMs, 65);
+  h.store.resetAllDefaults();
+  await settle();
+  assert.equal(h.store.settings.repressGapMs, 20);
+  assert.equal(h.saved().repressGapMs, 20);
+});
+
+test('re-press gap stores whole milliseconds within 0..1000 and handles invalid input', async () => {
+  const h = await harness();
+  await h.store.init();
+  for (const [input, expected] of [[0, 0], [-10, 0], [65.7, 66], [2000, 1000], [NaN, 20], [Infinity, 20]]) {
+    h.store.update('repressGapMs', input);
+    await settle();
+    assert.equal(h.store.settings.repressGapMs, expected);
+    assert.equal(h.saved().repressGapMs, expected);
+  }
+});
+
+test('rapid gap edits and mode switches serialize only their latest pending values', async () => {
+  const h = await harness();
+  await h.store.init();
+  const writes = [], finish = [];
+  let defaultsUpdates = 0;
+  h.api.settings.updateSettings = patch => {
+    writes.push(patch);
+    return new Promise(resolve => finish.push(resolve));
+  };
+  h.api.settings.updateSongDefaults = async () => { defaultsUpdates++; return true; };
+  h.store.update('repressGapMs', 25);
+  for (let value = 26; value <= 100; value++) h.store.update('repressGapMs', value);
+  h.store.update('overlapBehavior', 'hold');
+  assert.deepEqual(writes, [{ repressGapMs: 25 }]);
+  finish.shift()(true);
+  await settle();
+  assert.deepEqual(writes, [{ repressGapMs: 25 }, { repressGapMs: 100, overlapBehavior: 'hold' }]);
+  finish.shift()(true);
+  await settle();
+  assert.equal(defaultsUpdates, 0);
+});
+
 test('overlap behavior defaults to retrigger, preserves saved choices, and resets with player settings', async () => {
   const h = await harness();
   await h.store.init();
@@ -196,6 +251,7 @@ test('reset discards pending overlap switches before saving defaults', async () 
   h.store.update('overlapBehavior', 'retrigger');
   h.store.update('overlapBehavior', 'hold');
   h.store.update('overlapBehavior', 'retrigger');
+  h.store.update('repressGapMs', 80);
   h.store.resetAllDefaults();
   await settle();
   finishWrite(true);
@@ -203,6 +259,7 @@ test('reset discards pending overlap switches before saving defaults', async () 
   assert.equal(writes.length, 2);
   assert.equal(writes.at(-1).overlapBehavior, 'retrigger');
   assert.equal(h.store.settings.overlapBehavior, 'retrigger');
+  assert.equal(writes.at(-1).repressGapMs, 20);
 });
 
 test('startup watches the saved MIDI folder before scanning changes made while the app was closed', async () => {

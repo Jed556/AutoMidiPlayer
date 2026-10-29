@@ -53,7 +53,7 @@ pub enum OverlapBehavior {
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum KeyPressAction { Press, Retrigger, Deferred, Ignore }
 
-// Leave the key up for longer than a 60 Hz game frame. Back-to-back key-up/down
+// By default, leave the key up for longer than a 60 Hz game frame. Back-to-back key-up/down
 // can otherwise be observed as one uninterrupted hold by a polling game.
 const REPRESS_GAP: Duration = Duration::from_millis(20);
 
@@ -66,13 +66,23 @@ struct PendingPress {
 /// Re-pressed keys retain every active note owner. A NoteOff or tap deadline
 /// releases the physical key only after all owners finish; ignored overlaps
 /// never acquire ownership.
-#[derive(Default)]
 pub(super) struct KeyReleases {
     pressed: HashMap<Key, HashMap<usize, Option<Instant>>>,
     pending: HashMap<Key, PendingPress>,
+    repress_gap: Duration,
+}
+
+impl Default for KeyReleases {
+    fn default() -> Self {
+        Self { pressed: HashMap::new(), pending: HashMap::new(), repress_gap: REPRESS_GAP }
+    }
 }
 
 impl KeyReleases {
+    pub fn set_repress_gap_ms(&mut self, ms: u64) {
+        self.repress_gap = Duration::from_millis(ms.min(1000));
+    }
+
     /// Schedule physical output without sleeping the playback thread. The returned
     /// time is the scheduled press time, also used to start the new note's tap timer.
     pub fn begin_stroke(&mut self, stroke: KeyStroke, owner: usize, now: Instant,
@@ -81,7 +91,7 @@ impl KeyReleases {
         if action != KeyPressAction::Retrigger { return (action, now); }
         let already_pending = self.pending.contains_key(&stroke.key);
         let pending = self.pending.entry(stroke.key).or_insert(PendingPress {
-            stroke, at: now + REPRESS_GAP, owners: Vec::new(),
+            stroke, at: now + self.repress_gap, owners: Vec::new(),
         });
         // Simultaneous owners share one physical attack; later arrivals must not
         // keep postponing it. Use the latest stroke's modifiers for the attack.
@@ -166,6 +176,30 @@ impl KeyReleases {
 mod tests {
     use super::*;
     use std::time::Duration;
+
+    #[test]
+    fn configured_repress_gap_controls_output_and_preserves_the_original_hold() {
+        let now = Instant::now();
+        let stroke = KeyStroke::plain(Key::A);
+        for (ms, expected) in [(0, 0), (1, 1), (65, 65), (1000, 1000), (2000, 1000)] {
+            let mut releases = KeyReleases::default();
+            releases.set_repress_gap_ms(ms);
+            releases.begin_stroke(stroke, 1, now, None, OverlapBehavior::Retrigger);
+            let (action, press_at) = releases.begin_stroke(stroke, 2, now, None, OverlapBehavior::Retrigger);
+            assert_eq!(action, KeyPressAction::Retrigger);
+            assert_eq!(press_at, now + Duration::from_millis(expected));
+            if expected > 0 {
+                assert!(releases.take_presses(press_at - Duration::from_micros(1)).is_empty());
+            }
+            assert_eq!(releases.take_presses(press_at), vec![(stroke, vec![2])]);
+            assert!(!releases.note_off(Key::A, 2));
+            assert!(releases.note_off(Key::A, 1));
+            releases.clear();
+            releases.begin_stroke(stroke, 3, now, None, OverlapBehavior::Retrigger);
+            assert_eq!(releases.begin_stroke(stroke, 4, now, None, OverlapBehavior::Retrigger).1, press_at,
+                "clearing playback state must preserve the configured gap");
+        }
+    }
 
     #[test]
     fn seek_owners_keep_fifo_order_for_same_pitch_overlaps_and_separate_tracks() {

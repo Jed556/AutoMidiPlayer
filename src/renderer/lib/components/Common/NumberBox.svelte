@@ -103,10 +103,11 @@
   .number-box {
     display: inline-flex;
     align-items: center;
-    background: var(--bg-tertiary);
+    background: var(--control-fill, rgba(255, 255, 255, 0.06));
     border: 1px solid transparent;
-    border-radius: var(--radius-sm);
-    height: 32px;
+    border-radius: 6px;
+    height: 30px;
+    box-sizing: border-box;
     padding: 0 4px 0 8px;
     position: relative;
     transition: background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
@@ -148,7 +149,7 @@
     outline: none;
     background: transparent;
     color: var(--text-primary);
-    font-size: 13px;
+    font-size: 12.5px;
     font-family: inherit;
     -moz-appearance: textfield;
   }

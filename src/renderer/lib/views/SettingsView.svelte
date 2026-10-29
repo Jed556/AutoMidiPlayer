@@ -447,7 +447,9 @@
 
             <div class="setting-group grid-col-full">
               <OverlapBehaviorPicker value={settingsStore.settings.overlapBehavior}
-                onchange={(value) => settingsStore.update('overlapBehavior', value)} />
+                onchange={(value) => settingsStore.update('overlapBehavior', value)}
+                repressGapMs={settingsStore.settings.repressGapMs}
+                onrepressgapchange={(value) => settingsStore.update('repressGapMs', value)} />
             </div>
 
             <!-- Auto Correct Threshold (Smart Transpose Threshold) - Spans Full Width -->

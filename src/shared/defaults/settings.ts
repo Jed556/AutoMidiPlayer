@@ -20,6 +20,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   enableKeyUp: true,
   keyPressDelayMs: 20,
   overlapBehavior: 'retrigger',
+  repressGapMs: 20,
   // Resolved from loaded keyboard layouts by SettingsStore before views open.
   autoCorrectThreshold: 0,
   hotkeysEnabled: true,

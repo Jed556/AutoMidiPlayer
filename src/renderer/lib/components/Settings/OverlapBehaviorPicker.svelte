@@ -1,13 +1,20 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import type { OverlapBehavior } from '$shared/types/settings';
+  import { DEFAULT_APP_SETTINGS } from '$shared/defaults/settings';
   import { animationStore } from '../../state/animationStore.svelte';
   import { t } from '../../i18n';
   import FluentIcon from '../Common/FluentIcon.svelte';
+  import NumberBox from '../Common/NumberBox.svelte';
+  import GradientSweep from '../Common/GradientSweep.svelte';
+  import Button from '../Common/Button.svelte';
+  import RefreshIcon from '../Common/RefreshIcon.svelte';
 
-  let { value, onchange }: {
+  let { value, onchange, repressGapMs, onrepressgapchange }: {
     value: OverlapBehavior;
     onchange: (value: OverlapBehavior) => void;
+    repressGapMs: number;
+    onrepressgapchange: (value: number) => void;
   } = $props();
 
   const id = $props.id();
@@ -17,6 +24,7 @@
   let documentVisible = $state(true);
   let reducedMotion = $state(false);
   let mounted = $state(false);
+  let resetTrigger = $state<number | undefined>(undefined);
   let notes = $state([
     { x: 107, width: 204 },
     { x: 167, width: 84 },
@@ -217,10 +225,34 @@
       </button>
     {/each}
   </div>
+  <!-- Keep the sweep's mask outside the input's focus/change glow without moving the field. -->
+  <GradientSweep visible={value === 'retrigger'} direction="vertical" gradientLength="24px" {reducedMotion}
+    style="width: calc(100% + 32px); margin-inline: -16px;">
+    <div class="repress-gap" inert={value !== 'retrigger'} aria-hidden={value !== 'retrigger'}>
+      <span class="label">{t('settings.repressGap')}</span>
+      <div class="repress-gap-controls">
+        <NumberBox value={repressGapMs} min={0} max={1000} step={1} unit="ms"
+          label={t('settings.repressGap')} onchange={onrepressgapchange} />
+        <Button variant="ghost" size="icon" colorMode="danger"
+          title={t('settings.repressGapReset')} ariaLabel={t('settings.repressGapReset')}
+          disabled={repressGapMs === DEFAULT_APP_SETTINGS.repressGapMs}
+          onclick={() => {
+            if (!animationStore.isOff && !reducedMotion) resetTrigger = (resetTrigger ?? 0) + 1;
+            onrepressgapchange(DEFAULT_APP_SETTINGS.repressGapMs);
+          }}>
+          <RefreshIcon size={15} trigger={resetTrigger} />
+        </Button>
+      </div>
+      <p class="description">{t('settings.repressGapDesc')}</p>
+    </div>
+  </GradientSweep>
 </div>
 
 <style>
   .overlap-setting { display: flex; flex-direction: column; gap: 6px; min-width: 0; container-type: inline-size; }
+  .repress-gap { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 8px 16px 0; box-sizing: border-box; }
+  .repress-gap-controls { display: flex; align-items: center; gap: 6px; }
+  .repress-gap .description { margin-bottom: 0; }
   .heading, .option-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
   .label { font-size: 12.5px; font-weight: 600; color: var(--text-primary); }
   .description { margin: 0 0 6px; font-size: 11.5px; line-height: 1.5; color: var(--text-secondary); }
