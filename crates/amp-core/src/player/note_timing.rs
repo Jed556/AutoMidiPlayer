@@ -1,7 +1,8 @@
 use std::collections::{HashMap, VecDeque};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use enigo::Key;
 use crate::midi::TimedNoteEvent;
+use crate::input::KeyStroke;
 
 /// Pair before playback so short notes can be classified at NoteOn, including after seeks.
 pub fn note_durations(events: &[TimedNoteEvent]) -> Vec<Option<u64>> {
@@ -32,7 +33,17 @@ pub enum OverlapBehavior {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) enum KeyPressAction { Press, Retrigger, Ignore }
+pub(super) enum KeyPressAction { Press, Retrigger, Deferred, Ignore }
+
+// Leave the key up for longer than a 60 Hz game frame. Back-to-back key-up/down
+// can otherwise be observed as one uninterrupted hold by a polling game.
+const REPRESS_GAP: Duration = Duration::from_millis(20);
+
+struct PendingPress {
+    stroke: KeyStroke,
+    at: Instant,
+    owners: Vec<usize>,
+}
 
 /// Re-pressed keys retain every active note owner. A NoteOff or tap deadline
 /// releases the physical key only after all owners finish; ignored overlaps
@@ -40,9 +51,50 @@ pub(super) enum KeyPressAction { Press, Retrigger, Ignore }
 #[derive(Default)]
 pub(super) struct KeyReleases {
     pressed: HashMap<Key, HashMap<usize, Option<Instant>>>,
+    pending: HashMap<Key, PendingPress>,
 }
 
 impl KeyReleases {
+    /// Schedule physical output without sleeping the playback thread. The returned
+    /// time is the scheduled press time, also used to start the new note's tap timer.
+    pub fn begin_stroke(&mut self, stroke: KeyStroke, owner: usize, now: Instant,
+        deadline: Option<Instant>, behavior: OverlapBehavior) -> (KeyPressAction, Instant) {
+        let action = self.begin_press(stroke.key, owner, deadline, behavior);
+        if action != KeyPressAction::Retrigger { return (action, now); }
+        let already_pending = self.pending.contains_key(&stroke.key);
+        let pending = self.pending.entry(stroke.key).or_insert(PendingPress {
+            stroke, at: now + REPRESS_GAP, owners: Vec::new(),
+        });
+        // Simultaneous owners share one physical attack; later arrivals must not
+        // keep postponing it. Use the latest stroke's modifiers for the attack.
+        pending.stroke = stroke;
+        if !pending.owners.contains(&owner) { pending.owners.push(owner); }
+        let at = pending.at;
+        if let Some(deadline) = deadline {
+            self.retime(stroke.key, owner, at + deadline.saturating_duration_since(now));
+        }
+        (if already_pending { KeyPressAction::Deferred } else { action }, at)
+    }
+
+    pub fn take_presses(&mut self, now: Instant) -> Vec<(KeyStroke, Vec<usize>)> {
+        let mut due = Vec::new();
+        self.pending.retain(|key, press| {
+            if press.at > now { return true; }
+            // Even if the worker wakes late, a tap still gets its full hold time
+            // after key-down. Older owners keep their original release times.
+            if let Some(owners) = self.pressed.get_mut(key) {
+                for owner in &press.owners {
+                    if let Some(Some(deadline)) = owners.get_mut(owner) {
+                        *deadline += now.saturating_duration_since(press.at);
+                    }
+                }
+                due.push((press.stroke, std::mem::take(&mut press.owners)));
+            }
+            false
+        });
+        due
+    }
+
     pub fn begin_press(&mut self, key: Key, owner: usize, deadline: Option<Instant>, behavior: OverlapBehavior) -> KeyPressAction {
         if self.pressed.contains_key(&key) && behavior == OverlapBehavior::Hold {
             return KeyPressAction::Ignore;
@@ -63,6 +115,7 @@ impl KeyReleases {
         owners.remove(&owner);
         if !owners.is_empty() { return false; }
         self.pressed.remove(&key);
+        self.pending.remove(&key);
         true
     }
 
@@ -79,20 +132,135 @@ impl KeyReleases {
             if owners.is_empty() { due.push(key); }
             !owners.is_empty()
         });
+        self.pending.retain(|key, _| self.pressed.contains_key(key));
         due
     }
 
     pub fn next_deadline(&self) -> Option<Instant> {
-        self.pressed.values().flat_map(|owners| owners.values().copied().flatten()).min()
+        self.pressed.values().flat_map(|owners| owners.values().copied().flatten())
+            .chain(self.pending.values().map(|press| press.at)).min()
     }
 
-    pub fn clear(&mut self) { self.pressed.clear(); }
+    pub fn clear(&mut self) { self.pressed.clear(); self.pending.clear(); }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::time::Duration;
+
+    #[test]
+    fn orange_c4_repress_has_a_release_gap_without_losing_the_42_second_owner() {
+        // C4 from track 0: 47.442s..90.093s; track 1 overlaps at
+        // 64.884s..65.545s and 65.581s..66.905s (same MIDI channel).
+        let mut releases = KeyReleases::default();
+        let stroke = KeyStroke::plain(Key::A);
+        let origin = Instant::now();
+        let at = |us| origin + Duration::from_micros(us);
+        assert_eq!(releases.begin_stroke(stroke, 445, at(47_442_000), None, OverlapBehavior::Retrigger).0,
+            KeyPressAction::Press);
+        assert!(releases.take_due(at(64_883_682)).is_empty());
+        for (owner, start, end) in [(614, 64_883_682, 65_545_019), (626, 65_581_356, 66_905_483)] {
+            let (action, press_at) = releases.begin_stroke(stroke, owner, at(start), None, OverlapBehavior::Retrigger);
+            assert_eq!(action, KeyPressAction::Retrigger); // send key-up now
+            assert_eq!(press_at, at(start) + REPRESS_GAP);
+            assert_eq!(releases.next_deadline(), Some(press_at));
+            assert!(releases.take_presses(press_at - Duration::from_micros(1)).is_empty());
+            assert_eq!(releases.take_presses(press_at), vec![(stroke, vec![owner])]);
+            assert!(releases.take_due(at(end)).is_empty());
+            assert!(!releases.note_off(stroke.key, owner), "short note must not cut off the original hold");
+        }
+        assert!(releases.take_due(at(90_092_999)).is_empty());
+        assert!(releases.note_off(stroke.key, 445));
+        assert!(releases.next_deadline().is_none());
+    }
+
+    #[test]
+    fn deferred_repress_keeps_chords_immediate_and_tap_duration_starts_at_key_down() {
+        let mut releases = KeyReleases::default();
+        let now = Instant::now();
+        let stroke = KeyStroke::plain(Key::A);
+        let tap = Duration::from_millis(35);
+        releases.begin_stroke(stroke, 1, now, None, OverlapBehavior::Retrigger);
+        let (action, press_at) = releases.begin_stroke(stroke, 2, now, Some(now + tap), OverlapBehavior::Retrigger);
+        assert_eq!(action, KeyPressAction::Retrigger);
+        assert!(!releases.note_off(Key::A, 1));
+        let chord = KeyStroke::plain(Key::B);
+        assert_eq!(releases.begin_stroke(chord, 3, now, None, OverlapBehavior::Retrigger),
+            (KeyPressAction::Press, now));
+        assert!(releases.take_due(press_at).is_empty());
+        assert_eq!(releases.take_presses(press_at), vec![(stroke, vec![2])]);
+        assert!(releases.take_due(now + tap).is_empty());
+        assert_eq!(releases.next_deadline(), Some(press_at + tap));
+        assert_eq!(releases.take_due(press_at + tap), vec![Key::A]);
+        assert!(releases.note_off(Key::B, 3));
+    }
+
+    #[test]
+    fn simultaneous_overlaps_share_an_attack_without_extending_the_release_gap() {
+        let mut releases = KeyReleases::default();
+        let now = Instant::now();
+        let stroke = KeyStroke::plain(Key::A);
+        releases.begin_stroke(stroke, 1, now, None, OverlapBehavior::Retrigger);
+        let (_, press_at) = releases.begin_stroke(stroke, 2, now, None, OverlapBehavior::Retrigger);
+        let shifted = KeyStroke { shift: true, ..stroke };
+        let later = now + Duration::from_millis(10);
+        assert_eq!(releases.begin_stroke(shifted, 3, later, None, OverlapBehavior::Retrigger),
+            (KeyPressAction::Deferred, press_at));
+        assert_eq!(releases.next_deadline(), Some(press_at));
+        assert_eq!(releases.take_presses(press_at), vec![(shifted, vec![2, 3])]);
+        assert!(releases.take_presses(press_at).is_empty());
+        assert!(!releases.note_off(Key::A, 1));
+        assert!(!releases.note_off(Key::A, 3));
+        assert!(releases.note_off(Key::A, 2));
+    }
+
+    #[test]
+    fn stopped_or_finished_owners_cancel_pending_attacks_and_hold_mode_still_ignores_overlaps() {
+        let now = Instant::now();
+        let stroke = KeyStroke::plain(Key::A);
+        for cleanup in [0, 1, 2] {
+            let mut releases = KeyReleases::default();
+            releases.begin_stroke(stroke, 1, now, None, OverlapBehavior::Retrigger);
+            releases.begin_stroke(stroke, 2, now, None, OverlapBehavior::Retrigger);
+            match cleanup {
+                0 => releases.clear(), // stop, pause, seek, panic, output or layout change
+                1 => {
+                    assert!(!releases.note_off(Key::A, 1));
+                    assert!(releases.note_off(Key::A, 2));
+                }
+                _ => {
+                    releases.retime(Key::A, 1, now);
+                    releases.retime(Key::A, 2, now);
+                    assert_eq!(releases.take_due(now), vec![Key::A]);
+                }
+            }
+            assert!(releases.next_deadline().is_none());
+            assert!(releases.take_presses(now + REPRESS_GAP).is_empty());
+        }
+        let mut releases = KeyReleases::default();
+        releases.begin_stroke(stroke, 1, now, None, OverlapBehavior::Hold);
+        assert_eq!(releases.begin_stroke(stroke, 2, now, None, OverlapBehavior::Hold).0, KeyPressAction::Ignore);
+        assert!(releases.next_deadline().is_none());
+        assert!(releases.take_presses(now + REPRESS_GAP).is_empty());
+        assert!(releases.note_off(Key::A, 1));
+    }
+
+    #[test]
+    fn late_worker_wakeup_preserves_a_repressed_taps_full_hold_time() {
+        let mut releases = KeyReleases::default();
+        let now = Instant::now();
+        let stroke = KeyStroke::plain(Key::A);
+        let tap = Duration::from_millis(20);
+        releases.begin_stroke(stroke, 1, now, None, OverlapBehavior::Retrigger);
+        releases.begin_stroke(stroke, 2, now, Some(now + tap), OverlapBehavior::Retrigger);
+        assert!(!releases.note_off(Key::A, 1));
+        let late = now + Duration::from_millis(100);
+        assert_eq!(releases.take_presses(late), vec![(stroke, vec![2])]);
+        assert!(releases.take_due(late).is_empty());
+        assert_eq!(releases.next_deadline(), Some(late + tap));
+        assert_eq!(releases.take_due(late + tap), vec![Key::A]);
+    }
 
     #[test]
     fn keep_held_ignores_overlaps_without_changing_owner_or_deadline() {

@@ -688,11 +688,13 @@ fn run_playback_loop(
                     } else if send_input {
                         if let Some(stroke) = mapping.get_stroke(pitch) {
                             let key = stroke.key;
-                            let deadline = Instant::now() + Duration::from_millis(tap_duration_ms);
-                            if key_releases.press(key, usize::MAX, Some(deadline)) {
-                                key_sim.send_key(key, true);
+                            let now = Instant::now();
+                            let deadline = now + Duration::from_millis(tap_duration_ms);
+                            match key_releases.begin_stroke(stroke, usize::MAX, now, Some(deadline), OverlapBehavior::Retrigger).0 {
+                                KeyPressAction::Press => key_sim.press_stroke(stroke),
+                                KeyPressAction::Retrigger => key_sim.send_key(key, true),
+                                KeyPressAction::Deferred | KeyPressAction::Ignore => {}
                             }
-                            key_sim.press_stroke(stroke);
                         }
                     }
                 }
@@ -720,6 +722,15 @@ fn run_playback_loop(
                 let deadline = note.started + Duration::from_millis(tap_duration_ms);
                 note.deadline = Some(deadline);
                 if let Some(key) = note.key { key_releases.retime(key, owner, deadline); }
+            }
+        }
+        for (stroke, owners) in key_releases.take_presses(now) {
+            key_sim.press_stroke(stroke);
+            for owner in owners {
+                if let Some(note) = live_notes.get_mut(&owner) {
+                    note.deadline = note.deadline.map(|at| now + at.saturating_duration_since(note.started));
+                    note.started = now;
+                }
             }
         }
         for key in key_releases.take_due(now) {
@@ -902,13 +913,15 @@ fn run_playback_loop(
                     } else if send_input {
                         if let Some(stroke) = mapped_stroke {
                             let key = stroke.key;
-                            match key_releases.begin_press(key, event_idx, deadline, overlap_behavior) {
+                            let (action, press_at) = key_releases.begin_stroke(stroke, event_idx, started, deadline, overlap_behavior);
+                            if let Some(note) = live_notes.get_mut(&event_idx) {
+                                note.started = press_at;
+                                note.deadline = deadline.map(|at| press_at + at.saturating_duration_since(started));
+                            }
+                            match action {
                                 KeyPressAction::Press => key_sim.press_stroke(stroke),
-                                KeyPressAction::Retrigger => {
-                                    key_sim.send_key(key, true);
-                                    key_sim.press_stroke(stroke);
-                                }
-                                KeyPressAction::Ignore => {}
+                                KeyPressAction::Retrigger => key_sim.send_key(key, true),
+                                KeyPressAction::Deferred | KeyPressAction::Ignore => {}
                             }
                         }
                     }
