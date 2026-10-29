@@ -13,7 +13,7 @@ use crate::midi::{
 use crate::input::{NoteKeyMapping, KeySimulator};
 use crate::audio::{AudioSynth, SynthMode};
 use enigo::Key;
-use super::note_timing::{is_tap, note_durations, KeyReleases, KeyPressAction, OverlapBehavior};
+use super::note_timing::{is_tap, note_durations, pending_note_owners, KeyReleases, KeyPressAction, OverlapBehavior};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum PlaybackStatus {
@@ -388,6 +388,7 @@ fn run_playback_loop(
     let mut overlap_behavior = OverlapBehavior::default();
     let mut key_releases = KeyReleases::default();
     let mut event_idx = 0usize;
+    let mut restore_notes = false;
     let mut control_idx = 0usize;
     let mut pedals = PedalTracker::default();
     let mut pedals_enabled = true;
@@ -450,6 +451,7 @@ fn run_playback_loop(
                             callback(PlayerEvent::PedalsChanged(pedals.state()));
                         }
                         status = PlaybackStatus::Playing;
+                        restore_notes = true;
                         last_instant = Instant::now();
                         update_status(status, &status_arc);
                     }
@@ -503,10 +505,9 @@ fn run_playback_loop(
                     if let Some(ref song) = current_song {
                         current_us = target_us.min(song.duration_us);
                         *time_arc.lock().unwrap() = current_us;
-                        event_idx = match song.events.binary_search_by_key(&current_us, |e| e.time_us) {
-                            Ok(idx) => idx,
-                            Err(idx) => idx,
-                        };
+                        // All events at the target must still run, including chords.
+                        event_idx = song.events.partition_point(|e| e.time_us < current_us);
+                        restore_notes = status == PlaybackStatus::Playing;
                         control_idx = song.control_events.partition_point(|e| e.time_us < current_us);
                         key_sim.release_all(&all_keys);
                         if let Some(ref synth) = audio_synth {
@@ -762,6 +763,13 @@ fn run_playback_loop(
             }
         };
 
+        // Chase held source notes only once playback is running. A stopped or
+        // paused seek remains silent, and ordinary ticks never scan old events.
+        let mut restored_owners: VecDeque<_> = if restore_notes {
+            restore_notes = false;
+            pending_note_owners(&song.events, event_idx).into()
+        } else { VecDeque::new() };
+
         // 3. Check if song finished
         if event_idx >= song.events.len() && control_idx >= song.control_events.len() {
             // A tap may outlast its MIDI note, including the final note in the song.
@@ -795,7 +803,7 @@ fn run_playback_loop(
             .unwrap_or(current_us);
 
         // Calculate time until next note
-        if target_us > current_us {
+        if restored_owners.is_empty() && target_us > current_us {
             let delta_us = target_us - current_us;
             let real_wait_us = ((delta_us as f64) / speed).round() as u64;
 
@@ -853,8 +861,12 @@ fn run_playback_loop(
         }
 
         // 4b. Process Note Events
-        while event_idx < song.events.len() && song.events[event_idx].time_us <= current_us {
-            let ev = &song.events[event_idx];
+        while !restored_owners.is_empty()
+            || (event_idx < song.events.len() && song.events[event_idx].time_us <= current_us) {
+            let restored = restored_owners.pop_front();
+            let restoring = restored.is_some();
+            let owner_index = restored.unwrap_or(event_idx);
+            let ev = &song.events[owner_index];
 
             let track_vol = track_volumes.get(&ev.track_index).copied().unwrap_or(1.0);
 
@@ -873,6 +885,16 @@ fn run_playback_loop(
                 let active_transpose_mode = active_marker.and_then(|m| m.transpose).unwrap_or(transpose_mode);
 
                 if ev.is_note_on && effective_vel > 0 {
+                    let adapted_timing = !listen_mode || synth_mode == SynthMode::Adapted;
+                    if restoring && (durations[owner_index].is_some_and(|duration|
+                        ev.time_us.saturating_add(duration) <= current_us)
+                        || (adapted_timing && is_tap(hold_notes, tap_threshold_ms, durations[owner_index], speed))) {
+                        // Do not replay historical taps or notes ending exactly at
+                        // the playhead, but reserve their FIFO NoteOff position.
+                        active_held_notes.entry((ev.track_index, ev.channel, ev.note)).or_default()
+                            .push_back((None, None, owner_index));
+                        continue;
+                    }
                     // Apply transposition and smart mode adaptation for NoteOn
                     let mapped_note = process_note_pitch(
                         ev.note,
@@ -887,11 +909,10 @@ fn run_playback_loop(
                     let mapped_key = mapped_stroke.map(|stroke| stroke.key);
 
                     active_held_notes.entry((ev.track_index, ev.channel, ev.note)).or_default()
-                        .push_back((mapped_note, mapped_key, event_idx));
+                        .push_back((mapped_note, mapped_key, owner_index));
 
                     let started = Instant::now();
-                    let adapted_timing = !listen_mode || synth_mode == SynthMode::Adapted;
-                    let deadline = (adapted_timing && is_tap(hold_notes, tap_threshold_ms, durations[event_idx], speed))
+                    let deadline = (adapted_timing && is_tap(hold_notes, tap_threshold_ms, durations[owner_index], speed))
                         .then(|| started + Duration::from_millis(tap_duration_ms));
                     let synth_note = if listen_mode {
                         match synth_mode {
@@ -899,9 +920,9 @@ fn run_playback_loop(
                             SynthMode::Raw => Some(ev.note),
                         }.map(|pitch| (ev.channel, pitch))
                     } else { None };
-                    live_notes.insert(event_idx, LiveNote {
+                    live_notes.insert(owner_index, LiveNote {
                         pitch: mapped_note, key: mapped_key, track_index: ev.track_index,
-                        synth_note, started, duration_us: durations[event_idx], deadline, adapted_timing,
+                        synth_note, started, duration_us: durations[owner_index], deadline, adapted_timing,
                     });
 
                     if listen_mode {
@@ -913,8 +934,8 @@ fn run_playback_loop(
                     } else if send_input {
                         if let Some(stroke) = mapped_stroke {
                             let key = stroke.key;
-                            let (action, press_at) = key_releases.begin_stroke(stroke, event_idx, started, deadline, overlap_behavior);
-                            if let Some(note) = live_notes.get_mut(&event_idx) {
+                            let (action, press_at) = key_releases.begin_stroke(stroke, owner_index, started, deadline, overlap_behavior);
+                            if let Some(note) = live_notes.get_mut(&owner_index) {
                                 note.started = press_at;
                                 note.deadline = deadline.map(|at| press_at + at.saturating_duration_since(started));
                             }
@@ -963,9 +984,12 @@ fn run_playback_loop(
                         finish_live_note(owner, &mut live_notes, &audio_synth, &callback);
                     }
                 }
+            } else if restoring {
+                active_held_notes.entry((ev.track_index, ev.channel, ev.note)).or_default()
+                    .push_back((None, None, owner_index));
             }
 
-            event_idx += 1;
+            if !restoring { event_idx += 1; }
         }
 
         publish_live_notes(&live_notes, &mut active_notes, &mut active_track_notes, &callback);
