@@ -72,7 +72,7 @@
     uiStore.activeTab;
     zoomX; zoomY; scrollX; scrollY; hoverTime; isLockedToPlayhead;
     renderTracks; themeStore.themeProgress; themeStore.accentColor;
-    highlightedTrackIndex; animationStore.isOff; reducedMotion;
+    highlightedTrackIndex; animationStore.durationMs; reducedMotion; hoveredTarget;
     playbackStore.currentTimeSeconds; playbackStore.isPlaying;
     playbackStore.isScrubbing; playbackStore.activeNotes;
     playbackStore.selectedMarkerId;
@@ -81,9 +81,18 @@
   });
 
   // Hover state
-  let hoveredNote: RollNote | null = $state(null);
+  let hoveredTarget: { note: RollNote; track: StudioRenderTrack } | null = $state.raw(null);
+  const hoveredNote = $derived(hoveredTarget?.note ?? null);
+  let hoverStartedAt = 0;
+  const HOVER_GAP = 4;
   let hoveredMarker: KeyChangeMarker | null = $state(null);
   let tooltipPos = $state({ x: 0, y: 0 });
+
+  $effect(() => {
+    if (hoveredTarget && (!renderTracks.includes(hoveredTarget.track) || hoveredTarget.track.muted)) {
+      hoveredTarget = null;
+    }
+  });
 
   // Panning & dragging state
   let isMiddlePanning = $state(false);
@@ -142,6 +151,41 @@
     ctx!.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
     strikeEffects?.resize(width, height, pixelRatio);
     sizeDirty = false;
+  }
+
+  function noteBounds(note: RollNote) {
+    const w = Math.max(4, noteDuration(note) * zoomX);
+    const h = Math.max(3, zoomY - 2);
+    return {
+      x: KEY_WIDTH + noteStart(note) * zoomX - scrollX,
+      y: (MAX_PITCH - (note.pitch ?? note.noteNumber)) * zoomY - scrollY + 1,
+      w, h,
+      radius: Math.min(3, w / 2, h / 2),
+    };
+  }
+
+  function drawNote(context: CanvasRenderingContext2D, note: RollNote, track: StudioRenderTrack, renderTime: number) {
+    const { x, y, w, h, radius } = noteBounds(note);
+    if (y + h < 0 || y > height) return;
+    context.fillStyle = track.color;
+    context.beginPath();
+    context.roundRect(x, y, w, h, radius);
+    context.fill();
+    const start = noteStart(note);
+    if (renderTime >= start && renderTime < start + noteDuration(note)) {
+      context.save();
+      context.strokeStyle = track.color;
+      context.shadowColor = track.color;
+      context.shadowBlur = playbackStore.isPlaying && !animationStore.isOff && !reducedMotion ? 14 : 0;
+      context.lineWidth = 1;
+      context.stroke();
+      context.restore();
+    }
+    if (w > 32 && h > 11) {
+      context.fillStyle = track.labelColor;
+      context.font = '600 10px system-ui, sans-serif';
+      context.fillText(getNoteName(note.pitch ?? note.noteNumber), x + 4, y + h - 4);
+    }
   }
 
   function render() {
@@ -307,6 +351,20 @@
     ctx.beginPath();
     ctx.rect(KEY_WIDTH, 0, viewportW, height);
     ctx.clip();
+    ctx.save();
+    const hover = hoveredTarget;
+    if (hover) {
+      const progress = reducedMotion || animationStore.isOff ? 1
+        : Math.min(1, (performance.now() - hoverStartedAt) / animationStore.durationMs);
+      const gap = HOVER_GAP * (1 - Math.pow(1 - progress, 3));
+      const { x, y, w, h, radius } = noteBounds(hover.note);
+      // Cut only the other notes out of this space, preserving the lane/grid below.
+      const mask = new Path2D();
+      mask.rect(KEY_WIDTH, 0, viewportW, height);
+      mask.roundRect(x - gap, y - gap, w + gap * 2, h + gap * 2, radius + gap);
+      ctx.clip(mask, 'evenodd');
+      if (progress < 1) dirty = true;
+    }
     for (const track of layeredTracks) {
       if (track.muted) continue;
       for (const note of track.between(renderTime, renderTime)) {
@@ -319,34 +377,13 @@
         }
       }
       for (const note of track.between(startSec - 4 / zoomX, endSec)) {
-        const start = noteStart(note);
-        const duration = noteDuration(note);
-        const pitch = note.pitch ?? note.noteNumber;
-        const nx = KEY_WIDTH + start * zoomX - scrollX;
-        const nw = Math.max(4, duration * zoomX);
-        const ny = (MAX_PITCH - pitch) * zoomY - scrollY;
-        const nh = Math.max(3, zoomY - 2);
-        if (ny + nh < 0 || ny > height) continue;
-        ctx.fillStyle = track.color;
-        ctx.beginPath();
-        ctx.roundRect(nx, ny + 1, nw, nh, Math.min(3, nw / 2, nh / 2));
-        ctx.fill();
-        if (renderTime >= start && renderTime < start + duration) {
-          ctx.save();
-          ctx.strokeStyle = track.color;
-          ctx.shadowColor = track.color;
-          ctx.shadowBlur = playbackStore.isPlaying && !animationStore.isOff && !reducedMotion ? 14 : 0;
-          ctx.lineWidth = 1;
-          ctx.stroke();
-          ctx.restore();
-        }
-        if (nw > 32 && nh > 11) {
-          ctx.fillStyle = track.labelColor;
-          ctx.font = '600 10px system-ui, sans-serif';
-          ctx.fillText(getNoteName(pitch), nx + 4, ny + nh - 3);
-        }
+        if (hover?.track === track && hover.note === note) continue;
+        drawNote(ctx, note, track, renderTime);
       }
     }
+    ctx.restore();
+    // Draw the hovered note last, including above overlaps within its own track.
+    if (hover) drawNote(ctx, hover.note, hover.track, renderTime);
     ctx.restore();
 
     // 5. Draw Piano Keyboard on Left Margin (Pinned)
@@ -561,6 +598,7 @@
   function handleWheel(e: WheelEvent) {
     e.preventDefault();
     if (!canvas) return;
+    hoveredTarget = null;
 
     const rect = canvas.getBoundingClientRect();
     const mouseCanvasX = e.clientX - rect.left;
@@ -592,6 +630,7 @@
 
   function handleMouseDown(e: MouseEvent) {
     if (!canvas) return;
+    hoveredTarget = null;
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -741,26 +780,32 @@
   }
 
   function detectNoteHover(canvasX: number, canvasY: number) {
-    if (canvasX < KEY_WIDTH) {
-      hoveredNote = null;
+    if (canvasX < KEY_WIDTH || canvasX > width || canvasY < 0 || canvasY > height) {
+      hoveredTarget = null;
       return;
     }
 
     const time = (canvasX - KEY_WIDTH + scrollX) / zoomX;
     for (const track of [...layeredTracks].reverse()) {
       if (track.muted) continue;
+      let hit: RollNote | null = null;
       for (const note of track.between(time - 4 / zoomX, time)) {
-        const nx = KEY_WIDTH + noteStart(note) * zoomX - scrollX;
-        const ny = (MAX_PITCH - (note.pitch ?? note.noteNumber)) * zoomY - scrollY;
-        if (canvasX <= nx + Math.max(4, noteDuration(note) * zoomX) &&
-            canvasY >= ny && canvasY <= ny + zoomY - 2) {
-          hoveredNote = note;
-          tooltipPos = { x: canvasX + 10, y: canvasY - 10 };
-          return;
+        const { x, y, w, h } = noteBounds(note);
+        if (canvasX >= x && canvasX <= x + w && canvasY >= y && canvasY <= y + h) {
+          hit = note;
         }
       }
+      // The last matching note is the one painted on top within this track.
+      if (hit) {
+        if (hoveredTarget?.note !== hit || hoveredTarget.track !== track) {
+          hoverStartedAt = performance.now();
+          hoveredTarget = { note: hit, track };
+        }
+        tooltipPos = { x: canvasX + 10, y: canvasY - 10 };
+        return;
+      }
     }
-    hoveredNote = null;
+    hoveredTarget = null;
   }
 
   export function fitKeyHeight() {
@@ -977,7 +1022,7 @@
   onmousemove={handleMouseMove}
   onmouseup={handleMouseUp}
   ondblclick={handleDblClick}
-  onmouseleave={() => { hoveredNote = null; hoveredMarker = null; hoverTime = null; }}
+  onmouseleave={() => { hoveredTarget = null; hoveredMarker = null; hoverTime = null; }}
   role="region"
   aria-label="Piano Roll Interactive Editor"
 >
