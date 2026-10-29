@@ -148,6 +148,7 @@ enum Command {
     SetFps(u32),
     SetHoldDelayMs(u64),
     SetOverlapBehavior(OverlapBehavior),
+    SetRepressGapMs(u64),
     SetNoteTiming { hold_notes: bool, tap_threshold_ms: u64 },
     SetPedalsEnabled(bool),
     SetSendInput(bool),
@@ -267,6 +268,10 @@ impl PlaybackEngine {
 
     pub fn set_overlap_behavior(&self, behavior: OverlapBehavior) {
         let _ = self.cmd_tx.send(Command::SetOverlapBehavior(behavior));
+    }
+
+    pub fn set_repress_gap_ms(&self, ms: u64) {
+        let _ = self.cmd_tx.send(Command::SetRepressGapMs(ms));
     }
 
     pub fn set_note_timing(&self, hold_notes: bool, tap_threshold_ms: u64) {
@@ -562,6 +567,9 @@ fn run_playback_loop(
                 }
                 Command::SetOverlapBehavior(behavior) => {
                     overlap_behavior = behavior;
+                }
+                Command::SetRepressGapMs(ms) => {
+                    key_releases.set_repress_gap_ms(ms);
                 }
                 Command::SetNoteTiming { hold_notes: enabled, tap_threshold_ms: threshold } => {
                     hold_notes = enabled;

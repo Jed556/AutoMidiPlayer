@@ -748,6 +748,10 @@ async fn update_app_settings(
         serde_json::from_value::<OverlapBehavior>(value.clone())
             .map_err(|e| format!("Invalid overlap behavior: {e}"))
     ).transpose()?;
+    let repress_gap_ms = settings.get("repressGapMs").map(|value|
+        value.as_u64().filter(|ms| *ms <= 1000)
+            .ok_or_else(|| "Re-press gap must be a whole number between 0 and 1000 ms".to_string())
+    ).transpose()?;
     let db = Arc::clone(&state.db);
     let engine = Arc::clone(&state.engine);
     let process_monitor = Arc::clone(&state.process_monitor);
@@ -757,6 +761,9 @@ async fn update_app_settings(
         db.update_app_settings(&settings).map_err(|e| e.to_string())?;
         if let Some(behavior) = overlap_behavior {
             engine.set_overlap_behavior(behavior);
+        }
+        if let Some(ms) = repress_gap_ms {
+            engine.set_repress_gap_ms(ms);
         }
         if let Some(ms) = settings.get("keyPressDelayMs").and_then(serde_json::Value::as_u64) {
             engine.set_hold_delay_ms(ms.min(1000));
@@ -777,6 +784,7 @@ fn reset_app_settings(state: State<AppState>) -> Result<bool, String> {
     state.db.reset_app_settings().map_err(|e| e.to_string())?;
     state.engine.set_hold_delay_ms(20);
     state.engine.set_overlap_behavior(OverlapBehavior::default());
+    state.engine.set_repress_gap_ms(20);
     state.engine.set_pedals_enabled(true);
     state.process_monitor.lock().map_err(|e| e.to_string())?.set_locations(&serde_json::json!({}));
     Ok(true)
@@ -1628,6 +1636,8 @@ pub fn run() {
                         .and_then(serde_json::Value::as_u64).unwrap_or(20).min(1000));
                     engine.set_overlap_behavior(settings.get("overlapBehavior")
                         .and_then(|value| serde_json::from_value(value.clone()).ok()).unwrap_or_default());
+                    engine.set_repress_gap_ms(settings.get("repressGapMs")
+                        .and_then(serde_json::Value::as_u64).unwrap_or(20));
                     engine.set_pedals_enabled(settings.get("ui")
                         .and_then(|ui| ui.get("pedalsEnabled"))
                         .and_then(serde_json::Value::as_bool).unwrap_or(true));

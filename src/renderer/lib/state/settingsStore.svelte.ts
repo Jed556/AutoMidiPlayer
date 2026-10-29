@@ -11,6 +11,10 @@ import { logger } from '../infrastructure/logger.js';
 import { telemetry } from '../infrastructure/telemetry.js';
 import { t } from '../i18n';
 
+type OverlapSettings = Pick<AppSettings, 'overlapBehavior' | 'repressGapMs'>;
+const normalizeRepressGapMs = (value: unknown): number => typeof value === 'number' && Number.isFinite(value)
+  ? Math.max(0, Math.min(1000, Math.round(value))) : DEFAULT_APP_SETTINGS.repressGapMs;
+
 class SettingsStore {
   settings = $state<AppSettings>({ ...DEFAULT_APP_SETTINGS });
   isScanningFolder = $state(false);
@@ -70,7 +74,7 @@ class SettingsStore {
   onAutoEnableListenModeChanged?: (enabled: boolean) => void;
   private _isHotkeysSuspended = false;
   private folderSync: Promise<void> = Promise.resolve();
-  private pendingOverlapBehavior: AppSettings['overlapBehavior'] | null = null;
+  private pendingOverlapSettings: Partial<OverlapSettings> | null = null;
   private savingOverlapBehavior = false;
 
 
@@ -80,6 +84,7 @@ class SettingsStore {
       const remote = await api.settings.getSettings();
       if (remote) {
         this.settings = { ...DEFAULT_APP_SETTINGS, ...remote };
+        this.settings.repressGapMs = normalizeRepressGapMs(remote.repressGapMs);
       }
       await this.refreshAutoCorrectLayouts(remote?.autoCorrectThreshold);
 
@@ -190,18 +195,18 @@ class SettingsStore {
     }
   }
 
-  private async saveOverlapBehavior() {
-    this.pendingOverlapBehavior = this.settings.overlapBehavior;
+  private async saveOverlapSettings(patch: Partial<OverlapSettings>) {
+    this.pendingOverlapSettings = { ...this.pendingOverlapSettings, ...patch };
     if (this.savingOverlapBehavior) return;
     this.savingOverlapBehavior = true;
     try {
       // Keep one native write in flight and replace queued switches with the
-      // latest choice. A card click must not resync song defaults or locations.
-      while (this.pendingOverlapBehavior !== null) {
-        const overlapBehavior = this.pendingOverlapBehavior;
-        this.pendingOverlapBehavior = null;
+      // latest values. Editing overlap settings must not resync song defaults or locations.
+      while (this.pendingOverlapSettings !== null) {
+        const settings = this.pendingOverlapSettings;
+        this.pendingOverlapSettings = null;
         try {
-          await api.settings.updateSettings({ overlapBehavior });
+          await api.settings.updateSettings(settings);
         } catch (error) {
           console.error('[SettingsStore] Save overlap behavior failed:', error);
         }
@@ -212,10 +217,11 @@ class SettingsStore {
   }
 
   update<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
-    if (key === 'overlapBehavior' && this.settings[key] === value) return;
+    if (key === 'repressGapMs') value = normalizeRepressGapMs(value) as AppSettings[K];
+    if ((key === 'overlapBehavior' || key === 'repressGapMs') && this.settings[key] === value) return;
     this.settings[key] = value;
-    if (key === 'overlapBehavior') {
-      void this.saveOverlapBehavior();
+    if (key === 'overlapBehavior' || key === 'repressGapMs') {
+      void this.saveOverlapSettings({ [key]: value });
       return;
     }
     if (key === 'accentColor' && typeof value === 'string') {
@@ -447,7 +453,7 @@ class SettingsStore {
 
   resetAllDefaults() {
     this.isResettingAll = true;
-    this.pendingOverlapBehavior = null;
+    this.pendingOverlapSettings = null;
     this.settings = { ...DEFAULT_APP_SETTINGS, onboardingCompleted: this.settings.onboardingCompleted };
     this.settings.autoCorrectThreshold = getDefaultAutoCorrectThreshold(this.autoCorrectThresholdTicks);
     api.settings.resetSettings()

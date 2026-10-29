@@ -74,6 +74,7 @@ export interface AppSettings {
   enableKeyUp: boolean;
   keyPressDelayMs: number;
   overlapBehavior: OverlapBehavior;
+  repressGapMs: number;
   autoCorrectThreshold: number;
   hotkeysEnabled: boolean;
   mouseStopClick: MouseStopClickOption;
