@@ -8,11 +8,11 @@
   import { t } from '../i18n';
   import {
     ABOUT_LINKS,
-    INITIAL_CONTRIBUTORS,
     loadOpenSourceLicenses,
     type ContributorInfo,
     type LicenseInfo
   } from '../data/aboutData';
+  import { contributorLoader } from '../data/contributors';
 
 
 
@@ -22,7 +22,7 @@
     void loadOpenSourceLicenses().then(items => { licenses = items; });
   });
 
-  let contributors = $state<ContributorInfo[]>([...INITIAL_CONTRIBUTORS]);
+  let contributors = $state<ContributorInfo[]>(contributorLoader.readCached());
   let viewEl = $state<HTMLDivElement>();
   let containerEl = $state<HTMLElement | null>(null);
   let isCentered = $state(false);
@@ -45,29 +45,10 @@
     return () => ro.disconnect();
   });
 
-  onMount(async () => {
-    try {
-      const res = await fetch('https://api.github.com/repos/Jed556/AutoMidiPlayer/contributors', {
-        headers: { 'User-Agent': 'AutoMidiPlayer' }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          const filtered = data
-            .filter((c: any) => !c.login.includes('[bot]'))
-            .map((c: any) => ({
-              name: c.login,
-              avatarUrl: c.avatar_url,
-              profileUrl: c.html_url
-            }));
-          if (filtered.length > 0) {
-            contributors = filtered;
-          }
-        }
-      }
-    } catch {
-      // Retain INITIAL_CONTRIBUTORS on offline or network issue
-    }
+  onMount(() => {
+    let mounted = true;
+    void contributorLoader.load().then(items => { if (mounted) contributors = items; });
+    return () => { mounted = false; };
   });
 
   function openLicense(license: LicenseInfo) {
@@ -151,7 +132,7 @@
 
       <h3 class="contributors-title">{t('about.contributors')}</h3>
       <div class="contributors-row">
-        {#each contributors as person (person.name)}
+        {#each contributors as person (person.name.toLowerCase())}
           <a
             href={person.profileUrl}
             target="_blank"
@@ -160,7 +141,11 @@
             title={person.name}
           >
             <div class="avatar-box">
-              <img src={person.avatarUrl} alt={person.name} class="avatar-img" />
+              {#if person.avatarUrl}
+                <img src={person.avatarUrl} alt={person.name} class="avatar-img" />
+              {:else}
+                <FluentIcon name="PersonCircle" size={24} />
+              {/if}
             </div>
             <div class="name-reveal">
               <span class="contributor-name">{person.name}</span>
