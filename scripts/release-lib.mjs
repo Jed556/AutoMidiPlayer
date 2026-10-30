@@ -13,6 +13,24 @@ export function releaseVersion(input) {
   return version;
 }
 
+export function nextReleaseVersion(base, messages) {
+  const parts = releaseVersion(base).split('-')[0].split('.').map(value => BigInt(value));
+  let bump = 0;
+  for (const message of messages) {
+    const header = /^([a-z][a-z0-9-]*)(?:\([^\r\n()]+\))?(!)?:[ \t]+\S[^\r\n]*/i.exec(message);
+    if (!header) continue;
+    const type = header[1].toLowerCase();
+    if (header[2] || /^BREAKING[ -]CHANGE:[ \t]+\S/m.test(message)) bump = 3;
+    else if (type === 'feat') bump = Math.max(bump, 2);
+    else if (['fix', 'perf', 'ref', 'refactor', 'ui'].includes(type)) bump = Math.max(bump, 1);
+  }
+  if (!bump) return null;
+  const index = 3 - bump;
+  parts[index] += 1n;
+  for (let i = index + 1; i < parts.length; i++) parts[i] = 0n;
+  return parts.join('.');
+}
+
 export function replaceCargoVersion(source, name, version) {
   let found = false;
   const result = source.replace(/(^\[\[?package\]?\][\s\S]*?)(?=^\[|$(?![\s\S]))/gm, block => {

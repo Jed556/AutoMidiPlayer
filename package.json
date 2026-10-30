@@ -22,6 +22,7 @@
     "dev:frontend": "vite",
     "build:frontend": "vite build",
     "tauri": "tauri",
+    "release:version": "node scripts/release.mjs next-version",
     "release:notes": "node scripts/release.mjs preview",
     "release:validate": "node scripts/release.mjs validate",
     "release:docs": "node scripts/stage-release-docs.mjs",
