@@ -83,21 +83,51 @@ fn test_smart_mode_detection() {
     assert_eq!(tonic, 0);
     assert_eq!(mode_idx, 0);
 
-    let scale_pcs = build_scale_pitch_classes(tonic, mode_idx);
+    assert_eq!(build_scale_pitch_classes(tonic, mode_idx).len(), 7);
     let mapping = NoteKeyMapping::new(KeyboardLayout::Diatonic21);
     let playable = mapping.playable_notes();
 
     // In-scale note (C4=60) returns 60 directly
-    let mapped = process_note_pitch(60, 0, TransposeMode::Smart, &scale_pcs, 48, 83, playable);
+    let mapped = process_note_pitch(60, 0, TransposeMode::Smart, 48, 83, playable);
     assert_eq!(mapped, Some(60));
 
-    // Accidental (C#4=61) should snap to nearest in-scale diatonic note (either 60 or 62)
-    let mapped_accidental = process_note_pitch(61, 0, TransposeMode::Smart, &scale_pcs, 48, 83, playable);
-    assert!(mapped_accidental == Some(60) || mapped_accidental == Some(62));
+    // Legacy resolves this equal-distance accidental to the lower playable note.
+    let mapped_accidental = process_note_pitch(61, 0, TransposeMode::Smart, 48, 83, playable);
+    assert_eq!(mapped_accidental, Some(60));
 
     // Out-of-range low note (C2=36) folds up by octaves to C3=48 or C4=60
-    let mapped_folded = process_note_pitch(36, 0, TransposeMode::Smart, &scale_pcs, 48, 83, playable);
+    let mapped_folded = process_note_pitch(36, 0, TransposeMode::Smart, 48, 83, playable);
     assert_eq!(mapped_folded, Some(48));
+}
+
+#[test]
+fn smart_preserves_still_with_you_melody_dip_like_legacy() {
+    let mapping = NoteKeyMapping::new(KeyboardLayout::Diatonic21);
+    let (min, max) = mapping.pitch_range();
+    // Lead notes around 3.77–4.97 s in jungkook-still-with-you.mid.
+    // C#5, C#5, C5, C5, C#5 at -4 must retain the dip to G4.
+    let mapped: Vec<_> = [73, 73, 72, 72, 73].into_iter().map(|pitch|
+        process_note_pitch(pitch, -4, TransposeMode::Smart, min, max, mapping.playable_notes())
+    ).collect();
+    assert_eq!(mapped, vec![Some(69), Some(69), Some(67), Some(67), Some(69)]);
+}
+
+#[test]
+fn smart_uses_current_instrument_and_preserves_playable_pitches() {
+    let diatonic = NoteKeyMapping::new(KeyboardLayout::Diatonic21);
+    let (min, max) = diatonic.pitch_range();
+    for &pitch in diatonic.playable_notes() {
+        assert_eq!(process_note_pitch(pitch, 0, TransposeMode::Smart, min, max,
+            diatonic.playable_notes()), Some(pitch));
+    }
+    assert_eq!(process_note_pitch(68, 0, TransposeMode::Smart, min, max,
+        diatonic.playable_notes()), Some(67));
+    let chromatic: Vec<_> = (48..=83).collect();
+    assert_eq!(process_note_pitch(68, 0, TransposeMode::Smart, 48, 83, &chromatic), Some(68));
+    assert_eq!(process_note_pitch(80, 0, TransposeMode::Smart, 60, 71,
+        &[60, 62, 64, 65, 67, 69, 71]), Some(67));
+    assert_eq!(process_note_pitch(68, 0, TransposeMode::Smart, 65, 65, &[65]), Some(65));
+    assert_eq!(process_note_pitch(68, 0, TransposeMode::Smart, 0, 127, &[]), None);
 }
 
 #[test]
