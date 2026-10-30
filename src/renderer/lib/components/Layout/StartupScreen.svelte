@@ -69,12 +69,7 @@
   }}
 >
   <header class="titlebar" data-tauri-drag-region>
-    <div class="titlebar-drag" data-tauri-drag-region>
-      <div class="brand" data-tauri-drag-region>
-        <img src="./logo-fill.svg" alt="Logo" class="app-icon" data-tauri-drag-region />
-        <span class="app-name" data-tauri-drag-region>{t('titleBar.appName')}</span>
-      </div>
-    </div>
+    <div class="titlebar-drag" data-tauri-drag-region></div>
     <div class="window-buttons">
       <button
         type="button"
@@ -160,8 +155,13 @@
     color: var(--text-tertiary, rgba(255, 255, 255, 0.45));
   }
 
-  /* TitleBar Header */
+  /* Overlay controls so the splash stays aligned with the initial HTML screen.
+     The app brand appears with the main interface when startup fades out. */
   .titlebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
     height: var(--titlebar-height, 42px);
     background: transparent;
     display: flex;
@@ -169,35 +169,14 @@
     justify-content: space-between;
     user-select: none;
     z-index: 1000;
-    position: relative;
-    flex-shrink: 0;
   }
   .titlebar-drag {
     flex: 1;
     height: 100%;
     display: flex;
     align-items: center;
-    padding-left: 14px;
-    gap: 12px;
     -webkit-app-region: drag;
     min-width: 0;
-  }
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
-  }
-  .app-icon {
-    width: 18px;
-    height: 18px;
-    object-fit: contain;
-  }
-  .app-name {
-    font-size: 12.5px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-    color: var(--text-primary);
   }
   .window-buttons {
     display: flex;

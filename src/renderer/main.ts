@@ -11,6 +11,39 @@ interface StartupStatus {
   updateResume: UpdateResume | null;
 }
 
+function bindBootWindowControls(
+  invoke: typeof import('@tauri-apps/api/core').invoke,
+  appWindow: ReturnType<typeof import('@tauri-apps/api/window').getCurrentWindow>,
+) {
+  const controls = document.getElementById('boot-window-controls');
+  const maximize = controls?.querySelector<HTMLButtonElement>('[data-window-action="maximize"]');
+  const events = new AbortController();
+  let revision = 0;
+  let disposed = false;
+  let unlisten: (() => void) | undefined;
+  async function syncMaximized() {
+    const current = ++revision;
+    const maximized = await invoke<boolean>('is_maximized');
+    if (!disposed && current === revision && maximize) {
+      maximize.dataset.maximized = String(maximized);
+      maximize.setAttribute('aria-label', maximized ? 'Restore' : 'Maximize');
+    }
+  }
+  for (const button of controls?.querySelectorAll<HTMLButtonElement>('button') ?? []) {
+    button.addEventListener('click', () => {
+      // These commands need only the window, so work before AppState is ready.
+      void invoke(`${button.dataset.windowAction}_window`)
+        .then(() => button === maximize ? syncMaximized() : undefined)
+        .catch(console.warn);
+    }, { signal: events.signal });
+  }
+  void syncMaximized().catch(console.warn);
+  void appWindow.onResized(() => { void syncMaximized().catch(console.warn); })
+    .then(stop => { if (disposed) stop(); else unlisten = stop; })
+    .catch(console.warn);
+  return () => { disposed = true; events.abort(); unlisten?.(); };
+}
+
 const stopBootProgress = startupProgress.subscribe((value) => {
   const fill = document.getElementById('boot-progress-fill');
   if (fill) fill.style.transform = `scaleX(${value / 100})`;
@@ -24,12 +57,15 @@ async function start() {
 
   const isDesktop = '__TAURI_INTERNALS__' in window || '__TAURI__' in window;
   let initialStatus: StartupStatus | undefined;
+  let stopBootWindowControls: (() => void) | undefined;
   if (isDesktop) {
     const { invoke } = await import('@tauri-apps/api/core');
+    const { getCurrentWindow } = await import('@tauri-apps/api/window');
+    const appWindow = getCurrentWindow();
+    stopBootWindowControls = bindBootWindowControls(invoke, appWindow);
     initialStatus = await invoke<StartupStatus>('get_startup_status');
     if (initialStatus.updateResume) startupProgress.resumeUpdate(initialStatus.updateResume.progress);
-    const { getCurrentWindow } = await import('@tauri-apps/api/window');
-    await getCurrentWindow().show();
+    await appWindow.show();
     showBackendStatus(initialStatus);
   }
 
@@ -47,6 +83,7 @@ async function start() {
   if (text) text.textContent = 'Initializing interface…';
   startupProgress.advanceStartup(48);
   await application.mountApplication();
+  stopBootWindowControls?.();
   stopBootProgress();
 }
 
