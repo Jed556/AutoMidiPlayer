@@ -6,9 +6,14 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Stable (8.1.0) or prerelease (8.1.0-beta.1 / 8.1.0-rc.1); notes include everything since the previous stable tag'
-        required: true
+        description: 'Auto: infer from commit prefixes since the last stable release. Override with 8.1.0 or 8.1.0-beta.1 / 8.1.0-rc.1'
+        required: false
+        default: 'auto'
         type: string
+      beta:
+        description: 'Publish a beta prerelease (automatically adds/increments -beta.N)'
+        type: boolean
+        default: false
       build_only:
         description: 'Validate all packages without pushing commits/tags or publishing'
         type: boolean
@@ -109,6 +114,7 @@ jobs:
           BUILD_ONLY: ${{ inputs.build_only }}
           SOURCE_BRANCH: ${{ github.ref_name }}
           VERSION_INPUT: ${{ inputs.version }}
+          BETA_RELEASE: ${{ inputs.beta }}
           GIT_CLIFF_BIN: ${{ runner.temp }}/git-cliff/bin/git-cliff
           RELEASE_LICENSE_MANIFEST: dist/license-input/THIRD-PARTY-LICENSES.md
         shell: bash
