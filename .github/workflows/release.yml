@@ -47,7 +47,7 @@ jobs:
       - name: Generate current dependency notices
         if: github.event_name == 'workflow_dispatch'
         run: |
-          cargo install cargo-about --version 0.9.3 --locked
+          cargo install cargo-about --version 0.9.3 --locked --features cli
           node scripts/generate-licenses.mjs
       - run: node --test tests/licenses.test.mjs
       - uses: actions/upload-artifact@v4
