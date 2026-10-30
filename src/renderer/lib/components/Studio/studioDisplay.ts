@@ -16,7 +16,6 @@ interface DisplaySettings {
   markersEnabled: boolean;
   markers: readonly KeyChangeMarker[];
   playableNotes: readonly number[];
-  notes: readonly RollNote[];
 }
 
 const MODES = [
@@ -28,18 +27,11 @@ const MODES = [
 const rawPitch = (note: RollNote) => note.rawNoteNumber ?? note.noteNumber ?? note.pitch!;
 const clampPitch = (pitch: number) => Math.max(0, Math.min(127, pitch));
 
-/** Match amp-core's scale detection and pitch adaptation without changing source MIDI. */
-export function createDisplayPitch(settings: DisplaySettings): (note: RollNote) => number {
-  if (settings.mode === 'SongDefault' || settings.mode === 'NoteModifiers') return rawPitch;
-
-  const playable = [...new Set(settings.playableNotes)].sort((a, b) => a - b);
-  const playableSet = new Set(playable);
-  const min = playable[0];
-  const max = playable[playable.length - 1];
+/** Match legacy Smart's instrument scale, weighted around the folded target. */
+function smartCandidates(playable: readonly number[], target: number): readonly number[] {
   const histogram = Array<number>(12).fill(0);
-  for (const note of settings.notes) {
-    const pitch = rawPitch(note);
-    histogram[pitch % 12] += 1 / (1 + Math.abs(pitch - 60));
+  for (const pitch of playable) {
+    histogram[pitch % 12] += 1 / (1 + Math.abs(pitch - target));
   }
   let scale = MODES[0];
   let bestScore = -Infinity;
@@ -53,8 +45,18 @@ export function createDisplayPitch(settings: DisplaySettings): (note: RollNote) 
       }
     }
   }
-  const scaleCandidates = playable.filter(pitch => scale.includes(pitch % 12));
-  const candidates = scaleCandidates.length ? scaleCandidates : playable;
+  const candidates = playable.filter(pitch => scale.includes(pitch % 12));
+  return candidates.length ? candidates : playable;
+}
+
+/** Match amp-core's pitch adaptation without changing source MIDI. */
+export function createDisplayPitch(settings: DisplaySettings): (note: RollNote) => number {
+  if (settings.mode === 'SongDefault' || settings.mode === 'NoteModifiers') return rawPitch;
+
+  const playable = [...new Set(settings.playableNotes)].sort((a, b) => a - b);
+  const playableSet = new Set(playable);
+  const min = playable[0];
+  const max = playable[playable.length - 1];
   const markers = settings.mode === 'Auto' && settings.markersEnabled
     ? [...settings.markers].sort((a, b) => a.timeMs - b.timeMs) : [];
   const transposeModes: TransposeMode[] = ['Ignore', 'Smart', 'Up', 'Down'];
@@ -83,11 +85,13 @@ export function createDisplayPitch(settings: DisplaySettings): (note: RollNote) 
       while (pitch > max) pitch -= 12;
       if (pitch < min) pitch = Math.abs(pitch - min) <= Math.abs(pitch - max) ? min : max;
       if (transpose === 'Smart' && !playableSet.has(pitch)) {
+        const candidates = smartCandidates(playable, pitch);
         let score = Infinity;
         let best = candidates[0];
         for (const candidate of candidates) {
           const distance = Math.abs(candidate - pitch) + Math.abs(Math.floor(candidate / 12) - Math.floor(pitch / 12)) * 0.15;
-          if (distance < score) {
+          if (distance < score || (Math.abs(distance - score) < 0.000001
+            && Math.abs(candidate - pitch) < Math.abs(best - pitch))) {
             score = distance;
             best = candidate;
           }
