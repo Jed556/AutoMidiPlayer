@@ -29,7 +29,7 @@ tauri-plugin-global-shortcut = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-updater = "2"
 amp-core = { path = "../crates/amp-core" }
-sysinfo = "0.33"
+sysinfo = "0.39"
 trash = "5.2.9"
 include_dir = "0.7"
 sentry = "0.49.3"
