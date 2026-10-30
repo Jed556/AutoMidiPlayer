@@ -12,7 +12,6 @@ pub struct ExtractedMetadata {
     pub native_bpm: f64,
     pub file_hash: String,
     pub detected_key_offset: Option<i8>,
-    pub key_changes_json: Option<String>,
 }
 
 /// Computes SHA-256 hash of a file
@@ -83,11 +82,6 @@ pub fn extract_metadata(path: &Path) -> Result<ExtractedMetadata, String> {
 
     let key_markers = crate::midi::detect::detect_key_changes(&parsed);
     let detected_key_offset = key_markers.first().map(|m| m.key_offset);
-    let key_changes_json = if !key_markers.is_empty() {
-        serde_json::to_string(&key_markers).ok()
-    } else {
-        None
-    };
 
     Ok(ExtractedMetadata {
         title,
@@ -96,7 +90,6 @@ pub fn extract_metadata(path: &Path) -> Result<ExtractedMetadata, String> {
         native_bpm,
         file_hash: hash,
         detected_key_offset,
-        key_changes_json,
     })
 }
 

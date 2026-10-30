@@ -63,7 +63,8 @@ fn create_new_song_record(
         cached_native_bpm: Some(meta.native_bpm),
         auto_chord: None,
         chord_detection_milliseconds: None,
-        key_changes: meta.key_changes_json.clone(),
+        // Timeline markers are created explicitly in Studio, independently of base-key detection.
+        key_changes: None,
         detect_chord_pads: None,
         enable_key_change_markers: Some(true),
         is_missing: false,
