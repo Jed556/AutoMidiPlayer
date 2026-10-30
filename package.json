@@ -15,7 +15,7 @@
     "url": "https://github.com/Jed556/AutoMidiPlayer/issues"
   },
   "type": "module",
-  "packageManager": "pnpm@12.14.0",
+  "packageManager": "pnpm@12.16.1",
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",
