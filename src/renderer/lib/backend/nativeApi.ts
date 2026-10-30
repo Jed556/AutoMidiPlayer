@@ -1,3 +1,4 @@
+import { DEFAULT_APP_SETTINGS } from '../../../shared/defaults/settings.js';
 import type { AppWindowApi, PedalState, SongSettingsContext, StorageUsage } from '$shared/types/ipc.js';
 import type { GameStatus, GameConfigState, ConfigIssue, KeyboardLayoutConfig } from '$shared/types/games.js';
 import type { MidiFile } from '$shared/types/midi.js';
@@ -7,6 +8,7 @@ import type { AppSettings } from '$shared/types/settings.js';
 import type { UpdateProgress, PreparedUpdate } from '$shared/types/update.js';
 import { logger } from '../infrastructure/logger.js';
 import { telemetry } from '../infrastructure/telemetry.js';
+import { getMarkerNoteDisplay } from '../utils/musicConstants.js';
 import {
   loadedBundleToGameInfo,
   loadedMidiToMidiFile,
@@ -30,7 +32,7 @@ function serializeSongSettings(song: MidiFile) {
       TimeMs: marker.timeMs ?? Math.round((marker.time ?? 0) * 1000),
       KeyOffset: marker.keyOffset,
       Transpose: marker.transpose ?? null,
-      Label: marker.label || marker.noteDisplay || marker.key,
+      Label: getMarkerNoteDisplay(marker.keyOffset, marker.label || marker.noteDisplay || marker.key),
     })))
     : null;
 
@@ -42,9 +44,10 @@ function serializeSongSettings(song: MidiFile) {
     keyChanges,
     speed: song.speed,
     holdNotes: song.holdNotes,
-    tapThresholdMs: song.tapThresholdMs ?? 0,
-    autoChord: song.autoChord ?? false,
-    enableKeyChangeMarkers: song.enableKeyChangeMarkers ?? true,
+    tapThresholdMs: song.tapThresholdMs ?? DEFAULT_APP_SETTINGS.defaultTapThresholdMs,
+    autoChord: song.autoChord ?? DEFAULT_APP_SETTINGS.defaultAutoChord,
+    chordDetectionMilliseconds: song.chordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds,
+    enableKeyChangeMarkers: song.enableKeyChangeMarkers ?? DEFAULT_APP_SETTINGS.defaultEnableKeyChangeMarkers,
   };
 }
 

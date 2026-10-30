@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { DEFAULT_UI_PREFERENCES } from '../../../shared/defaults/settings';
   import { onMount, onDestroy } from 'svelte';
   import { playbackStore } from '../state/playbackStore.svelte';
   import { gameStore } from '../state/gameStore.svelte';
@@ -304,11 +305,9 @@
   // ==========================================
   // Chords and Pedals (Lower Left)
   // ==========================================
-  let autoChord = $state(false);
-  let chordToleranceMs = $state(30);
 
   function resetPedals() {
-    playbackStore.pedals.enabled = true;
+    playbackStore.pedals.enabled = DEFAULT_UI_PREFERENCES.pedalsEnabled;
     playbackStore.pedals.sustain = false;
     playbackStore.pedals.sostenuto = false;
     playbackStore.pedals.unaCorda = false;
@@ -711,18 +710,20 @@
       <div class="control-unit" class:disabled={!supportsChords}>
         <div class="auto-chord-control" use:tooltip={supportsChords ? t('instrument.detectPlayChords') : t('instrument.noChordSupport')}>
           <ToggleSwitch
-            bind:checked={autoChord}
+            checked={playbackStore.autoChord}
+            onchange={(value) => playbackStore.setAutoChord(value)}
             disabled={!supportsChords}
             title={t('instrument.autoChord')}
           />
-          <span onclick={() => { if (supportsChords) autoChord = !autoChord; }} role="presentation">
+          <span onclick={() => { if (supportsChords) playbackStore.setAutoChord(!playbackStore.autoChord); }} role="presentation">
             {@render bottomLabel(t('instrument.autoChord'))}
           </span>
         </div>
-        {#if supportsChords && autoChord}
+        {#if supportsChords && playbackStore.autoChord}
           <div class="tolerance-box" use:tooltip={t('instrument.chordTolerance')}>
             <NumberBox
-              bind:value={chordToleranceMs}
+              value={playbackStore.chordDetectionMilliseconds}
+              onchange={(value) => playbackStore.setChordDetectionMilliseconds(value)}
               min={0}
               max={500}
               step={5}

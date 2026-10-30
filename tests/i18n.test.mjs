@@ -1,3 +1,4 @@
+import { DEFAULT_UI_PREFERENCES } from '../src/shared/defaults/settings.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -11,7 +12,7 @@ async function harness(language, preferences = {}) {
   const writes = [];
   const key = `__localeHarness${++harnessId}`;
   globalThis[key] = {
-    enUS, zhCN, mockNavigator: { language },
+    DEFAULT_UI_PREFERENCES, enUS, zhCN, mockNavigator: { language },
     loadUiPreferences: async () => preferences,
     saveUiPreferences: patch => writes.push(patch),
   };

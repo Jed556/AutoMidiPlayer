@@ -25,6 +25,7 @@ use amp_core::{
     KeyChangeMarker, detect_key_changes,
 };
 use amp_core::library::models::{SongDetailsUpdate, SongSettingsContext, SongSettingsScope};
+use amp_core::settings::{SettingsStore, defaults};
 use amp_core::library::issues::{LibraryFileIssue, FileIssueAction, resolve_file_issue};
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
@@ -80,56 +81,7 @@ pub fn format_shortcut_string(binding: &HotkeyBindingPayload) -> Option<String> 
 }
 
 pub fn default_hotkey_bindings() -> Vec<HotkeyBindingPayload> {
-    vec![
-        HotkeyBindingPayload {
-            action: "PlayPause".to_string(),
-            label: Some("Play / Pause".to_string()),
-            key: "Space".to_string(),
-            ctrl: true,
-            alt: true,
-            shift: false,
-        },
-        HotkeyBindingPayload {
-            action: "Next".to_string(),
-            label: Some("Next Song".to_string()),
-            key: "Right".to_string(),
-            ctrl: true,
-            alt: true,
-            shift: false,
-        },
-        HotkeyBindingPayload {
-            action: "Previous".to_string(),
-            label: Some("Previous Song".to_string()),
-            key: "Left".to_string(),
-            ctrl: true,
-            alt: true,
-            shift: false,
-        },
-        HotkeyBindingPayload {
-            action: "SpeedUp".to_string(),
-            label: Some("Increase Speed".to_string()),
-            key: "Up".to_string(),
-            ctrl: true,
-            alt: true,
-            shift: false,
-        },
-        HotkeyBindingPayload {
-            action: "SpeedDown".to_string(),
-            label: Some("Decrease Speed".to_string()),
-            key: "Down".to_string(),
-            ctrl: true,
-            alt: true,
-            shift: false,
-        },
-        HotkeyBindingPayload {
-            action: "Panic".to_string(),
-            label: Some("Panic / Stop All".to_string()),
-            key: "Escape".to_string(),
-            ctrl: true,
-            alt: true,
-            shift: false,
-        },
-    ]
+    defaults::value("/hotkeys")
 }
 
 pub fn apply_hotkeys_config(
@@ -292,6 +244,7 @@ pub struct AppState {
     pub current_song: Arc<Mutex<Option<ParsedMidi>>>,
     pub audio_synth: Arc<Mutex<Option<AudioSynth>>>,
     pub db: Arc<LibraryDatabase>,
+    pub settings: Arc<SettingsStore>,
     pub watcher: Arc<Mutex<Option<DirectoryWatcher>>>,
     pub library_updates: Arc<Mutex<()>>,
     pub process_monitor: Arc<Mutex<ProcessMonitor>>,
@@ -517,7 +470,7 @@ fn set_key_offset(offset: i8, state: State<AppState>) -> Result<bool, String> {
 
 #[tauri::command]
 fn set_transpose_mode(mode: String, state: State<AppState>) -> Result<bool, String> {
-    let tm = TransposeMode::from_str(&mode).unwrap_or(TransposeMode::Smart);
+    let tm = TransposeMode::from_str(&mode).unwrap_or_default();
     state.engine.set_transpose_mode(tm);
     Ok(true)
 }
@@ -712,7 +665,7 @@ fn update_song_defaults(
 
 #[tauri::command]
 fn get_app_settings(state: State<AppState>) -> Result<serde_json::Value, String> {
-    state.db.get_app_settings().map_err(|e| e.to_string())
+    state.settings.get().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -722,7 +675,7 @@ fn get_data_directory() -> String {
 
 #[tauri::command]
 async fn get_storage_usage(state: State<'_, AppState>) -> Result<storage::StorageUsage, String> {
-    let settings = state.db.get_app_settings().map_err(|e| e.to_string())?;
+    let settings = state.settings.get().map_err(|e| e.to_string())?;
     tauri::async_runtime::spawn_blocking(move || {
         if let Err(error) = storage::maintain(&settings) {
             log::warn!("Storage maintenance failed: {error}");
@@ -752,13 +705,13 @@ async fn update_app_settings(
         value.as_u64().filter(|ms| *ms <= 1000)
             .ok_or_else(|| "Re-press gap must be a whole number between 0 and 1000 ms".to_string())
     ).transpose()?;
-    let db = Arc::clone(&state.db);
+    let preferences = Arc::clone(&state.settings);
     let engine = Arc::clone(&state.engine);
     let process_monitor = Arc::clone(&state.process_monitor);
-    // SQLite writes and process-monitor locks must not block the window's event
+    // File writes and process-monitor locks must not block the window's event
     // loop when settings are changed repeatedly.
     tauri::async_runtime::spawn_blocking(move || {
-        db.update_app_settings(&settings).map_err(|e| e.to_string())?;
+        preferences.update(&settings).map_err(|e| e.to_string())?;
         if let Some(behavior) = overlap_behavior {
             engine.set_overlap_behavior(behavior);
         }
@@ -772,7 +725,7 @@ async fn update_app_settings(
             engine.set_pedals_enabled(enabled);
         }
         if settings.get("gameLocations").is_some() {
-            let settings = db.get_app_settings().map_err(|e| e.to_string())?;
+            let settings = preferences.get().map_err(|e| e.to_string())?;
             process_monitor.lock().map_err(|e| e.to_string())?.set_locations(&settings);
         }
         Ok(true)
@@ -781,12 +734,13 @@ async fn update_app_settings(
 
 #[tauri::command]
 fn reset_app_settings(state: State<AppState>) -> Result<bool, String> {
-    state.db.reset_app_settings().map_err(|e| e.to_string())?;
-    state.engine.set_hold_delay_ms(20);
+    state.settings.reset().map_err(|e| e.to_string())?;
+    *state.song_defaults.write().map_err(|e| e.to_string())? = SongDefaults::default();
+    state.engine.set_hold_delay_ms(defaults::value("/keyPressDelayMs"));
     state.engine.set_overlap_behavior(OverlapBehavior::default());
-    state.engine.set_repress_gap_ms(20);
-    state.engine.set_pedals_enabled(true);
-    state.process_monitor.lock().map_err(|e| e.to_string())?.set_locations(&serde_json::json!({}));
+    state.engine.set_repress_gap_ms(defaults::value("/repressGapMs"));
+    state.engine.set_pedals_enabled(defaults::value("/ui/pedalsEnabled"));
+    state.process_monitor.lock().map_err(|e| e.to_string())?.set_locations(defaults::document());
     Ok(true)
 }
 
@@ -1619,32 +1573,53 @@ pub fn run() {
 
                     // Register default global hotkeys matching the original WPF app (Ctrl+Alt bindings):
                     let default_bindings = default_hotkey_bindings();
-                    let _ = apply_hotkeys_config(&app.clone(), &engine, true, &default_bindings);
+                    let _ = apply_hotkeys_config(&app.clone(), &engine, defaults::value("/hotkeysEnabled"), &default_bindings);
 
                     set_startup_stage(&app, "Loading library database\u{2026}");
                     // Initialize SQLite library database at %LocalAppData%\Jed556\AutoMIDIPlayer\AutoMidiPlayer.db
                     let db = Arc::new(LibraryDatabase::new_with_migration_callback(None, || {
                         set_startup_stage(&app, "Migrating library database\u{2026}");
                     }).expect("Failed to initialize library database"));
-                    let settings = db.get_app_settings().unwrap_or_default();
+                    set_startup_stage(&app, "Loading game configurations\u{2026}");
+                    let config_manager = Arc::new(Mutex::new(ConfigManager::new()));
+                    set_startup_stage(&app, "Migrating application preferences\u{2026}");
+                    let preferences = {
+                        let cm = config_manager.lock().unwrap();
+                        Arc::new(SettingsStore::open(SettingsStore::default_path(), &db, &cm.games, &cm.layouts)
+                            .expect("Failed to initialize settings.json"))
+                    };
+                    let settings = preferences.get().expect("Failed to read settings.json");
                     // First-run setup must not send diagnostics or opt-out refresh pings.
-                    if settings.get("onboardingCompleted").and_then(serde_json::Value::as_bool).unwrap_or(false) {
+                    if settings.get("onboardingCompleted").and_then(serde_json::Value::as_bool).unwrap_or_else(|| defaults::value("/onboardingCompleted")) {
                         telemetry::init(settings.get("telemetryOptIn")
-                            .and_then(serde_json::Value::as_bool).unwrap_or(false));
+                            .and_then(serde_json::Value::as_bool).unwrap_or_else(|| defaults::value("/telemetryOptIn")));
                     }
                     engine.set_hold_delay_ms(settings.get("keyPressDelayMs")
-                        .and_then(serde_json::Value::as_u64).unwrap_or(20).min(1000));
+                        .and_then(serde_json::Value::as_u64).unwrap_or_else(|| defaults::value("/keyPressDelayMs")).min(1000));
                     engine.set_overlap_behavior(settings.get("overlapBehavior")
                         .and_then(|value| serde_json::from_value(value.clone()).ok()).unwrap_or_default());
                     engine.set_repress_gap_ms(settings.get("repressGapMs")
-                        .and_then(serde_json::Value::as_u64).unwrap_or(20));
+                        .and_then(serde_json::Value::as_u64).unwrap_or_else(|| defaults::value("/repressGapMs")));
                     engine.set_pedals_enabled(settings.get("ui")
                         .and_then(|ui| ui.get("pedalsEnabled"))
-                        .and_then(serde_json::Value::as_bool).unwrap_or(true));
+                        .and_then(serde_json::Value::as_bool).unwrap_or_else(|| defaults::value("/ui/pedalsEnabled")));
 
-                    set_startup_stage(&app, "Loading game configurations\u{2026}");
-                    // Initialize ConfigManager (extracts defaults to %LocalAppData%\Jed556\AutoMIDIPlayer if missing)
-                    let config_manager = Arc::new(Mutex::new(ConfigManager::new()));
+                    // Legacy song controls become independent profiles for all existing
+                    // instruments. Do not finalize an incomplete config scan; retry on launch.
+                    {
+                        let cm = config_manager.lock().unwrap();
+                        if cm.issues.is_empty() {
+                            let contexts = cm.games.iter().flat_map(|game| game.instruments.iter().map(|instrument| SongSettingsContext {
+                                game_id: game.config.id.clone(), instrument_id: instrument.id.clone(),
+                            })).collect::<Vec<_>>();
+                            let count = db.migrate_legacy_song_settings(&contexts, || {
+                                set_startup_stage(&app, "Migrating instrument song settings\u{2026}");
+                            }).expect("Failed to migrate instrument song settings");
+                            log::info!("Migrated {count} instrument song settings");
+                        } else {
+                            log::warn!("Instrument song settings migration deferred until game configurations load successfully");
+                        }
+                    }
 
                     // Build dynamic GameProcessTarget list from config_manager
                     let initial_targets = {
@@ -1723,9 +1698,9 @@ pub fn run() {
                     }
 
                     // Maintenance runs independently of the Settings view and reads current policy.
-                    let storage_db = Arc::clone(&db);
+                    let storage_settings = Arc::clone(&preferences);
                     std::thread::Builder::new().name("storage-maintenance".into()).spawn(move || loop {
-                        match storage_db.get_app_settings().map_err(|e| e.to_string())
+                        match storage_settings.get().map_err(|e| e.to_string())
                             .and_then(|settings| storage::maintain(&settings)) {
                             Ok(()) => {},
                             Err(error) => log::warn!("Storage maintenance failed: {error}"),
@@ -1739,6 +1714,7 @@ pub fn run() {
                         current_song: Arc::new(Mutex::new(None)),
                         audio_synth: Arc::new(Mutex::new(audio_synth)),
                         db,
+                        settings: preferences,
                         watcher: Arc::new(Mutex::new(None)),
                         library_updates: Arc::new(Mutex::new(())),
                         process_monitor,

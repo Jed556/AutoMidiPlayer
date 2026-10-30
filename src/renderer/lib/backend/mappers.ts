@@ -1,7 +1,8 @@
+import { DEFAULT_APP_SETTINGS } from '../../../shared/defaults/settings.js';
 import type { GameInfo, InstrumentConfig, InstrumentLayoutStyle, KeyboardLayoutConfig, KeyMatrix } from '$shared/types/games.js';
 import { instrumentNotes, normalizeKeyboardLayout, type RawKeyboardLayout } from '../../../shared/utils/instrumentLayout.js';
 import type { KeyChangeMarker, MidiFile } from '$shared/types/midi.js';
-import { formatSignedOffset, getKeyNoteName } from '../utils/musicConstants.js';
+import { formatSignedOffset, getMarkerNoteDisplay } from '../utils/musicConstants.js';
 
 export interface RawSongRecord {
   id: string;
@@ -28,7 +29,6 @@ export interface RawSongRecord {
   autoChord?: boolean;
   chordDetectionMilliseconds?: number;
   keyChanges?: string;
-  detectChordPads?: boolean;
   enableKeyChangeMarkers?: boolean;
   isMissing: boolean;
 }
@@ -82,9 +82,10 @@ export interface RawLoadedBundle {
 function toTransposeMode(value: number): MidiFile['transposeMode'] {
   switch (value) {
     case 0: return 'Ignore';
+    case 1: return 'Smart';
     case 2: return 'Up';
     case 3: return 'Down';
-    default: return 'Smart';
+    default: return DEFAULT_APP_SETTINGS.defaultTranspose;
   }
 }
 
@@ -103,7 +104,7 @@ function parseKeyMarkers(keyChanges?: string): KeyChangeMarker[] {
         Transpose?: number;
       };
       const keyOffset = record.KeyOffset ?? 0;
-      const noteDisplay = record.Label || getKeyNoteName(keyOffset);
+      const noteDisplay = getMarkerNoteDisplay(keyOffset, record.Label);
 
       return {
         id: `km-${index}-${record.TimeMs ?? 0}`,
@@ -139,18 +140,19 @@ export function songRecordToMidiFile(record: RawSongRecord): MidiFile {
     nativeBpm: record.cachedNativeBpm ?? 120,
     bpmOverride: record.bpm ?? null,
     tempo: bpm,
-    baseKeyOffset: record.baseKey ?? 0,
+    baseKeyOffset: record.baseKey ?? DEFAULT_APP_SETTINGS.defaultBaseKeyOffset,
     baseKey: record.baseKey ?? null,
-    keyOffset: record.key ?? 0,
+    keyOffset: record.key ?? DEFAULT_APP_SETTINGS.defaultKeyOffset,
     transposeMode: toTransposeMode(record.transpose),
-    speed: record.speed ?? 1,
-    mergeNotes: record.mergeNotes ?? false,
-    mergeToleranceMs: record.mergeMilliseconds ?? 100,
-    holdNotes: record.holdNotes ?? false,
-    tapThresholdMs: record.tapThresholdMs ?? 0,
+    speed: record.speed ?? DEFAULT_APP_SETTINGS.defaultSpeed,
+    mergeNotes: record.mergeNotes ?? DEFAULT_APP_SETTINGS.defaultMergeNotes,
+    mergeToleranceMs: record.mergeMilliseconds ?? DEFAULT_APP_SETTINGS.defaultMergeToleranceMs,
+    holdNotes: record.holdNotes ?? DEFAULT_APP_SETTINGS.defaultHoldNotes,
+    tapThresholdMs: record.tapThresholdMs ?? DEFAULT_APP_SETTINGS.defaultTapThresholdMs,
     disabledTracks: record.disabledTracks ?? null,
-    autoChord: record.autoChord ?? false,
-    enableKeyChangeMarkers: record.enableKeyChangeMarkers ?? true,
+    autoChord: record.autoChord ?? DEFAULT_APP_SETTINGS.defaultAutoChord,
+    chordDetectionMilliseconds: record.chordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds,
+    enableKeyChangeMarkers: record.enableKeyChangeMarkers ?? DEFAULT_APP_SETTINGS.defaultEnableKeyChangeMarkers,
     dateAdded: record.dateAdded || new Date().toISOString(),
     filePath: record.path,
     isMissing: record.isMissing,
@@ -238,15 +240,15 @@ export function loadedMidiToMidiFile(raw: RawLoadedMidiFile | MidiFile): MidiFil
   const keyMarkers = rawMarkers.map((marker, index) => {
     const timeMs = Number(marker.timeMs ?? (Number(marker.time ?? 0) * 1000));
     const keyOffset = Number(marker.keyOffset ?? 0);
-    const key = String(marker.key ?? marker.noteDisplay ?? 'C');
+    const noteDisplay = getMarkerNoteDisplay(keyOffset, String(marker.noteDisplay ?? marker.key ?? marker.label ?? ''));
 
     return {
       id: String(marker.id ?? `key-marker-${index}`),
       timeMs,
       time: Number(marker.time ?? timeMs / 1000),
-      key,
+      key: noteDisplay,
       keyOffset,
-      noteDisplay: String(marker.noteDisplay ?? key),
+      noteDisplay,
       offsetDisplay: String(marker.offsetDisplay ?? formatSignedOffset(keyOffset)),
       transpose: typeof marker.transpose === 'number' ? marker.transpose : null,
       label: typeof marker.label === 'string' ? marker.label : undefined,
@@ -268,20 +270,21 @@ export function loadedMidiToMidiFile(raw: RawLoadedMidiFile | MidiFile): MidiFil
     overallPlayablePercentage: typeof source.overallPlayablePercentage === 'number'
       ? source.overallPlayablePercentage
       : undefined,
-    baseKeyOffset: Number(source.baseKeyOffset ?? source.baseKey ?? 0),
-    baseKey: source.baseKey === null ? null : Number(source.baseKey ?? source.baseKeyOffset ?? 0),
-    keyOffset: Number(source.keyOffset ?? 0),
-    transposeMode: source.transposeMode === 'Ignore' || source.transposeMode === 'Up' || source.transposeMode === 'Down'
+    baseKeyOffset: Number(source.baseKeyOffset ?? DEFAULT_APP_SETTINGS.defaultBaseKeyOffset),
+    baseKey: source.baseKey === null ? null : Number(source.baseKey ?? source.baseKeyOffset ?? DEFAULT_APP_SETTINGS.defaultBaseKeyOffset),
+    keyOffset: Number(source.keyOffset ?? DEFAULT_APP_SETTINGS.defaultKeyOffset),
+    transposeMode: source.transposeMode === 'Ignore' || source.transposeMode === 'Smart' || source.transposeMode === 'Up' || source.transposeMode === 'Down'
       ? source.transposeMode
-      : 'Smart',
-    speed: Number(source.speed ?? 1),
-    mergeNotes: Boolean(source.mergeNotes),
-    mergeToleranceMs: Number(source.mergeToleranceMs ?? 25),
-    holdNotes: Boolean(source.holdNotes),
-    tapThresholdMs: Number(source.tapThresholdMs ?? 0),
+      : DEFAULT_APP_SETTINGS.defaultTranspose,
+    speed: Number(source.speed ?? DEFAULT_APP_SETTINGS.defaultSpeed),
+    mergeNotes: typeof source.mergeNotes === 'boolean' ? source.mergeNotes : DEFAULT_APP_SETTINGS.defaultMergeNotes,
+    mergeToleranceMs: Number(source.mergeToleranceMs ?? DEFAULT_APP_SETTINGS.defaultMergeToleranceMs),
+    holdNotes: typeof source.holdNotes === 'boolean' ? source.holdNotes : DEFAULT_APP_SETTINGS.defaultHoldNotes,
+    tapThresholdMs: Number(source.tapThresholdMs ?? DEFAULT_APP_SETTINGS.defaultTapThresholdMs),
     disabledTracks: typeof source.disabledTracks === 'string' ? source.disabledTracks : null,
-    autoChord: Boolean(source.autoChord),
-    enableKeyChangeMarkers: source.enableKeyChangeMarkers !== false,
+    autoChord: typeof source.autoChord === 'boolean' ? source.autoChord : DEFAULT_APP_SETTINGS.defaultAutoChord,
+    chordDetectionMilliseconds: Number(source.chordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds),
+    enableKeyChangeMarkers: typeof source.enableKeyChangeMarkers === 'boolean' ? source.enableKeyChangeMarkers : DEFAULT_APP_SETTINGS.defaultEnableKeyChangeMarkers,
     dateAdded: String(source.dateAdded ?? new Date().toISOString()),
     filePath: String(source.filePath ?? ''),
     gameId: typeof source.gameId === 'string' ? source.gameId : undefined,

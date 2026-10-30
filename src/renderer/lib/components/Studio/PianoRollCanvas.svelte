@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { DEFAULT_UI_PREFERENCES } from '../../../../shared/defaults/settings';
   import { onMount, onDestroy } from 'svelte';
   import { uiStore } from '../../state/uiStore.svelte';
   import { playbackStore } from '../../state/playbackStore.svelte';
@@ -27,13 +28,13 @@
 
   let {
     renderTracks,
-    zoomX = $bindable(80), // pixels per second
-    zoomY = $bindable(16), // pixels per semitone
+    zoomX = $bindable(DEFAULT_UI_PREFERENCES.studio.zoomX), // pixels per second
+    zoomY = $bindable(DEFAULT_UI_PREFERENCES.studio.zoomY), // pixels per semitone
     scrollX = $bindable(0),
     scrollY = $bindable(0),
     onScrollChange,
     hoverTime = $bindable(null),
-    isLockedToPlayhead = $bindable(true),
+    isLockedToPlayhead = $bindable(DEFAULT_UI_PREFERENCES.studio.isLockedToPlayhead),
     highlightedTrackIndex = null,
   }: Props = $props();
 
@@ -899,7 +900,7 @@
 
     if ((e.ctrlKey || e.metaKey) && e.key === '0') {
       e.preventDefault();
-      zoomX = 80;
+      zoomX = DEFAULT_UI_PREFERENCES.studio.zoomX;
       return;
     }
 

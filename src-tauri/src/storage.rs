@@ -136,7 +136,7 @@ fn clean_with(
     let interval_days = match settings
         .get("cacheAutoClean")
         .and_then(|v| v.as_str())
-        .unwrap_or("weekly")
+        .unwrap_or_else(|| amp_core::settings::defaults::document()["cacheAutoClean"].as_str().expect("Invalid cache default"))
     {
         "daily" => Some(1),
         "weekly" => Some(7),
@@ -158,7 +158,7 @@ fn clean_with(
     let max_bytes = settings
         .get("cacheMaxSizeMb")
         .and_then(|v| v.as_u64())
-        .unwrap_or(500)
+        .unwrap_or_else(|| amp_core::settings::defaults::value("/cacheMaxSizeMb"))
         .saturating_mul(1024 * 1024);
     let cached = files(&cache)?;
     let before: u64 = cached.iter().map(|file| file.bytes).sum();

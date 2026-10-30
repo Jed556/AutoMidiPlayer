@@ -1,3 +1,4 @@
+import { DEFAULT_APP_SETTINGS, DEFAULT_UI_PREFERENCES } from '../../../shared/defaults/settings.js';
 import { loadUiPreferences, saveUiPreferences, flushUiPreferences } from '../backend/preferences.js';
 import { normalizePlayback } from '../utils/sessionPreferences.js';
 import type { UiPreferences } from '../../../shared/types/settings.js';
@@ -6,7 +7,7 @@ import type { PlaybackStatus } from '../../../shared/types/playback.js';
 import type { GameInfo } from '../../../shared/types/games.js';
 import type { SongSettingsContext } from '../../../shared/types/ipc.js';
 import { api, isTauri, loadedMidiToMidiFile, type RawLoadedMidiFile } from '../backend/index.js';
-import { getKeyNoteName, formatSignedOffset, getTrackColor } from '../utils/musicConstants.js';
+import { getKeyNoteName, getMarkerNoteDisplay, formatSignedOffset, getTrackColor } from '../utils/musicConstants.js';
 import { notificationCenter } from '../ui/notificationCenter.svelte';
 import { PlaybackPositionGate } from '../utils/playbackPosition.js';
 import { uiStore } from './uiStore.svelte.js';
@@ -20,18 +21,19 @@ class PlaybackStore {
   // ==========================================
   status = $state<PlaybackStatus>('Stopped');
   currentTimeSeconds = $state<number>(0);
-  playbackSpeed = $state<number>(1.0);
-  volume = $state<number>(0.85);
-  baseKeyOffset = $state<number>(0);
-  transposeMode = $state<TransposeMode>('Smart');
-  holdNotes = $state<boolean>(false);
-  tapThresholdMs = $state<number>(0);
-  autoChord = $state<boolean>(false);
-  enableKeyChangeMarkers = $state<boolean>(true);
-  isShuffled = $state<boolean>(false);
-  loopMode = $state<'off' | 'all' | 'single'>('off');
-  isListenMode = $state<boolean>(false);
-  synthMode = $state<'adapted' | 'raw'>('adapted');
+  playbackSpeed = $state<number>(DEFAULT_APP_SETTINGS.defaultSpeed);
+  volume = $state<number>(DEFAULT_UI_PREFERENCES.playback.volume);
+  baseKeyOffset = $state<number>(DEFAULT_APP_SETTINGS.defaultBaseKeyOffset);
+  transposeMode = $state<TransposeMode>(DEFAULT_APP_SETTINGS.defaultTranspose);
+  holdNotes = $state<boolean>(DEFAULT_APP_SETTINGS.defaultHoldNotes);
+  tapThresholdMs = $state<number>(DEFAULT_APP_SETTINGS.defaultTapThresholdMs);
+  autoChord = $state<boolean>(DEFAULT_APP_SETTINGS.defaultAutoChord);
+  chordDetectionMilliseconds = $state<number>(DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds);
+  enableKeyChangeMarkers = $state<boolean>(DEFAULT_APP_SETTINGS.defaultEnableKeyChangeMarkers);
+  isShuffled = $state<boolean>(DEFAULT_UI_PREFERENCES.playback.isShuffled);
+  loopMode = $state<'off' | 'all' | 'single'>(DEFAULT_UI_PREFERENCES.playback.loopMode);
+  isListenMode = $state<boolean>(DEFAULT_UI_PREFERENCES.playback.isListenMode);
+  synthMode = $state<'adapted' | 'raw'>(DEFAULT_UI_PREFERENCES.playback.synthMode);
   trackVolumes = $state<Record<number, number>>({});
   customSoundFontName = $state<string>('Default (General MIDI)');
 
@@ -221,7 +223,7 @@ class PlaybackStore {
 
   // Pedals
   pedals = $state({
-    enabled: true,
+    enabled: DEFAULT_UI_PREFERENCES.pedalsEnabled,
     sustain: false,
     sostenuto: false,
     unaCorda: false,
@@ -405,7 +407,7 @@ class PlaybackStore {
 
   async restoreSession(preferences: UiPreferences) {
     const saved = normalizePlayback(preferences.playback ?? {});
-    this.pedals.enabled = preferences.pedalsEnabled ?? true;
+    this.pedals.enabled = preferences.pedalsEnabled ?? DEFAULT_UI_PREFERENCES.pedalsEnabled;
     this.volume = saved.volume;
     this.isListenMode = saved.isListenMode;
     this.synthMode = saved.synthMode;
@@ -415,7 +417,7 @@ class PlaybackStore {
       ? saved.queuePlaylistId : null;
     const playlistId = preferences.selectedPlaylistId;
     libraryStore.selectedPlaylistId = libraryStore.playlists.some(playlist => playlist.id === playlistId)
-      ? playlistId! : 'songs';
+      ? playlistId! : DEFAULT_UI_PREFERENCES.selectedPlaylistId;
 
     const byId = new Map(this.queue.map(song => [song.id, song]));
     this.shuffledQueue = saved.shuffledSongIds.flatMap(id => byId.has(id) ? [byId.get(id)!] : []);
@@ -518,7 +520,7 @@ class PlaybackStore {
           TimeMs: m.timeMs ?? Math.round((m.time ?? 0) * 1000),
           KeyOffset: m.keyOffset,
           Transpose: m.transpose ?? null,
-          Label: m.label || m.noteDisplay || m.key
+          Label: getMarkerNoteDisplay(m.keyOffset, m.label || m.noteDisplay || m.key)
         })))
       : null;
 
@@ -537,6 +539,7 @@ class PlaybackStore {
       holdNotes: this.holdNotes,
       tapThresholdMs: this.tapThresholdMs,
       autoChord: this.autoChord,
+      chordDetectionMilliseconds: this.chordDetectionMilliseconds,
       enableKeyChangeMarkers: this.enableKeyChangeMarkers,
     };
     song.disabledTracks = disabledTracks;
@@ -601,11 +604,12 @@ class PlaybackStore {
     if (song.holdNotes !== undefined) {
       this.holdNotes = song.holdNotes;
     }
-    this.tapThresholdMs = song.tapThresholdMs ?? 0;
+    this.tapThresholdMs = song.tapThresholdMs ?? DEFAULT_APP_SETTINGS.defaultTapThresholdMs;
     void this.syncNoteTiming();
     if (song.autoChord !== undefined) {
       this.autoChord = song.autoChord;
     }
+    this.chordDetectionMilliseconds = song.chordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds;
     if (song.enableKeyChangeMarkers !== undefined) {
       this.enableKeyChangeMarkers = song.enableKeyChangeMarkers;
     }
@@ -698,6 +702,13 @@ class PlaybackStore {
     if (this.activeSong) {
       this.activeSong.autoChord = val;
     }
+    this.scheduleAutoSaveSongSettings();
+  }
+
+  setChordDetectionMilliseconds(value: number) {
+    if (!Number.isFinite(value)) return;
+    this.chordDetectionMilliseconds = Math.max(0, Math.min(500, Math.round(value)));
+    if (this.activeSong) this.activeSong.chordDetectionMilliseconds = this.chordDetectionMilliseconds;
     this.scheduleAutoSaveSongSettings();
   }
 
@@ -1284,10 +1295,11 @@ class PlaybackStore {
       this.transposeMode = song.transposeMode;
       this.playbackSpeed = song.speed;
       this.holdNotes = song.holdNotes;
-      this.tapThresholdMs = song.tapThresholdMs ?? 0;
+      this.tapThresholdMs = song.tapThresholdMs ?? DEFAULT_APP_SETTINGS.defaultTapThresholdMs;
       await this.syncNoteTiming();
-      this.autoChord = song.autoChord ?? false;
-      this.enableKeyChangeMarkers = song.enableKeyChangeMarkers ?? true;
+      this.autoChord = song.autoChord ?? DEFAULT_APP_SETTINGS.defaultAutoChord;
+      this.chordDetectionMilliseconds = song.chordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds;
+      this.enableKeyChangeMarkers = song.enableKeyChangeMarkers ?? DEFAULT_APP_SETTINGS.defaultEnableKeyChangeMarkers;
       if (resetTrackVolumes) this.trackVolumes = {};
       this.applyTrackSettings(this.activeSong);
       await api.playback.setKeyMarkers(this.activeSong.keyMarkers);
@@ -1491,6 +1503,7 @@ class PlaybackStore {
     marker.key = noteName;
     marker.noteDisplay = noteName;
     marker.offsetDisplay = offsetDisplay;
+    marker.label = noteName;
 
     // Sync with keyChanges
     if (this.activeSong.keyChanges) {
@@ -1557,7 +1570,7 @@ class PlaybackStore {
       if (detected && detected.length > 0) {
         const markers: KeyChangeMarker[] = detected.map((m: any, idx: number) => {
           const offset = m.keyOffset ?? 0;
-          const noteName = m.label || getKeyNoteName(offset);
+          const noteName = getMarkerNoteDisplay(offset, m.label);
           const timeSec = (m.timeMs ?? 0) / 1000;
           return {
             id: `km-${Date.now()}-${idx}`,
@@ -1566,6 +1579,7 @@ class PlaybackStore {
             key: noteName,
             keyOffset: offset,
             transpose: m.transpose,
+            label: m.label,
             noteDisplay: noteName,
             offsetDisplay: formatSignedOffset(offset),
           };

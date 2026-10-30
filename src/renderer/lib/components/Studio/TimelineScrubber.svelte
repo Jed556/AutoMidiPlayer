@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { DEFAULT_UI_PREFERENCES } from '../../../../shared/defaults/settings';
   import { onMount, onDestroy } from 'svelte';
   import { uiStore } from '../../state/uiStore.svelte';
   import { playbackStore } from '../../state/playbackStore.svelte';
@@ -26,15 +27,15 @@
   let {
     renderTracks,
     scrollX = 0,
-    zoomX = 80,
-    zoomY = $bindable(16),
+    zoomX = DEFAULT_UI_PREFERENCES.studio.zoomX,
+    zoomY = $bindable(DEFAULT_UI_PREFERENCES.studio.zoomY),
     viewportWidth = 800,
     onScroll,
     onZoomChange,
     onFitNotes,
     onZoomYChange,
     hoverTime = $bindable(null),
-    isLockedToPlayhead = $bindable(true)
+    isLockedToPlayhead = $bindable(DEFAULT_UI_PREFERENCES.studio.isLockedToPlayhead)
   }: Props = $props();
 
   let scrubberCanvas: HTMLCanvasElement;
@@ -425,7 +426,7 @@
   }
 
   function resetZoomX() {
-    onZoomChange(80);
+    onZoomChange(DEFAULT_UI_PREFERENCES.studio.zoomX);
   }
 
   function zoomInY() {

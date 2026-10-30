@@ -1,60 +1,12 @@
-import type { AppSettings } from '../types/settings.js';
+import type { AppSettings, UiPreferences, PlaybackPreferences, StudioPreferences } from '../types/settings.js';
+import defaults from '../../../crates/amp-core/src/settings/defaults.json' with { type: 'json' };
 
-/**
- * Defaults for a new installation. These are application defaults, not mock
- * data: the native settings store persists the user's changes separately.
- */
-export const DEFAULT_APP_SETTINGS: AppSettings = {
-  onboardingCompleted: false,
-  ui: {
-    animationTiming: 0.2,
-    pedalsEnabled: true,
-    libraryWidth: 80,
-    libraryExpandedWidth: 340,
-  },
-  theme: 'Dark',
-  accentColor: '#1DB954',
-  smoothScrolling: true,
-  autoEnableListenMode: true,
-  keypressMethod: 'SendInput',
-  enableKeyUp: true,
-  keyPressDelayMs: 20,
-  overlapBehavior: 'retrigger',
-  repressGapMs: 20,
-  // Resolved from loaded keyboard layouts by SettingsStore before views open.
-  autoCorrectThreshold: 0,
-  hotkeysEnabled: true,
-  mouseStopClick: 'Disabled',
-  hotkeys: [
-    { action: 'PlayPause', label: 'Play / Pause', key: 'Space', ctrl: true, alt: true, shift: false },
-    { action: 'Next', label: 'Next Song', key: 'Right', ctrl: true, alt: true, shift: false },
-    { action: 'Previous', label: 'Previous Song', key: 'Left', ctrl: true, alt: true, shift: false },
-    { action: 'SpeedUp', label: 'Increase Speed', key: 'Up', ctrl: true, alt: true, shift: false },
-    { action: 'SpeedDown', label: 'Decrease Speed', key: 'Down', ctrl: true, alt: true, shift: false },
-    { action: 'Panic', label: 'Panic / Stop All', key: 'Escape', ctrl: true, alt: true, shift: false },
-  ],
-  midiFolder: '',
-  autoScanMidiFolder: true,
-  gameLocations: {},
-  defaultBaseKeyOffset: 0,
-  defaultKeyOffset: 0,
-  autoDetectBaseKey: true,
-  defaultTranspose: 'Smart',
-  defaultSpeed: 1.0,
-  defaultHoldNotes: true,
-  defaultTapThresholdMs: 0,
-  defaultMergeNotes: false,
-  defaultMergeToleranceMs: 25,
-  autoCheckUpdates: true,
-  updateCheckFrequency: 'hourly',
-  autoDownloadUpdates: false,
-  includeBetaUpdates: false,
-  telemetryOptIn: false,
-  notifyAccountRisk: true,
-  debugModeEnabled: false,
-  crashLogVerbosity: 1,
-  logPlayedNotes: false,
-  pageCaching: true,
-  cacheAutoClean: 'weekly',
-  cacheMaxSizeMb: 500,
-};
+/** Shared with native settings migration so newly introduced options use app defaults. */
+export const DEFAULT_APP_SETTINGS: AppSettings = defaults as AppSettings;
+export const DEFAULT_UI_PREFERENCES = defaults.ui as Required<Omit<UiPreferences, 'songColumnWidths'>>
+  & { studio: StudioPreferences; playback: PlaybackPreferences };
+
+/** Each reset/store gets its own nested objects instead of mutating the defaults. */
+export function createDefaultSettings(): AppSettings {
+  return structuredClone(DEFAULT_APP_SETTINGS);
+}

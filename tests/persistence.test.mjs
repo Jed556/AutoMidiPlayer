@@ -1,3 +1,4 @@
+import * as sharedDefaults from '../src/shared/defaults/settings.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -22,6 +23,7 @@ async function loadModule(path, mocks, runes = false) {
 async function createUi(preferences = {}) {
   const saved = [];
   const { uiStore } = await loadModule('../src/renderer/lib/state/uiStore.svelte.ts', {
+    '../../../shared/defaults/settings.js': sharedDefaults,
     '../backend/preferences.js': { loadUiPreferences: async () => preferences, saveUiPreferences: value => saved.push(structuredClone(value)) },
     '../ui/notificationCenter.svelte': { notificationCenter: {} },
     '../infrastructure/logger.js': { logger: { pageVisit() {} } },

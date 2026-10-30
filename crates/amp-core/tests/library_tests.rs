@@ -41,7 +41,6 @@ fn test_library_schema_and_crud() {
         auto_chord: None,
         chord_detection_milliseconds: None,
         key_changes: None,
-        detect_chord_pads: None,
         enable_key_change_markers: Some(true),
         is_missing: true, // File does not actually exist on disk
     };
@@ -68,6 +67,7 @@ fn test_library_schema_and_crud() {
         hold_notes: Some(true),
         tap_threshold_ms: Some(100),
         auto_chord: Some(true),
+        chord_detection_milliseconds: Some(45),
         enable_key_change_markers: Some(true),
     };
     db.update_song_settings("test-song-1", &settings).expect("Failed to update settings");
@@ -76,6 +76,7 @@ fn test_library_schema_and_crud() {
     assert_eq!(updated.key, 5);
     assert_eq!(updated.base_key, Some(2));
     assert_eq!(updated.transpose, 2);
+    assert_eq!(updated.chord_detection_milliseconds, Some(45));
     assert_eq!(updated.disabled_tracks.as_deref(), Some("0,3"));
     assert!(updated.key_changes.unwrap().contains("Chorus"));
 
@@ -319,7 +320,6 @@ fn test_queue_persistence_and_reorder() {
             auto_chord: None,
             chord_detection_milliseconds: None,
             key_changes: None,
-            detect_chord_pads: None,
             enable_key_change_markers: Some(true),
             is_missing: true,
         };
@@ -425,6 +425,7 @@ fn test_song_defaults_applied_on_add() {
         default_merge_tolerance_ms: 50,
         default_hold_notes: true,
         default_tap_threshold_ms: 120,
+        ..SongDefaults::default()
     };
 
     let imported = import_files(&db, &[song1_path.clone()], Some(&defaults_auto)).expect("Import failed");
@@ -470,6 +471,7 @@ fn test_song_defaults_applied_on_add() {
         default_merge_tolerance_ms: 15,
         default_hold_notes: false,
         default_tap_threshold_ms: 80,
+        ..SongDefaults::default()
     };
 
     let summary = scan_folder(&db, &temp_dir, Some(&defaults_manual)).expect("Scan failed");

@@ -27,7 +27,7 @@ export function saveUiPreferences(preferences: UiPreferences): void {
   }, 150);
 }
 
-/** Await this before closing or reloading so the last interaction reaches SQLite. */
+/** Await this before closing or reloading so the last interaction reaches settings.json. */
 export async function flushUiPreferences(): Promise<void> {
   if (timer) clearTimeout(timer);
   timer = null;

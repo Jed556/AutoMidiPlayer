@@ -49,14 +49,14 @@ impl KeySimulator {
         let enigo = Enigo::new(&Settings::default()).expect("Failed to initialize Enigo input simulator");
         Self {
             enigo,
-            hold_delay: Duration::from_millis(35),
+            hold_delay: Duration::from_millis(crate::settings::defaults::value("/keyPressDelayMs")),
             pressed_keys: HashSet::new(),
             last_press_time: None,
             pedals: PedalOutput::default(),
         }
     }
 
-    /// Sets the minimum key hold delay in milliseconds (default: 35ms for DirectX compatibility)
+    /// Sets the minimum key hold delay in milliseconds; the initial value comes from defaults.json.
     pub fn set_hold_delay_ms(&mut self, ms: u64) {
         self.hold_delay = Duration::from_millis(ms);
     }

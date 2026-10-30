@@ -42,20 +42,23 @@ pub(super) fn is_tap(hold_notes: bool, threshold_ms: u64, duration_us: Option<u6
     !hold_notes || duration_us.unwrap_or(200_000) as f64 / speed <= threshold_ms as f64 * 1000.0
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum OverlapBehavior {
     Hold,
-    #[default]
     Retrigger,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum KeyPressAction { Press, Retrigger, Deferred, Ignore }
 
-// By default, leave the key up for longer than a 60 Hz game frame. Back-to-back key-up/down
-// can otherwise be observed as one uninterrupted hold by a polling game.
-const REPRESS_GAP: Duration = Duration::from_millis(20);
+impl Default for OverlapBehavior {
+    fn default() -> Self { crate::settings::defaults::value("/overlapBehavior") }
+}
+
+fn default_repress_gap() -> Duration {
+    Duration::from_millis(crate::settings::defaults::value("/repressGapMs"))
+}
 
 struct PendingPress {
     stroke: KeyStroke,
@@ -74,7 +77,7 @@ pub(super) struct KeyReleases {
 
 impl Default for KeyReleases {
     fn default() -> Self {
-        Self { pressed: HashMap::new(), pending: HashMap::new(), repress_gap: REPRESS_GAP }
+        Self { pressed: HashMap::new(), pending: HashMap::new(), repress_gap: default_repress_gap() }
     }
 }
 
@@ -234,7 +237,7 @@ mod tests {
         for (owner, start, end) in [(614, 64_883_682, 65_545_019), (626, 65_581_356, 66_905_483)] {
             let (action, press_at) = releases.begin_stroke(stroke, owner, at(start), None, OverlapBehavior::Retrigger);
             assert_eq!(action, KeyPressAction::Retrigger); // send key-up now
-            assert_eq!(press_at, at(start) + REPRESS_GAP);
+            assert_eq!(press_at, at(start) + default_repress_gap());
             assert_eq!(releases.next_deadline(), Some(press_at));
             assert!(releases.take_presses(press_at - Duration::from_micros(1)).is_empty());
             assert_eq!(releases.take_presses(press_at), vec![(stroke, vec![owner])]);
@@ -307,13 +310,13 @@ mod tests {
                 }
             }
             assert!(releases.next_deadline().is_none());
-            assert!(releases.take_presses(now + REPRESS_GAP).is_empty());
+            assert!(releases.take_presses(now + default_repress_gap()).is_empty());
         }
         let mut releases = KeyReleases::default();
         releases.begin_stroke(stroke, 1, now, None, OverlapBehavior::Hold);
         assert_eq!(releases.begin_stroke(stroke, 2, now, None, OverlapBehavior::Hold).0, KeyPressAction::Ignore);
         assert!(releases.next_deadline().is_none());
-        assert!(releases.take_presses(now + REPRESS_GAP).is_empty());
+        assert!(releases.take_presses(now + default_repress_gap()).is_empty());
         assert!(releases.note_off(Key::A, 1));
     }
 

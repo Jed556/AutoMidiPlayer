@@ -8,11 +8,20 @@ use rustysynth::{SoundFont, Synthesizer, SynthesizerSettings};
 const SAMPLE_RATE: u32 = 44100;
 const BLOCK_SIZE: usize = 256;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum SynthMode {
-    #[default]
     Adapted,
     Raw,
+}
+
+impl Default for SynthMode {
+    fn default() -> Self {
+        match crate::settings::defaults::value::<String>("/ui/playback/synthMode").as_str() {
+            "adapted" => Self::Adapted,
+            "raw" => Self::Raw,
+            value => panic!("Invalid default synth mode: {value}"),
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -64,7 +73,7 @@ impl SynthSource {
             synth,
             cmd_rx,
             sample_rate: SAMPLE_RATE,
-            master_volume: 1.0,
+            master_volume: crate::settings::defaults::value("/ui/playback/volume"),
             track_volumes: HashMap::new(),
             muted_tracks: HashSet::new(),
             left_buf: vec![0.0f32; BLOCK_SIZE],

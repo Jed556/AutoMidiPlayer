@@ -61,12 +61,11 @@ fn create_new_song_record(
         image_path: None,
         cached_duration_ms: Some(meta.duration_ms),
         cached_native_bpm: Some(meta.native_bpm),
-        auto_chord: None,
-        chord_detection_milliseconds: None,
+        auto_chord: Some(defaults.default_auto_chord),
+        chord_detection_milliseconds: Some(defaults.default_chord_detection_milliseconds),
         // Timeline markers are created explicitly in Studio, independently of base-key detection.
         key_changes: None,
-        detect_chord_pads: None,
-        enable_key_change_markers: Some(true),
+        enable_key_change_markers: Some(defaults.default_enable_key_change_markers),
         is_missing: false,
     }
 }

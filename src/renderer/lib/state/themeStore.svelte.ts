@@ -1,3 +1,4 @@
+import { DEFAULT_APP_SETTINGS } from '../../../shared/defaults/settings.js';
 import type { ThemeMode } from '../../../shared/types/settings.js';
 
 export interface AccentColorOption {
@@ -19,11 +20,16 @@ export const ACCENT_COLORS: AccentColorOption[] = [
   { name: 'Cyan', hex: '#06B6D4', value: '#06B6D4' }
 ];
 
+const defaultIsDark = DEFAULT_APP_SETTINGS.theme === 'System'
+  && typeof window !== 'undefined' && window.matchMedia
+  ? window.matchMedia('(prefers-color-scheme: dark)').matches
+  : DEFAULT_APP_SETTINGS.theme !== 'Light';
+
 class ThemeStore {
-  mode = $state<ThemeMode>('Dark');
-  accentColor = $state<string>('#1DB954');
-  isDark = $state<boolean>(true);
-  themeProgress = $state<number>(0); // 0 = dark, 1 = light
+  mode = $state<ThemeMode>(DEFAULT_APP_SETTINGS.theme);
+  accentColor = $state<string>(DEFAULT_APP_SETTINGS.accentColor);
+  isDark = $state<boolean>(defaultIsDark);
+  themeProgress = $state<number>(defaultIsDark ? 0 : 1); // 0 = dark, 1 = light
 
   private animFrameId: number | null = null;
   private transitionTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -67,8 +73,10 @@ class ThemeStore {
       this.setMode('Light');
     } else if (normalized === 'system') {
       this.setMode('System');
-    } else {
+    } else if (normalized === 'dark') {
       this.setMode('Dark');
+    } else {
+      this.setMode(DEFAULT_APP_SETTINGS.theme);
     }
   }
 

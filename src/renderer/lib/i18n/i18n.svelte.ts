@@ -1,3 +1,4 @@
+import { DEFAULT_UI_PREFERENCES } from '../../../shared/defaults/settings.js';
 import { loadUiPreferences, saveUiPreferences } from '../backend/preferences.js';
 import { enUS, type TranslationSchema } from './locales/en-US';
 import { zhCN } from './locales/zh-CN';
@@ -20,14 +21,14 @@ const LOCALES: Record<string, TranslationSchema> = {
 };
 
 class I18nService {
-  currentLocale = $state<LocaleCode>('en-US');
+  currentLocale = $state<LocaleCode>(DEFAULT_UI_PREFERENCES.locale);
 
   constructor() {
     this.init();
   }
 
   private async init() {
-    this.currentLocale = typeof navigator !== 'undefined' && navigator.language.startsWith('zh') ? 'zh-CN' : 'en-US';
+    this.currentLocale = typeof navigator !== 'undefined' && navigator.language.startsWith('zh') ? 'zh-CN' : DEFAULT_UI_PREFERENCES.locale;
     try {
       const preferences = await loadUiPreferences();
       if (preferences.locale && LOCALES[preferences.locale]) this.currentLocale = preferences.locale;

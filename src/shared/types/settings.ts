@@ -76,6 +76,7 @@ export interface AppSettings {
   overlapBehavior: OverlapBehavior;
   repressGapMs: number;
   autoCorrectThreshold: number;
+  autoCorrectDefault: { belowKeyCount: number; preferredKeyCount: number | null };
   hotkeysEnabled: boolean;
   mouseStopClick: MouseStopClickOption;
   hotkeys: HotkeyBinding[];
@@ -91,8 +92,11 @@ export interface AppSettings {
   defaultTapThresholdMs: number;
   defaultMergeNotes: boolean;
   defaultMergeToleranceMs: number;
+  defaultAutoChord: boolean;
+  defaultChordDetectionMilliseconds: number;
+  defaultEnableKeyChangeMarkers: boolean;
   autoCheckUpdates: boolean;
-  updateCheckFrequency: '10min' | 'hourly' | 'daily';
+  updateCheckFrequency: '10min' | 'hourly' | 'daily' | 'weekly' | 'launch';
   autoDownloadUpdates: boolean;
   includeBetaUpdates: boolean;
   telemetryOptIn: boolean;
