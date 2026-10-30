@@ -25,6 +25,39 @@
         animation: boot-pulse 1800ms cubic-bezier(0.45, 0, 0.55, 1) infinite;
         animation-duration: 1800ms !important;
       }
+      #boot-window-controls {
+        position: absolute;
+        top: 0;
+        right: 0;
+        z-index: 1;
+        display: flex;
+        height: var(--titlebar-height, 42px);
+        -webkit-app-region: no-drag;
+      }
+      #boot-window-controls button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 100%;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+        cursor: pointer;
+      }
+      #boot-window-controls button:hover {
+        background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+        color: var(--text-primary, #fff);
+      }
+      #boot-window-controls button[data-window-action="close"]:hover {
+        background: #e81123;
+        color: #fff;
+      }
+      #boot-window-controls svg { width: 12px; height: 12px; overflow: visible; }
+      #boot-window-controls .restore-icon { display: none; }
+      #boot-window-controls [data-maximized="true"] .maximize-icon { display: none; }
+      #boot-window-controls [data-maximized="true"] .restore-icon { display: block; }
       #boot-status {
         position: absolute;
         top: calc(50% + 108px);
@@ -63,6 +96,18 @@
   </head>
   <body>
     <div id="boot-screen" data-tauri-drag-region>
+      <div id="boot-window-controls">
+        <button type="button" data-window-action="minimize" aria-label="Minimize">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="11" width="16" height="2" rx="1" fill="currentColor" /></svg>
+        </button>
+        <button type="button" data-window-action="maximize" aria-label="Maximize">
+          <svg class="maximize-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8" /></svg>
+          <svg class="restore-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7.5V5.5Q8 4 9.5 4H18.5Q20 4 20 5.5V14.5Q20 16 18.5 16H16.5" fill="none" stroke="currentColor" stroke-width="1.8" /><rect x="4.5" y="7.5" width="12" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8" /></svg>
+        </button>
+        <button type="button" data-window-action="close" aria-label="Close">
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2L10 10M10 2L2 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+        </button>
+      </div>
       <img src="./logo-fill.svg" alt="Auto MIDI Player" draggable="false" />
       <div id="boot-status">
         <p id="boot-status-text" role="status" aria-live="polite">Initializing application…</p>
