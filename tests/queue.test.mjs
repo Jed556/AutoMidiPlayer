@@ -231,6 +231,43 @@ test('Smart uses the saved base as zero regardless of scale-correction threshold
   assert.equal(player.keyOffsetBase, 0);
 });
 
+test('loading leaves markers empty until an explicit Studio scan, then saves them for reopening', async () => {
+  const detected = [
+    { timeMs: 0, keyOffset: -2, label: 'D maj', transpose: null },
+    { timeMs: 2500, keyOffset: -4, label: 'E maj', transpose: 1 },
+  ];
+  const { player, songs, playbackCalls, songSettingsWrites } = await createPlayer({
+    native: true, readMidi: async () => parsedMidi(songs[0]),
+    playback: { detectKeySignatures: async () => detected },
+  });
+  player.loadSong(songs[0]);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(player.activeSong.keyMarkers, []);
+  assert.equal(playbackCalls.some(([method]) => method === 'detectKeySignatures'), false);
+  assert.deepEqual(playbackCalls.find(([method]) => method === 'setKeyMarkers'), ['setKeyMarkers', []]);
+  assert.equal(songSettingsWrites.length, 0);
+
+  await player.autoDetectKeyChanges();
+  assert.deepEqual(playbackCalls.filter(([method]) => method === 'detectKeySignatures'),
+    [['detectKeySignatures', songs[0].filePath]]);
+  const markers = JSON.parse(JSON.stringify(player.activeSong.keyMarkers));
+  assert.deepEqual(markers.map(({ timeMs, keyOffset, noteDisplay, transpose }) =>
+    ({ timeMs, keyOffset, label: noteDisplay, transpose })), detected);
+  assert.deepEqual(playbackCalls.filter(([method]) => method === 'setKeyMarkers').at(-1),
+    ['setKeyMarkers', markers]);
+  await player.flushPendingSongSettings();
+  assert.equal(songSettingsWrites.length, 1);
+  assert.equal(songSettingsWrites[0][0], songs[0].id);
+  assert.deepEqual(JSON.parse(songSettingsWrites[0][1].keyChanges), detected.map(marker => ({
+    TimeMs: marker.timeMs, KeyOffset: marker.keyOffset, Transpose: marker.transpose, Label: marker.label,
+  })));
+
+  player.loadSong(songs[1]);
+  player.loadSong(songs[0]);
+  assert.deepEqual(player.activeSong.keyMarkers, markers);
+  assert.equal(playbackCalls.filter(([method]) => method === 'detectKeySignatures').length, 1);
+});
+
 test('the key indicator follows the latest enabled marker across seeks and song changes', async () => {
   const { player, songs } = await createPlayer();
   const early = { id: 'early', timeMs: 1000, keyOffset: 0 };

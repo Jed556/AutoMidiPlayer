@@ -51,6 +51,62 @@ fn write_midi(path: &Path, pitch: u8) {
 }
 
 #[test]
+fn imports_and_folder_scans_leave_marker_creation_to_studio() {
+    for auto_detect_base_key in [true, false] {
+        for via_folder_scan in [true, false] {
+            let temp = TestDirectory::new();
+            let folder = temp.folder("songs");
+            let path = folder.join("song.mid");
+            write_midi(&path, 62);
+            let bytes = std::fs::read(&path).unwrap();
+            let mut midi = Smf::parse(&bytes).unwrap();
+            midi.tracks[0].insert(0, TrackEvent {
+                delta: 0.into(),
+                kind: TrackEventKind::Meta(MetaMessage::KeySignature(2, false)),
+            });
+            let mut bytes_with_key = Vec::new();
+            midi.write(&mut bytes_with_key).unwrap();
+            std::fs::write(&path, bytes_with_key).unwrap();
+            let db = temp.db();
+            let defaults = amp_core::library::SongDefaults {
+                auto_detect_base_key,
+                ..Default::default()
+            };
+            let detected = amp_core::detect_key_changes(&amp_core::parse_midi_file(&path).unwrap());
+            assert!(!detected.is_empty(), "Fixture must contain detectable key information");
+
+            if via_folder_scan {
+                scan_folder(&db, &folder, Some(&defaults)).unwrap();
+            } else {
+                import_files(&db, std::slice::from_ref(&path), Some(&defaults)).unwrap();
+            }
+            let song = db.get_all_songs().unwrap().pop().unwrap();
+            assert!(song.key_changes.is_none());
+
+            // Existing markers, including markers saved by older versions, survive both paths.
+            let saved_markers = serde_json::to_string(&detected).unwrap();
+            let mut settings: SongSettingsUpdate = serde_json::from_value(serde_json::json!({
+                "key": song.key, "baseKey": song.base_key, "transpose": song.transpose,
+                "keyChanges": saved_markers,
+            })).unwrap();
+            db.update_song_settings(&song.id, &settings).unwrap();
+            import_files(&db, std::slice::from_ref(&path), Some(&defaults)).unwrap();
+            assert_eq!(db.get_song_by_id(&song.id).unwrap().unwrap().key_changes.as_deref(), Some(saved_markers.as_str()));
+            scan_folder(&db, &folder, Some(&defaults)).unwrap();
+            assert_eq!(db.get_song_by_id(&song.id).unwrap().unwrap().key_changes.as_deref(), Some(saved_markers.as_str()));
+
+            // Removing all markers must persist even though the MIDI still has a detectable key.
+            settings.key_changes = None;
+            db.update_song_settings(&song.id, &settings).unwrap();
+            import_files(&db, std::slice::from_ref(&path), Some(&defaults)).unwrap();
+            assert!(db.get_song_by_id(&song.id).unwrap().unwrap().key_changes.is_none());
+            scan_folder(&db, &folder, Some(&defaults)).unwrap();
+            assert!(db.get_song_by_id(&song.id).unwrap().unwrap().key_changes.is_none());
+        }
+    }
+}
+
+#[test]
 fn scanning_a_legacy_database_without_a_unique_path_preserves_existing_song_references() {
     let temp = TestDirectory::new();
     let folder = temp.folder("songs");

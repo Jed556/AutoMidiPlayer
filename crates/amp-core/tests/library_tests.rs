@@ -440,7 +440,7 @@ fn test_song_defaults_applied_on_add() {
     assert_eq!(s1.merge_milliseconds, Some(50));
     assert_eq!(s1.tap_threshold_ms, Some(120));
     assert_eq!(s1.hold_notes, Some(true));
-    assert!(s1.key_changes.is_some());
+    assert!(s1.key_changes.is_none());
 
     // 3. Test scanning a second song with auto_detect_base_key = false
     // Modify note in smf so file has unique content and hash
@@ -487,6 +487,7 @@ fn test_song_defaults_applied_on_add() {
     assert_eq!(s2.merge_notes, Some(true));
     assert_eq!(s2.merge_milliseconds, Some(15));
     assert_eq!(s2.hold_notes, Some(false));
+    assert!(s2.key_changes.is_none());
 
     let _ = std::fs::remove_dir_all(&temp_dir);
 }
