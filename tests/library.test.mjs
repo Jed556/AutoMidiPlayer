@@ -1,9 +1,11 @@
+import * as sharedDefaults from '../src/shared/defaults/settings.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import { compileModule } from 'svelte/compiler';
 import { groupDuplicateFiles } from '../src/renderer/lib/utils/fileIssueGroups.ts';
+import { getMarkerNoteDisplay } from '../src/renderer/lib/utils/musicConstants.ts';
 
 const duplicateIssue = (path, songId, relatedPath) => ({
   kind: 'duplicate', path, songId, relatedPath, title: 'Same title', details: null,
@@ -50,8 +52,10 @@ let harnessId = 0;
 async function nativeHarness() {
   const calls = [];
   const mocks = {
+    '../../../shared/defaults/settings.js': sharedDefaults,
     '../infrastructure/logger.js': { logger: {} },
     '../infrastructure/telemetry.js': { telemetry: {} },
+    '../utils/musicConstants.js': { getMarkerNoteDisplay },
     './mappers.js': { songRecordToMidiFile: song => song },
     './runtime.js': {
       invokeTauri: async (_scope, command, args) => {
@@ -71,6 +75,16 @@ async function nativeHarness() {
   delete globalThis[key];
   return { api: createAppApi(), calls };
 }
+
+test('saving a song strips legacy label offsets while preserving numeric marker metadata', async () => {
+  const { api, calls } = await nativeHarness();
+  await api.songs.saveSong({ id: 'song', keyOffset: 0, baseKeyOffset: 0, transposeMode: 'Smart',
+    tracks: [], keyMarkers: [{ timeMs: 183013, keyOffset: -26, transpose: 2, label: 'A♯0 (-26)' }],
+  }, { kind: 'instrument', gameId: 'a', instrumentId: 'lyre' });
+  assert.deepEqual(JSON.parse(calls[0][1].settings.keyChanges), [
+    { TimeMs: 183013, KeyOffset: -26, Transpose: 2, Label: 'A♯0' },
+  ]);
+});
 
 test('manual refresh scans the folder before reading songs, even with auto scan disabled', async () => {
   const { api, calls } = await nativeHarness();
@@ -95,8 +109,9 @@ test('refresh with an unset folder reports the problem instead of returning cach
 test('failed refresh reaches the caller and resets scanning state without replacing the library', async () => {
   const failure = new Error('Folder cannot be read');
   const key = `__libraryHarness${++harnessId}`;
-  globalThis[key] = { api: { songs: { scanFolder: async () => { throw failure; } } }, isTauri: false };
+  globalThis[key] = { ...sharedDefaults, api: { songs: { scanFolder: async () => { throw failure; } } }, isTauri: false };
   const source = stripTypeScriptTypes(readFileSync(new URL('../src/renderer/lib/state/libraryStore.svelte.ts', import.meta.url), 'utf8'))
+    .replace("import { DEFAULT_UI_PREFERENCES } from '../../../shared/defaults/settings.js';", `const { DEFAULT_UI_PREFERENCES } = globalThis.${key};`)
     .replace("import { api, isTauri } from '../backend/index.js';", `const { api, isTauri } = globalThis.${key};`)
     .replace("import { notificationCenter } from '../ui/notificationCenter.svelte';", 'const notificationCenter = {};')
     .replace("import { t } from '../i18n';", 'const t = key => key;');
@@ -144,6 +159,7 @@ async function storeHarness() {
   };
   const key = `__libraryStoreHarness${++harnessId}`;
   globalThis[key] = {
+    '../../../shared/defaults/settings.js': sharedDefaults,
     '../backend/index.js': { api, isTauri: false },
     '../ui/notificationCenter.svelte': { notificationCenter: {
       success: (...args) => toasts.push(['success', ...args]),

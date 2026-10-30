@@ -1,3 +1,4 @@
+import * as sharedDefaults from '../src/shared/defaults/settings.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -36,6 +37,7 @@ async function harness({ downloaded = false, download, install, prepare } = {}) 
     },
   };
   const mocks = {
+    '../../../shared/defaults/settings.js': sharedDefaults,
     '../utils/versionUtils': versionUtils,
     '../ui/notificationCenter.svelte': { notificationCenter: new Proxy({}, { get: (_, kind) => (...args) => notifications.push([kind, ...args]) }) },
     '../backend/index.js': { api, isTauri: false },
@@ -63,6 +65,23 @@ test('installation waits for the splash fade and saves state before downloading'
   await applying;
   assert.deepEqual(calls.map(([name]) => name), ['beginUpdate', 'prepare', 'save', 'download', 'install']);
   assert.equal(store.updateDownloaded, true);
+});
+
+test('migrated weekly and on-launch update preferences retain their schedules', async (t) => {
+  const { store } = await harness();
+  const intervals = [];
+  let checks = 0;
+  store.checkForUpdates = async () => { checks++; };
+  t.mock.method(globalThis, 'setInterval', (_callback, ms) => { intervals.push(ms); return 123; });
+  t.mock.method(globalThis, 'clearInterval', () => {});
+  store.configureTimer({ autoCheckUpdates: true, updateCheckFrequency: 'weekly' }, false);
+  assert.deepEqual(intervals, [7 * 24 * 60 * 60 * 1000]);
+  store.configureTimer({ autoCheckUpdates: true, updateCheckFrequency: 'launch' }, false);
+  assert.equal(intervals.length, 1);
+  assert.equal(checks, 0, 'Startup performs its own awaited initial check');
+  store.configureTimer({ autoCheckUpdates: true, updateCheckFrequency: 'launch' });
+  assert.equal(checks, 1);
+  assert.equal(intervals.length, 1, 'On Launch must not create a recurring timer');
 });
 
 test('a verified package downloaded in the background skips downloading at installation', async () => {

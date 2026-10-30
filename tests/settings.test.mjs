@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import { compileModule } from 'svelte/compiler';
-import { DEFAULT_APP_SETTINGS } from '../src/shared/defaults/settings.ts';
+import { DEFAULT_APP_SETTINGS, createDefaultSettings } from '../src/shared/defaults/settings.ts';
 import * as autoCorrect from '../src/shared/defaults/autoCorrect.ts';
 import { getAutoCorrectTicks, getDefaultAutoCorrectThreshold, resolveAutoCorrectThreshold } from '../src/shared/defaults/autoCorrect.ts';
 
@@ -42,6 +42,7 @@ async function harness(initial = {}) {
   const folderCalls = [];
   const errors = [];
   const telemetryCalls = [];
+  const themeCalls = [];
   const api = {
     settings: {
       getDataDirectory: async () => '',
@@ -60,11 +61,11 @@ async function harness(initial = {}) {
     },
   };
   const mocks = {
-    '$shared/defaults/settings': { DEFAULT_APP_SETTINGS },
+    '$shared/defaults/settings': { DEFAULT_APP_SETTINGS, createDefaultSettings },
     '$shared/defaults/autoCorrect': autoCorrect,
     '../backend/index.js': { api },
     '../ui/notificationCenter.svelte': { notificationCenter: { info: noop, success: noop, error: (...args) => errors.push(args) } },
-    './themeStore.svelte.js': { themeStore: { setAccentColor: noop, setTheme: noop } },
+    './themeStore.svelte.js': { themeStore: { setAccentColor: value => themeCalls.push(['accent', value]), setTheme: value => themeCalls.push(['theme', value]) } },
     './updateStore.svelte.js': { updateStore: { configureTimer: noop } },
     '../infrastructure/logger.js': { logger: { setVerbosity: noop, setDebugMode: noop } },
     '../infrastructure/telemetry.js': { telemetry: { setEnabled: async enabled => { telemetryCalls.push(enabled); return true; } } },
@@ -79,8 +80,59 @@ async function harness(initial = {}) {
     .replace("'svelte/internal/client'", JSON.stringify(import.meta.resolve('svelte/internal/client')));
   const { settingsStore: store } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
   delete globalThis[key];
-  return { store, api, folderCalls, errors, telemetryCalls, saved: () => saved, setLayouts: counts => { keyboardLayouts = layouts(...counts); } };
+  return { store, api, folderCalls, errors, telemetryCalls, themeCalls, saved: () => saved, setLayouts: counts => { keyboardLayouts = layouts(...counts); } };
 }
+
+test('song, note, hotkey and full resets restore the shared defaults without mutating them', async () => {
+  const h = await harness({ defaultHoldNotes: false, defaultMergeNotes: true,
+    defaultTranspose: 'Down', defaultSpeed: 2, defaultMergeToleranceMs: 300 });
+  await h.store.init();
+  const nativeDefaults = [];
+  h.api.settings.updateSongDefaults = async value => { nativeDefaults.push(value); return true; };
+  h.store.resetSongDefaults();
+  h.store.resetNotesDefaults();
+  await settle();
+  for (const key of ['defaultBaseKeyOffset', 'defaultKeyOffset', 'autoDetectBaseKey', 'defaultTranspose',
+    'defaultSpeed', 'defaultHoldNotes', 'defaultMergeNotes', 'defaultMergeToleranceMs', 'defaultTapThresholdMs']) {
+    assert.equal(h.store.settings[key], DEFAULT_APP_SETTINGS[key], key);
+    assert.equal(h.saved()[key], DEFAULT_APP_SETTINGS[key], `saved ${key}`);
+    assert.equal(nativeDefaults.at(-1)[key], DEFAULT_APP_SETTINGS[key], `native ${key}`);
+  }
+  const original = structuredClone(DEFAULT_APP_SETTINGS);
+  h.store.resetHotkeys();
+  h.store.settings.hotkeys[0].key = 'F8';
+  assert.deepEqual(DEFAULT_APP_SETTINGS, original, 'Editing reset hotkeys must not change the shared defaults');
+  h.store.resetAllDefaults();
+  await settle();
+  assert.deepEqual(JSON.parse(JSON.stringify(h.store.settings.ui)), original.ui);
+  h.store.settings.ui.studio.zoomX = 250;
+  assert.deepEqual(DEFAULT_APP_SETTINGS, original, 'Reset settings must own their nested objects');
+  assert.deepEqual(h.themeCalls.slice(-2), [['theme', original.theme], ['accent', original.accentColor]]);
+});
+
+test('reset controls follow changed defaults rather than copying fallback literals', async (t) => {
+  const original = structuredClone(DEFAULT_APP_SETTINGS);
+  t.after(() => Object.assign(DEFAULT_APP_SETTINGS, original));
+  Object.assign(DEFAULT_APP_SETTINGS, { defaultTranspose: 'Up', defaultSpeed: 0.8,
+    defaultHoldNotes: true, defaultMergeNotes: false, defaultMergeToleranceMs: 135,
+    defaultTapThresholdMs: 55, repressGapMs: 37, theme: 'Light', accentColor: '#112233' });
+  const h = await harness();
+  await h.store.init();
+  h.store.settings.defaultSpeed = 3;
+  h.store.settings.defaultHoldNotes = false;
+  h.store.settings.defaultMergeNotes = true;
+  h.store.resetSongDefaults();
+  h.store.resetNotesDefaults();
+  await settle();
+  assert.equal(h.saved().defaultTranspose, 'Up');
+  assert.equal(h.saved().defaultSpeed, 0.8);
+  assert.equal(h.saved().defaultMergeToleranceMs, 135);
+  assert.equal(h.saved().defaultTapThresholdMs, 55);
+  h.store.resetAllDefaults();
+  await settle();
+  assert.equal(h.saved().repressGapMs, 37);
+  assert.deepEqual(h.themeCalls.slice(-2), [['theme', 'Light'], ['accent', '#112233']]);
+});
 
 test('settings initialization migrates and saves the old default, and reload preserves a chosen value', async () => {
   for (const initial of [{}, { autoCorrectThreshold: 4 }]) {

@@ -1,0 +1,125 @@
+{
+  "onboardingCompleted": false,
+  "ui": {
+    "animationTiming": 0.2,
+    "pedalsEnabled": true,
+    "libraryWidth": 80,
+    "libraryExpandedWidth": 340,
+    "lastViewedPage": "songs",
+    "selectedPlaylistId": "songs",
+    "songsSortMode": "title",
+    "studioSidebarCollapsed": false,
+    "locale": "en-US",
+    "studio": {
+      "zoomX": 80,
+      "zoomY": 16,
+      "isLockedToPlayhead": true,
+      "displayMode": "Auto",
+      "sidebarTab": "tracks"
+    },
+    "playback": {
+      "activeSongId": null,
+      "positionSeconds": 0,
+      "queuePlaylistId": null,
+      "shuffledSongIds": [],
+      "isShuffled": false,
+      "loopMode": "off",
+      "isListenMode": false,
+      "synthMode": "adapted",
+      "volume": 0.85
+    }
+  },
+  "theme": "Dark",
+  "accentColor": "#1DB954",
+  "smoothScrolling": true,
+  "autoEnableListenMode": true,
+  "keypressMethod": "SendInput",
+  "enableKeyUp": true,
+  "keyPressDelayMs": 20,
+  "overlapBehavior": "retrigger",
+  "repressGapMs": 20,
+  "autoCorrectThreshold": 0,
+  "autoCorrectDefault": {
+    "belowKeyCount": 36,
+    "preferredKeyCount": null
+  },
+  "hotkeysEnabled": true,
+  "mouseStopClick": "Disabled",
+  "hotkeys": [
+    {
+      "action": "PlayPause",
+      "label": "Play / Pause",
+      "key": "Space",
+      "ctrl": true,
+      "alt": true,
+      "shift": false
+    },
+    {
+      "action": "Next",
+      "label": "Next Song",
+      "key": "Right",
+      "ctrl": true,
+      "alt": true,
+      "shift": false
+    },
+    {
+      "action": "Previous",
+      "label": "Previous Song",
+      "key": "Left",
+      "ctrl": true,
+      "alt": true,
+      "shift": false
+    },
+    {
+      "action": "SpeedUp",
+      "label": "Increase Speed",
+      "key": "Up",
+      "ctrl": true,
+      "alt": true,
+      "shift": false
+    },
+    {
+      "action": "SpeedDown",
+      "label": "Decrease Speed",
+      "key": "Down",
+      "ctrl": true,
+      "alt": true,
+      "shift": false
+    },
+    {
+      "action": "Panic",
+      "label": "Panic / Stop All",
+      "key": "Escape",
+      "ctrl": true,
+      "alt": true,
+      "shift": false
+    }
+  ],
+  "midiFolder": "",
+  "autoScanMidiFolder": true,
+  "gameLocations": {},
+  "defaultBaseKeyOffset": 0,
+  "defaultKeyOffset": 0,
+  "autoDetectBaseKey": true,
+  "defaultTranspose": "Smart",
+  "defaultSpeed": 1.0,
+  "defaultHoldNotes": true,
+  "defaultTapThresholdMs": 0,
+  "defaultMergeNotes": false,
+  "defaultMergeToleranceMs": 25,
+  "autoCheckUpdates": true,
+  "updateCheckFrequency": "hourly",
+  "autoDownloadUpdates": false,
+  "includeBetaUpdates": false,
+  "telemetryOptIn": false,
+  "notifyAccountRisk": true,
+  "debugModeEnabled": false,
+  "crashLogVerbosity": 1,
+  "logPlayedNotes": false,
+  "pageCaching": true,
+  "cacheAutoClean": "weekly",
+  "cacheMaxSizeMb": 500,
+  "defaultAutoChord": false,
+  "defaultChordDetectionMilliseconds": 30,
+  "defaultEnableKeyChangeMarkers": true
+}

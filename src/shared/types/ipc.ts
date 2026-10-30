@@ -88,7 +88,7 @@ export interface SongsApi {
   getSongById: (id: string) => Promise<MidiFile | null>;
   readMidiFile: (path: string) => Promise<MidiFile>;
   saveSong: (song: MidiFile, scope: SongSettingsContext & { kind: 'instrument' }) => Promise<boolean>;
-  saveSongSettings: (id: string, settings: { key: number; baseKey?: number | null; transpose: number; disabledTracks?: string | null; keyChanges?: string | null; speed?: number; holdNotes?: boolean; tapThresholdMs?: number; autoChord?: boolean; enableKeyChangeMarkers?: boolean }, scope: SongSettingsContext & { kind: 'instrument' }) => Promise<boolean>;
+  saveSongSettings: (id: string, settings: { key: number; baseKey?: number | null; transpose: number; disabledTracks?: string | null; keyChanges?: string | null; speed?: number; holdNotes?: boolean; tapThresholdMs?: number; autoChord?: boolean; chordDetectionMilliseconds?: number; enableKeyChangeMarkers?: boolean }, scope: SongSettingsContext & { kind: 'instrument' }) => Promise<boolean>;
   saveSongMetadata: (id: string, metadata: { title?: string; artist?: string; album?: string; albumId?: string; bpm?: number }) => Promise<boolean>;
   saveSongDetails: (id: string, details: SongDetailsUpdate, scope: SongSettingsScope) => Promise<boolean>;
   analyzeSongFile: (path: string) => Promise<SongFileAnalysis>;

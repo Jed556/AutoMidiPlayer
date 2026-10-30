@@ -1,4 +1,5 @@
 import type { MidiFile } from '../../../shared/types/midi.js';
+import { DEFAULT_UI_PREFERENCES } from '../../../shared/defaults/settings.js';
 import { api, isTauri } from '../backend/index.js';
 import type { LibraryFileIssue, LibraryScanSummary, FileIssueAction } from '../../../shared/types/ipc.js';
 import { notificationCenter } from '../ui/notificationCenter.svelte';
@@ -18,7 +19,7 @@ export interface PlaylistInfo {
 class LibraryStore {
   songs = $state<MidiFile[]>([]);
   songsByPlaylist = $state<Record<string, MidiFile[]>>({});
-  selectedPlaylistId = $state<string>('songs');
+  selectedPlaylistId = $state<string>(DEFAULT_UI_PREFERENCES.selectedPlaylistId);
   isScanning = $state<boolean>(false);
   playlists = $state<PlaylistInfo[]>([]);
   fileIssues = $state<LibraryFileIssue[]>([]);

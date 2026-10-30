@@ -1,3 +1,4 @@
+import { DEFAULT_UI_PREFERENCES } from '../../../shared/defaults/settings.js';
 import { loadUiPreferences, saveUiPreferences } from '../backend/preferences.js';
 import type { SearchExpansionDirection } from '$shared/types/settings';
 /**
@@ -9,19 +10,23 @@ export const ANIMATION_PRESETS = [
   { value: 'off', seconds: 0, labelKey: 'settings.animOff' },
   { value: '0.10', seconds: 0.10, labelKey: 'settings.animFast' },
   { value: '0.15', seconds: 0.15, labelKey: '0.15s' },
-  { value: '0.20', seconds: 0.20, labelKey: 'settings.animDefault' },
+  { value: '0.20', seconds: 0.20, labelKey: '0.20s' },
   { value: '0.25', seconds: 0.25, labelKey: '0.25s' },
   { value: '0.30', seconds: 0.30, labelKey: 'settings.animSmooth' },
   { value: '0.40', seconds: 0.40, labelKey: '0.40s' },
   { value: '0.50', seconds: 0.50, labelKey: 'settings.animSlow' },
-  { value: 'custom', seconds: 0.20, labelKey: 'settings.animCustom' }
-] as const;
+  { value: 'custom', seconds: DEFAULT_UI_PREFERENCES.animationTiming, labelKey: 'settings.animCustom' }
+].map(preset => ({
+  ...preset,
+  labelKey: preset.value !== 'custom' && preset.seconds === DEFAULT_UI_PREFERENCES.animationTiming
+    ? 'settings.animDefault' : preset.labelKey,
+}));
 
 class AnimationStore {
   // Current duration in seconds (0 = off)
-  timing = $state<number>(0.20);
-  selectedPreset = $state<string>('0.20');
-  customSeconds = $state<number>(0.20);
+  timing = $state<number>(DEFAULT_UI_PREFERENCES.animationTiming);
+  selectedPreset = $state<string>(DEFAULT_UI_PREFERENCES.animationTiming <= 0 ? 'off' : DEFAULT_UI_PREFERENCES.animationTiming.toFixed(2));
+  customSeconds = $state<number>(DEFAULT_UI_PREFERENCES.animationTiming);
   // Layout configuration, controlled in code rather than saved preferences.
   readonly searchExpansionDirection: SearchExpansionDirection = 'left';
 
@@ -31,7 +36,7 @@ class AnimationStore {
   async init() {
     try {
       const preferences = await loadUiPreferences();
-      this.setTiming(preferences.animationTiming ?? 0.2, undefined, false);
+      this.setTiming(preferences.animationTiming ?? DEFAULT_UI_PREFERENCES.animationTiming, undefined, false);
     } catch (error) {
       console.warn('[AnimationStore] Could not load preferences:', error);
       this.applyCssVariables();
@@ -41,7 +46,7 @@ class AnimationStore {
   setTiming(seconds: number, presetKey?: string, persist = true) {
     const clamped = Math.max(0, Math.min(2.0, Math.round(seconds * 100) / 100));
     this.timing = clamped;
-    this.customSeconds = clamped > 0 ? clamped : 0.20;
+    this.customSeconds = clamped > 0 ? clamped : DEFAULT_UI_PREFERENCES.animationTiming;
 
     if (presetKey) {
       this.selectedPreset = presetKey;

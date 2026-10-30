@@ -51,6 +51,25 @@ fn write_midi(path: &Path, pitch: u8) {
 }
 
 #[test]
+fn imports_with_missing_options_use_the_shared_json_defaults() {
+    let temp = TestDirectory::new();
+    let db = temp.db();
+    let path = temp.0.join("default.mid");
+    write_midi(&path, 60);
+    let defaults = serde_json::from_value::<amp_core::SongDefaults>(serde_json::json!({})).unwrap();
+    let song = import_files(&db, &[path], Some(&defaults)).unwrap().remove(0);
+    let expected = amp_core::settings::SettingsStore::defaults();
+    assert_eq!(song.hold_notes, expected["defaultHoldNotes"].as_bool());
+    assert_eq!(song.merge_notes, expected["defaultMergeNotes"].as_bool());
+    assert_eq!(song.speed, expected["defaultSpeed"].as_f64());
+    assert_eq!(song.merge_milliseconds.map(u64::from), expected["defaultMergeToleranceMs"].as_u64());
+    assert_eq!(song.tap_threshold_ms.map(u64::from), expected["defaultTapThresholdMs"].as_u64());
+    assert_eq!(song.auto_chord, expected["defaultAutoChord"].as_bool());
+    assert_eq!(song.chord_detection_milliseconds.map(u64::from), expected["defaultChordDetectionMilliseconds"].as_u64());
+    assert_eq!(song.enable_key_change_markers, expected["defaultEnableKeyChangeMarkers"].as_bool());
+}
+
+#[test]
 fn imports_and_folder_scans_leave_marker_creation_to_studio() {
     for auto_detect_base_key in [true, false] {
         for via_folder_scan in [true, false] {

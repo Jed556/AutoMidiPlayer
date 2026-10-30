@@ -36,7 +36,7 @@ pub enum TransposeMode {
 
 impl Default for TransposeMode {
     fn default() -> Self {
-        Self::Smart
+        crate::settings::defaults::value("/defaultTranspose")
     }
 }
 
@@ -49,7 +49,7 @@ impl std::str::FromStr for TransposeMode {
             "up" => Ok(Self::Up),
             "down" => Ok(Self::Down),
             "smart" => Ok(Self::Smart),
-            _ => Ok(Self::Smart),
+            _ => Ok(Self::default()),
         }
     }
 }

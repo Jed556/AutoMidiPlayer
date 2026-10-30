@@ -7,6 +7,26 @@ use chrono::Utc;
 use crate::library::models::{AlbumRecord, PlaylistRecord, SongDetailsUpdate, SongMetadataUpdate, SongRecord, SongSettingsUpdate};
 use crate::library::models::{SongSettingsContext, SongSettingsScope};
 
+// One source for schema validation and additive upgrades, including early WPF libraries.
+const SONG_COLUMNS: &[(&str, &str)] = &[
+    ("BaseKey", "INTEGER"), ("Key", "INTEGER NOT NULL DEFAULT 0"),
+    ("FileHash", "TEXT"), ("Title", "TEXT"), ("Artist", "TEXT"), ("Album", "TEXT"),
+    ("AlbumId", "TEXT REFERENCES Albums(Id) ON DELETE SET NULL"), ("DateAdded", "TEXT"),
+    ("Transpose", "INTEGER NOT NULL DEFAULT 0"), ("Speed", "REAL DEFAULT 1.0"), ("Bpm", "REAL"),
+    ("DisabledTracks", "TEXT"), ("MergeNotes", "INTEGER"), ("MergeMilliseconds", "INTEGER"),
+    ("HoldNotes", "INTEGER"), ("TapThresholdMs", "INTEGER DEFAULT 0"), ("ImagePath", "TEXT"),
+    ("CachedDurationMs", "INTEGER"), ("CachedNativeBpm", "REAL"), ("AutoChord", "INTEGER"),
+    ("ChordDetectionMilliseconds", "INTEGER"), ("KeyChanges", "TEXT"),
+    ("EnableKeyChangeMarkers", "INTEGER DEFAULT 1"),
+];
+const LEGACY_SONG_SETTINGS_MIGRATION: &str = "legacy-instrument-song-settings-v1";
+const MARKER_LABEL_MIGRATION: &str = "marker-label-offsets-v1";
+const TECHNICAL_SONG_FIELDS: &[&str] = &[
+    "baseKey", "key", "transpose", "speed", "bpm", "disabledTracks", "mergeNotes",
+    "mergeMilliseconds", "holdNotes", "tapThresholdMs", "autoChord",
+    "chordDetectionMilliseconds", "keyChanges", "enableKeyChangeMarkers",
+];
+
 fn merge_json_object(target: &mut Value, patch: &Value) {
     let (Value::Object(target), Value::Object(patch)) = (target, patch) else {
         return;
@@ -22,6 +42,30 @@ fn merge_json_object(target: &mut Value, patch: &Value) {
             }
         }
     }
+}
+
+// Strip only a trailing offset that agrees with KeyOffset. Keep octave digits,
+// custom label text, timing, transpose, and any unknown marker metadata intact.
+fn normalize_marker_labels(json: &str, suffix: &regex::Regex) -> Option<String> {
+    let mut markers: Value = serde_json::from_str(json).ok()?;
+    let mut changed = false;
+    for marker in markers.as_array_mut()? {
+        let Some(offset) = marker.get("KeyOffset").and_then(Value::as_i64) else { continue; };
+        let Some(label) = marker.get_mut("Label") else { continue; };
+        let Some(original) = label.as_str() else { continue; };
+        let mut name = original;
+        while let Some(captures) = suffix.captures(name) {
+            if captures[1].parse::<i64>().ok() != Some(offset) { break; }
+            let text = name[..captures.get(0).unwrap().start()].trim_end();
+            if text.trim().is_empty() { break; }
+            name = text;
+        }
+        if name != original {
+            *label = Value::String(name.to_owned());
+            changed = true;
+        }
+    }
+    changed.then(|| markers.to_string())
 }
 
 pub struct LibraryDatabase {
@@ -67,14 +111,19 @@ impl LibraryDatabase {
     fn needs_migration(conn: &Connection) -> Result<bool, rusqlite::Error> {
         let table_count: i64 = conn.query_row(
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'
-             AND name IN ('Albums', 'Songs', 'Playlists', 'PlaylistSongs', 'Queue', 'AppSettings', 'SongSettings', 'LibraryFileIssues')",
+             AND name IN ('Albums', 'Songs', 'Playlists', 'PlaylistSongs', 'Queue', 'SongSettings', 'LibraryFileIssues', 'LibraryMigrations')",
             [], |row| row.get(0),
         )?;
         if table_count != 8 { return Ok(true); }
         let mut pragma = conn.prepare("PRAGMA table_info(Songs)")?;
         let columns = pragma.query_map([], |row| row.get::<_, String>(1))?
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(["AlbumId", "TapThresholdMs"].iter().any(|required| !columns.iter().any(|column| column.eq_ignore_ascii_case(required))))
+        if SONG_COLUMNS.iter().any(|(required, _)| !columns.iter().any(|column| column.eq_ignore_ascii_case(required))) {
+            return Ok(true);
+        }
+        let marker_labels_applied: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM LibraryMigrations WHERE Id = ?1)",
+            [MARKER_LABEL_MIGRATION], |row| row.get(0))?;
+        Ok(!marker_labels_applied)
     }
 
     pub fn path(&self) -> &Path {
@@ -83,10 +132,18 @@ impl LibraryDatabase {
 
     /// Ensure tables and columns exist while maintaining 100% backward compatibility
     fn init_schema(&self) -> Result<(), rusqlite::Error> {
-        let conn = self.conn.lock().unwrap();
+        let mut connection = self.conn.lock().unwrap();
 
         // Enforce SQLite foreign key cascades
-        let _ = conn.execute("PRAGMA foreign_keys = ON;", []);
+        connection.execute("PRAGMA foreign_keys = ON;", [])?;
+        let transaction = connection.transaction()?;
+        let conn = &transaction;
+        conn.execute_batch("CREATE TABLE IF NOT EXISTS LibraryMigrations (
+            Id TEXT PRIMARY KEY,
+            AppliedAt TEXT NOT NULL
+        );")?;
+        let aliases_applied: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM LibraryMigrations WHERE Id = 'song-column-aliases-v1')",
+            [], |row| row.get(0))?;
 
         // 1. Create Albums table
         conn.execute(
@@ -128,26 +185,35 @@ impl LibraryDatabase {
                 AutoChord INTEGER,
                 ChordDetectionMilliseconds INTEGER,
                 KeyChanges TEXT,
-                DetectChordPads INTEGER,
                 EnableKeyChangeMarkers INTEGER DEFAULT 1,
                 FOREIGN KEY (AlbumId) REFERENCES Albums(Id) ON DELETE SET NULL
             );",
             [],
         )?;
 
-        // 3. Migration: Check if AlbumId column exists on existing Songs table
-        let mut pragma = conn.prepare("PRAGMA table_info(Songs)")?;
-        let columns: Vec<String> = pragma
-            .query_map([], |row| row.get::<_, String>(1))?
-            .filter_map(Result::ok)
-            .collect();
-
-        if !columns.iter().any(|c| c.eq_ignore_ascii_case("AlbumId")) {
-            conn.execute("ALTER TABLE Songs ADD COLUMN AlbumId TEXT REFERENCES Albums(Id) ON DELETE SET NULL;", [])?;
+        // 3. Upgrade in place without replacing IDs, relationships, or song data.
+        let mut columns = {
+            let mut pragma = conn.prepare("PRAGMA table_info(Songs)")?;
+            let rows = pragma.query_map([], |row| row.get::<_, String>(1))?;
+            rows.collect::<Result<Vec<_>, _>>()?
+        };
+        for (old, new) in [("Author", "Artist"), ("DefaultKey", "BaseKey"), ("DetectChordPads", "AutoChord")] {
+            if let Some(index) = columns.iter().position(|c| c.eq_ignore_ascii_case(old)) {
+                if columns.iter().any(|c| c.eq_ignore_ascii_case(new)) {
+                    // A partial older upgrade may contain both; prefer the canonical value.
+                    if !aliases_applied {
+                        conn.execute(&format!("UPDATE Songs SET {new} = COALESCE({new}, {old}) WHERE {old} IS NOT NULL"), [])?;
+                    }
+                } else {
+                    conn.execute(&format!("ALTER TABLE Songs RENAME COLUMN {old} TO {new}"), [])?;
+                    columns[index] = new.into();
+                }
+            }
         }
-
-        if !columns.iter().any(|c| c.eq_ignore_ascii_case("TapThresholdMs")) {
-            conn.execute("ALTER TABLE Songs ADD COLUMN TapThresholdMs INTEGER DEFAULT 0;", [])?;
+        for (name, definition) in SONG_COLUMNS {
+            if !columns.iter().any(|c| c.eq_ignore_ascii_case(name)) {
+                conn.execute(&format!("ALTER TABLE Songs ADD COLUMN {name} {definition}"), [])?;
+            }
         }
 
         // 4. Create Playlists table
@@ -207,17 +273,6 @@ impl LibraryDatabase {
             [],
         )?;
 
-        // 8. Application-wide preferences. A single JSON document keeps this
-        // schema flexible while the renderer's AppSettings type evolves.
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS AppSettings (
-                Key TEXT PRIMARY KEY,
-                Value TEXT NOT NULL,
-                UpdatedAt TEXT NOT NULL
-            );",
-            [],
-        )?;
-
         // Existing Songs columns remain the global defaults for old libraries.
         conn.execute_batch("CREATE TABLE IF NOT EXISTS SongSettings (
             SongId TEXT NOT NULL REFERENCES Songs(Id) ON DELETE CASCADE,
@@ -230,7 +285,107 @@ impl LibraryDatabase {
             Path TEXT PRIMARY KEY,
             Data TEXT NOT NULL
         );")?;
+        conn.execute("INSERT OR IGNORE INTO LibraryMigrations (Id, AppliedAt) VALUES ('song-column-aliases-v1', ?1)",
+            [Utc::now().to_rfc3339()])?;
+        Self::migrate_marker_labels(conn)?;
+        transaction.commit()
+    }
+
+    /// Applies inside the schema transaction, including to profiles copied by
+    /// the previous migration version. Existing per-instrument offsets win.
+    fn migrate_marker_labels(conn: &Connection) -> Result<(), rusqlite::Error> {
+        let applied: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM LibraryMigrations WHERE Id = ?1)",
+            [MARKER_LABEL_MIGRATION], |row| row.get(0))?;
+        if applied { return Ok(()); }
+        let suffix = regex::Regex::new(r"\s*\(([+-]?\d+)\)\s*$").unwrap();
+        let songs = {
+            let mut stmt = conn.prepare("SELECT Id, KeyChanges FROM Songs WHERE KeyChanges IS NOT NULL")?;
+            let rows = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?;
+            rows.collect::<Result<Vec<_>, _>>()?
+        };
+        for (id, json) in songs {
+            if let Some(markers) = normalize_marker_labels(&json, &suffix) {
+                conn.execute("UPDATE Songs SET KeyChanges = ?1 WHERE Id = ?2", params![markers, id])?;
+            }
+        }
+        let profiles = {
+            let mut stmt = conn.prepare("SELECT SongId, GameId, InstrumentId, Settings FROM SongSettings")?;
+            let rows = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?, row.get::<_, String>(3)?)))?;
+            rows.collect::<Result<Vec<_>, _>>()?
+        };
+        for (song, game, instrument, json) in profiles {
+            let Ok(mut settings) = serde_json::from_str::<Value>(&json) else { continue; };
+            let Some(stored) = settings.get_mut("keyChanges") else { continue; };
+            let Some(markers) = stored.as_str().and_then(|json| normalize_marker_labels(json, &suffix)) else { continue; };
+            *stored = Value::String(markers);
+            conn.execute("UPDATE SongSettings SET Settings = ?1 WHERE SongId = ?2 AND GameId = ?3 AND InstrumentId = ?4",
+                params![settings.to_string(), song, game, instrument])?;
+        }
+        conn.execute("INSERT INTO LibraryMigrations (Id, AppliedAt) VALUES (?1, ?2)",
+            params![MARKER_LABEL_MIGRATION, Utc::now().to_rfc3339()])?;
         Ok(())
+    }
+
+    /// Copy legacy technical settings once to every existing instrument. Shared
+    /// metadata stays in Songs, which also remains the explicit global baseline.
+    /// Run only after all game configs have loaded successfully; an empty target
+    /// list leaves the upgrade pending so unavailable configs can be retried.
+    pub fn migrate_legacy_song_settings(
+        &self,
+        contexts: &[SongSettingsContext],
+        on_migration: impl FnOnce(),
+    ) -> Result<usize, rusqlite::Error> {
+        if contexts.is_empty() { return Ok(0); }
+        for context in contexts {
+            SongSettingsScope::Instrument { game_id: context.game_id.clone(), instrument_id: context.instrument_id.clone() }
+                .validate().map_err(rusqlite::Error::InvalidParameterName)?;
+        }
+        let mut conn = self.conn.lock().unwrap();
+        let transaction = conn.transaction()?;
+        let applied: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM LibraryMigrations WHERE Id = ?1)",
+            [LEGACY_SONG_SETTINGS_MIGRATION], |row| row.get(0))?;
+        if applied { return Ok(0); }
+        on_migration();
+        let songs = {
+            let mut stmt = transaction.prepare("SELECT Id, BaseKey, Key, Transpose, Speed, Bpm, DisabledTracks,
+                MergeNotes, MergeMilliseconds, HoldNotes, TapThresholdMs, AutoChord,
+                ChordDetectionMilliseconds, KeyChanges, EnableKeyChangeMarkers FROM Songs")?;
+            let rows = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, serde_json::json!({
+                "baseKey": row.get::<_, Option<i32>>(1)?, "key": row.get::<_, i32>(2)?,
+                "transpose": row.get::<_, Option<i32>>(3)?.unwrap_or(0), "speed": row.get::<_, Option<f64>>(4)?,
+                "bpm": row.get::<_, Option<f64>>(5)?, "disabledTracks": row.get::<_, Option<String>>(6)?,
+                "mergeNotes": row.get::<_, Option<bool>>(7)?, "mergeMilliseconds": row.get::<_, Option<u32>>(8)?,
+                "holdNotes": row.get::<_, Option<bool>>(9)?, "tapThresholdMs": row.get::<_, Option<u32>>(10)?,
+                "autoChord": row.get::<_, Option<bool>>(11)?, "chordDetectionMilliseconds": row.get::<_, Option<u32>>(12)?,
+                "keyChanges": row.get::<_, Option<String>>(13)?, "enableKeyChangeMarkers": row.get::<_, Option<bool>>(14)?,
+            }))))?;
+            rows.collect::<Result<Vec<_>, _>>()?
+        };
+        let mut count = 0;
+        for context in contexts {
+            for (id, legacy) in &songs {
+                let mut settings = legacy.clone();
+                // Preserve newer game/instrument overrides, including explicit nulls.
+                let mut stmt = transaction.prepare("SELECT Settings FROM SongSettings WHERE SongId = ?1
+                    AND GameId = ?2 AND (InstrumentId = '' OR InstrumentId = ?3) ORDER BY (InstrumentId = '') DESC")?;
+                let rows = stmt.query_map(params![id, context.game_id, context.instrument_id], |row| row.get::<_, String>(0))?;
+                for row in rows {
+                    let patch: Value = serde_json::from_str(&row?).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+                    if !patch.is_object() { return Err(rusqlite::Error::InvalidParameterName("SongSettings must contain an object".into())); }
+                    merge_json_object(&mut settings, &patch);
+                }
+                settings.as_object_mut().unwrap().retain(|key, _| TECHNICAL_SONG_FIELDS.contains(&key.as_str()));
+                transaction.execute("INSERT INTO SongSettings (SongId, GameId, InstrumentId, Settings) VALUES (?1, ?2, ?3, ?4)
+                    ON CONFLICT (SongId, GameId, InstrumentId) DO UPDATE SET Settings = excluded.Settings",
+                    params![id, context.game_id, context.instrument_id, settings.to_string()])?;
+                count += 1;
+            }
+        }
+        transaction.execute("INSERT INTO LibraryMigrations (Id, AppliedAt) VALUES (?1, ?2)",
+            params![LEGACY_SONG_SETTINGS_MIGRATION, Utc::now().to_rfc3339()])?;
+        transaction.commit()?;
+        Ok(count)
     }
 
     /// Resolve global defaults, then game settings, then instrument settings.
@@ -266,6 +421,7 @@ impl LibraryDatabase {
             ("holdNotes", settings.hold_notes.map(Value::from)),
             ("tapThresholdMs", settings.tap_threshold_ms.map(Value::from)),
             ("autoChord", settings.auto_chord.map(Value::from)),
+            ("chordDetectionMilliseconds", settings.chord_detection_milliseconds.map(Value::from)),
             ("enableKeyChangeMarkers", settings.enable_key_change_markers.map(Value::from)),
         ] {
             if let Some(value) = value { patch[key] = value; }
@@ -345,54 +501,38 @@ impl LibraryDatabase {
         Ok(())
     }
 
-    // --- Application settings ---
-
-    pub fn get_app_settings(&self) -> Result<Value, rusqlite::Error> {
+    // Read once when moving preferences from older rewrite builds to settings.json.
+    pub fn legacy_app_settings(&self) -> Result<Option<Value>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
-        let stored: Option<String> = conn
-            .query_row(
-                "SELECT Value FROM AppSettings WHERE Key = 'renderer'",
-                [],
-                |row| row.get(0),
-            )
-            .optional()?;
-
-        Ok(stored
-            .and_then(|json| serde_json::from_str::<Value>(&json).ok())
-            .filter(|value| value.is_object())
-            .unwrap_or_else(|| Value::Object(Default::default())))
+        let exists: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'AppSettings')", [], |row| row.get(0))?;
+        if !exists { return Ok(None); }
+        let raw: Option<String> = conn.query_row("SELECT Value FROM AppSettings WHERE Key = 'renderer'", [], |row| row.get(0)).optional()?;
+        raw.map(|raw| {
+            let value: Value = serde_json::from_str(&raw).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+            if !value.is_object() { return Err(rusqlite::Error::InvalidParameterName("Legacy preferences must contain an object".into())); }
+            Ok(value)
+        }).transpose()
     }
 
-    pub fn update_app_settings(&self, patch: &Value) -> Result<(), rusqlite::Error> {
-        let conn = self.conn.lock().unwrap();
-        let stored: Option<String> = conn
-            .query_row(
-                "SELECT Value FROM AppSettings WHERE Key = 'renderer'",
-                [],
-                |row| row.get(0),
-            )
-            .optional()?;
-        let mut settings = stored
-            .and_then(|json| serde_json::from_str::<Value>(&json).ok())
-            .filter(|value| value.is_object())
-            .unwrap_or_else(|| Value::Object(Default::default()));
-        merge_json_object(&mut settings, patch);
-
-        let serialized = serde_json::to_string(&settings)
-            .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?;
-        conn.execute(
-            "INSERT INTO AppSettings (Key, Value, UpdatedAt)
-             VALUES ('renderer', ?1, ?2)
-             ON CONFLICT(Key) DO UPDATE SET Value = excluded.Value, UpdatedAt = excluded.UpdatedAt",
-            params![serialized, Utc::now().to_rfc3339()],
-        )?;
-        Ok(())
+    pub fn remove_legacy_app_settings(&self) -> Result<(), rusqlite::Error> {
+        self.conn.lock().unwrap().execute_batch("DROP TABLE IF EXISTS AppSettings")
     }
 
-    pub fn reset_app_settings(&self) -> Result<(), rusqlite::Error> {
-        let conn = self.conn.lock().unwrap();
-        conn.execute("DELETE FROM AppSettings WHERE Key = 'renderer'", [])?;
-        Ok(())
+    pub fn canonical_song_id(&self, id: &str) -> Result<Option<String>, rusqlite::Error> {
+        self.conn.lock().unwrap().query_row("SELECT Id FROM Songs WHERE lower(Id) = lower(?1)", [id], |row| row.get(0)).optional()
+    }
+
+    /// Preserve an existing rewrite queue. Legacy GUIDs may use different casing.
+    pub fn import_legacy_queue(&self, ids: &str) -> Result<(), rusqlite::Error> {
+        let mut conn = self.conn.lock().unwrap();
+        let transaction = conn.transaction()?;
+        let count: i64 = transaction.query_row("SELECT COUNT(*) FROM Queue", [], |row| row.get(0))?;
+        if count == 0 {
+            for (index, id) in ids.split([',', ';']).map(str::trim).filter(|id| !id.is_empty()).enumerate() {
+                transaction.execute("INSERT OR IGNORE INTO Queue (SongId, SortOrder) SELECT Id, ?2 FROM Songs WHERE lower(Id) = lower(?1)", params![id, index as i64])?;
+            }
+        }
+        transaction.commit()
     }
 
     /// Retrieve all songs from database with active missing-file check
@@ -402,7 +542,7 @@ impl LibraryDatabase {
             "SELECT Id, BaseKey, Key, Path, FileHash, Title, Artist, Album, AlbumId, DateAdded,
                     Transpose, Speed, Bpm, DisabledTracks, MergeNotes, MergeMilliseconds, HoldNotes,
                     ImagePath, CachedDurationMs, CachedNativeBpm, AutoChord, ChordDetectionMilliseconds,
-                    KeyChanges, DetectChordPads, EnableKeyChangeMarkers, TapThresholdMs
+                    KeyChanges, EnableKeyChangeMarkers, TapThresholdMs
              FROM Songs
              ORDER BY DateAdded DESC",
         )?;
@@ -429,15 +569,14 @@ impl LibraryDatabase {
                 merge_notes: row.get::<_, Option<i32>>(14)?.map(|v| v != 0),
                 merge_milliseconds: row.get(15)?,
                 hold_notes: row.get::<_, Option<i32>>(16)?.map(|v| v != 0),
-                tap_threshold_ms: row.get(25)?,
+                tap_threshold_ms: row.get(24)?,
                 image_path: row.get(17)?,
                 cached_duration_ms: row.get(18)?,
                 cached_native_bpm: row.get(19)?,
                 auto_chord: row.get::<_, Option<i32>>(20)?.map(|v| v != 0),
                 chord_detection_milliseconds: row.get(21)?,
                 key_changes: row.get(22)?,
-                detect_chord_pads: row.get::<_, Option<i32>>(23)?.map(|v| v != 0),
-                enable_key_change_markers: row.get::<_, Option<i32>>(24)?.map(|v| v != 0),
+                enable_key_change_markers: row.get::<_, Option<i32>>(23)?.map(|v| v != 0),
                 is_missing,
             })
         })?;
@@ -456,7 +595,7 @@ impl LibraryDatabase {
             "SELECT Id, BaseKey, Key, Path, FileHash, Title, Artist, Album, AlbumId, DateAdded,
                     Transpose, Speed, Bpm, DisabledTracks, MergeNotes, MergeMilliseconds, HoldNotes,
                     ImagePath, CachedDurationMs, CachedNativeBpm, AutoChord, ChordDetectionMilliseconds,
-                    KeyChanges, DetectChordPads, EnableKeyChangeMarkers, TapThresholdMs
+                    KeyChanges, EnableKeyChangeMarkers, TapThresholdMs
              FROM Songs
              WHERE Id = ?1",
         )?;
@@ -483,15 +622,14 @@ impl LibraryDatabase {
                 merge_notes: row.get::<_, Option<i32>>(14)?.map(|v| v != 0),
                 merge_milliseconds: row.get(15)?,
                 hold_notes: row.get::<_, Option<i32>>(16)?.map(|v| v != 0),
-                tap_threshold_ms: row.get(25)?,
+                tap_threshold_ms: row.get(24)?,
                 image_path: row.get(17)?,
                 cached_duration_ms: row.get(18)?,
                 cached_native_bpm: row.get(19)?,
                 auto_chord: row.get::<_, Option<i32>>(20)?.map(|v| v != 0),
                 chord_detection_milliseconds: row.get(21)?,
                 key_changes: row.get(22)?,
-                detect_chord_pads: row.get::<_, Option<i32>>(23)?.map(|v| v != 0),
-                enable_key_change_markers: row.get::<_, Option<i32>>(24)?.map(|v| v != 0),
+                enable_key_change_markers: row.get::<_, Option<i32>>(23)?.map(|v| v != 0),
                 is_missing,
             })
         }).optional()?;
@@ -506,7 +644,7 @@ impl LibraryDatabase {
             "SELECT Id, BaseKey, Key, Path, FileHash, Title, Artist, Album, AlbumId, DateAdded,
                     Transpose, Speed, Bpm, DisabledTracks, MergeNotes, MergeMilliseconds, HoldNotes,
                     ImagePath, CachedDurationMs, CachedNativeBpm, AutoChord, ChordDetectionMilliseconds,
-                    KeyChanges, DetectChordPads, EnableKeyChangeMarkers, TapThresholdMs
+                    KeyChanges, EnableKeyChangeMarkers, TapThresholdMs
              FROM Songs
              WHERE Path = ?1",
         )?;
@@ -533,15 +671,14 @@ impl LibraryDatabase {
                 merge_notes: row.get::<_, Option<i32>>(14)?.map(|v| v != 0),
                 merge_milliseconds: row.get(15)?,
                 hold_notes: row.get::<_, Option<i32>>(16)?.map(|v| v != 0),
-                tap_threshold_ms: row.get(25)?,
+                tap_threshold_ms: row.get(24)?,
                 image_path: row.get(17)?,
                 cached_duration_ms: row.get(18)?,
                 cached_native_bpm: row.get(19)?,
                 auto_chord: row.get::<_, Option<i32>>(20)?.map(|v| v != 0),
                 chord_detection_milliseconds: row.get(21)?,
                 key_changes: row.get(22)?,
-                detect_chord_pads: row.get::<_, Option<i32>>(23)?.map(|v| v != 0),
-                enable_key_change_markers: row.get::<_, Option<i32>>(24)?.map(|v| v != 0),
+                enable_key_change_markers: row.get::<_, Option<i32>>(23)?.map(|v| v != 0),
                 is_missing,
             })
         }).optional()?;
@@ -556,7 +693,7 @@ impl LibraryDatabase {
             "SELECT Id, BaseKey, Key, Path, FileHash, Title, Artist, Album, AlbumId, DateAdded,
                     Transpose, Speed, Bpm, DisabledTracks, MergeNotes, MergeMilliseconds, HoldNotes,
                     ImagePath, CachedDurationMs, CachedNativeBpm, AutoChord, ChordDetectionMilliseconds,
-                    KeyChanges, DetectChordPads, EnableKeyChangeMarkers, TapThresholdMs
+                    KeyChanges, EnableKeyChangeMarkers, TapThresholdMs
              FROM Songs
              WHERE FileHash = ?1",
         )?;
@@ -583,15 +720,14 @@ impl LibraryDatabase {
                 merge_notes: row.get::<_, Option<i32>>(14)?.map(|v| v != 0),
                 merge_milliseconds: row.get(15)?,
                 hold_notes: row.get::<_, Option<i32>>(16)?.map(|v| v != 0),
-                tap_threshold_ms: row.get(25)?,
+                tap_threshold_ms: row.get(24)?,
                 image_path: row.get(17)?,
                 cached_duration_ms: row.get(18)?,
                 cached_native_bpm: row.get(19)?,
                 auto_chord: row.get::<_, Option<i32>>(20)?.map(|v| v != 0),
                 chord_detection_milliseconds: row.get(21)?,
                 key_changes: row.get(22)?,
-                detect_chord_pads: row.get::<_, Option<i32>>(23)?.map(|v| v != 0),
-                enable_key_change_markers: row.get::<_, Option<i32>>(24)?.map(|v| v != 0),
+                enable_key_change_markers: row.get::<_, Option<i32>>(23)?.map(|v| v != 0),
                 is_missing,
             })
         }).optional()?;
@@ -610,13 +746,13 @@ impl LibraryDatabase {
                 Id, BaseKey, Key, Path, FileHash, Title, Artist, Album, AlbumId, DateAdded,
                 Transpose, Speed, Bpm, DisabledTracks, MergeNotes, MergeMilliseconds, HoldNotes,
                 ImagePath, CachedDurationMs, CachedNativeBpm, AutoChord, ChordDetectionMilliseconds,
-                KeyChanges, DetectChordPads, EnableKeyChangeMarkers, TapThresholdMs
+                KeyChanges, EnableKeyChangeMarkers, TapThresholdMs
             ) VALUES (
                 COALESCE((SELECT Id FROM Songs WHERE Path = ?4 LIMIT 1), ?1),
                 ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
                 ?11, ?12, ?13, ?14, ?15, ?16, ?17,
                 ?18, ?19, ?20, ?21, ?22,
-                ?23, ?24, ?25, ?26
+                ?23, ?24, ?25
             )
             ON CONFLICT(Id) DO UPDATE SET
                 Path = excluded.Path,
@@ -651,7 +787,6 @@ impl LibraryDatabase {
                 song.auto_chord.map(|b| if b { 1 } else { 0 }),
                 song.chord_detection_milliseconds,
                 song.key_changes,
-                song.detect_chord_pads.map(|b| if b { 1 } else { 0 }),
                 song.enable_key_change_markers.map(|b| if b { 1 } else { 0 }),
                 song.tap_threshold_ms,
             ],
@@ -681,8 +816,9 @@ impl LibraryDatabase {
                 HoldNotes = COALESCE(?7, HoldNotes),
                 AutoChord = COALESCE(?8, AutoChord),
                 EnableKeyChangeMarkers = COALESCE(?9, EnableKeyChangeMarkers),
-                TapThresholdMs = COALESCE(?10, TapThresholdMs)
-             WHERE Id = ?11",
+                TapThresholdMs = COALESCE(?10, TapThresholdMs),
+                ChordDetectionMilliseconds = COALESCE(?11, ChordDetectionMilliseconds)
+             WHERE Id = ?12",
             params![
                 settings.key,
                 settings.base_key,
@@ -694,6 +830,7 @@ impl LibraryDatabase {
                 settings.auto_chord.map(|b| if b { 1 } else { 0 }),
                 settings.enable_key_change_markers.map(|b| if b { 1 } else { 0 }),
                 settings.tap_threshold_ms,
+                settings.chord_detection_milliseconds,
                 id
             ],
         )?;
@@ -889,7 +1026,7 @@ impl LibraryDatabase {
             "SELECT s.Id, s.BaseKey, s.Key, s.Path, s.FileHash, s.Title, s.Artist, s.Album, s.AlbumId, s.DateAdded,
                     s.Transpose, s.Speed, s.Bpm, s.DisabledTracks, s.MergeNotes, s.MergeMilliseconds, s.HoldNotes,
                     s.ImagePath, s.CachedDurationMs, s.CachedNativeBpm, s.AutoChord, s.ChordDetectionMilliseconds,
-                    s.KeyChanges, s.DetectChordPads, s.EnableKeyChangeMarkers, s.TapThresholdMs
+                    s.KeyChanges, s.EnableKeyChangeMarkers, s.TapThresholdMs
              FROM Songs s
              INNER JOIN PlaylistSongs ps ON s.Id = ps.SongId
              WHERE ps.PlaylistId = ?1
@@ -918,15 +1055,14 @@ impl LibraryDatabase {
                 merge_notes: row.get::<_, Option<i32>>(14)?.map(|v| v != 0),
                 merge_milliseconds: row.get(15)?,
                 hold_notes: row.get::<_, Option<i32>>(16)?.map(|v| v != 0),
-                tap_threshold_ms: row.get(25)?,
+                tap_threshold_ms: row.get(24)?,
                 image_path: row.get(17)?,
                 cached_duration_ms: row.get(18)?,
                 cached_native_bpm: row.get(19)?,
                 auto_chord: row.get::<_, Option<i32>>(20)?.map(|v| v != 0),
                 chord_detection_milliseconds: row.get(21)?,
                 key_changes: row.get(22)?,
-                detect_chord_pads: row.get::<_, Option<i32>>(23)?.map(|v| v != 0),
-                enable_key_change_markers: row.get::<_, Option<i32>>(24)?.map(|v| v != 0),
+                enable_key_change_markers: row.get::<_, Option<i32>>(23)?.map(|v| v != 0),
                 is_missing,
             })
         })?;
@@ -946,7 +1082,7 @@ impl LibraryDatabase {
             "SELECT s.Id, s.BaseKey, s.Key, s.Path, s.FileHash, s.Title, s.Artist, s.Album, s.AlbumId, s.DateAdded,
                     s.Transpose, s.Speed, s.Bpm, s.DisabledTracks, s.MergeNotes, s.MergeMilliseconds, s.HoldNotes,
                     s.ImagePath, s.CachedDurationMs, s.CachedNativeBpm, s.AutoChord, s.ChordDetectionMilliseconds,
-                    s.KeyChanges, s.DetectChordPads, s.EnableKeyChangeMarkers, s.TapThresholdMs
+                    s.KeyChanges, s.EnableKeyChangeMarkers, s.TapThresholdMs
              FROM Songs s
              INNER JOIN Queue q ON s.Id = q.SongId
              ORDER BY q.SortOrder ASC",
@@ -974,15 +1110,14 @@ impl LibraryDatabase {
                 merge_notes: row.get::<_, Option<i32>>(14)?.map(|v| v != 0),
                 merge_milliseconds: row.get(15)?,
                 hold_notes: row.get::<_, Option<i32>>(16)?.map(|v| v != 0),
-                tap_threshold_ms: row.get(25)?,
+                tap_threshold_ms: row.get(24)?,
                 image_path: row.get(17)?,
                 cached_duration_ms: row.get(18)?,
                 cached_native_bpm: row.get(19)?,
                 auto_chord: row.get::<_, Option<i32>>(20)?.map(|v| v != 0),
                 chord_detection_milliseconds: row.get(21)?,
                 key_changes: row.get(22)?,
-                detect_chord_pads: row.get::<_, Option<i32>>(23)?.map(|v| v != 0),
-                enable_key_change_markers: row.get::<_, Option<i32>>(24)?.map(|v| v != 0),
+                enable_key_change_markers: row.get::<_, Option<i32>>(23)?.map(|v| v != 0),
                 is_missing,
             })
         })?;
