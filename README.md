@@ -60,10 +60,10 @@ See the [Support wiki page][wiki-support] for details on supported games, instru
 * Sustain pedal support
 * Play using your own MIDI Input Device
 
-<img width="1561" height="984" alt="image" src="https://github.com/user-attachments/assets/aebd26f5-9317-4f00-ae0c-8fec71fdde01" />
+<img width="1361" height="871" alt="image" src="https://github.com/user-attachments/assets/964af576-4d43-40dd-a88d-075b79b2ab0d" />
 
-### Discovery (Online MIDI)
-Browse, search, and download thousands of MIDI files directly inside the app without opening a browser.
+### Discovery (Online MIDI) [Rewrite: Work in Progress]
+Browse, search, and download MIDI files directly inside the app without opening a browser.
 * **Online Repositories** - Browse MIDI tracks from various online repositories.
 * **In-App Synthesizer Preview** - Listen to song previews before downloading or adding to your library
 * **Detailed Track Breakdown** - Inspect tracks, channels, instruments, note counts, BPM, ratings, and download counts
@@ -75,7 +75,7 @@ Browse, search, and download thousands of MIDI files directly inside the app wit
 * Play multiple tracks of a MIDI file simultaneously
 * Turn on/off tracks in realtime
 
-<img width="1561" height="984" alt="image" src="https://github.com/user-attachments/assets/758c6bc3-4aac-41ce-9d2a-0a3ee57abc59" />
+<img width="1361" height="871" alt="image" src="https://github.com/user-attachments/assets/e1acce9b-6000-4704-bb21-0d1bb89edc2f" />
 
 ### Studio View
 A piano roll interface to inspect notes, scrub through songs, and set mid-song key changes.
@@ -84,7 +84,7 @@ A piano roll interface to inspect notes, scrub through songs, and set mid-song k
 * Timeline scrubber with zoom controls and playhead tracking
 * Quick drawer to toggle tracks and tweak song settings
 
-<img width="1561" height="984" alt="image" src="https://github.com/user-attachments/assets/ec1a8fa1-e76a-4e79-b7a8-b65e8ed3ab99" />
+<img width="1361" height="871" alt="image" src="https://github.com/user-attachments/assets/ff4cf315-d15f-411e-9c75-ce4d6e3f948f" />
 
 ### Piano Sheet
 The Piano Sheet allows you to easily share songs to other people, or for yourself to try. You can change the delimiter as well as the split size, and spacing. This will use the current keyboard layout that you have chosen.
@@ -94,7 +94,7 @@ The Piano Sheet allows you to easily share songs to other people, or for yoursel
 ### Queue
 A queue allows you to play songs without having to open or delete a song or file.
 
-<img width="1561" height="984" alt="image" src="https://github.com/user-attachments/assets/0f6b3afa-834f-41f1-8a3f-d23a9c14d58e" />
+<img width="1361" height="871" alt="image" src="https://github.com/user-attachments/assets/acfe2b3e-5a07-46f6-9fc4-eb435f9355b5" />
 
 ### Theming
 You can set the player to light mode/dark mode and change its accent color.
