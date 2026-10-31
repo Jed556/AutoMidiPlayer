@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use amp_core::{
-    build_scale_pitch_classes, parse_key_stroke, process_note_pitch, InstrumentConfigJson,
+    parse_key_stroke, process_note_pitch, InstrumentConfigJson,
     KeyboardLayout, KeyboardLayoutJson, KeyStroke, NoteKeyMapping, TransposeMode,
 };
 use enigo::Key;
@@ -74,14 +74,13 @@ fn piano88() -> NoteKeyMapping {
 
 #[test]
 fn every_configured_roblox_pitch_has_a_distinct_binding_without_transposition() {
-    let scale = build_scale_pitch_classes(0, 0);
     for (mapping, low, high) in [(piano61(), 36, 96), (piano88(), 21, 108)] {
         assert_eq!(mapping.pitch_range(), (low, high));
         let mut bindings = HashSet::new();
         for note in low..=high {
             // Even accidentals and extended-range notes stay unchanged when
             // Smart is off. Pitch adaptation cannot repair a broken key binding.
-            let output = process_note_pitch(note, 0, TransposeMode::Ignore, &scale,
+            let output = process_note_pitch(note, 0, TransposeMode::Ignore,
                 low, high, mapping.playable_notes()).unwrap();
             assert_eq!(output, note);
             assert!(bindings.insert(mapping.get_stroke(output).unwrap()), "duplicate binding for {note}");
@@ -133,7 +132,6 @@ fn pigstep_regression_preserves_playable_pitches_with_smart_off() {
     if !path.is_file() { return; } // Local reproduction; exhaustive coverage above runs everywhere.
     let song = amp_core::parse_midi_file(path).unwrap();
     let mapping = piano88();
-    let scale = build_scale_pitch_classes(0, 0);
     let mut total = 0;
     let mut shifted = 0;
     let mut controlled = 0;
@@ -141,7 +139,7 @@ fn pigstep_regression_preserves_playable_pitches_with_smart_off() {
     let mut pitches = HashSet::new();
     for event in song.events.iter().filter(|e| e.is_note_on && e.velocity > 0) {
         total += 1;
-        let output = process_note_pitch(event.note, 0, TransposeMode::Ignore, &scale,
+        let output = process_note_pitch(event.note, 0, TransposeMode::Ignore,
             21, 108, mapping.playable_notes());
         if !(21..=108).contains(&event.note) {
             outside += 1;

@@ -30,13 +30,13 @@ pub enum TransposeMode {
     Up,
     /// Fold notes by octaves downwards into range
     Down,
-    /// Smart mode: fit notes to detected musical scale and fold by octaves
+    /// Smart mode: fit notes to the instrument's scale and fold by octaves
     Smart,
 }
 
 impl Default for TransposeMode {
     fn default() -> Self {
-        Self::Smart
+        crate::settings::defaults::value("/defaultTranspose")
     }
 }
 
@@ -49,23 +49,23 @@ impl std::str::FromStr for TransposeMode {
             "up" => Ok(Self::Up),
             "down" => Ok(Self::Down),
             "smart" => Ok(Self::Smart),
-            _ => Ok(Self::Smart),
+            _ => Ok(Self::default()),
         }
     }
 }
 
 /// Detects the best matching musical scale (tonic + mode index) from note events using pitch-class histogram.
 pub fn detect_best_scale(notes: &[TimedNoteEvent], center_note: u8) -> (u8, usize) {
-    if notes.is_empty() {
-        return (0, 0); // C Major default
-    }
+    detect_scale_from_pitches(notes.iter().map(|note| note.note), center_note)
+}
 
+fn detect_scale_from_pitches(notes: impl Iterator<Item = u8>, center_note: u8) -> (u8, usize) {
     let mut histogram = [0.0f64; 12];
     let center = center_note as f64;
 
     for note in notes {
-        let pc = (note.note % 12) as usize;
-        let weight = 1.0 / (1.0 + (note.note as f64 - center).abs());
+        let pc = (note % 12) as usize;
+        let weight = 1.0 / (1.0 + (note as f64 - center).abs());
         histogram[pc] += weight;
     }
 
@@ -127,11 +127,13 @@ pub fn process_note_pitch(
     raw_pitch: u8,
     semitone_offset: i8,
     mode: TransposeMode,
-    scale_pitch_classes: &HashSet<u8>,
     min_playable: u8,
     max_playable: u8,
     playable_notes: &[u8],
 ) -> Option<u8> {
+    if playable_notes.is_empty() {
+        return None;
+    }
     let shifted = (raw_pitch as i32) + (semitone_offset as i32);
     let min_p = min_playable as i32;
     let max_p = max_playable as i32;
@@ -169,8 +171,10 @@ pub fn process_note_pitch(
                 return Some(folded);
             }
 
-            // If it's an accidental (e.g. black key in a 21-key diatonic layout),
-            // find the best in-scale playable candidate minimizing semitone and octave distance
+            // Match legacy Smart: infer the instrument's scale around this folded
+            // pitch, independently of the song's key and untransposed notes.
+            let (tonic, mode_index) = detect_scale_from_pitches(playable_notes.iter().copied(), folded);
+            let scale_pitch_classes = build_scale_pitch_classes(tonic, mode_index);
             let candidates: Vec<u8> = playable_notes
                 .iter()
                 .copied()
@@ -191,7 +195,8 @@ pub fn process_note_pitch(
                 let octave_dist = ((candidate / 12) as f64 - (folded / 12) as f64).abs();
                 let score = target_dist + (octave_dist * 0.15);
 
-                if score < best_score {
+                if score < best_score || ((score - best_score).abs() < 0.000001
+                    && target_dist < (best as f64 - folded as f64).abs()) {
                     best_score = score;
                     best = candidate;
                 }

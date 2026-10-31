@@ -60,8 +60,6 @@
     markersEnabled: playbackStore.enableKeyChangeMarkers,
     markers: playbackStore.activeSong?.keyMarkers ?? [],
     playableNotes: gameStore.activeInstrument?.notes ?? [],
-    notes: playbackStore.activeSong?.notes?.length ? playbackStore.activeSong.notes
-      : playbackStore.activeSong?.tracks.flatMap(track => track.notes ?? []) ?? [],
   }));
   const renderTracks = $derived(indexSongTracks(playbackStore.activeSong, themeStore.accentColor, displayPitch,
     getDisplayTiming(uiStore.studio.displayMode, {

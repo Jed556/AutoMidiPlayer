@@ -6,7 +6,7 @@
   "identifier": "com.jed556.automidiplayer",
   "build": {
     "frontendDist": "../dist/renderer",
-    "devUrl": "http://localhost:5173",
+    "devUrl": "http://localhost:15473",
     "beforeDevCommand": "pnpm dev:frontend",
     "beforeBuildCommand": "pnpm release:docs && pnpm build:frontend"
   },

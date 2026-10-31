@@ -1,3 +1,4 @@
+import * as sharedDefaults from '../src/shared/defaults/settings.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -50,6 +51,7 @@ async function createPlayer({ writeQueue, readQueue, writeSongSettings, readSong
     } }),
   };
   const mocks = {
+    '../../../shared/defaults/settings.js': sharedDefaults,
     '../backend/preferences.js': { loadUiPreferences: async () => preferences,
       saveUiPreferences: value => preferenceWrites.push(structuredClone(value)), flushUiPreferences: async () => {} },
     '../utils/sessionPreferences.js': sessionPreferences,
@@ -74,6 +76,22 @@ async function createPlayer({ writeQueue, readQueue, writeSongSettings, readSong
   return { player, songs, writes, playbackCalls, libraryStore, songSettingsWrites, gameStore, settingsStore, preferenceWrites };
 }
 const ids = songs => songs.map(s => s.id);
+
+test('chord toggle and tolerance restore and save for the loaded instrument', async () => {
+  const { player, songs, songSettingsWrites } = await createPlayer();
+  Object.assign(songs[0], { autoChord: true, chordDetectionMilliseconds: 85 });
+  player.loadSong(songs[0]);
+  assert.equal(player.autoChord, true);
+  assert.equal(player.chordDetectionMilliseconds, 85);
+  player.setAutoChord(false);
+  player.setChordDetectionMilliseconds(55);
+  await player.flushSongSettings();
+  assert.equal(songSettingsWrites[0][1].autoChord, false);
+  assert.equal(songSettingsWrites[0][1].chordDetectionMilliseconds, 55);
+  assert.deepEqual(songSettingsWrites[0][2], { kind: 'instrument', gameId: 'game-a', instrumentId: 'lyre' });
+  player.loadSong(songs[1]);
+  assert.equal(player.chordDetectionMilliseconds, 30, 'A new song must not inherit the previous song tolerance');
+});
 
 test('startup restores song, playhead, shuffle order and audio choices without starting playback', async () => {
   const { player, playbackCalls, libraryStore } = await createPlayer({
@@ -229,6 +247,69 @@ test('Smart uses the saved base as zero regardless of scale-correction threshold
   player.transposeMode = 'Smart';
   player.baseKeyOffset = 0;
   assert.equal(player.keyOffsetBase, 0);
+});
+
+test('editing a loaded marker replaces its stale legacy label when saving the new offset', async () => {
+  const { player, songs, songSettingsWrites } = await createPlayer();
+  songs[0].keyMarkers = [{ id: 'legacy', timeMs: 1000, time: 1, keyOffset: -26,
+    key: 'A♯0', noteDisplay: 'A♯0', offsetDisplay: '-26', label: 'A♯0 (-26)', transpose: 2 }];
+  player.loadSong(songs[0]);
+  player.updateKeyMarker('legacy', 5);
+  await player.flushSongSettings();
+  const [marker] = JSON.parse(songSettingsWrites[0][1].keyChanges);
+  assert.equal(marker.Label, 'F');
+  assert.equal(marker.KeyOffset, 5);
+  assert.equal(marker.TimeMs, 1000);
+  assert.equal(marker.Transpose, 2);
+});
+
+test('saving old in-memory markers stores text labels and keeps their numeric offsets', async () => {
+  const { player, songs, songSettingsWrites } = await createPlayer();
+  songs[0].keyMarkers = [{ id: 'legacy', timeMs: 183013, keyOffset: -26,
+    key: 'A♯0 (-26)', noteDisplay: 'A♯0 (-26)', offsetDisplay: '-26', label: 'A♯0 (-26)', transpose: 2 }];
+  player.loadSong(songs[0]);
+  await player.setPlaybackSpeed(1.25);
+  await player.flushSongSettings();
+  assert.deepEqual(JSON.parse(songSettingsWrites[0][1].keyChanges), [
+    { TimeMs: 183013, KeyOffset: -26, Transpose: 2, Label: 'A♯0' },
+  ]);
+});
+
+test('loading leaves markers empty until an explicit Studio scan, then saves them for reopening', async () => {
+  const detected = [
+    { timeMs: 0, keyOffset: -2, label: 'D maj', transpose: null },
+    { timeMs: 2500, keyOffset: -4, label: 'E maj', transpose: 1 },
+  ];
+  const { player, songs, playbackCalls, songSettingsWrites } = await createPlayer({
+    native: true, readMidi: async () => parsedMidi(songs[0]),
+    playback: { detectKeySignatures: async () => detected },
+  });
+  player.loadSong(songs[0]);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(player.activeSong.keyMarkers, []);
+  assert.equal(playbackCalls.some(([method]) => method === 'detectKeySignatures'), false);
+  assert.deepEqual(playbackCalls.find(([method]) => method === 'setKeyMarkers'), ['setKeyMarkers', []]);
+  assert.equal(songSettingsWrites.length, 0);
+
+  await player.autoDetectKeyChanges();
+  assert.deepEqual(playbackCalls.filter(([method]) => method === 'detectKeySignatures'),
+    [['detectKeySignatures', songs[0].filePath]]);
+  const markers = JSON.parse(JSON.stringify(player.activeSong.keyMarkers));
+  assert.deepEqual(markers.map(({ timeMs, keyOffset, noteDisplay, transpose }) =>
+    ({ timeMs, keyOffset, label: noteDisplay, transpose })), detected);
+  assert.deepEqual(playbackCalls.filter(([method]) => method === 'setKeyMarkers').at(-1),
+    ['setKeyMarkers', markers]);
+  await player.flushPendingSongSettings();
+  assert.equal(songSettingsWrites.length, 1);
+  assert.equal(songSettingsWrites[0][0], songs[0].id);
+  assert.deepEqual(JSON.parse(songSettingsWrites[0][1].keyChanges), detected.map(marker => ({
+    TimeMs: marker.timeMs, KeyOffset: marker.keyOffset, Transpose: marker.transpose, Label: marker.label,
+  })));
+
+  player.loadSong(songs[1]);
+  player.loadSong(songs[0]);
+  assert.deepEqual(player.activeSong.keyMarkers, markers);
+  assert.equal(playbackCalls.filter(([method]) => method === 'detectKeySignatures').length, 1);
 });
 
 test('the key indicator follows the latest enabled marker across seeks and song changes', async () => {

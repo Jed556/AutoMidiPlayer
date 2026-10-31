@@ -15,13 +15,14 @@
     "url": "https://github.com/Jed556/AutoMidiPlayer/issues"
   },
   "type": "module",
-  "packageManager": "pnpm@12.14.0",
+  "packageManager": "pnpm@12.16.1",
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",
     "dev:frontend": "vite",
     "build:frontend": "vite build",
     "tauri": "tauri",
+    "release:version": "node scripts/release.mjs next-version",
     "release:notes": "node scripts/release.mjs preview",
     "release:validate": "node scripts/release.mjs validate",
     "release:docs": "node scripts/stage-release-docs.mjs",
@@ -37,10 +38,10 @@
   "devDependencies": {
     "@fluentui/svg-icons": "^1.1.344",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
-    "@tauri-apps/cli": "^2.1.1",
+    "@tauri-apps/cli": "^2.12.4",
     "@types/node": "^26.6.5",
-    "svelte": "^5.57.2",
+    "svelte": "^5.57.3",
     "typescript": "^7.0.2",
-    "vite": "^8.3.4"
+    "vite": "^8.3.5"
   }
 }

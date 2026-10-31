@@ -7,7 +7,7 @@ use spin_sleep::SpinSleeper;
 
 use crate::midi::{
     ParsedMidi, TransposeMode, ControlEventKind,
-    detect_best_scale, build_scale_pitch_classes, process_note_pitch,
+    process_note_pitch,
     detect::KeyChangeMarker,
 };
 use crate::input::{NoteKeyMapping, KeySimulator};
@@ -387,20 +387,20 @@ fn run_playback_loop(
 
     let mut durations = initial_song.as_ref().map(|song| note_durations(&song.events)).unwrap_or_default();
     let mut current_song = initial_song;
-    let mut hold_notes = false;
-    let mut tap_threshold_ms = 0;
-    let mut tap_duration_ms = 20;
+    let mut hold_notes = crate::settings::defaults::value("/defaultHoldNotes");
+    let mut tap_threshold_ms = crate::settings::defaults::value("/defaultTapThresholdMs");
+    let mut tap_duration_ms = crate::settings::defaults::value("/keyPressDelayMs");
     let mut overlap_behavior = OverlapBehavior::default();
     let mut key_releases = KeyReleases::default();
     let mut event_idx = 0usize;
     let mut restore_notes = false;
     let mut control_idx = 0usize;
     let mut pedals = PedalTracker::default();
-    let mut pedals_enabled = true;
+    let mut pedals_enabled = crate::settings::defaults::value("/ui/pedalsEnabled");
     let mut current_us = 0u64;
-    let mut speed = 1.0f64;
-    let mut key_offset = 0i8;
-    let mut transpose_mode = TransposeMode::Smart;
+    let mut speed = crate::settings::defaults::value::<f64>("/defaultSpeed");
+    let mut key_offset = crate::settings::defaults::value::<i8>("/defaultKeyOffset");
+    let mut transpose_mode = TransposeMode::default();
     let mut sync_interval_us = 16_666u64; // Default: ~60 FPS
     let mut muted_tracks = HashSet::<usize>::new();
     let mut track_volumes = HashMap::<usize, f32>::new();
@@ -408,7 +408,7 @@ fn run_playback_loop(
     let mut active_track_notes = HashSet::<ActiveTrackNote>::new();
     let mut live_notes = HashMap::<usize, LiveNote>::new();
     let mut key_markers = Vec::<KeyChangeMarker>::new();
-    let mut key_markers_enabled = true;
+    let mut key_markers_enabled = crate::settings::defaults::value("/defaultEnableKeyChangeMarkers");
     let mut active_held_notes = HashMap::<(usize, u8, u8), VecDeque<(Option<u8>, Option<Key>, usize)>>::new();
     let mut status = PlaybackStatus::Stopped;
     let mut last_instant = Instant::now();
@@ -416,21 +416,13 @@ fn run_playback_loop(
     let mut seek_id = 0u64;
 
     // Phase 4 audio states
-    let mut listen_mode = false;
-    let mut synth_mode = SynthMode::Adapted;
+    let mut listen_mode = crate::settings::defaults::value("/ui/playback/isListenMode");
+    let mut synth_mode = SynthMode::default();
 
     let mut mapping = mapping;
     let mut all_keys = mapping.all_keys();
     let (mut min_pitch, mut max_pitch) = mapping.pitch_range();
     let mut playable_notes = mapping.playable_notes().to_vec();
-
-    // Scale pitch classes for smart transposition
-    let mut scale_pcs = if let Some(ref s) = current_song {
-        let (tonic, mode_idx) = detect_best_scale(&s.events, 60);
-        build_scale_pitch_classes(tonic, mode_idx)
-    } else {
-        build_scale_pitch_classes(0, 0)
-    };
 
     let update_status = |new_status: PlaybackStatus, status_arc: &Arc<Mutex<PlaybackStatus>>| {
         *status_arc.lock().unwrap() = new_status;
@@ -586,8 +578,6 @@ fn run_playback_loop(
                     }
                 }
                 Command::LoadSong(new_song) => {
-                    let (tonic, mode_idx) = detect_best_scale(&new_song.events, 60);
-                    scale_pcs = build_scale_pitch_classes(tonic, mode_idx);
                     durations = note_durations(&new_song.events);
                     current_song = Some(new_song);
                     current_us = 0;
@@ -908,7 +898,6 @@ fn run_playback_loop(
                         ev.note,
                         active_key_offset,
                         active_transpose_mode,
-                        &scale_pcs,
                         min_pitch,
                         max_pitch,
                         &playable_notes,
@@ -971,7 +960,6 @@ fn run_playback_loop(
                                 ev.note,
                                 active_key_offset,
                                 active_transpose_mode,
-                                &scale_pcs,
                                 min_pitch,
                                 max_pitch,
                                 &playable_notes,

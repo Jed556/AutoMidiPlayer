@@ -21,6 +21,18 @@ export function formatSignedOffset(offset: number): string {
   return `${offset}`;
 }
 
+/** Legacy labels already include the offset that marker badges render separately. */
+export function getMarkerNoteDisplay(offset: number, label?: string): string {
+  let note = label?.trim() || getKeyNoteName(offset);
+  let suffix: RegExpMatchArray | null;
+  while ((suffix = note.match(/\s*\(([+-]?\d+)\)\s*$/)) && Number(suffix[1]) === offset) {
+    const name = note.slice(0, suffix.index).trimEnd();
+    if (!name) break;
+    note = name;
+  }
+  return note;
+}
+
 export function formatKeyDisplay(offset: number, noteName?: string): string {
   const note = noteName ?? getKeyNoteName(offset);
   const signed = formatSignedOffset(offset);

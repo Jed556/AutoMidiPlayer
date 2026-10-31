@@ -1,3 +1,4 @@
+import { DEFAULT_APP_SETTINGS } from '../../../shared/defaults/settings.js';
 import type { GitRelease, GitAsset, UpdateCheckResult, PreparedUpdate, UpdateProgress } from '$shared/types/update';
 import { compareVersions, parseChangelog } from '../utils/versionUtils';
 import { notificationCenter } from '../ui/notificationCenter.svelte';
@@ -231,12 +232,18 @@ class UpdateStore {
       }
     }
 
-    const frequency = options?.updateCheckFrequency || '10min';
+    const frequency = options?.updateCheckFrequency || DEFAULT_APP_SETTINGS.updateCheckFrequency;
+    if (frequency === 'launch') {
+      if (checkImmediately) void this.checkForUpdates(false);
+      return;
+    }
     let intervalMs = 10 * 60 * 1000; // 10 minutes default
     if (frequency === 'hourly') {
       intervalMs = 60 * 60 * 1000;
     } else if (frequency === 'daily') {
       intervalMs = 24 * 60 * 60 * 1000;
+    } else if (frequency === 'weekly') {
+      intervalMs = 7 * 24 * 60 * 60 * 1000;
     }
 
     // Schedule background recurring timer
