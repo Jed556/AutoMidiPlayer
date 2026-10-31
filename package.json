@@ -38,10 +38,10 @@
   "devDependencies": {
     "@fluentui/svg-icons": "^1.1.344",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
-    "@tauri-apps/cli": "^2.1.1",
+    "@tauri-apps/cli": "^2.12.4",
     "@types/node": "^26.6.5",
-    "svelte": "^5.57.2",
+    "svelte": "^5.57.3",
     "typescript": "^7.0.2",
-    "vite": "^8.3.4"
+    "vite": "^8.3.5"
   }
 }
