@@ -1,4 +1,4 @@
-name: Release rewrite
+name: Release
 
 on:
   push:
@@ -30,11 +30,11 @@ jobs:
   notices:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         if: github.event_name == 'workflow_dispatch'
       - run: pnpm install --frozen-lockfile
         if: github.event_name == 'workflow_dispatch'
@@ -47,10 +47,10 @@ jobs:
       - name: Generate current dependency notices
         if: github.event_name == 'workflow_dispatch'
         run: |
-          cargo install cargo-about --version 0.9.3 --locked
+          cargo install cargo-about --version 0.9.3 --locked --features cli
           node scripts/generate-licenses.mjs
       - run: node --test tests/licenses.test.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dependency-notices
           path: THIRD-PARTY-LICENSES.md
@@ -67,10 +67,10 @@ jobs:
       tag: ${{ steps.release.outputs.tag }}
       sha: ${{ steps.release.outputs.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       - name: Check release signing configuration
@@ -98,12 +98,14 @@ jobs:
       - uses: orhun/git-cliff-action@v4
         with:
           version: v2.14.2
-          args: --offline --unreleased --tag v8.0.0 --output dist/git-cliff-bootstrap.md
+          args: --offline --unreleased --tag v8.0.0
+        env:
+          OUTPUT: dist/git-cliff-bootstrap.md
       - name: Verify release tooling
         env:
           GIT_CLIFF_BIN: ${{ runner.temp }}/git-cliff/bin/git-cliff
         run: node --test tests/release.test.mjs
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: dependency-notices
           path: dist/license-input
@@ -129,7 +131,7 @@ jobs:
             echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
             echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: github.event_name == 'workflow_dispatch'
         with:
           name: release-input
@@ -168,18 +170,18 @@ jobs:
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       AMP_RELEASE_BUILD: 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.sha }}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         if: github.event_name == 'workflow_dispatch'
         with:
           name: release-input
           path: .
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -241,7 +243,7 @@ jobs:
           TARGET: ${{ matrix.target }}
         shell: bash
         run: node scripts/package-release.mjs stage "$VERSION" "$TARGET"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: packages-${{ matrix.target }}
           path: dist/release-assets/
@@ -254,18 +256,18 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.sha }}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         if: github.event_name == 'workflow_dispatch'
         with:
           name: release-input
           path: .
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: packages-*
           path: dist/downloaded
@@ -274,7 +276,7 @@ jobs:
           VERSION: ${{ needs.prepare.outputs.version }}
           AMP_UPDATER_PUBLIC_KEY: ${{ vars.AMP_UPDATER_PUBLIC_KEY }}
         run: node scripts/package-release.mjs collect "$VERSION"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: complete-release
           path: dist/release-assets/
