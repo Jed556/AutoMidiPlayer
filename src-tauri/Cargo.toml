@@ -36,7 +36,7 @@ sentry = "0.49.3"
 reqwest = { version = "0.13.5", default-features = false, features = ["native-tls"] }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_System_Threading", "Win32_System_LibraryLoader"] }
+windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_System_Threading", "Win32_System_LibraryLoader"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 x11rb = "0.13"
