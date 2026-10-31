@@ -32,8 +32,8 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.1.1",
-    "@tauri-apps/plugin-dialog": "^2.0.0",
-    "@tauri-apps/plugin-shell": "^2.0.0"
+    "@tauri-apps/plugin-dialog": "^2.8.4",
+    "@tauri-apps/plugin-shell": "^2.6.0"
   },
   "devDependencies": {
     "@fluentui/svg-icons": "^1.1.344",
