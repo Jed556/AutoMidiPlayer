@@ -1,3 +1,4 @@
+import { DEFAULT_UI_PREFERENCES } from '../../../shared/defaults/settings.js';
 import { loadUiPreferences, saveUiPreferences } from '../backend/preferences.js';
 import { notificationCenter, type ToastPositionOffset } from '../ui/notificationCenter.svelte';
 import { logger } from '../infrastructure/logger.js';
@@ -36,8 +37,8 @@ class UiStore {
   // Navigation & Tabs
   static readonly MAIN_TABS = ['tracks', 'studio', 'sheet', 'instrument', 'queue', 'songs', 'discover', 'settings'] as const;
 
-  private _activeTab = $state<string>('songs');
-  tabHistory = $state<string[]>(['songs']);
+  private _activeTab = $state<string>(DEFAULT_UI_PREFERENCES.lastViewedPage);
+  tabHistory = $state<string[]>([DEFAULT_UI_PREFERENCES.lastViewedPage]);
   tabHistoryIndex = $state<number>(0);
   private _isNavigatingHistory = false;
   preSettingsDrawerWidth: number | null = null;
@@ -67,9 +68,9 @@ class UiStore {
   isBottomPickerActive = $state<boolean>(false);
 
   // Studio Sidebar Collapse State
-  studioSidebarCollapsed = $state<boolean>(false);
+  studioSidebarCollapsed = $state<boolean>(DEFAULT_UI_PREFERENCES.studioSidebarCollapsed);
   studio = $state(normalizeStudio());
-  songsSortMode = $state<NonNullable<UiPreferences['songsSortMode']>>('title');
+  songsSortMode = $state<NonNullable<UiPreferences['songsSortMode']>>(DEFAULT_UI_PREFERENCES.songsSortMode);
   private lastPreferencesSnapshot = '';
 
   persistPreferences(selectedPlaylistId: string) {
@@ -168,7 +169,7 @@ class UiStore {
   }
 
   set activeTab(val: string) {
-    const normalized = (val || 'songs').toLowerCase();
+    const normalized = (val || DEFAULT_UI_PREFERENCES.lastViewedPage).toLowerCase();
     if (this._activeTab === normalized) return;
     const prevTab = this._activeTab;
     this.handleTabTransition(prevTab, normalized);
@@ -212,8 +213,8 @@ class UiStore {
   }
 
   // Library Sidebar Layout (Compressed: 80px, 2-Column: 260px, 3-Column: 340px)
-  libraryWidth = $state<number>(80);
-  lastExpandedWidth = $state<number>(340);
+  libraryWidth = $state<number>(DEFAULT_UI_PREFERENCES.libraryWidth);
+  lastExpandedWidth = $state<number>(DEFAULT_UI_PREFERENCES.libraryExpandedWidth);
   libraryMode = $derived<'compressed' | 'two-column' | 'three-column'>(
     this.libraryWidth <= 85
       ? 'compressed'
@@ -332,11 +333,11 @@ class UiStore {
     try {
       const preferences = await loadUiPreferences();
       this.studio = normalizeStudio(preferences.studio ?? {});
-      this.studioSidebarCollapsed = preferences.studioSidebarCollapsed === true;
+      this.studioSidebarCollapsed = typeof preferences.studioSidebarCollapsed === 'boolean' ? preferences.studioSidebarCollapsed : DEFAULT_UI_PREFERENCES.studioSidebarCollapsed;
       this.songsSortMode = ['title', 'artist', 'dateAdded', 'duration'].includes(preferences.songsSortMode ?? '')
-        ? preferences.songsSortMode! : 'title';
-      this.setLibraryWidth(boundedNumber(preferences.libraryWidth, 80, 80, 385), false);
-      this.lastExpandedWidth = boundedNumber(preferences.libraryExpandedWidth, 340, 220, 385);
+        ? preferences.songsSortMode! : DEFAULT_UI_PREFERENCES.songsSortMode;
+      this.setLibraryWidth(boundedNumber(preferences.libraryWidth, DEFAULT_UI_PREFERENCES.libraryWidth, 80, 385), false);
+      this.lastExpandedWidth = boundedNumber(preferences.libraryExpandedWidth, DEFAULT_UI_PREFERENCES.libraryExpandedWidth, 220, 385);
       const tab = normalizePage(preferences.lastViewedPage);
       this.handleTabTransition('songs', tab);
       this._activeTab = tab;

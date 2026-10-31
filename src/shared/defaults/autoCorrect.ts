@@ -1,9 +1,10 @@
 import type { KeyboardLayoutConfig } from '../types/games.js';
+import { DEFAULT_APP_SETTINGS } from './settings.ts';
 
 /** Default to the largest keyboard layout strictly below this key count. */
-export const DEFAULT_AUTO_CORRECT_BELOW = 36;
+export const DEFAULT_AUTO_CORRECT_BELOW = DEFAULT_APP_SETTINGS.autoCorrectDefault.belowKeyCount;
 /** Set a layout key count to override the automatic default; null keeps it automatic. */
-export const DEFAULT_AUTO_CORRECT_KEY_COUNT: number | null = null;
+export const DEFAULT_AUTO_CORRECT_KEY_COUNT: number | null = DEFAULT_APP_SETTINGS.autoCorrectDefault.preferredKeyCount;
 
 export function getAutoCorrectTicks(layouts: Record<string, KeyboardLayoutConfig>): number[] {
   return [0, ...new Set(Object.values(layouts).map(layout => layout.keys.length)

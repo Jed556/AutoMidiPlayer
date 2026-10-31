@@ -37,7 +37,7 @@ fn settings(key: i32) -> SongSettingsUpdate {
     SongSettingsUpdate {
         key, base_key: Some(2), transpose: 1, disabled_tracks: Some("0,2".into()),
         key_changes: Some("[]".into()), speed: Some(1.5), hold_notes: Some(true), tap_threshold_ms: Some(100),
-        auto_chord: Some(true), enable_key_change_markers: Some(false),
+        auto_chord: Some(true), chord_detection_milliseconds: Some(45), enable_key_change_markers: Some(false),
     }
 }
 
@@ -59,6 +59,7 @@ fn instrument_settings_are_isolated_by_both_game_and_instrument() {
     assert_eq!(saved.speed, Some(1.5));
     assert_eq!(saved.disabled_tracks.as_deref(), Some("0,2"));
     assert_eq!(saved.auto_chord, Some(true));
+    assert_eq!(saved.chord_detection_milliseconds, Some(45));
     assert_eq!(saved.enable_key_change_markers, Some(false));
     assert_eq!(f.resolved("game-a", "piano").key, 1);
     assert_eq!(f.resolved("game-b", "lyre").key, 1);

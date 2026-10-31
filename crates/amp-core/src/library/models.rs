@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -59,7 +60,6 @@ pub struct SongRecord {
     pub auto_chord: Option<bool>,
     pub chord_detection_milliseconds: Option<u32>,
     pub key_changes: Option<String>,
-    pub detect_chord_pads: Option<bool>,
     pub enable_key_change_markers: Option<bool>,
     pub is_missing: bool,
 }
@@ -109,6 +109,8 @@ pub struct SongSettingsUpdate {
     #[serde(default)]
     pub auto_chord: Option<bool>,
     #[serde(default)]
+    pub chord_detection_milliseconds: Option<u32>,
+    #[serde(default)]
     pub enable_key_change_markers: Option<bool>,
 }
 
@@ -143,71 +145,51 @@ pub struct SongDetailsUpdate {
     pub date_added: String,
 }
 
-fn default_true() -> bool {
-    true
-}
-
-fn default_speed() -> f64 {
-    1.0
-}
-
-fn default_transpose_smart() -> String {
-    "Smart".to_string()
-}
-
-fn default_tolerance() -> u32 {
-    25
-}
-
 /// Song defaults configuration applied when newly adding / importing songs
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
 pub struct SongDefaults {
-    #[serde(default)]
     pub default_base_key_offset: i32,
-    #[serde(default)]
     pub default_key_offset: i32,
-    #[serde(default = "default_true")]
     pub auto_detect_base_key: bool,
-    #[serde(default = "default_transpose_smart")]
     pub default_transpose: String,
-    #[serde(default = "default_speed")]
     pub default_speed: f64,
-    #[serde(default = "default_true")]
     pub default_merge_notes: bool,
-    #[serde(default = "default_tolerance")]
     pub default_merge_tolerance_ms: u32,
-    #[serde(default)]
     pub default_hold_notes: bool,
-    #[serde(default)]
     pub default_tap_threshold_ms: u32,
+    pub default_auto_chord: bool,
+    pub default_chord_detection_milliseconds: u32,
+    pub default_enable_key_change_markers: bool,
 }
 
 impl Default for SongDefaults {
     fn default() -> Self {
         Self {
-            default_base_key_offset: 0,
-            default_key_offset: 0,
-            auto_detect_base_key: true,
-            default_transpose: "Smart".to_string(),
-            default_speed: 1.0,
-            default_merge_notes: true,
-            default_merge_tolerance_ms: 25,
-            default_hold_notes: false,
-            default_tap_threshold_ms: 0,
+            default_base_key_offset: crate::settings::defaults::value("/defaultBaseKeyOffset"),
+            default_key_offset: crate::settings::defaults::value("/defaultKeyOffset"),
+            auto_detect_base_key: crate::settings::defaults::value("/autoDetectBaseKey"),
+            default_transpose: crate::settings::defaults::value("/defaultTranspose"),
+            default_speed: crate::settings::defaults::value("/defaultSpeed"),
+            default_merge_notes: crate::settings::defaults::value("/defaultMergeNotes"),
+            default_merge_tolerance_ms: crate::settings::defaults::value("/defaultMergeToleranceMs"),
+            default_hold_notes: crate::settings::defaults::value("/defaultHoldNotes"),
+            default_tap_threshold_ms: crate::settings::defaults::value("/defaultTapThresholdMs"),
+            default_auto_chord: crate::settings::defaults::value("/defaultAutoChord"),
+            default_chord_detection_milliseconds: crate::settings::defaults::value("/defaultChordDetectionMilliseconds"),
+            default_enable_key_change_markers: crate::settings::defaults::value("/defaultEnableKeyChangeMarkers"),
         }
     }
 }
 
 impl SongDefaults {
     pub fn transpose_mode_int(&self) -> i32 {
-        match self.default_transpose.trim().to_lowercase().as_str() {
-            "ignore" => 0,
-            "smart" => 1,
-            "up" => 2,
-            "down" => 3,
-            _ => 1,
+        use crate::midi::TransposeMode;
+        match TransposeMode::from_str(&self.default_transpose).unwrap_or_default() {
+            TransposeMode::Ignore => 0,
+            TransposeMode::Smart => 1,
+            TransposeMode::Up => 2,
+            TransposeMode::Down => 3,
         }
     }
 }
-

@@ -146,6 +146,9 @@
   ]);
 
   let maxCacheSizeOptions = $derived([
+    { value: 0, label: t('settings.cacheUnlimited') },
+    { value: 50, label: '50 MB' },
+    { value: 100, label: '100 MB' },
     { value: 250, label: '250 MB' },
     { value: 500, label: '500 MB' },
     { value: 1000, label: '1.0 GB' },
@@ -189,7 +192,9 @@
   let updateCheckFrequencyOptions = $derived([
     { value: '10min', label: t('settings.freq10Min') },
     { value: 'hourly', label: t('settings.freqHourly') },
-    { value: 'daily', label: t('settings.freqDaily') }
+    { value: 'daily', label: t('settings.freqDaily') },
+    { value: 'weekly', label: t('settings.freqWeekly') },
+    { value: 'launch', label: t('settings.freqLaunch') }
   ]);
 
   let isProgrammaticScroll = false;

@@ -1,7 +1,7 @@
 import type { StorageUsage } from '$shared/types/ipc';
 import type { AppSettings, HotkeyBinding, MouseStopClickOption, ThemeMode, UiPreferences } from '$shared/types/settings';
 import type { TransposeMode } from '$shared/types/midi';
-import { DEFAULT_APP_SETTINGS } from '$shared/defaults/settings';
+import { DEFAULT_APP_SETTINGS, createDefaultSettings } from '$shared/defaults/settings';
 import { getAutoCorrectTicks, getDefaultAutoCorrectThreshold, resolveAutoCorrectThreshold } from '$shared/defaults/autoCorrect';
 import { api } from '../backend/index.js';
 import { notificationCenter } from '../ui/notificationCenter.svelte';
@@ -16,7 +16,7 @@ const normalizeRepressGapMs = (value: unknown): number => typeof value === 'numb
   ? Math.max(0, Math.min(1000, Math.round(value))) : DEFAULT_APP_SETTINGS.repressGapMs;
 
 class SettingsStore {
-  settings = $state<AppSettings>({ ...DEFAULT_APP_SETTINGS });
+  settings = $state<AppSettings>(createDefaultSettings());
   isScanningFolder = $state(false);
   isResettingHotkeys = $state(false);
   isResettingSongDefaults = $state(false);
@@ -83,7 +83,7 @@ class SettingsStore {
       this.dataLocationPath = await api.settings.getDataDirectory();
       const remote = await api.settings.getSettings();
       if (remote) {
-        this.settings = { ...DEFAULT_APP_SETTINGS, ...remote };
+        this.settings = { ...createDefaultSettings(), ...remote };
         this.settings.repressGapMs = normalizeRepressGapMs(remote.repressGapMs);
       }
       await this.refreshAutoCorrectLayouts(remote?.autoCorrectThreshold);
@@ -109,15 +109,18 @@ class SettingsStore {
 
   syncSongDefaults(strict = false) {
     return api.settings.updateSongDefaults({
-      defaultBaseKeyOffset: this.settings.defaultBaseKeyOffset ?? 0,
-      defaultKeyOffset: this.settings.defaultKeyOffset ?? 0,
-      autoDetectBaseKey: this.settings.autoDetectBaseKey ?? true,
-      defaultTranspose: this.settings.defaultTranspose ?? 'Smart',
-      defaultSpeed: this.settings.defaultSpeed ?? 1.0,
-      defaultHoldNotes: this.settings.defaultHoldNotes ?? false,
-      defaultTapThresholdMs: this.settings.defaultTapThresholdMs ?? 0,
-      defaultMergeNotes: this.settings.defaultMergeNotes ?? true,
-      defaultMergeToleranceMs: this.settings.defaultMergeToleranceMs ?? 25,
+      defaultBaseKeyOffset: this.settings.defaultBaseKeyOffset ?? DEFAULT_APP_SETTINGS.defaultBaseKeyOffset,
+      defaultKeyOffset: this.settings.defaultKeyOffset ?? DEFAULT_APP_SETTINGS.defaultKeyOffset,
+      autoDetectBaseKey: this.settings.autoDetectBaseKey ?? DEFAULT_APP_SETTINGS.autoDetectBaseKey,
+      defaultTranspose: this.settings.defaultTranspose ?? DEFAULT_APP_SETTINGS.defaultTranspose,
+      defaultSpeed: this.settings.defaultSpeed ?? DEFAULT_APP_SETTINGS.defaultSpeed,
+      defaultHoldNotes: this.settings.defaultHoldNotes ?? DEFAULT_APP_SETTINGS.defaultHoldNotes,
+      defaultTapThresholdMs: this.settings.defaultTapThresholdMs ?? DEFAULT_APP_SETTINGS.defaultTapThresholdMs,
+      defaultMergeNotes: this.settings.defaultMergeNotes ?? DEFAULT_APP_SETTINGS.defaultMergeNotes,
+      defaultMergeToleranceMs: this.settings.defaultMergeToleranceMs ?? DEFAULT_APP_SETTINGS.defaultMergeToleranceMs,
+      defaultAutoChord: this.settings.defaultAutoChord ?? DEFAULT_APP_SETTINGS.defaultAutoChord,
+      defaultChordDetectionMilliseconds: this.settings.defaultChordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds,
+      defaultEnableKeyChangeMarkers: this.settings.defaultEnableKeyChangeMarkers ?? DEFAULT_APP_SETTINGS.defaultEnableKeyChangeMarkers,
     }).then(result => {
       if (strict && !result) throw new Error('Unable to save song defaults.');
       return result;
@@ -286,7 +289,7 @@ class SettingsStore {
 
   resetHotkeys() {
     this.isResettingHotkeys = true;
-    this.settings.hotkeys = [...DEFAULT_APP_SETTINGS.hotkeys];
+    this.settings.hotkeys = createDefaultSettings().hotkeys;
     this.save();
     this.syncHotkeys();
     notificationCenter.info(t('settings.toastTitleHotkeysReset'), t('settings.toastHotkeysResetSuccess'));
@@ -426,11 +429,11 @@ class SettingsStore {
 
   resetSongDefaults() {
     this.isResettingSongDefaults = true;
-    this.settings.defaultBaseKeyOffset = 0;
-    this.settings.defaultKeyOffset = 0;
-    this.settings.autoDetectBaseKey = true;
-    this.settings.defaultTranspose = 'Smart';
-    this.settings.defaultSpeed = 1.0;
+    this.settings.defaultBaseKeyOffset = DEFAULT_APP_SETTINGS.defaultBaseKeyOffset;
+    this.settings.defaultKeyOffset = DEFAULT_APP_SETTINGS.defaultKeyOffset;
+    this.settings.autoDetectBaseKey = DEFAULT_APP_SETTINGS.autoDetectBaseKey;
+    this.settings.defaultTranspose = DEFAULT_APP_SETTINGS.defaultTranspose;
+    this.settings.defaultSpeed = DEFAULT_APP_SETTINGS.defaultSpeed;
     this.save();
     notificationCenter.info(t('settings.toastTitleSongReset'), t('settings.toastSongResetSuccess'));
     setTimeout(() => {
@@ -440,10 +443,10 @@ class SettingsStore {
 
   resetNotesDefaults() {
     this.isResettingNotesDefaults = true;
-    this.settings.defaultHoldNotes = false;
-    this.settings.defaultTapThresholdMs = 0;
-    this.settings.defaultMergeNotes = true;
-    this.settings.defaultMergeToleranceMs = 25;
+    this.settings.defaultHoldNotes = DEFAULT_APP_SETTINGS.defaultHoldNotes;
+    this.settings.defaultTapThresholdMs = DEFAULT_APP_SETTINGS.defaultTapThresholdMs;
+    this.settings.defaultMergeNotes = DEFAULT_APP_SETTINGS.defaultMergeNotes;
+    this.settings.defaultMergeToleranceMs = DEFAULT_APP_SETTINGS.defaultMergeToleranceMs;
     this.save();
     notificationCenter.info(t('settings.toastTitleNotesReset'), t('settings.toastNotesResetSuccess'));
     setTimeout(() => {
@@ -454,15 +457,15 @@ class SettingsStore {
   resetAllDefaults() {
     this.isResettingAll = true;
     this.pendingOverlapSettings = null;
-    this.settings = { ...DEFAULT_APP_SETTINGS, onboardingCompleted: this.settings.onboardingCompleted };
+    this.settings = { ...createDefaultSettings(), onboardingCompleted: this.settings.onboardingCompleted };
     this.settings.autoCorrectThreshold = getDefaultAutoCorrectThreshold(this.autoCorrectThresholdTicks);
     api.settings.resetSettings()
       .catch((error) => console.error('[SettingsStore] Failed to reset persisted settings:', error))
       .finally(() => this.save());
     this.syncHotkeys();
     void this.syncMidiFolder();
-    themeStore.setTheme('dark');
-    themeStore.setAccentColor('#1DB954');
+    themeStore.setTheme(DEFAULT_APP_SETTINGS.theme);
+    themeStore.setAccentColor(DEFAULT_APP_SETTINGS.accentColor);
     notificationCenter.info(t('settings.toastTitleReset'), t('settings.toastResetSuccess'));
     setTimeout(() => {
       this.isResettingAll = false;

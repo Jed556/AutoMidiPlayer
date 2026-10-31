@@ -29,14 +29,14 @@ export default defineConfig({
     sourcemap: !!process.env.TAURI_ENV_DEBUG
   },
   server: {
-    port: 5173,
+    port: 15473,
     strictPort: true,
     host: host || false,
     hmr: host
       ? {
           protocol: 'ws',
           host,
-          port: 5183
+          port: 15483
         }
       : undefined,
     watch: {

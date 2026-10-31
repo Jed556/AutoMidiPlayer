@@ -234,6 +234,7 @@ dependencies = [
  "log",
  "midly",
  "notify",
+ "quick-xml",
  "rayon",
  "regex",
  "rodio",

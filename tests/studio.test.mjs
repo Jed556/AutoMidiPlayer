@@ -117,6 +117,33 @@ test('transposed views fold octaves, snap Smart notes, and retain unmapped notes
   assert.equal(createDisplayPitch({ ...settings, transpose: 'Ignore' })({ ...note('unmapped', 0, 500), noteNumber: 61 }), 61);
 });
 
+test('Smart preserves the Still With You G4 dip independently of the source song scale', () => {
+  const playableNotes = Array.from({ length: 36 }, (_, i) => 48 + i)
+    .filter(pitch => [0, 2, 4, 5, 7, 9, 11].includes(pitch % 12));
+  const lead = [73, 73, 72, 72, 73].map((pitch, i) => ({
+    ...note(`lead-${i}`, 3771 + i * 300, 150), noteNumber: pitch,
+  }));
+  // The original song's C# minor pitches used to exclude G from snapping.
+  const sourceScale = [61, 63, 64, 66, 68, 69, 71].map((pitch, i) => ({
+    ...note(`scale-${i}`, i * 100, 50), noteNumber: pitch,
+  }));
+  for (const notes of [sourceScale, [], lead]) {
+    for (const mode of ['Auto', 'Transpose']) {
+      const settings = displaySettings({ mode, keyOffset: -4, transpose: 'Smart',
+        playableNotes, notes, markers: [] });
+      assert.deepEqual(lead.map(createDisplayPitch(settings)), [69, 69, 67, 67, 69]);
+      // Marker-specific Smart also uses the instrument scale at the shifted pitch.
+      const markerPitch = createDisplayPitch({ ...settings, mode: 'Auto', keyOffset: 0,
+        transpose: 'Ignore', markers: [{ timeMs: 1000, keyOffset: -4, transpose: 1 }] });
+      assert.deepEqual(lead.map(markerPitch), [69, 69, 67, 67, 69]);
+    }
+  }
+  const chromatic = createDisplayPitch(displaySettings({ keyOffset: -4, transpose: 'Smart',
+    playableNotes: Array.from({ length: 36 }, (_, i) => 48 + i), markers: [] }));
+  assert.deepEqual(lead.map(chromatic), [69, 69, 68, 68, 69]);
+  assert.deepEqual(lead.map(n => n.noteNumber), [73, 73, 72, 72, 73]);
+});
+
 test('display pitches handle missing instruments, narrow ranges, and MIDI boundaries', () => {
   assert.equal(createDisplayPitch(displaySettings({ transpose: 'Smart' }))(note('no-instrument', 0, 500)), 62);
   assert.equal(createDisplayPitch(displaySettings({ transpose: 'Up', playableNotes: [65] }))(note('narrow', 0, 500)), 65);
