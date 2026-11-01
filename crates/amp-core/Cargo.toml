@@ -29,7 +29,7 @@ sha2 = "0.10"
 rayon = "1.10"
 chrono = "0.4"
 walkdir = "2.5"
-notify = "6.1"
+notify = "8.2"
 regex = "1.11"
 quick-xml = "0.42"
 
