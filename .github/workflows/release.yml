@@ -47,7 +47,9 @@ jobs:
       - name: Generate current dependency notices
         if: github.event_name == 'workflow_dispatch'
         run: |
+          set -euo pipefail
           cargo install cargo-about --version 0.9.3 --locked --features cli
+          # JavaScript and Rust dependency filtering is configured in the generator and about.toml.
           node scripts/generate-licenses.mjs
       - run: node --test tests/licenses.test.mjs
       - uses: actions/upload-artifact@v7
@@ -95,6 +97,8 @@ jobs:
             if (names.some(name => process.env[name]) && !names.every(name => process.env[name])) throw new Error(`Incomplete OS signing configuration: ${names.join(', ')}`);
           }
           JS
+      - name: Ensure changelog output directory exists
+        run: mkdir -p dist
       - uses: orhun/git-cliff-action@v4
         with:
           version: v2.14.2

@@ -1,8 +1,9 @@
 use std::collections::{HashMap, HashSet};
+use std::num::{NonZeroU16, NonZeroU32};
 use std::sync::Arc;
 use std::time::Duration;
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use rodio::{OutputStream, Sink, Source};
+use rodio::{DeviceSinkBuilder, MixerDeviceSink, Player, Source};
 use rustysynth::{SoundFont, Synthesizer, SynthesizerSettings};
 
 const SAMPLE_RATE: u32 = 44100;
@@ -168,16 +169,16 @@ impl SynthSource {
 }
 
 impl Source for SynthSource {
-    fn current_frame_len(&self) -> Option<usize> {
+    fn current_span_len(&self) -> Option<usize> {
         None
     }
 
-    fn channels(&self) -> u16 {
-        2 // Stereo
+    fn channels(&self) -> NonZeroU16 {
+        NonZeroU16::new(2).expect("stereo channel count is non-zero")
     }
 
-    fn sample_rate(&self) -> u32 {
-        self.sample_rate
+    fn sample_rate(&self) -> NonZeroU32 {
+        NonZeroU32::new(self.sample_rate).expect("synth sample rate is non-zero")
     }
 
     fn total_duration(&self) -> Option<Duration> {
@@ -202,24 +203,22 @@ impl Iterator for SynthSource {
 
 /// Manages the OS audio stream lifecycle. Keep this held on the host thread or state.
 pub struct AudioDevice {
-    _stream: OutputStream,
-    _sink: Sink,
+    _stream: MixerDeviceSink,
+    _sink: Player,
     synth: AudioSynth,
 }
 
 impl AudioDevice {
     pub fn new(initial_soundfont: Option<Arc<SoundFont>>) -> Result<Self, AudioError> {
-        let (stream, stream_handle) = OutputStream::try_default()
+        let stream = DeviceSinkBuilder::open_default_sink()
             .map_err(|e| AudioError::StreamInit(e.to_string()))?;
 
-        let sink = Sink::try_new(&stream_handle)
-            .map_err(|e| AudioError::SinkInit(e.to_string()))?;
+        let sink = Player::connect_new(stream.mixer());
 
         let (cmd_tx, cmd_rx) = unbounded::<AudioCommand>();
         let source = SynthSource::new(initial_soundfont, cmd_rx);
 
         sink.append(source);
-        sink.play();
 
         let synth = AudioSynth { cmd_tx };
 

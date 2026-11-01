@@ -206,6 +206,7 @@ pub fn maintain(settings: &serde_json::Value) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
     #[test]
     fn categories_are_disjoint_and_missing_root_is_empty() {

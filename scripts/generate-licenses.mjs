@@ -8,7 +8,7 @@ const existing = parseLicenseMarkdown(await readFile('THIRD-PARTY-LICENSES.md', 
 if (!existing.length) throw new Error('Missing consolidated supplemental notices in THIRD-PARTY-LICENSES.md');
 const entries = existing.filter(entry => ['attribution', 'resource'].includes(entry.kind));
 const command = process.platform === 'win32' ? 'cmd.exe' : 'pnpm';
-const args = process.platform === 'win32' ? ['/d', '/s', '/c', 'pnpm licenses list --json'] : ['licenses', 'list', '--json'];
+const args = process.platform === 'win32' ? ['/d', '/s', '/c', 'pnpm licenses list --prod --json'] : ['licenses', 'list', '--prod', '--json'];
 const groups = JSON.parse(execFileSync(command, args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }));
 const packages = Object.values(groups).flat();
 function repository(value, fallback) {

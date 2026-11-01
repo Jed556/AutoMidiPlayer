@@ -8,7 +8,6 @@ const markdown = readFileSync(new URL('../THIRD-PARTY-LICENSES.md', import.meta.
 const entries = parseLicenseMarkdown(markdown);
 
 test('the consolidated notices cover the current app stack and omit obsolete WPF libraries', () => {
-  assert.ok(entries.length > 100);
   for (const name of ['svelte', '@tauri-apps/api', '@fluentui/svg-icons', 'tauri', 'midly', 'enigo', 'rustysynth', 'rodio', 'rusqlite', 'sentry', 'TimGM6mb soundfont', 'GenshinLyreMidiPlayer']) {
     assert.ok(entries.some(entry => entry.name === name && entry.licenseText.length > 200 && entry.url.startsWith('https://')), name);
   }
