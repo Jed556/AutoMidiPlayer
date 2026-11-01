@@ -20,8 +20,8 @@ pub fn note_durations(events: &[TimedNoteEvent]) -> Vec<Option<u64>> {
 }
 
 /// Source notes whose NoteOn was processed before a seek/resume boundary, but
-/// whose matching NoteOff has not been processed. Preserve FIFO ownership even
-/// for skipped taps so their future NoteOff cannot consume a newer note owner.
+/// whose matching NoteOff has not been processed. Preserve ownership even for
+/// skipped taps so their future NoteOff cannot consume a newer note owner.
 pub(super) fn pending_note_owners(events: &[TimedNoteEvent], end_index: usize) -> Vec<usize> {
     let mut pending = HashMap::<(usize, u8, u8), VecDeque<usize>>::new();
     for (index, event) in events[..end_index].iter().enumerate() {

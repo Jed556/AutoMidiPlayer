@@ -890,7 +890,7 @@ fn run_playback_loop(
                         // Do not replay historical taps or notes ending exactly at
                         // the playhead, but reserve their FIFO NoteOff position.
                         active_held_notes.entry((ev.track_index, ev.channel, ev.note)).or_default()
-                            .push_back((None, None, owner_index));
+                                .push_back((None, None, owner_index));
                         continue;
                     }
                     // Apply transposition and smart mode adaptation for NoteOn
