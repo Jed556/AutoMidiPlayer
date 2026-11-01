@@ -23,6 +23,22 @@ export function tooltip(node: HTMLElement, param: TooltipParam) {
     };
   }
 
+  function hasContent(opts: TooltipOptions | null): boolean {
+    if (!opts || opts.disabled) return false;
+    return Boolean(opts.text?.trim() || opts.contentType === 'pedals');
+  }
+
+  function syncAttributes(opts: TooltipOptions | null) {
+    if (opts && hasContent(opts)) {
+      node.setAttribute('data-amp-tooltip', opts.text || (opts.contentType === 'pedals' ? 'pedals' : ''));
+      if (opts.contentType) {
+        node.setAttribute('data-tooltip-content', opts.contentType);
+      } else {
+        node.removeAttribute('data-tooltip-content');
+      }
+    }
+  }
+
   currentOptions = parseParam(param);
 
   // If node has native title, strip it to prevent duplicate/native browser tooltip
@@ -34,9 +50,11 @@ export function tooltip(node: HTMLElement, param: TooltipParam) {
     node.removeAttribute('title');
   }
 
+  syncAttributes(currentOptions);
+
   function handleMouseEnter(e: MouseEvent) {
-    if (currentOptions && currentOptions.text && !currentOptions.disabled) {
-      tooltipManager.show(node, currentOptions, e);
+    if (hasContent(currentOptions)) {
+      tooltipManager.show(node, currentOptions!, e);
     }
   }
 
@@ -51,8 +69,8 @@ export function tooltip(node: HTMLElement, param: TooltipParam) {
   }
 
   function handleFocus() {
-    if (currentOptions && currentOptions.text && !currentOptions.disabled) {
-      tooltipManager.show(node, currentOptions);
+    if (hasContent(currentOptions)) {
+      tooltipManager.show(node, currentOptions!);
     }
   }
 
@@ -76,10 +94,11 @@ export function tooltip(node: HTMLElement, param: TooltipParam) {
         }
         node.removeAttribute('title');
       }
-      if (tooltipManager.isCurrentTarget(node) && currentOptions?.text && !currentOptions.disabled) {
-        tooltipManager.updateOptionsAfterUpdate(node, currentOptions);
+      syncAttributes(currentOptions);
+      if (tooltipManager.isCurrentTarget(node) && hasContent(currentOptions)) {
+        tooltipManager.updateOptionsAfterUpdate(node, currentOptions!);
       }
-      if (!currentOptions || !currentOptions.text || currentOptions.disabled) {
+      if (!hasContent(currentOptions)) {
         tooltipManager.hideAfterUpdate(true, node);
       }
     },

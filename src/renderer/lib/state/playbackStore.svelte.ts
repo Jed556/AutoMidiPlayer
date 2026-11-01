@@ -14,6 +14,7 @@ import { uiStore } from './uiStore.svelte.js';
 import { gameStore } from './gameStore.svelte.js';
 import { libraryStore } from './libraryStore.svelte.js';
 import { settingsStore } from './settingsStore.svelte.js';
+import { t } from '../i18n';
 
 class PlaybackStore {
   // ==========================================
@@ -27,6 +28,8 @@ class PlaybackStore {
   transposeMode = $state<TransposeMode>(DEFAULT_APP_SETTINGS.defaultTranspose);
   holdNotes = $state<boolean>(DEFAULT_APP_SETTINGS.defaultHoldNotes);
   tapThresholdMs = $state<number>(DEFAULT_APP_SETTINGS.defaultTapThresholdMs);
+  mergeNotes = $state<boolean>(DEFAULT_APP_SETTINGS.defaultMergeNotes);
+  mergeToleranceMs = $state<number>(DEFAULT_APP_SETTINGS.defaultMergeToleranceMs);
   autoChord = $state<boolean>(DEFAULT_APP_SETTINGS.defaultAutoChord);
   chordDetectionMilliseconds = $state<number>(DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds);
   enableKeyChangeMarkers = $state<boolean>(DEFAULT_APP_SETTINGS.defaultEnableKeyChangeMarkers);
@@ -97,6 +100,22 @@ class PlaybackStore {
 
   isPlaying = $derived(this.status === 'Playing');
   isPaused = $derived(this.status === 'Paused');
+  windowTitle = $derived.by(() => {
+    const appName = t('titleBar.appName');
+    if (this.isPlaying && this.activeSong) {
+      const title = this.activeSong.title?.trim();
+      const artist = this.activeSong.artist?.trim();
+      const hasArtist = Boolean(
+        artist &&
+        artist !== 'Unknown Artist' &&
+        artist !== t('player.unknownArtist')
+      );
+      if (title) {
+        return hasArtist ? `${title} • ${artist}` : title;
+      }
+    }
+    return appName;
+  });
   durationSeconds = $derived(
     this.activeSong
       ? (this.activeSong.durationSeconds ?? (this.activeSong.durationMs ? this.activeSong.durationMs / 1000 : 120))
@@ -536,6 +555,9 @@ class PlaybackStore {
       disabledTracks,
       keyChanges: keyChangesJson,
       speed: this.playbackSpeed,
+      bpm: song.bpmOverride ?? null,
+      mergeNotes: this.mergeNotes,
+      mergeMilliseconds: this.mergeToleranceMs,
       holdNotes: this.holdNotes,
       tapThresholdMs: this.tapThresholdMs,
       autoChord: this.autoChord,
@@ -601,6 +623,8 @@ class PlaybackStore {
     if (song.speed !== undefined) {
       this.playbackSpeed = song.speed;
     }
+    this.mergeNotes = song.mergeNotes ?? DEFAULT_APP_SETTINGS.defaultMergeNotes;
+    this.mergeToleranceMs = song.mergeToleranceMs ?? DEFAULT_APP_SETTINGS.defaultMergeToleranceMs;
     if (song.holdNotes !== undefined) {
       this.holdNotes = song.holdNotes;
     }
@@ -681,6 +705,30 @@ class PlaybackStore {
     if (this.activeSong) {
       this.activeSong.holdNotes = val;
     }
+    this.scheduleAutoSaveSongSettings();
+  }
+
+  setBpmOverride(value: number | null) {
+    if (value !== null && (!Number.isFinite(value) || value <= 0 || value > 999)) return;
+    if (this.activeSong) {
+      this.activeSong.bpmOverride = value;
+      this.activeSong.bpm = value ?? this.activeSong.nativeBpm ?? this.activeSong.bpm;
+    }
+    void api.playback.setSpeed(this.enginePlaybackSpeed)
+      .catch(error => notificationCenter.error('Unable to update BPM', String(error)));
+    this.scheduleAutoSaveSongSettings();
+  }
+
+  setMergeNotes(value: boolean) {
+    this.mergeNotes = value;
+    if (this.activeSong) this.activeSong.mergeNotes = value;
+    this.scheduleAutoSaveSongSettings();
+  }
+
+  setMergeToleranceMs(value: number) {
+    if (!Number.isInteger(value) || value < 1 || value > 1000) return;
+    this.mergeToleranceMs = value;
+    if (this.activeSong) this.activeSong.mergeToleranceMs = value;
     this.scheduleAutoSaveSongSettings();
   }
 
@@ -1433,27 +1481,39 @@ class PlaybackStore {
     this.selectedKeyOffset = marker.keyOffset;
   }
 
+  toggleMarker(marker: KeyChangeMarker): boolean {
+    if (this.selectedMarkerId === marker.id) {
+      this.selectedMarkerId = null;
+      return false;
+    }
+    this.selectMarker(marker);
+    return true;
+  }
+
   addKeyMarker(timeSeconds?: number, keyOffset?: number) {
     if (!this.activeSong) return;
 
-    let targetTime = timeSeconds ?? this.currentTimeSeconds;
+    let targetTimeMs = (timeSeconds ?? this.currentTimeSeconds) * 1000;
     const offset = keyOffset ?? this.selectedKeyOffset;
 
     // Snap to nearest note start within 150ms if available
     if (this.activeSong.notes && this.activeSong.notes.length > 0) {
       const nearestNote = this.activeSong.notes
-        .filter(n => Math.abs((n.startTime ?? (n.startMs / 1000)) - targetTime) <= 0.15)
+        .filter(n => Math.abs(n.startMs - targetTimeMs) <= 150)
         .sort((a, b) => {
-          const distA = Math.abs((a.startTime ?? (a.startMs / 1000)) - targetTime);
-          const distB = Math.abs((b.startTime ?? (b.startMs / 1000)) - targetTime);
+          const distA = Math.abs(a.startMs - targetTimeMs);
+          const distB = Math.abs(b.startMs - targetTimeMs);
           return distA - distB;
         })[0];
       if (nearestNote) {
-        targetTime = nearestNote.startTime ?? (nearestNote.startMs / 1000);
+        targetTimeMs = nearestNote.startMs;
       }
     }
 
-    targetTime = Math.max(0, Number(targetTime.toFixed(2)));
+    // Native markers use integer milliseconds. Never round a snapped marker
+    // forward past the note it is meant to affect.
+    const timeMs = Math.max(0, Math.floor(targetTimeMs));
+    const targetTime = timeMs / 1000;
 
     // Remove any existing marker within 300ms
     const markers = (this.activeSong.keyMarkers || []).filter(
@@ -1465,7 +1525,7 @@ class PlaybackStore {
 
     const newMarker: KeyChangeMarker = {
       id: `km-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      timeMs: Math.round(targetTime * 1000),
+      timeMs,
       time: targetTime,
       key: noteName,
       keyOffset: offset,

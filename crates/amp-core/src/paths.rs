@@ -36,6 +36,52 @@ fn data_base_dir() -> PathBuf {
     }
 }
 
+/// Legacy application data root (%LocalAppData%\AutoMidiPlayer on Windows).
+pub fn legacy_data_dir() -> PathBuf {
+    data_base_dir().join("AutoMidiPlayer")
+}
+
+/// Locate legacy SQLite database if one exists.
+pub fn find_legacy_db_path() -> Option<PathBuf> {
+    let legacy_db = legacy_data_dir().join("AutoMidiPlayer.db");
+    if legacy_db.is_file() {
+        return Some(legacy_db);
+    }
+    let backup_db = app_data_dir().join("AutoMidiPlayer.db.legacy.bak");
+    if backup_db.is_file() {
+        return Some(backup_db);
+    }
+    for i in 1..=100 {
+        let candidate = app_data_dir().join(format!("AutoMidiPlayer.db.legacy.{i}.bak"));
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+/// Locate legacy user.config if one exists.
+pub fn find_legacy_config_path() -> Option<PathBuf> {
+    let legacy_config = legacy_data_dir().join("user.config");
+    if legacy_config.is_file() {
+        return Some(legacy_config);
+    }
+    let backup_config = app_data_dir().join("user.config.legacy.bak");
+    if backup_config.is_file() {
+        return Some(backup_config);
+    }
+    let in_app_data = app_data_dir().join("user.config");
+    if in_app_data.is_file() {
+        return Some(in_app_data);
+    }
+    None
+}
+
+/// Check whether any legacy Auto MIDI Player database or configuration exists.
+pub fn has_legacy_data() -> bool {
+    find_legacy_db_path().is_some() || find_legacy_config_path().is_some()
+}
+
 /// Move legacy data before opening logs, SQLite, or any other application files.
 /// Retrying a partial migration moves the remaining entries without overwriting data.
 pub fn migrate_app_data() -> io::Result<()> {

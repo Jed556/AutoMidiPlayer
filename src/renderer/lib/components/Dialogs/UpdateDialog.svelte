@@ -3,7 +3,7 @@
   import { updateStore } from '../../state/updateStore.svelte';
   import { playbackStore } from '../../state/playbackStore.svelte';
   import Button from '../Common/Button.svelte';
-  import FluentIcon from '../Common/FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
   import ContentDialog from './ContentDialog.svelte';
   import { t } from '../../i18n';
 

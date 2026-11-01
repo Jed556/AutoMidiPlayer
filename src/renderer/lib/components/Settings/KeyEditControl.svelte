@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import FluentIcon from '../Common/FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
   import type { HotkeyBinding } from '$shared/types/settings';
   import { settingsStore } from '../../state/settingsStore.svelte';
   import { t } from '../../i18n';

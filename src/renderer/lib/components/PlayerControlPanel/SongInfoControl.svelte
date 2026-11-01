@@ -1,7 +1,7 @@
 <script lang="ts">
   import { playbackStore } from '../../state/playbackStore.svelte';
   import { t } from '../../i18n';
-  import FluentIcon from '../Common/FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
 
   import OverflowText from '../Common/OverflowText.svelte';
 </script>

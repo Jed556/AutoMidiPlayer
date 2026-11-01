@@ -7,7 +7,7 @@
   import { uiStore } from '../state/uiStore.svelte';
   import { gameStore } from '../state/gameStore.svelte';
   import { notificationCenter } from '../ui/notificationCenter.svelte';
-  import FluentIcon from '../components/Common/FluentIcon.svelte';
+  import FluentIcon from '../components/Icons/FluentIcon.svelte';
   import Button from '../components/Common/Button.svelte';
   import OverflowText from '../components/Common/OverflowText.svelte';
   import ToggleSwitch from '../components/Common/ToggleSwitch.svelte';
@@ -19,7 +19,7 @@
   import KeyEditControl from '../components/Settings/KeyEditControl.svelte';
   import StorageUsageChart from '../components/Settings/StorageUsageChart.svelte';
   import OverlapBehaviorPicker from '../components/Settings/OverlapBehaviorPicker.svelte';
-  import RefreshIcon from '../components/Common/RefreshIcon.svelte';
+  import RefreshIcon from '../components/Icons/RefreshIcon.svelte';
   import { playbackStore } from '../state/playbackStore.svelte';
   import { api } from '../backend/index';
   import { logger } from '../infrastructure/logger';
@@ -45,7 +45,6 @@
     { id: 'section-audio', icon: 'Headphones', labelKey: 'settings.audio' },
     { id: 'section-hotkeys', icon: 'Keyboard', labelKey: 'settings.hotkeys' },
     { id: 'section-song-defaults', icon: 'MusicNote2', labelKey: 'settings.newSongDefaults' },
-    { id: 'section-notes', icon: 'MusicNote1', labelKey: 'settings.notes' },
     { id: 'section-style', icon: 'Color', labelKey: 'settings.style' },
     { id: 'section-updates', icon: 'ArrowCircleUp', labelKey: 'settings.updates' },
     { id: 'section-locations', icon: 'Location', labelKey: 'settings.locations' },
@@ -487,6 +486,7 @@
               </p>
             </div>
           </div>
+
         </div>
       </section>
 
@@ -681,58 +681,70 @@
         </div>
 
         <div class="card-body">
-          <!-- Key Defaults Group -->
-          <div class="setting-group">
-            <span class="setting-label">{t('settings.keyDefaults')}</span>
+          <div class="settings-subsection key-transpositions-subsection">
+            <h4 class="subsection-title">Key &amp; Transpositions</h4>
 
-            <div class="key-offsets-grid">
-              <div class="sub-setting">
-                <span class="sub-label">{t('settings.baseKeyOffset')}</span>
-                <KeyPicker
-                  variant="ghost"
-                  value={settingsStore.settings.defaultBaseKeyOffset}
-                  min={-12}
-                  max={12}
-                  onchange={(v) => settingsStore.update('defaultBaseKeyOffset', v)}
-                />
+            <div class="key-transpositions-layout">
+              <div class="key-transpositions-left">
+                <div class="key-offsets-grid">
+                  <div class="sub-setting">
+                    <span class="sub-label">{t('settings.baseKeyOffset')}</span>
+                    <KeyPicker
+                      variant="ghost"
+                      value={settingsStore.settings.defaultBaseKeyOffset}
+                      min={-12}
+                      max={12}
+                      onchange={(v) => settingsStore.update('defaultBaseKeyOffset', v)}
+                    />
+                  </div>
+
+                  <div class="sub-setting">
+                    <span class="sub-label">{t('settings.keyOffset')}</span>
+                    <KeyPicker
+                      variant="ghost"
+                      value={settingsStore.settings.defaultKeyOffset}
+                      min={-24}
+                      max={24}
+                      onchange={(v) => settingsStore.update('defaultKeyOffset', v)}
+                    />
+                  </div>
+                </div>
+
+                <div class="switch-row">
+                  <ToggleSwitch
+                    label={t('settings.autoDetectBaseKey')}
+                    title={t('settings.autoDetectBaseKeyTooltip')}
+                    checked={settingsStore.settings.autoDetectBaseKey}
+                    onchange={(v) => settingsStore.update('autoDetectBaseKey', v)}
+                  />
+                </div>
               </div>
 
-              <div class="sub-setting">
-                <span class="sub-label">{t('settings.keyOffset')}</span>
-                <KeyPicker
-                  variant="ghost"
-                  value={settingsStore.settings.defaultKeyOffset}
-                  min={-24}
-                  max={24}
-                  onchange={(v) => settingsStore.update('defaultKeyOffset', v)}
-                />
-              </div>
-            </div>
+              <div class="key-transpositions-right">
+                <div class="setting-group">
+                  <span class="setting-label">{t('settings.defaultTranspose')}</span>
+                  <Dropdown
+                    variant="ghost"
+                    width="fit-content"
+                    value={settingsStore.settings.defaultTranspose}
+                    options={defaultTransposeOptions}
+                    onchange={(v) => settingsStore.update('defaultTranspose', v as TransposeMode)}
+                  />
+                </div>
 
-            <div class="switch-row">
-              <ToggleSwitch
-                label={t('settings.autoDetectBaseKey')}
-                title={t('settings.autoDetectBaseKeyTooltip')}
-                checked={settingsStore.settings.autoDetectBaseKey}
-                onchange={(v) => settingsStore.update('autoDetectBaseKey', v)}
-              />
+                <div class="switch-row">
+                  <ToggleSwitch
+                    label="Key Change Markers"
+                    checked={settingsStore.settings.defaultEnableKeyChangeMarkers}
+                    onchange={(v) => settingsStore.update('defaultEnableKeyChangeMarkers', v)}
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
-          <div class="settings-grid-2col">
-            <!-- Transpose Mode -->
-            <div class="setting-group">
-              <span class="setting-label">{t('settings.defaultTranspose')}</span>
-              <Dropdown
-                variant="ghost"
-                width="fit-content"
-                value={settingsStore.settings.defaultTranspose}
-                options={defaultTransposeOptions}
-                onchange={(v) => settingsStore.update('defaultTranspose', v as TransposeMode)}
-              />
-            </div>
-
-            <!-- Default Playback Speed -->
+          <div class="settings-subsection">
+            <h4 class="subsection-title">Song Timings</h4>
             <div class="setting-group">
               <span class="setting-label">{t('settings.defaultSpeed')}</span>
               <Dropdown
@@ -744,57 +756,49 @@
               />
             </div>
           </div>
-        </div>
-      </section>
 
-      <!-- 4. Notes Section -->
-      <section id="section-notes" class="settings-card">
-        <div class="card-header">
-          <div class="header-text">
-            <h3 class="card-title">{t('settings.notes')}</h3>
-            <span class="card-subtext">{t('settings.notesSubtext')}</span>
-          </div>
+          <div class="settings-subsection">
+            <h4 class="subsection-title">Note Playback</h4>
 
-          <Button variant="ghost" size="icon" colorMode="danger"
-            onclick={() => settingsStore.resetNotesDefaults()}
-            title={t('settings.resetNotesDefaultsTooltip')}
-          >
-            <FluentIcon name="ArrowClockwise" loading={settingsStore.isResettingNotesDefaults} size={15} />
-          </Button>
-        </div>
+            <div class="settings-grid-2col subsection-controls note-settings-grid">
+              <div class="switch-row">
+                <HoldNotesControl
+                  checked={settingsStore.settings.defaultHoldNotes}
+                  thresholdMs={settingsStore.settings.defaultTapThresholdMs}
+                  disableThresholdWhenUnchecked={false}
+                  onchange={(v) => settingsStore.update('defaultHoldNotes', v)}
+                  onthresholdchange={(v) => settingsStore.update('defaultTapThresholdMs', v)}
+                />
+              </div>
 
-        <div class="card-body">
-          <div class="settings-grid-2col">
-            <!-- Hold Notes -->
-            <div class="switch-row">
-              <HoldNotesControl
-                checked={settingsStore.settings.defaultHoldNotes}
-                thresholdMs={settingsStore.settings.defaultTapThresholdMs}
-                onchange={(v) => settingsStore.update('defaultHoldNotes', v)}
-                onthresholdchange={(v) => settingsStore.update('defaultTapThresholdMs', v)}
-              />
-            </div>
-
-            <!-- Merge Notes Row -->
-            <div class="inline-controls-row">
-              <div class="switch-row inline-switch">
+              <div class="inline-controls-row merge-settings-control">
                 <ToggleSwitch
                   label={t('settings.mergeNotes')}
                   checked={settingsStore.settings.defaultMergeNotes}
                   onchange={(v) => settingsStore.update('defaultMergeNotes', v)}
                 />
+
+                <div class="stepper-row tolerance-stepper">
+                  <span class="stepper-label">Tolerance</span>
+                  <div class="stepper-input-row">
+                    <input
+                      type="number"
+                      min="1"
+                      max="1000"
+                      value={settingsStore.settings.defaultMergeToleranceMs}
+                      oninput={(e) => settingsStore.update('defaultMergeToleranceMs', parseInt((e.target as HTMLInputElement).value) || 25)}
+                      class="fluent-num-input"
+                    />
+                    <span class="stepper-unit">ms</span>
+                  </div>
+                </div>
               </div>
 
-              <div class="stepper-row">
-                <span class="stepper-label">{t('settings.toleranceMs')}</span>
-                <input
-                  type="number"
-                  min="1"
-                  max="1000"
-                  value={settingsStore.settings.defaultMergeToleranceMs}
-                  oninput={(e) => settingsStore.update('defaultMergeToleranceMs', parseInt((e.target as HTMLInputElement).value) || 25)}
-                  disabled={!settingsStore.settings.defaultMergeNotes}
-                  class="fluent-num-input"
+              <div class="switch-row">
+                <ToggleSwitch
+                  label="Auto Chord Detection"
+                  checked={settingsStore.settings.defaultAutoChord}
+                  onchange={(v) => settingsStore.update('defaultAutoChord', v)}
                 />
               </div>
             </div>
@@ -802,7 +806,7 @@
         </div>
       </section>
 
-      <!-- 5. Style Section -->
+      <!-- 4. Style Section -->
       <section id="section-style" class="settings-card">
         <div class="card-header">
           <div class="header-text">
@@ -1046,7 +1050,7 @@
                       {@const customPath = settingsStore.settings.gameLocations[game.displayName] || ''}
                       <div class="game-path-row">
                         <div class="game-meta">
-                          <span class="game-name">{game.displayName} {t('settings.locationSuffix')}</span>
+                          <span class="game-name">{game.displayName}</span>
                           <span class="game-current-path" title={customPath || t('settings.autoDetectedPath')}>
                             <OverflowText text={customPath || t('settings.autoDetectedPath')} />
                           </span>
@@ -1149,7 +1153,7 @@
             <span class="setting-label">{t('settings.gameConfigsTitle')}</span>
             <span class="input-hint">{t('settings.gameConfigsSubtext')}</span>
 
-            <div class="path-browse-row">
+            <div class="path-browse-row config-actions">
               <Button variant="ghost" size="md" colorMode="default" onclick={() => gameStore.openGamesFolder()}>
                 <FluentIcon name="Folder" size={14} />
                 <span>{t('settings.openGamesFolder')}</span>
@@ -1684,7 +1688,7 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 12px;
+    gap: 24px;
   }
 
   .header-text {
@@ -1713,6 +1717,33 @@
     display: flex;
     flex-direction: column;
     gap: 20px;
+  }
+
+  .settings-subsection {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 14px;
+    border-radius: 6px;
+    background: var(--control-fill, rgba(255, 255, 255, 0.06));
+  }
+
+  .subsection-controls {
+    align-items: center;
+    gap: 18px 28px;
+  }
+
+  .note-settings-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    align-items: start;
+  }
+
+  .subsection-title {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.3;
   }
 
   /* Setting Groups */
@@ -1772,6 +1803,12 @@
     min-width: 0;
   }
 
+  .merge-settings-control {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
   .inline-switch {
     gap: 12px;
     padding: 0;
@@ -1785,9 +1822,32 @@
     flex-wrap: wrap;
   }
 
+  .tolerance-stepper {
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .tolerance-stepper .stepper-label {
+    align-self: center;
+    font-size: 10.5px;
+    line-height: 1;
+  }
+
   .stepper-label {
     font-size: 12px;
     color: var(--text-secondary);
+  }
+
+  .stepper-input-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+
+  .stepper-unit {
+    color: var(--text-tertiary);
+    font-size: 11px;
+    margin-left: 5px;
   }
 
   .fluent-num-input {
@@ -1801,6 +1861,16 @@
     padding: 0 8px;
     outline: none;
     transition: background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+  }
+
+  .tolerance-stepper .fluent-num-input {
+    width: 76px;
+    height: 28px;
+    padding: 6px 10px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--bg-tertiary);
+    font-size: 13px;
   }
 
   .fluent-num-input:hover {
@@ -1831,6 +1901,12 @@
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+
+  .config-actions {
+    flex-wrap: wrap;
+    min-width: 0;
+    margin-left: -14px;
   }
 
   .fluent-path-input {
@@ -1913,7 +1989,7 @@
   }
 
   .game-locations-list {
-    padding: 0 14px 12px 14px;
+    padding: 12px 14px 12px 14px;
     display: grid;
     grid-template-columns: 1fr;
     gap: 8px 14px;
@@ -1993,8 +2069,24 @@
   /* Key Offsets Grid */
   .key-offsets-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    grid-template-columns: repeat(2, max-content);
+    gap: 48px;
+    justify-content: start;
+  }
+
+  .key-transpositions-layout {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    align-items: start;
+    gap: 18px 28px;
+  }
+
+  .key-transpositions-left,
+  .key-transpositions-right {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
   }
 
   .sub-setting {

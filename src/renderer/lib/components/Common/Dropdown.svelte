@@ -6,7 +6,7 @@
   import { createDropdownState } from '../../ui/dropdownState.svelte';
   import { animationStore } from '../../state/animationStore.svelte';
   import OverflowText from './OverflowText.svelte';
-  import FluentIcon from './FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
   import CustomScrollViewer from './CustomScrollViewer.svelte';
   import { tooltip } from '../../actions/tooltip';
 

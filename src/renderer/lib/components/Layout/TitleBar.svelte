@@ -7,7 +7,7 @@
   import { api } from '../../backend/index';
   import { t } from '../../i18n';
   import { revealThemeFrom } from '../../utils/themeTransition';
-  import FluentIcon from '../Common/FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
 
   let isMaximized = $state(false);
   let hoveredControl = $state<'minimize' | 'maximize' | 'close' | null>(null);
@@ -279,8 +279,15 @@
     color: var(--text-primary);
   }
 
-  .win-btn.close:hover {
+  .win-btn.close {
+    opacity: 0.7;
+    transition: background var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
+  }
+
+  .win-btn.close:hover,
+  .win-btn.close:focus-visible {
     background: #e81123;
     color: #ffffff;
+    opacity: 1;
   }
 </style>

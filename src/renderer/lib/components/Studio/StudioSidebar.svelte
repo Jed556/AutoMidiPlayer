@@ -3,12 +3,11 @@
   import { uiStore } from '../../state/uiStore.svelte';
   import { gameStore } from '../../state/gameStore.svelte';
   import { t } from '../../i18n';
-  import { getTrackColor, generateKeyOptions } from '../../utils/musicConstants';
-  import FluentIcon from '../Common/FluentIcon.svelte';
+  import { getTrackColor, generateKeyOptions, getKeyNoteName, formatSignedOffset } from '../../utils/musicConstants';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
   import ToggleSwitch from '../Common/ToggleSwitch.svelte';
   import HoldNotesControl from '../Common/HoldNotesControl.svelte';
   import Dropdown from '../Common/Dropdown.svelte';
-  import Button from '../Common/Button.svelte';
   import CustomScrollViewer from '../Common/CustomScrollViewer.svelte';
   import SlidingTabs from '../Common/SlidingTabs.svelte';
 
@@ -44,6 +43,11 @@
     { value: 2.5, label: '2.5x' },
     { value: 3.0, label: '3.0x' }
   ];
+
+  const baseKeyOptions = Array.from({ length: 55 }, (_, index) => {
+    const value = index - 27;
+    return { value, label: `${formatSignedOffset(value)} ${getKeyNoteName(value)}` };
+  });
 
   const transposeOptions = $derived([
     { value: 'Smart', label: t('player.transposeSmart') || 'Smart' },
@@ -207,71 +211,135 @@
               game: gameStore.activeGame?.displayName ?? '', instrument: gameStore.activeInstrument?.name ?? '',
             })}</p>
             {#if playbackStore.activeSong}
-              <!-- Key Offset and Playback Speed (Same Row) -->
-              <div class="settings-row-2">
-                <div class="setting-group-col">
-                  <span class="group-label">{t('studio.keyOffsetLabel') || 'Key Offset'}</span>
+              <section class="settings-section">
+                <h3>Key &amp; Transpositions</h3>
+                <div class="settings-row-2">
+                  <div class="setting-group-col">
+                    <span class="group-label">Base Key Offset</span>
+                    <Dropdown
+                      value={playbackStore.baseKeyOffset}
+                      options={baseKeyOptions}
+                      onchange={(val) => playbackStore.setBaseKeyOffset(Number(val))}
+                    />
+                  </div>
+
+                  <div class="setting-group-col">
+                    <span class="group-label">{t('studio.keyOffsetLabel') || 'Key Offset'}</span>
+                    <Dropdown
+                      value={playbackStore.keyOffset}
+                      options={keyOffsetOptions}
+                      onchange={(val) => playbackStore.setKeyOffset(Number(val))}
+                    />
+                  </div>
+                </div>
+                <div class="setting-group">
+                  <span class="group-label">{t('studio.transposeModeLabel') || 'Transpose Mode'}</span>
                   <Dropdown
-                    value={playbackStore.keyOffset}
-                    options={keyOffsetOptions}
-                    onchange={(val) => playbackStore.setKeyOffset(Number(val))}
+                    bind:value={playbackStore.transposeMode}
+                    options={transposeOptions}
+                    onchange={(val) => playbackStore.setTransposeMode(val)}
                   />
                 </div>
-
-                <div class="setting-group-col">
-                  <span class="group-label">{t('studio.playbackSpeedLabel') || 'Playback Speed'}</span>
-                  <Dropdown
-                    bind:value={playbackStore.playbackSpeed}
-                    options={speedOptions}
-                    onchange={(val) => playbackStore.setPlaybackSpeed(Number(val))}
+                <div class="setting-group switch-row-card">
+                  <div class="switch-card-text">
+                    <div class="switch-card-title">{t('studio.keyMarkers') || 'Key Change Markers'}</div>
+                    <div class="switch-card-desc">{t('studio.keyMarkersDesc') || 'Apply timeline key offset changes'}</div>
+                  </div>
+                  <ToggleSwitch
+                    bind:checked={playbackStore.enableKeyChangeMarkers}
+                    onchange={(val) => playbackStore.setKeyChangeMarkersEnabled(val)}
                   />
                 </div>
-              </div>
+              </section>
 
-              <!-- Transpose Mode -->
-              <div class="setting-group">
-                <span class="group-label">{t('studio.transposeModeLabel') || 'Transpose Mode'}</span>
-                <Dropdown
-                  bind:value={playbackStore.transposeMode}
-                  options={transposeOptions}
-                  onchange={(val) => playbackStore.setTransposeMode(val)}
-                />
-              </div>
-
-              <!-- Hold Notes Toggle -->
-              <div class="setting-group">
-                <HoldNotesControl
-                  checked={playbackStore.holdNotes}
-                  thresholdMs={playbackStore.tapThresholdMs}
-                  onchange={(val) => playbackStore.setHoldNotes(val)}
-                  onthresholdchange={(val) => playbackStore.setTapThresholdMs(val)}
-                />
-              </div>
-
-              <!-- Auto Chord Detection Toggle -->
-              <div class="setting-group switch-row-card">
-                <div class="switch-card-text">
-                  <div class="switch-card-title">{t('studio.autoChord') || 'Auto Chord Detection'}</div>
-                  <div class="switch-card-desc">{t('studio.autoChordDesc') || 'Play chords as game chord-pads'}</div>
+              <section class="settings-section">
+                <h3>Song Timings</h3>
+                <div class="settings-row-2">
+                  <div class="setting-group-col">
+                    <span class="group-label">{t('studio.playbackSpeedLabel') || 'Playback Speed'}</span>
+                    <Dropdown
+                      bind:value={playbackStore.playbackSpeed}
+                      options={speedOptions}
+                      onchange={(val) => playbackStore.setPlaybackSpeed(Number(val))}
+                    />
+                  </div>
+                  <div class="setting-group-col">
+                    <label class="group-label" for="studio-song-bpm">BPM</label>
+                    <input
+                      id="studio-song-bpm"
+                      class="setting-input"
+                      type="number"
+                      min="0.1"
+                      max="999"
+                      step="0.1"
+                      value={playbackStore.activeSong.bpmOverride ?? ''}
+                      placeholder={(playbackStore.activeSong.nativeBpm ?? playbackStore.activeSong.bpm).toFixed(1)}
+                      onchange={(event) => {
+                        const value = Number((event.currentTarget as HTMLInputElement).value);
+                        playbackStore.setBpmOverride(Number.isFinite(value) && value > 0 ? value : null);
+                      }}
+                    />
+                  </div>
                 </div>
-                <ToggleSwitch
-                  bind:checked={playbackStore.autoChord}
-                  onchange={(val) => playbackStore.setAutoChord(val)}
-                />
-              </div>
+              </section>
 
-              <!-- Key Change Markers Toggle -->
-              <div class="setting-group switch-row-card">
-                <div class="switch-card-text">
-                  <div class="switch-card-title">{t('studio.keyMarkers') || 'Key Change Markers'}</div>
-                  <div class="switch-card-desc">{t('studio.keyMarkersDesc') || 'Apply timeline key offset changes'}</div>
+              <section class="settings-section">
+                <h3>Note Playback</h3>
+                <div class="note-controls">
+                  <div class="note-control">
+                    <div class="switch-card-text">
+                      <div class="switch-card-title">Hold Notes</div>
+                    </div>
+                    <HoldNotesControl
+                      checked={playbackStore.holdNotes}
+                      thresholdMs={playbackStore.tapThresholdMs}
+                      showLabel={false}
+                      onchange={(val) => playbackStore.setHoldNotes(val)}
+                      onthresholdchange={(val) => playbackStore.setTapThresholdMs(val)}
+                    />
+                  </div>
+
+                  <div class="note-control">
+                    <div class="switch-card-text">
+                      <div class="switch-card-title">Merge Notes</div>
+                      <div class="switch-card-desc">Combine nearby notes during playback</div>
+                    </div>
+                    <div class="merge-setting-control">
+                      <ToggleSwitch
+                        checked={playbackStore.mergeNotes}
+                        onchange={(val) => playbackStore.setMergeNotes(val)}
+                      />
+                      <div class="tolerance-field">
+                        <label class="tolerance-label" for="studio-merge-tolerance">Tolerance</label>
+                        <div class="tolerance-input-row">
+                          <input
+                            id="studio-merge-tolerance"
+                            class="tolerance-input"
+                            type="number"
+                            min="1"
+                            max="1000"
+                            step="1"
+                            value={playbackStore.mergeToleranceMs}
+                            disabled={!playbackStore.mergeNotes}
+                            onchange={(event) => playbackStore.setMergeToleranceMs(Number((event.currentTarget as HTMLInputElement).value))}
+                          />
+                          <span class="tolerance-unit">ms</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="note-control switch-row-card">
+                    <div class="switch-card-text">
+                      <div class="switch-card-title">{t('studio.autoChord') || 'Auto Chord Detection'}</div>
+                      <div class="switch-card-desc">{t('studio.autoChordDesc') || 'Play chords as game chord-pads'}</div>
+                    </div>
+                    <ToggleSwitch
+                      bind:checked={playbackStore.autoChord}
+                      onchange={(val) => playbackStore.setAutoChord(val)}
+                    />
+                  </div>
                 </div>
-                <ToggleSwitch
-                  bind:checked={playbackStore.enableKeyChangeMarkers}
-                  onchange={(val) => playbackStore.setKeyChangeMarkersEnabled(val)}
-                />
-              </div>
-
+              </section>
 
             {:else}
               <div class="empty-hint">{t('studio.loadSongPrompt')}</div>
@@ -281,21 +349,6 @@
                 <div class="markers-sidebar-section">
                   <div class="markers-sidebar-header">
                     <span class="group-label">{t('studio.timelineMarkers')} ({playbackStore.activeSong?.keyMarkers?.length || 0})</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      icon="ScanDash"
-                      onclick={() => playbackStore.autoDetectKeyChanges()}
-                      title={t('studio.scanKeysTooltip') || 'Scan the MIDI file for embedded key signatures'}
-                    >
-                      {t('studio.scan') || 'Scan'}
-                    </Button>
-                  </div>
-
-                  <div class="marker-navigation">
-                    <Button variant="ghost" icon="ChevronLeft" onclick={() => playbackStore.navigateMarker('prev')} title={t('studio.prevMarkerTooltip')} />
-                    <Button variant="ghost" icon="ChevronRight" onclick={() => playbackStore.navigateMarker('next')} title={t('studio.nextMarkerTooltip')} />
-                    <Button variant="ghost" icon="Delete" colorMode="danger" disabled={!playbackStore.selectedMarkerId} onclick={() => playbackStore.deleteSelectedMarker()} title={t('studio.deleteMarkerTooltip')} />
                   </div>
                   {#if playbackStore.activeSong?.keyMarkers && playbackStore.activeSong.keyMarkers.length > 0}
                     <div class="markers-sidebar-list">
@@ -305,26 +358,45 @@
                           class:is-active={marker.id === playbackStore.selectedMarkerId}
                         >
                           <button class="marker-item-info" onclick={() => {
-                            playbackStore.selectMarker(marker);
-                            playbackStore.seek(marker.timeMs / 1000);
+                            playbackStore.toggleMarker(marker);
                           }}>
-                            <span class="marker-item-key">{marker.noteDisplay || marker.key}</span>
-                            <span class="marker-item-offset">({marker.offsetDisplay})</span>
-                            <span class="marker-item-time">{(marker.time ?? (marker.timeMs / 1000)).toFixed(2)}s</span>
+                            <div class="marker-item-label">{marker.noteDisplay || marker.key} ({marker.offsetDisplay})</div>
+                            <div class="marker-item-time">{(marker.time ?? (marker.timeMs / 1000)).toFixed(2)}s</div>
                           </button>
-                          <button
-                            class="marker-item-delete"
-                            onclick={(e) => {
-                              e.stopPropagation();
-                              playbackStore.deleteKeyMarker(marker.id);
-                            }}
-                            title={t('studio.deleteMarkerTooltip') || 'Delete marker'}
-                          >
-                            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-                              <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                              <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-                            </svg>
-                          </button>
+                          <div class="marker-item-actions">
+                            <button
+                              type="button"
+                              class="marker-action-btn marker-go-btn"
+                              title={t('studio.seekToMarker') || 'Go to marker position'}
+                              aria-label={t('studio.seekToMarker') || 'Go to marker position'}
+                              onclick={(e) => {
+                                e.stopPropagation();
+                                const timeSec = marker.time ?? (marker.timeMs / 1000);
+                                playbackStore.seek(timeSec);
+                                playbackStore.selectedMarkerId = marker.id;
+                                playbackStore.selectedKeyOffset = marker.keyOffset;
+                              }}
+                            >
+                              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M3 1.713a.7.7 0 0 1 1.05-.607l10.89 6.288a.7.7 0 0 1 0 1.212L4.05 14.894A.7.7 0 0 1 3 14.288z"/>
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              class="marker-action-btn marker-delete-btn"
+                              title={t('studio.deleteMarkerTooltip') || 'Delete marker'}
+                              aria-label={t('studio.deleteMarkerTooltip') || 'Delete marker'}
+                              onclick={(e) => {
+                                e.stopPropagation();
+                                playbackStore.deleteKeyMarker(marker.id);
+                              }}
+                            >
+                              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                                <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                              </svg>
+                            </button>
+                          </div>
                         </div>
                       {/each}
                     </div>
@@ -601,7 +673,24 @@
 
   .settings-row-2 {
     display: flex;
-    gap: 10px;
+    gap: 14px;
+  }
+
+  .settings-section {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 12px;
+    border-radius: 6px;
+    background: var(--control-fill);
+  }
+
+  .settings-section h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1.3;
   }
 
   .setting-group-col {
@@ -609,24 +698,122 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    background: var(--bg-card);
-    border-radius: 6px;
-    padding: 10px 12px;
+    padding: 0;
   }
 
   .setting-group {
-    background: var(--bg-card);
     border: none;
-    border-radius: 6px;
-    padding: 10px 12px;
+    padding: 0;
+  }
+
+  .setting-group:not(.switch-row-card) > .switch-card-text {
+    margin-bottom: 8px;
+  }
+
+  .settings-section > .setting-group {
+    padding: 0;
+    background: transparent;
+  }
+
+  .note-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px 24px;
+  }
+
+  .note-control {
+    flex: 1;
+    min-width: 180px;
+  }
+
+  .note-control > .switch-card-text {
+    margin-bottom: 8px;
   }
 
   .group-label {
     display: block;
     font-size: 11.5px;
     font-weight: 500;
-    color: var(--text-secondary);
+    color: var(--text-primary);
     margin-bottom: 6px;
+  }
+
+  .setting-input {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    height: 30px;
+    padding: 5px 8px;
+    border: 0;
+    border-radius: 4px;
+    background: var(--control-fill);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 12px;
+  }
+
+  .setting-input:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .setting-input::placeholder {
+    color: var(--text-secondary);
+  }
+
+  .merge-setting-control {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .tolerance-field { display: flex; align-items: center; gap: 8px; }
+
+  .tolerance-input-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+
+  .tolerance-label {
+    font-size: 10.5px;
+    color: var(--text-secondary);
+    line-height: 1;
+  }
+
+  .tolerance-input {
+    box-sizing: border-box;
+    width: 76px;
+    height: 28px;
+    padding: 6px 10px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 13px;
+    text-align: center;
+  }
+
+  .tolerance-input:hover:enabled,
+  .tolerance-input:focus {
+    background: var(--control-fill-hover);
+  }
+
+  .tolerance-input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .tolerance-unit {
+    color: var(--text-tertiary);
+    font-size: 11px;
+    margin-left: 5px;
+  }
+
+  .tolerance-input:disabled {
+    opacity: 0.45;
   }
 
   .switch-row-card {
@@ -668,7 +855,7 @@
     margin-top: 4px;
     padding: 10px;
     background: var(--bg-card);
-    border: 1px solid var(--border-default);
+    border: none;
     border-radius: var(--radius-md, 8px);
   }
 
@@ -678,33 +865,26 @@
     justify-content: space-between;
   }
 
-  .marker-navigation {
-    display: flex;
-    gap: 4px;
-  }
-
   .markers-sidebar-list {
     display: flex;
     flex-direction: column;
     gap: 4px;
-
   }
 
   .marker-sidebar-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 5px 8px;
+    padding: 6px 8px;
     border-radius: var(--radius-sm, 6px);
     background: var(--bg-surface-elevated, rgba(255, 255, 255, 0.04));
     border: 1px solid transparent;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background 0.15s ease, border-color 0.15s ease;
   }
 
   .marker-sidebar-item:hover {
     background: var(--bg-surface-hover, rgba(255, 255, 255, 0.08));
-    border-color: var(--border-default);
   }
 
   .marker-sidebar-item.is-active {
@@ -714,53 +894,84 @@
 
   .marker-item-info {
     flex: 1;
+    min-width: 0;
     border: 0;
+    outline: none;
     background: transparent;
     cursor: pointer;
-    padding: 4px 0;
+    padding: 2px 0;
     display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    text-align: left;
   }
 
-  .marker-item-key {
+  .marker-item-info:focus,
+  .marker-item-info:focus-visible {
+    outline: none;
+  }
+
+  .marker-item-label {
+    font-size: 11.5px;
     font-weight: 600;
     color: var(--text-primary);
-  }
-
-  .marker-item-offset {
-    color: var(--accent-color, #1db954);
-    font-size: 10px;
+    line-height: 1.25;
   }
 
   .marker-item-time {
     color: var(--text-tertiary);
     font-size: 10.5px;
     font-variant-numeric: tabular-nums;
+    line-height: 1.2;
   }
 
-  .marker-item-delete {
-    opacity: 0;
+  .marker-item-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
+  .marker-action-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 3px;
     background: transparent;
     border: none;
-    color: var(--color-danger, #ef4444);
+    box-shadow: none;
+    color: var(--text-primary);
+    opacity: 0.4;
     cursor: pointer;
-    padding: 2px;
-    border-radius: 4px;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: opacity 0.15s ease;
+    padding: 0;
+    transition: opacity var(--transition-normal, 0.22s cubic-bezier(0, 0, 0.2, 1)),
+                color var(--transition-fast, 0.16s ease);
   }
 
-  .marker-sidebar-item:hover .marker-item-delete,
-  .marker-sidebar-item:focus-within .marker-item-delete {
-    opacity: 0.7;
+  .marker-action-btn:hover {
+    background: transparent;
+    opacity: 1;
   }
 
-  .marker-item-delete:hover {
-    opacity: 1 !important;
+  .marker-action-btn:active {
+    background: transparent;
+    opacity: 0.75;
+  }
+
+  .marker-action-btn:focus,
+  .marker-action-btn:focus-visible {
+    outline: none;
+  }
+
+  .marker-action-btn.marker-go-btn:hover {
+    color: var(--accent-color, var(--accent, #1DB954));
+  }
+
+  .marker-action-btn.marker-delete-btn:hover {
+    color: var(--color-danger, #ef4444);
   }
 
   .sidebar-no-markers {

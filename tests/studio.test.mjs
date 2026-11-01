@@ -88,11 +88,26 @@ test('Auto uses the latest marker at note onset, with song settings before the f
   const pitch = createDisplayPitch(displaySettings({ markers: [
     { timeMs: 2000, keyOffset: -3 }, { timeMs: 1000, keyOffset: 5 },
   ] }));
-  assert.equal(pitch(note('before', 999, 5000)), 62);
+  assert.equal(pitch(note('before', 989, 5000)), 62);
   assert.equal(pitch(note('boundary', 1000, 5000)), 65);
-  assert.equal(pitch(note('between', 1999, 5000)), 65);
+  assert.equal(pitch(note('between', 1989, 5000)), 65);
   assert.equal(pitch(note('after', 2000, 5000)), 57);
   assert.equal(createDisplayPitch(displaySettings({ markersEnabled: false }))(note('disabled', 2000, 500)), 62);
+});
+
+test('Auto matches playback lookahead for rounded, dragged, and saved marker boundaries', () => {
+  // Adding a marker used to round this onset up to 105350ms.
+  const pitch = createDisplayPitch(displaySettings({ markers: [{ timeMs: 105350, keyOffset: 3 }] }));
+  for (const startMs of [105340, 105348, 105348.384, 105350, 105351]) {
+    const source = note(`chord-${startMs}`, startMs, 500);
+    assert.equal(pitch(source), 63);
+    assert.equal(pitch({ ...source, startTime: startMs / 1000 }), 63);
+  }
+  // A sustained note keeps the offset from its onset, outside the 10ms margin.
+  assert.equal(pitch(note('earlier-sustain', 105339.999, 5000)), 62);
+  const disabled = createDisplayPitch(displaySettings({ markersEnabled: false,
+    markers: [{ timeMs: 105350, keyOffset: 3 }] }));
+  assert.equal(disabled(note('disabled', 105348.384, 500)), 62);
 });
 
 test('marker transpose overrides use native enum values and inherit when unset', () => {

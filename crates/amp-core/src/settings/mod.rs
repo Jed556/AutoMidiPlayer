@@ -1,4 +1,4 @@
-mod legacy;
+pub mod legacy;
 pub mod defaults;
 
 use crate::{KeyboardLayoutJson, LibraryDatabase, LoadedGameBundle};

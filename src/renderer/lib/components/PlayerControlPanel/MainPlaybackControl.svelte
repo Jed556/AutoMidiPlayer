@@ -1,35 +1,15 @@
 <script lang="ts">
   import { playbackStore } from '../../state/playbackStore.svelte';
   import { t } from '../../i18n';
-  import FluentIcon from '../Common/FluentIcon.svelte';
-  import PlayPauseIcon from '../Common/PlayPauseIcon.svelte';
-  import PedalIcon from '../Common/PedalIcon.svelte';
-  import LoopIcon from '../Common/LoopIcon.svelte';
-  import PedalStatusPopup from './PedalStatusPopup.svelte';
+  import { tooltip } from '../../actions/tooltip';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
+  import PlayPauseIcon from '../Icons/PlayPauseIcon.svelte';
+  import PedalIcon from '../Icons/PedalIcon.svelte';
+  import LoopIcon from '../Icons/LoopIcon.svelte';
   import Seekbar from './Seekbar.svelte';
 
-  let showPedals = $state(false);
   let previewValue = $state(0);
   let isPreviewActive = $state(false);
-  let pedalHoverTimer: ReturnType<typeof setTimeout> | null = null;
-
-  function handlePedalMouseEnter() {
-    if (pedalHoverTimer) {
-      clearTimeout(pedalHoverTimer);
-      pedalHoverTimer = null;
-    }
-    showPedals = true;
-  }
-
-  function handlePedalMouseLeave() {
-    if (pedalHoverTimer) {
-      clearTimeout(pedalHoverTimer);
-    }
-    pedalHoverTimer = setTimeout(() => {
-      showPedals = false;
-      pedalHoverTimer = null;
-    }, 120);
-  }
 
   function handlePedalClick() {
     playbackStore.togglePedals();
@@ -76,11 +56,12 @@
       <!-- Pedal Status Button -->
       <div
         class="pedal-anchor"
-        role="group"
-        onmouseenter={handlePedalMouseEnter}
-        onmouseleave={handlePedalMouseLeave}
-        onfocusin={handlePedalMouseEnter}
-        onfocusout={handlePedalMouseLeave}
+        use:tooltip={{
+          contentType: 'pedals',
+          position: 'top',
+          text: t('player.pedals') || 'Pedals',
+          arrow: false
+        }}
       >
         <button
           type="button"
@@ -100,7 +81,6 @@
             size={15}
           />
         </button>
-        <PedalStatusPopup open={showPedals} />
       </div>
 
       <!-- Shuffle -->

@@ -12,7 +12,7 @@
   import { PianoStrikeEffects, type PianoStrike } from './pianoStrikeEffects';
   import type { RollNote, KeyChangeMarker } from '$shared/types/midi';
   import MarkerActionPopup from './MarkerActionPopup.svelte';
-  import FluentIcon from '../Common/FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
 
   interface Props {
     renderTracks: StudioRenderTrack[];
@@ -87,11 +87,19 @@
   let hoverStartedAt = 0;
   const HOVER_GAP = 4;
   let hoveredMarker: KeyChangeMarker | null = $state(null);
+  let hoveredBadgeMarker: KeyChangeMarker | null = $state(null);
   let tooltipPos = $state({ x: 0, y: 0 });
 
   $effect(() => {
     if (hoveredTarget && (!renderTracks.includes(hoveredTarget.track) || hoveredTarget.track.muted)) {
       hoveredTarget = null;
+    }
+  });
+
+  // Automatically dismiss marker action popup during active playback or scrubbing
+  $effect(() => {
+    if (playbackStore.isPlaying || playbackStore.isScrubbing) {
+      hideMarkerPopupImmediate();
     }
   });
 
@@ -110,11 +118,262 @@
 
   // Key marker dragging & action popup state
   let isDraggingMarker = $state(false);
+  let isPointerDownMarker = false;
+  let isPointerDownMarkerBadge = false;
+  let hasMarkerMoved = false;
   let draggedMarker: KeyChangeMarker | null = null;
   let dragStartMouseX = 0;
   let dragStartTimeMs = 0;
+  let dragCurrentTimeMs = $state<number | null>(null);
   let activePopupMarker: KeyChangeMarker | null = $state(null);
-  let popupPos = $state({ x: 0, y: 0 });
+  let isPopupHovered = false;
+  let markerHideTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  function showMarkerPopup(marker: KeyChangeMarker) {
+    if (markerHideTimeout) {
+      clearTimeout(markerHideTimeout);
+      markerHideTimeout = null;
+    }
+    // Only show on hover, never when clicking or actively interacting
+    if (!isPointerDownMarker && !isDraggingMarker && !isMiddlePanning && !isPointerDownPlayhead && !isDraggingPlayhead && !playbackStore.isPlaying && !playbackStore.isScrubbing) {
+      activePopupMarker = marker;
+    }
+  }
+
+  function startMarkerHideTimer() {
+    if (markerHideTimeout) clearTimeout(markerHideTimeout);
+    markerHideTimeout = setTimeout(() => {
+      if (!isPopupHovered && !hoveredBadgeMarker) {
+        activePopupMarker = null;
+      }
+    }, 180);
+  }
+
+  function hideMarkerPopupImmediate() {
+    if (markerHideTimeout) {
+      clearTimeout(markerHideTimeout);
+      markerHideTimeout = null;
+    }
+    activePopupMarker = null;
+  }
+  let popupDisplayMarker = $derived(
+    isDraggingMarker && activePopupMarker && dragCurrentTimeMs !== null
+      ? { ...activePopupMarker, timeMs: dragCurrentTimeMs, time: dragCurrentTimeMs / 1000 }
+      : activePopupMarker
+  );
+
+  let popupX = $derived.by(() => {
+    if (!activePopupMarker) return 0;
+    const m = popupDisplayMarker ?? activePopupMarker;
+    const mTime = m.time ?? (m.timeMs / 1000);
+    const kx = KEY_WIDTH + (mTime * zoomX) - scrollX;
+    const containerW = width || canvasContainer?.clientWidth || 800;
+    return Math.max(KEY_WIDTH + 48, Math.min(containerW - 48, kx));
+  });
+
+  // Smooth Zoom Animation State
+  let animZoomXId: number | null = null;
+  let targetZoomX = DEFAULT_UI_PREFERENCES.studio.zoomX;
+  let zoomXAnimStart = 0;
+  let zoomXAnimDuration = 0;
+  let zoomXFrom = 0;
+  let zoomXTo = 0;
+  let zoomXAnchorTimeSec = 0;
+
+  let animZoomYId: number | null = null;
+  let targetZoomY = DEFAULT_UI_PREFERENCES.studio.zoomY;
+  let zoomYAnimStart = 0;
+  let zoomYAnimDuration = 0;
+  let zoomYFrom = 0;
+  let zoomYTo = 0;
+  let zoomYCenterFromTop = 0;
+
+  function easeOutCubic(t: number): number {
+    return 1 - Math.pow(1 - t, 3);
+  }
+
+  function getAnimationDuration(): number {
+    if (reducedMotion || animationStore.isOff || animationStore.durationMs <= 0) {
+      return 0;
+    }
+    return animationStore.durationMs;
+  }
+
+  export function cancelZoomAnimations() {
+    if (animZoomXId !== null) {
+      cancelAnimationFrame(animZoomXId);
+      animZoomXId = null;
+    }
+    if (animZoomYId !== null) {
+      cancelAnimationFrame(animZoomYId);
+      animZoomYId = null;
+    }
+  }
+
+  export function zoomToX(target: number) {
+    const clamped = Math.min(400, Math.max(20, target));
+    targetZoomX = clamped;
+
+    if (animZoomXId === null) {
+      zoomXAnchorTimeSec = isLockedToPlayhead
+        ? playbackStore.currentTimeSeconds
+        : Math.max(0, scrollX / (zoomX || 1));
+    }
+
+    const duration = getAnimationDuration();
+    if (duration <= 0) {
+      if (animZoomXId !== null) {
+        cancelAnimationFrame(animZoomXId);
+        animZoomXId = null;
+      }
+      zoomX = clamped;
+      scrollX = Math.max(0, zoomXAnchorTimeSec * clamped);
+      onScrollChange?.(scrollX, scrollY);
+      dirty = true;
+      return;
+    }
+
+    zoomXFrom = zoomX;
+    zoomXTo = clamped;
+    zoomXAnimStart = performance.now();
+    zoomXAnimDuration = duration;
+
+    if (animZoomXId === null) {
+      const stepZoomX = (now: number) => {
+        const elapsed = now - zoomXAnimStart;
+        const progress = Math.min(1, elapsed / zoomXAnimDuration);
+        const eased = easeOutCubic(progress);
+        const currentZoom = zoomXFrom + (zoomXTo - zoomXFrom) * eased;
+
+        zoomX = currentZoom;
+        scrollX = Math.max(0, zoomXAnchorTimeSec * currentZoom);
+        onScrollChange?.(scrollX, scrollY);
+        dirty = true;
+
+        if (progress < 1) {
+          animZoomXId = requestAnimationFrame(stepZoomX);
+        } else {
+          animZoomXId = null;
+          zoomX = zoomXTo;
+          scrollX = Math.max(0, zoomXAnchorTimeSec * zoomXTo);
+          onScrollChange?.(scrollX, scrollY);
+          dirty = true;
+        }
+      };
+      animZoomXId = requestAnimationFrame(stepZoomX);
+    }
+  }
+
+  export function zoomInX() {
+    const base = animZoomXId !== null ? targetZoomX : zoomX;
+    zoomToX(base * 1.25);
+  }
+
+  export function zoomOutX() {
+    const base = animZoomXId !== null ? targetZoomX : zoomX;
+    zoomToX(base * 0.8);
+  }
+
+  export function resetZoomX() {
+    zoomToX(DEFAULT_UI_PREFERENCES.studio.zoomX);
+  }
+
+  export function zoomToY(target: number, specificCenterFromTop?: number) {
+    const clamped = Math.min(40, Math.max(2, target));
+    targetZoomY = clamped;
+
+    const containerH = canvasContainer?.clientHeight || 400;
+
+    if (specificCenterFromTop !== undefined) {
+      zoomYCenterFromTop = specificCenterFromTop;
+    } else if (animZoomYId === null) {
+      zoomYCenterFromTop = (scrollY + containerH / 2) / (zoomY || 1);
+    }
+
+    const duration = getAnimationDuration();
+    if (duration <= 0) {
+      if (animZoomYId !== null) {
+        cancelAnimationFrame(animZoomYId);
+        animZoomYId = null;
+      }
+      zoomY = clamped;
+      const maxScrollY = Math.max(0, TOTAL_PITCHES * clamped - containerH);
+      scrollY = Math.max(0, Math.min(maxScrollY, zoomYCenterFromTop * clamped - containerH / 2));
+      onScrollChange?.(scrollX, scrollY);
+      dirty = true;
+      return;
+    }
+
+    zoomYFrom = zoomY;
+    zoomYTo = clamped;
+    zoomYAnimStart = performance.now();
+    zoomYAnimDuration = duration;
+
+    if (animZoomYId === null) {
+      const stepZoomY = (now: number) => {
+        const elapsed = now - zoomYAnimStart;
+        const progress = Math.min(1, elapsed / zoomYAnimDuration);
+        const eased = easeOutCubic(progress);
+        const currentZoom = zoomYFrom + (zoomYTo - zoomYFrom) * eased;
+
+        zoomY = currentZoom;
+        const currentContainerH = canvasContainer?.clientHeight || 400;
+        const maxScrollY = Math.max(0, TOTAL_PITCHES * currentZoom - currentContainerH);
+        scrollY = Math.max(0, Math.min(maxScrollY, zoomYCenterFromTop * currentZoom - currentContainerH / 2));
+        onScrollChange?.(scrollX, scrollY);
+        dirty = true;
+
+        if (progress < 1) {
+          animZoomYId = requestAnimationFrame(stepZoomY);
+        } else {
+          animZoomYId = null;
+          zoomY = zoomYTo;
+          const finalMaxScrollY = Math.max(0, TOTAL_PITCHES * zoomYTo - currentContainerH);
+          scrollY = Math.max(0, Math.min(finalMaxScrollY, zoomYCenterFromTop * zoomYTo - currentContainerH / 2));
+          onScrollChange?.(scrollX, scrollY);
+          dirty = true;
+        }
+      };
+      animZoomYId = requestAnimationFrame(stepZoomY);
+    }
+  }
+
+  export function zoomInY() {
+    const base = animZoomYId !== null ? targetZoomY : zoomY;
+    zoomToY(base + 2);
+  }
+
+  export function zoomOutY() {
+    const base = animZoomYId !== null ? targetZoomY : zoomY;
+    zoomToY(base - 2);
+  }
+
+  export function fitKeyHeight() {
+    if (!canvasContainer) return;
+    const h = canvasContainer.clientHeight;
+    if (h <= 0) return;
+
+    let lowest = Infinity;
+    let highest = -Infinity;
+    for (const track of renderTracks) {
+      if (track.muted) continue;
+      for (const note of track.notes) {
+        const pitch = note.pitch ?? note.noteNumber;
+        if (pitch < MIN_PITCH || pitch > MAX_PITCH) continue;
+        lowest = Math.min(lowest, pitch);
+        highest = Math.max(highest, pitch);
+      }
+    }
+    if (!Number.isFinite(lowest)) {
+      lowest = 48;
+      highest = 83;
+    }
+    const paddedLow = Math.max(MIN_PITCH, lowest - 3);
+    const paddedHigh = Math.min(MAX_PITCH, highest + 3);
+    const targetZoom = Math.max(2, Math.min(40, h / (paddedHigh - paddedLow + 1)));
+    const targetMiddlePitchFromTop = (MAX_PITCH - (lowest + highest) / 2 + 0.5);
+    zoomToY(targetZoom, targetMiddlePitchFromTop);
+  }
 
   // Note scrub preview tracking
   let scrubAuditionedPitches = new Set<number>();
@@ -304,12 +563,13 @@
       }
     }
 
-    // 3. Draw Key Change Markers (Matching WPF PianoRollCanvas with badges and lines)
+    // 3. Draw Key Change Marker Vertical Lines
     const keyMarkers = song?.keyMarkers || [];
     const selectedMarkerId = playbackStore.selectedMarkerId;
 
     for (const km of keyMarkers) {
-      const mTime = km.time ?? (km.timeMs / 1000);
+      const isDragged = isDraggingMarker && km.id === draggedMarker?.id && dragCurrentTimeMs !== null;
+      const mTime = isDragged ? (dragCurrentTimeMs! / 1000) : (km.time ?? (km.timeMs / 1000));
       const kx = KEY_WIDTH + (mTime * zoomX) - scrollX;
 
       if (kx >= KEY_WIDTH && kx <= width) {
@@ -325,21 +585,6 @@
         ctx.lineTo(kx, height);
         ctx.stroke();
         ctx.setLineDash([]);
-
-        // Top marker badge
-        const badgeText = `${km.noteDisplay || km.key} (${km.offsetDisplay})`;
-        ctx.font = 'bold 9.5px Inter, system-ui, sans-serif';
-        const tm = ctx.measureText(badgeText);
-        const bw = tm.width + 10;
-        const bh = 15;
-        const bx = Math.max(KEY_WIDTH + 2, Math.min(width - bw - 2, kx - bw / 2));
-
-        ctx.fillStyle = color;
-        ctx.fillRect(bx, 1, bw, bh);
-        ctx.fillStyle = '#000000';
-        ctx.textAlign = 'center';
-        ctx.fillText(badgeText, bx + bw / 2, 12);
-        ctx.textAlign = 'start';
       }
     }
 
@@ -553,22 +798,57 @@
       ctx.fill();
     }
 
+    // 7. Draw Marker Top Badges (Always on top of notes, grid, keyboard, and playhead)
+    const sortedBadges = [...keyMarkers].sort((a, b) => {
+      if (a.id === selectedMarkerId) return 1;
+      if (b.id === selectedMarkerId) return -1;
+      return 0;
+    });
+
+    for (const km of sortedBadges) {
+      const isDragged = isDraggingMarker && km.id === draggedMarker?.id && dragCurrentTimeMs !== null;
+      const mTime = isDragged ? (dragCurrentTimeMs! / 1000) : (km.time ?? (km.timeMs / 1000));
+      const kx = KEY_WIDTH + (mTime * zoomX) - scrollX;
+
+      if (kx >= KEY_WIDTH - 20 && kx <= width + 20) {
+        const isSelected = km.id === selectedMarkerId;
+        const isHovered = hoveredMarker?.id === km.id;
+        const color = isSelected ? accentColor : '#f59e0b';
+
+        // Top marker badge
+        const badgeText = `${km.noteDisplay || km.key} (${km.offsetDisplay})`;
+        ctx.font = 'bold 9.5px Inter, system-ui, sans-serif';
+        const tm = ctx.measureText(badgeText);
+        const bw = tm.width + 10;
+        const bh = 15;
+        const bx = Math.max(KEY_WIDTH + 2, Math.min(width - bw - 2, kx - bw / 2));
+
+        ctx.fillStyle = color;
+        ctx.fillRect(bx, 1, bw, bh);
+        ctx.fillStyle = '#000000';
+        ctx.textAlign = 'center';
+        ctx.fillText(badgeText, bx + bw / 2, 12);
+        ctx.textAlign = 'start';
+      }
+    }
+
   }
 
-  function hitTestMarker(canvasX: number, canvasY?: number): KeyChangeMarker | null {
+  function hitTestMarker(canvasX: number, canvasY?: number): { marker: KeyChangeMarker; isBadge: boolean } | null {
     const song = playbackStore.activeSong;
     if (!song?.keyMarkers) return null;
     for (const km of song.keyMarkers) {
-      const mTime = km.time ?? (km.timeMs / 1000);
+      const isDragged = isDraggingMarker && km.id === draggedMarker?.id && dragCurrentTimeMs !== null;
+      const mTime = isDragged ? (dragCurrentTimeMs! / 1000) : (km.time ?? (km.timeMs / 1000));
       const kx = KEY_WIDTH + (mTime * zoomX) - scrollX;
-      if (canvasY !== undefined && canvasY <= 24) {
+      if (canvasY !== undefined && canvasY <= 20) {
         // Hit-test on top badge
-        if (Math.abs(canvasX - kx) <= 24) {
-          return km;
+        if (Math.abs(canvasX - kx) <= 28) {
+          return { marker: km, isBadge: true };
         }
       } else if (Math.abs(canvasX - kx) <= 8) {
         // Hit-test along vertical line
-        return km;
+        return { marker: km, isBadge: false };
       }
     }
     return null;
@@ -600,29 +880,27 @@
     e.preventDefault();
     if (!canvas) return;
     hoveredTarget = null;
-
-    const rect = canvas.getBoundingClientRect();
-    const mouseCanvasX = e.clientX - rect.left;
+    hideMarkerPopupImmediate();
 
     if (e.ctrlKey && !e.shiftKey) {
-      // Horizontal Zoom X anchored around mouse cursor position
-      const mouseSec = Math.max(0, (mouseCanvasX - KEY_WIDTH + scrollX) / zoomX);
+      // Horizontal Zoom X (Left anchored)
       const factor = e.deltaY < 0 ? 1.18 : 0.82;
-      const newZoomX = Math.min(400, Math.max(20, zoomX * factor));
-      scrollX = Math.max(0, mouseSec * newZoomX - (mouseCanvasX - KEY_WIDTH));
-      zoomX = newZoomX;
-      onScrollChange?.(scrollX, scrollY);
+      const base = animZoomXId !== null ? targetZoomX : zoomX;
+      zoomToX(base * factor);
     } else if (e.altKey || (e.shiftKey && e.ctrlKey)) {
-      // Vertical Zoom Y (key height)
+      // Vertical Zoom Y (Middle anchored)
       const delta = e.deltaY < 0 ? 2 : -2;
-      zoomY = Math.min(40, Math.max(2, zoomY + delta));
+      const base = animZoomYId !== null ? targetZoomY : zoomY;
+      zoomToY(base + delta);
     } else if (e.shiftKey) {
       // Horizontal Scroll X
+      cancelZoomAnimations();
       isLockedToPlayhead = false;
       scrollX = Math.max(0, scrollX + e.deltaY);
       onScrollChange?.(scrollX, scrollY);
     } else {
       // Vertical Scroll Y
+      cancelZoomAnimations();
       const maxScrollY = Math.max(0, TOTAL_PITCHES * zoomY - (canvasContainer?.clientHeight || 400));
       scrollY = Math.max(0, Math.min(maxScrollY, scrollY + e.deltaY));
       onScrollChange?.(scrollX, scrollY);
@@ -639,6 +917,7 @@
     // 1. Middle mouse button OR Space/Alt held with left click => 2D Panning
     if (e.button === 1 || (e.button === 0 && (isSpacePressed || e.altKey))) {
       e.preventDefault();
+      cancelZoomAnimations();
       isMiddlePanning = true;
       isLockedToPlayhead = false;
       panStartX = e.clientX;
@@ -648,30 +927,27 @@
       return;
     }
 
+    // Any mouse click dismisses the marker popup immediately
+    hideMarkerPopupImmediate();
+
     // 2. Left click on canvas
     if (e.button === 0 && x >= KEY_WIDTH) {
       // Check if user clicked on or near a marker line or badge
-      const marker = hitTestMarker(x, y);
-      if (marker) {
-        playbackStore.selectMarker(marker);
+      const hit = hitTestMarker(x, y);
+      if (hit) {
+        const marker = hit.marker;
         const mTime = marker.time ?? (marker.timeMs / 1000);
-        playbackStore.seek(mTime);
 
-        // Start horizontal dragging of marker
-        isDraggingMarker = true;
+        // Prepare marker click / drag detection
+        isPointerDownMarker = true;
+        isDraggingMarker = false;
+        hasMarkerMoved = false;
+        isPointerDownMarkerBadge = hit.isBadge;
         draggedMarker = marker;
         dragStartMouseX = e.clientX;
         dragStartTimeMs = marker.timeMs ?? Math.round(mTime * 1000);
-
-        // Open action popup
-        activePopupMarker = marker;
-        const kx = KEY_WIDTH + (mTime * zoomX) - scrollX;
-        popupPos = { x: Math.max(KEY_WIDTH + 48, Math.min(rect.width - 48, kx)), y: 22 };
         return;
       }
-
-      // Deselect popup when clicking canvas background
-      activePopupMarker = null;
 
       // Otherwise playhead click / scrub
       playheadScrubScrollX = scrollX;
@@ -692,6 +968,7 @@
     const y = e.clientY - rect.top;
 
     if (isMiddlePanning) {
+      hideMarkerPopupImmediate();
       hoverTime = null;
       const dx = e.clientX - panStartX;
       const dy = e.clientY - panStartY;
@@ -702,19 +979,35 @@
       return;
     }
 
-    if (isDraggingMarker && draggedMarker) {
-      hoverTime = null;
-      const dx = e.clientX - dragStartMouseX;
-      const dxSec = dx / zoomX;
-      const rawMs = Math.max(0, dragStartTimeMs + dxSec * 1000);
-      // Snap to 10ms intervals
-      const snappedMs = Math.round(rawMs / 10) * 10;
-      draggedMarker.timeMs = snappedMs;
-      draggedMarker.time = snappedMs / 1000;
+    if (isPointerDownMarker && draggedMarker) {
+      hideMarkerPopupImmediate();
+      if (!isDraggingMarker) {
+        const dx = Math.abs(e.clientX - dragStartMouseX);
+        if (dx >= 5) {
+          isDraggingMarker = true;
+          dragCurrentTimeMs = dragStartTimeMs;
+          playbackStore.selectMarker(draggedMarker);
+        }
+      }
 
-      const kx = KEY_WIDTH + (draggedMarker.time * zoomX) - scrollX;
-      popupPos = { x: Math.max(KEY_WIDTH + 48, Math.min(rect.width - 48, kx)), y: 22 };
-      return;
+      if (isDraggingMarker) {
+        hoverTime = null;
+        const dx = e.clientX - dragStartMouseX;
+        const dxSec = dx / zoomX;
+        const totalDur = playbackStore.durationSeconds || 120;
+        const rawMs = Math.max(0, Math.min(totalDur * 1000, dragStartTimeMs + dxSec * 1000));
+        // Snap to 10ms intervals
+        const snappedMs = Math.round(rawMs / 10) * 10;
+        if (dragCurrentTimeMs !== snappedMs) {
+          dragCurrentTimeMs = snappedMs;
+          if (snappedMs !== dragStartTimeMs) {
+            hasMarkerMoved = true;
+          }
+          dirty = true;
+        }
+
+        return;
+      }
     }
 
     if (isPointerDownPlayhead && !isDraggingPlayhead) {
@@ -725,6 +1018,7 @@
     }
 
     if (isDraggingPlayhead) {
+      hideMarkerPopupImmediate();
       hoverTime = null;
       updatePlayheadFromMouse(x, true);
       auditionScrubNotes(playbackStore.currentTimeSeconds);
@@ -736,24 +1030,48 @@
       } else {
         hoverTime = null;
       }
-      hoveredMarker = hitTestMarker(x, y);
+      const hit = hitTestMarker(x, y);
+      hoveredMarker = hit?.marker ?? null;
+      hoveredBadgeMarker = hit?.isBadge ? hit.marker : null;
+      if (hoveredBadgeMarker) {
+        showMarkerPopup(hoveredBadgeMarker);
+      } else if (activePopupMarker && !isPopupHovered) {
+        startMarkerHideTimer();
+      }
       detectNoteHover(x, y);
     }
   }
 
   function handleWindowMouseMove(e: MouseEvent) {
     if (canvasContainer?.contains(e.target as Node)) return;
-    if (isPointerDownPlayhead || isMiddlePanning || isDraggingMarker) handleMouseMove(e);
+    if (isPointerDownPlayhead || isMiddlePanning || isDraggingMarker || isPointerDownMarker) handleMouseMove(e);
   }
 
   function handleMouseUp() {
-    if (isDraggingMarker && draggedMarker && playbackStore.activeSong) {
-      playbackStore.activeSong.keyMarkers?.sort((a, b) => a.timeMs - b.timeMs);
-      api.playback.setKeyMarkers(playbackStore.activeSong.keyMarkers || []);
-      playbackStore.scheduleAutoSaveSongSettings();
+    if (isPointerDownMarker && draggedMarker) {
+      if (!isDraggingMarker) {
+        // Pure click: toggle selection and only seek if NOT clicked on top badge
+        const isSelected = playbackStore.toggleMarker(draggedMarker);
+        const mTime = draggedMarker.time ?? (draggedMarker.timeMs / 1000);
+        if (isSelected && !isPointerDownMarkerBadge) {
+          playbackStore.seek(mTime);
+        }
+      } else if (hasMarkerMoved && playbackStore.activeSong && dragCurrentTimeMs !== null) {
+        // Drag completed with position change: commit once
+        draggedMarker.timeMs = dragCurrentTimeMs;
+        draggedMarker.time = dragCurrentTimeMs / 1000;
+        playbackStore.activeSong.keyMarkers?.sort((a, b) => a.timeMs - b.timeMs);
+        api.playback.setKeyMarkers(playbackStore.activeSong.keyMarkers || []);
+        playbackStore.scheduleAutoSaveSongSettings();
+      }
     }
+    isPointerDownMarker = false;
+    isPointerDownMarkerBadge = false;
     isDraggingMarker = false;
+    hasMarkerMoved = false;
     draggedMarker = null;
+    dragCurrentTimeMs = null;
+
     isMiddlePanning = false;
     if (isPointerDownPlayhead) playbackStore.endScrub();
     isPointerDownPlayhead = false;
@@ -809,34 +1127,6 @@
     hoveredTarget = null;
   }
 
-  export function fitKeyHeight() {
-    if (!canvasContainer) return;
-    const h = canvasContainer.clientHeight;
-    if (h <= 0) return;
-
-    let lowest = Infinity;
-    let highest = -Infinity;
-    for (const track of renderTracks) {
-      if (track.muted) continue;
-      for (const note of track.notes) {
-        const pitch = note.pitch ?? note.noteNumber;
-        if (pitch < MIN_PITCH || pitch > MAX_PITCH) continue;
-        lowest = Math.min(lowest, pitch);
-        highest = Math.max(highest, pitch);
-      }
-    }
-    if (!Number.isFinite(lowest)) {
-      lowest = 48;
-      highest = 83;
-    }
-    const paddedLow = Math.max(MIN_PITCH, lowest - 3);
-    const paddedHigh = Math.min(MAX_PITCH, highest + 3);
-    zoomY = Math.max(2, Math.min(40, h / (paddedHigh - paddedLow + 1)));
-    const middleY = (MAX_PITCH - (lowest + highest) / 2 + 0.5) * zoomY;
-    const maxScrollY = Math.max(0, TOTAL_PITCHES * zoomY - h);
-    scrollY = Math.max(0, Math.min(maxScrollY, middleY - h / 2));
-    onScrollChange?.(scrollX, scrollY);
-  }
 
   function handleGlobalKeyDown(e: KeyboardEvent) {
     if (uiStore.activeTab !== 'studio' || uiStore.activeDialog) return;
@@ -873,6 +1163,7 @@
 
     if (e.key === 'ArrowUp') {
       e.preventDefault();
+      cancelZoomAnimations();
       scrollY = Math.max(0, scrollY - 32);
       onScrollChange?.(scrollX, scrollY);
       return;
@@ -880,6 +1171,7 @@
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
+      cancelZoomAnimations();
       const maxScrollY = Math.max(0, TOTAL_PITCHES * zoomY - (canvasContainer?.clientHeight || 400));
       scrollY = Math.min(maxScrollY, scrollY + 32);
       onScrollChange?.(scrollX, scrollY);
@@ -888,31 +1180,31 @@
 
     if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) {
       e.preventDefault();
-      zoomX = Math.min(400, zoomX * 1.25);
+      zoomInX();
       return;
     }
 
     if ((e.ctrlKey || e.metaKey) && (e.key === '-' || e.key === '_')) {
       e.preventDefault();
-      zoomX = Math.max(20, zoomX * 0.8);
+      zoomOutX();
       return;
     }
 
     if ((e.ctrlKey || e.metaKey) && e.key === '0') {
       e.preventDefault();
-      zoomX = DEFAULT_UI_PREFERENCES.studio.zoomX;
+      resetZoomX();
       return;
     }
 
     if (e.altKey && (e.key === '=' || e.key === '+')) {
       e.preventDefault();
-      zoomY = Math.min(40, zoomY + 2);
+      zoomInY();
       return;
     }
 
     if (e.altKey && (e.key === '-' || e.key === '_')) {
       e.preventDefault();
-      zoomY = Math.max(2, zoomY - 2);
+      zoomOutY();
       return;
     }
 
@@ -944,6 +1236,7 @@
 
     if (e.key === 'Home') {
       e.preventDefault();
+      cancelZoomAnimations();
       playbackStore.seek(0);
       scrollX = 0;
       onScrollChange?.(scrollX, scrollY);
@@ -992,11 +1285,15 @@
     const initialCenterPitch = 60;
     const containerH = canvasContainer.clientHeight || 400;
     scrollY = Math.max(0, (MAX_PITCH - initialCenterPitch) * zoomY - containerH / 2);
+    targetZoomX = zoomX;
+    targetZoomY = zoomY;
   });
 
   onDestroy(() => {
+    cancelZoomAnimations();
     strikeEffects?.clear();
     motionQuery?.removeEventListener('change', handleMotionChange);
+    hideMarkerPopupImmediate();
     if (animFrameId) cancelAnimationFrame(animFrameId);
     if (resizeObserver) {
       resizeObserver.disconnect();
@@ -1016,14 +1313,23 @@
   class="canvas-container"
   class:is-panning={isMiddlePanning}
   class:is-space-grab={isSpacePressed && !isMiddlePanning}
-  class:is-marker-hover={hoveredMarker !== null}
+  class:is-marker-hover={hoveredMarker !== null || isDraggingMarker}
+  class:is-marker-dragging={isDraggingMarker}
   bind:this={canvasContainer}
   onwheel={handleWheel}
   onmousedown={handleMouseDown}
   onmousemove={handleMouseMove}
   onmouseup={handleMouseUp}
   ondblclick={handleDblClick}
-  onmouseleave={() => { hoveredTarget = null; hoveredMarker = null; hoverTime = null; }}
+  onmouseleave={() => {
+    hoveredTarget = null;
+    hoveredMarker = null;
+    hoveredBadgeMarker = null;
+    hoverTime = null;
+    if (!isPopupHovered) {
+      startMarkerHideTimer();
+    }
+  }}
   role="region"
   aria-label="Piano Roll Interactive Editor"
 >
@@ -1049,18 +1355,29 @@
 
   {#if activePopupMarker}
     <MarkerActionPopup
-      marker={activePopupMarker}
-      x={popupPos.x}
-      y={popupPos.y}
+      marker={popupDisplayMarker ?? activePopupMarker}
+      x={popupX}
+      y={20}
+      placement="below"
+      isSelected={playbackStore.selectedMarkerId === activePopupMarker.id}
       onDelete={(id) => {
         playbackStore.deleteKeyMarker(id);
-        activePopupMarker = null;
+        hideMarkerPopupImmediate();
       }}
       onEdit={(m) => {
-        playbackStore.selectMarker(m);
+        playbackStore.toggleMarker(m);
       }}
-      onClose={() => {
-        activePopupMarker = null;
+      onClose={hideMarkerPopupImmediate}
+      onmouseenter={() => {
+        isPopupHovered = true;
+        if (markerHideTimeout) {
+          clearTimeout(markerHideTimeout);
+          markerHideTimeout = null;
+        }
+      }}
+      onmouseleave={() => {
+        isPopupHovered = false;
+        startMarkerHideTimer();
       }}
     />
   {/if}
@@ -1088,6 +1405,10 @@
 
   .canvas-container.is-marker-hover {
     cursor: pointer !important;
+  }
+
+  .canvas-container.is-marker-dragging {
+    cursor: ew-resize !important;
   }
 
   .roll-canvas {

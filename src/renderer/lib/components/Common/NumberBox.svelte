@@ -1,5 +1,5 @@
 <script lang="ts">
-  import FluentIcon from './FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
 
   interface Props {
     value?: number;

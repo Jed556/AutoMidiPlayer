@@ -3,7 +3,7 @@
   import type { TransitionConfig } from 'svelte/transition';
   import { animationStore } from '../../state/animationStore.svelte';
   import { notificationCenter } from '../../ui/notificationCenter.svelte';
-  import FluentIcon from './FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
   import { t } from '../../i18n';
 
   const iconNames: Record<string, string> = {

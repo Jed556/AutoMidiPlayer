@@ -1,6 +1,6 @@
 <script lang="ts">
   import { searchOverflow } from '../../actions/searchOverflow';
-  import FluentIcon from './FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
 
   interface Props {
     value?: string;

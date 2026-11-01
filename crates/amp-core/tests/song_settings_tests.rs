@@ -46,6 +46,7 @@ fn details(key: i32) -> SongDetailsUpdate {
         title: "Edited".into(), artist: "Artist".into(), album: "".into(),
         base_key: None, key, transpose: 3, bpm: None, speed: 0.75,
         merge_notes: true, merge_milliseconds: 50, hold_notes: false, tap_threshold_ms: 0,
+        auto_chord: true, enable_key_change_markers: true,
         date_added: "2026-10-23T00:00:00Z".into(),
     }
 }

@@ -3,7 +3,7 @@
   import { startupProgress, frontendStartupProgress } from '../../backend/startupProgress';
   import { api } from '../../backend';
   import { t } from '../../i18n';
-  import FluentIcon from '../Common/FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
 
   let { status, finished, entering = false, progress, onentered, onfinished }: {
     status: string;
@@ -201,9 +201,15 @@
     background: var(--bg-hover);
     color: var(--text-primary);
   }
-  .win-btn.close:hover {
+  .win-btn.close {
+    opacity: 0.7;
+    transition: background var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
+  }
+  .win-btn.close:hover,
+  .win-btn.close:focus-visible {
     background: #e81123;
     color: #ffffff;
+    opacity: 1;
   }
 
   .startup-center {

@@ -27,7 +27,7 @@ function serializeSongSettings(song: MidiFile) {
       : song.transposeMode === 'Down'
         ? 3
         : 1;
-  const keyChanges = song.keyMarkers.length
+  const keyChanges = song.keyMarkers?.length
     ? JSON.stringify(song.keyMarkers.map((marker) => ({
       TimeMs: marker.timeMs ?? Math.round((marker.time ?? 0) * 1000),
       KeyOffset: marker.keyOffset,
@@ -109,6 +109,7 @@ export function createAppApi(): AppWindowApi {
       maximize: () => invokeTauri<boolean>('Window', 'maximize_window', undefined),
       close: () => invokeTauri<void>('Window', 'close_window', undefined),
       isMaximized: () => invokeTauri<boolean>('Window', 'is_maximized', undefined),
+      setTitle: (title: string) => invokeTauri<void>('Window', 'set_window_title', { title }),
       onResized: (callback) => listenTauri('tauri://resize', callback),
     },
 
@@ -291,6 +292,8 @@ export function createAppApi(): AppWindowApi {
       },
       clearDiscoverCache: () => invokeTauri<number>('Storage', 'clear_discover_cache', undefined),
       getDataDirectory: () => invokeTauri<string>('Settings', 'get_data_directory', undefined),
+      getLegacyDataStatus: () => invokeTauri<LegacyDataStatus>('Settings', 'check_legacy_data', undefined),
+      migrateLegacyData: () => invokeTauri<LegacyMigrationResult>('Settings', 'migrate_legacy_data', undefined),
       getSettings,
       updateSettings,
       resetSettings: () => enqueueSettingsWrite(() => invokeTauri<boolean>('Settings', 'reset_app_settings', undefined)),

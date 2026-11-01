@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { MidiFile } from '$shared/types/midi';
   import { t } from '../../i18n';
-  import FluentIcon from './FluentIcon.svelte';
-  import PlayPauseIcon from './PlayPauseIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
+  import PlayPauseIcon from '../Icons/PlayPauseIcon.svelte';
   import EqualizerControl from './EqualizerControl.svelte';
   import RollingIndex from './RollingIndex.svelte';
   import OverflowText from './OverflowText.svelte';

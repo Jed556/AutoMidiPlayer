@@ -3,7 +3,7 @@
   import { createDropdownState } from '../../ui/dropdownState.svelte';
   import { popupScaleIn } from '../../utils/transitions';
   import Button from './Button.svelte';
-  import FluentIcon from './FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
   import CustomScrollViewer from './CustomScrollViewer.svelte';
 
   interface Option { value: T; label: string; detail?: string; disabled?: boolean }

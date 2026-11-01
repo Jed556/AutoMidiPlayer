@@ -4,7 +4,7 @@
   import { notificationCenter } from '../ui/notificationCenter.svelte';
   import { t } from '../i18n';
   import type { OnlineMidiItem } from '$shared/types/onlineMidi';
-  import FluentIcon from '../components/Common/FluentIcon.svelte';
+  import FluentIcon from '../components/Icons/FluentIcon.svelte';
   import Button from '../components/Common/Button.svelte';
   import EqualizerControl from '../components/Common/EqualizerControl.svelte';
   import SearchBox from '../components/Common/SearchBox.svelte';

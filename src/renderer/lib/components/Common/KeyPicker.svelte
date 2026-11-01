@@ -1,7 +1,7 @@
 <script lang="ts">
   import { popupScaleIn } from '../../utils/transitions';
   import { createDropdownState } from '../../ui/dropdownState.svelte';
-  import FluentIcon from './FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
   import CustomScrollViewer from './CustomScrollViewer.svelte';
 
   export interface KeyPickerOption {
@@ -262,7 +262,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 6px;
+    gap: 2px;
     width: 100%;
     height: 30px;
     padding: 0 8px;

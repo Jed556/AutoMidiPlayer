@@ -8,7 +8,7 @@ use std::{
 };
 
 /// Both PortableSettingsProvider and the older .NET <setting name="..."> form.
-pub(super) fn read(path: &Path) -> Result<BTreeMap<String, String>, String> {
+pub fn read(path: &Path) -> Result<BTreeMap<String, String>, String> {
     let xml = fs::read_to_string(path).map_err(|e| e.to_string())?;
     let mut reader = Reader::from_str(&xml);
     let mut stack = Vec::<String>::new();
@@ -164,7 +164,7 @@ fn hotkey(raw: &str, action: &str, label: &str) -> Option<Value> {
         "ctrl": modifiers & 2 != 0, "alt": modifiers & 1 != 0, "shift": modifiers & 4 != 0}))
 }
 
-pub(super) fn map(
+pub fn map(
     raw: &BTreeMap<String, String>,
     games: &[LoadedGameBundle],
     layouts: &HashMap<String, KeyboardLayoutJson>,
@@ -188,7 +188,6 @@ pub(super) fn map(
         ("DebugModeEnabled", "debugModeEnabled"),
         ("LogPlayedNotes", "logPlayedNotes"),
         ("PageCaching", "pageCaching"),
-        ("HasShownFirstLaunch", "onboardingCompleted"),
     ] {
         if let Some(value) = boolean(raw, old) {
             settings[new] = json!(value);

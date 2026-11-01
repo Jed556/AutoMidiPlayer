@@ -103,6 +103,7 @@ fn test_library_schema_and_crud() {
         title: "Edited details".into(), artist: "".into(), album: "".into(),
         base_key: None, key: -3, transpose: 3, bpm: None, speed: 1.5,
         merge_notes: true, merge_milliseconds: 175, hold_notes: true, tap_threshold_ms: 0,
+        auto_chord: false, enable_key_change_markers: true,
         date_added: "2026-10-22T02:00:00Z".into(),
     };
     db.update_song_details("test-song-1", &details, None).unwrap();
@@ -493,6 +494,5 @@ fn test_song_defaults_applied_on_add() {
 
     let _ = std::fs::remove_dir_all(&temp_dir);
 }
-
 
 

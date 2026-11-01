@@ -3,7 +3,7 @@
   import { createFrameResizeObserver } from '../utils/frameResizeObserver';
   import { uiStore } from '../state/uiStore.svelte';
   import { settingsStore } from '../state/settingsStore.svelte';
-  import FluentIcon from '../components/Common/FluentIcon.svelte';
+  import FluentIcon from '../components/Icons/FluentIcon.svelte';
   import CustomScrollViewer from '../components/Common/CustomScrollViewer.svelte';
   import { t } from '../i18n';
   import {

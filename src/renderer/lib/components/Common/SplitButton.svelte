@@ -2,7 +2,7 @@
   import { tick } from 'svelte';
   import { createDropdownState } from '../../ui/dropdownState.svelte';
   import Button from './Button.svelte';
-  import FluentIcon from './FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
 
   interface Option { label: string; onclick: () => void; disabled?: boolean }
   let { label, title = '', menuLabel, disabled = false, primaryDisabled = false, onclick, options }: {

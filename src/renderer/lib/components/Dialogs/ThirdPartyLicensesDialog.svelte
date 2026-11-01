@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { uiStore } from '../../state/uiStore.svelte';
   import { loadOpenSourceLicenses, type LicenseInfo } from '../../data/aboutData';
-  import FluentIcon from '../Common/FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
   import ContentDialog from './ContentDialog.svelte';
   import { t } from '../../i18n';
 

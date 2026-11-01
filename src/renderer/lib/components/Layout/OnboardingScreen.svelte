@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick, untrack, onMount, onDestroy } from 'svelte';
   import type { AppSettings, ThemeMode } from '$shared/types/settings';
+  import type { LegacyDataStatus } from '$shared/types/ipc';
   import { settingsStore } from '../../state/settingsStore.svelte';
   import { themeStore, ACCENT_COLORS } from '../../state/themeStore.svelte';
   import { animationStore } from '../../state/animationStore.svelte';
@@ -9,7 +10,7 @@
   import { dialogBackdrop, dialogScaleIn, dialogScaleOut } from '../../utils/transitions';
   import Button from '../Common/Button.svelte';
   import Dropdown from '../Common/Dropdown.svelte';
-  import FluentIcon from '../Common/FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
   import ToggleSwitch from '../Common/ToggleSwitch.svelte';
   import HoldNotesControl from '../Common/HoldNotesControl.svelte';
   import OverlapBehaviorPicker from '../Settings/OverlapBehaviorPicker.svelte';
@@ -19,6 +20,14 @@
   let { onfinished }: { onfinished: () => Promise<void> } = $props();
   // Playback defaults and folder imports stay deferred; language and appearance preview live.
   let draft = $state<AppSettings>(untrack(() => ({ ...settingsStore.settings, telemetryOptIn: true })));
+  let legacyStatus = $state<LegacyDataStatus>({
+    detected: false,
+    songCount: 0,
+    playlistCount: 0,
+    hasUserConfig: false,
+  });
+  let migrationChoice = $state<'migrate' | 'fresh'>('migrate');
+  let isLegacyDetected = $derived(legacyStatus.detected);
   let step = $state(0);
   let targetStep = $state(0);
   let isSkipping = $state(false);
@@ -47,6 +56,15 @@
       if (!destroyed) mounted = true;
     });
 
+    void api.settings.getLegacyDataStatus?.().then(status => {
+      if (status && !destroyed) {
+        legacyStatus = status;
+        if (status.detected && status.midiFolder && !draft.midiFolder) {
+          draft.midiFolder = status.midiFolder;
+        }
+      }
+    }).catch(console.warn);
+
     let revision = 0;
     async function syncMaximized() {
       const current = ++revision;
@@ -62,10 +80,36 @@
     destroyed = true;
     stepAnimations.forEach(animation => animation.cancel());
   });
-  const pages = ['language', 'telemetry', 'folder', 'defaults', 'player', 'updates', 'appearance', 'ready'];
-  const icons = ['Globe', 'ShieldCheckmark', 'Folder', 'MusicNote2', 'Play', 'ArrowCircleUp', 'Color', 'Checkmark'];
-  let page = $derived(pages[step]);
+  const PAGE_ICONS: Record<string, string> = {
+    language: 'Globe',
+    migration: 'ArrowSync',
+    telemetry: 'ShieldCheckmark',
+    defaults: 'MusicNote2',
+    player: 'Play',
+    folder: 'Folder',
+    updates: 'ArrowCircleUp',
+    appearance: 'Color',
+    ready: 'Checkmark',
+  };
+
+  let allPages = $derived(isLegacyDetected
+    ? ['language', 'migration', 'telemetry', 'defaults', 'player', 'folder', 'updates', 'appearance', 'ready']
+    : ['language', 'telemetry', 'folder', 'defaults', 'player', 'updates', 'appearance', 'ready']
+  );
+
+  function isPageSkipped(pageKey: string): boolean {
+    return isLegacyDetected && migrationChoice === 'migrate' && pageKey === 'folder';
+  }
+
+  let pages = $derived(allPages.filter(p => !isPageSkipped(p)));
+  let page = $derived(pages[step] ?? pages[0]);
   let effectiveStep = $derived(animating ? targetStep : step);
+
+  $effect(() => {
+    if (step >= pages.length) {
+      step = Math.max(0, pages.length - 1);
+    }
+  });
   let staggerDelays = $derived.by(() => {
     const delays: string[] = [];
     for (let i = 0; i < pages.length; i++) {
@@ -164,6 +208,9 @@
     busy = true;
     error = '';
     try {
+      if (isLegacyDetected && migrationChoice === 'migrate') {
+        await api.settings.migrateLegacyData?.();
+      }
       foundSongs = await settingsStore.finishOnboarding(draft, {
         locale: i18n.currentLocale,
         animationTiming: animationStore.timing,
@@ -284,6 +331,8 @@
   aria-labelledby="onboarding-title"
   tabindex="-1"
   style:--sweep-duration={`${animationStore.isOff ? 0 : Math.max(260, Math.round(animationStore.durationMs * 1.5))}ms`}
+  style:--shrink-duration={`${animationStore.isOff ? 0 : Math.max(340, Math.round(animationStore.durationMs * 1.4))}ms`}
+  style:--fade-duration={`${animationStore.isOff ? 0 : Math.max(200, Math.round(animationStore.durationMs * 0.8))}ms`}
 >
   <header class="titlebar" data-tauri-drag-region>
     <div class="titlebar-drag" data-tauri-drag-region>
@@ -350,32 +399,37 @@
   <div class="top-progress-area">
     <div class="top-progress-inner">
       <div class="progress-caption">
-        <span class="caption-welcome">{t('onboarding.welcome')}</span>
+        <span class="caption-welcome">{isLegacyDetected ? t('onboarding.welcomeBack') : t('onboarding.welcome')}</span>
         <span class="caption-step">{t('onboarding.step', { current: effectiveStep + 1, total: pages.length })}</span>
       </div>
       <ol class="step-progress" aria-label={t('onboarding.progress')}>
-        {#each pages as pageKey, index}
+        {#each allPages as pageKey (pageKey)}
+          {@const isSkipped = isPageSkipped(pageKey)}
+          {@const activeIndex = pages.indexOf(pageKey)}
           <li
             class="step-progress-item"
-            class:completed={index < effectiveStep}
-            class:active={index === effectiveStep}
-            class:unreached={index > effectiveStep}
-            class:clickable={index < effectiveStep && !busy && !animating}
-            aria-current={index === effectiveStep ? 'step' : undefined}
+            class:shrunk={isSkipped}
+            class:completed={!isSkipped && activeIndex < effectiveStep}
+            class:active={!isSkipped && activeIndex === effectiveStep}
+            class:unreached={!isSkipped && activeIndex > effectiveStep}
+            class:clickable={!isSkipped && activeIndex < effectiveStep && !busy && !animating}
+            aria-current={!isSkipped && activeIndex === effectiveStep ? 'step' : undefined}
+            aria-hidden={isSkipped ? 'true' : undefined}
           >
             <button
               type="button"
               class="step-bar-button"
-              disabled={index >= effectiveStep || busy || animating}
-              onclick={() => navigate(index)}
+              tabindex={isSkipped ? -1 : undefined}
+              disabled={isSkipped || activeIndex >= effectiveStep || busy || animating}
+              onclick={() => { if (!isSkipped && activeIndex >= 0) navigate(activeIndex); }}
               aria-label={t(`onboarding.${pageKey}Title`)}
-              title={index < effectiveStep ? t(`onboarding.${pageKey}Title`) : undefined}
+              title={!isSkipped && activeIndex < effectiveStep ? t(`onboarding.${pageKey}Title`) : undefined}
             >
               <div class="linear-bar-track">
                 <div
                   class="linear-bar-fill"
-                  style:transform={`scaleX(${mounted && index <= effectiveStep ? 1 : 0})`}
-                  style:transition-delay={staggerDelays[index] ?? '0ms'}
+                  style:transform={`scaleX(${mounted && !isSkipped && activeIndex <= effectiveStep ? 1 : 0})`}
+                  style:transition-delay={!isSkipped && activeIndex >= 0 ? (staggerDelays[activeIndex] ?? '0ms') : '0ms'}
                 ></div>
               </div>
             </button>
@@ -395,7 +449,7 @@
         inert={animating}
       >
         <div class="page-heading">
-          <div class="page-icon"><FluentIcon name={icons[step]} size={26} /></div>
+          <div class="page-icon"><FluentIcon name={PAGE_ICONS[page] || 'Settings'} size={26} /></div>
           <h1 id="onboarding-title" tabindex="-1" bind:this={heading}>{t(completed ? 'onboarding.completeTitle' : `onboarding.${pages[step]}Title`)}</h1>
           <p>{t(completed ? 'onboarding.completeDescription' : `onboarding.${pages[step]}Description`)}</p>
         </div>
@@ -415,6 +469,81 @@
               <Dropdown portalMenu ariaLabel={t('settings.language')} value={i18n.currentLocale} options={AVAILABLE_LOCALES.map(locale => ({ value: locale.code, label: locale.name }))} onchange={value => i18n.setLocale(value as LocaleCode, false)} />
             </div>
             <p class="note">{t('onboarding.systemLanguage')}</p>
+          {:else if page === 'migration'}
+            <div class="migration-options" role="radiogroup" aria-label={t('onboarding.migrationTitle')}>
+              <button
+                type="button"
+                class="migration-card"
+                class:selected={migrationChoice === 'migrate'}
+                onclick={() => {
+                  migrationChoice = 'migrate';
+                  if (legacyStatus.midiFolder && !draft.midiFolder) {
+                    draft.midiFolder = legacyStatus.midiFolder;
+                  }
+                }}
+                role="radio"
+                aria-checked={migrationChoice === 'migrate'}
+              >
+                <div class="card-radio">
+                  <div class="radio-circle" class:checked={migrationChoice === 'migrate'}>
+                    {#if migrationChoice === 'migrate'}<div class="radio-dot"></div>{/if}
+                  </div>
+                </div>
+                <div class="card-icon">
+                  <FluentIcon name="ArrowSync" size={24} />
+                </div>
+                <div class="card-content">
+                  <div class="card-header-row">
+                    <span class="card-title">{t('onboarding.migrationOptionMigrate')}</span>
+                    <span class="badge recommended">{t('onboarding.migrationBadgeRecommended')}</span>
+                  </div>
+                  <p class="card-desc">
+                    {t('onboarding.migrationOptionMigrateDesc')}
+                  </p>
+                  <div class="detected-stats">
+                    {#if legacyStatus.songCount > 0}
+                      <span class="stat-pill"><FluentIcon name="MusicNote2" size={14} />{t('onboarding.migrationSongsFound', { count: legacyStatus.songCount })}</span>
+                    {/if}
+                    {#if legacyStatus.playlistCount > 0}
+                      <span class="stat-pill"><FluentIcon name="AppsListDetail" size={14} />{t('onboarding.migrationPlaylistsFound', { count: legacyStatus.playlistCount })}</span>
+                    {/if}
+                    {#if legacyStatus.midiFolder}
+                      <span class="stat-pill folder-pill"><FluentIcon name="Folder" size={14} />{legacyStatus.midiFolder}</span>
+                    {/if}
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                class="migration-card"
+                class:selected={migrationChoice === 'fresh'}
+                onclick={() => {
+                  migrationChoice = 'fresh';
+                }}
+                role="radio"
+                aria-checked={migrationChoice === 'fresh'}
+              >
+                <div class="card-radio">
+                  <div class="radio-circle" class:checked={migrationChoice === 'fresh'}>
+                    {#if migrationChoice === 'fresh'}<div class="radio-dot"></div>{/if}
+                  </div>
+                </div>
+                <div class="card-icon">
+                  <FluentIcon name="Sparkle" size={24} />
+                </div>
+                <div class="card-content">
+                  <div class="card-header-row">
+                    <span class="card-title">{t('onboarding.migrationOptionFresh')}</span>
+                    <span class="badge new">{t('onboarding.migrationBadgeNew')}</span>
+                  </div>
+                  <p class="card-desc">
+                    {t('onboarding.migrationOptionFreshDesc')}
+                  </p>
+                </div>
+              </button>
+            </div>
+            <p class="note"><FluentIcon name="Info" size={16} />{t('onboarding.migrationNote')}</p>
           {:else if page === 'telemetry'}
             <div class="setting-row">
               <ToggleSwitch label={t('onboarding.telemetryChoice')} description={t('onboarding.telemetryHelp')}
@@ -425,9 +554,11 @@
             <div class="folder-choice">
               <FluentIcon name="Folder" size={24} />
               <div class="folder-text"><span>{t('settings.midiFolder')}</span><strong>{draft.midiFolder || t('settings.noFolderSelected')}</strong></div>
-              <Button variant="secondary" disabled={browsing} onclick={browse}>{t('onboarding.browse')}</Button>
+              <div class="folder-actions">
+                <Button variant="secondary" disabled={browsing} onclick={browse}>{t('onboarding.browse')}</Button>
+                {#if draft.midiFolder}<Button variant="ghost" colorMode="danger" size="icon" icon="Delete" title={t('settings.clearFolder')} disabled={browsing} onclick={() => draft.midiFolder = ''} />{/if}
+              </div>
             </div>
-            {#if draft.midiFolder}<button class="text-button clear-folder" onclick={() => draft.midiFolder = ''}>{t('settings.clearFolder')}</button>{/if}
             <div class="setting-row"><ToggleSwitch label={t('onboarding.watchFolder')} checked={draft.autoScanMidiFolder} onchange={value => draft.autoScanMidiFolder = value} /></div>
             <p class="note"><FluentIcon name="Info" size={16} />{t('onboarding.deferredScan')}</p>
           {:else if page === 'defaults'}
@@ -461,9 +592,21 @@
             <div class="accent-field"><span>{t('settings.accentColor')}</span><div class="color-palette">
               {#each ACCENT_COLORS as color}<button type="button" class="color-dot" style:background={color.value} aria-label={color.name} aria-pressed={draft.accentColor === color.value} onclick={() => { draft.accentColor = color.value; themeStore.setAccentColor(color.value); }}>{#if draft.accentColor === color.value}<FluentIcon name="Checkmark" size={16} />{/if}</button>{/each}
             </div></div>
-            <div class="setting-row"><ToggleSwitch label={t('settings.smoothScrolling')} checked={draft.smoothScrolling} onchange={value => draft.smoothScrolling = value} /></div>
+            <div class="setting-row"><ToggleSwitch label={t('settings.minimizeToTray')} checked={true} /></div>
+            <div class="setting-row"><ToggleSwitch label={t('settings.closeToTray')} checked={false} /></div>
           {:else}
             <dl class="summary">
+              {#if isLegacyDetected}
+                <div>
+                  <dt>{t('onboarding.migrationModeLabel')}</dt>
+                  <dd class="migration-mode-badge" class:is-migrate={migrationChoice === 'migrate'}>
+                    {migrationChoice === 'migrate' ? t('onboarding.migrationModeMigrated') : t('onboarding.migrationModeFresh')}
+                    {#if migrationChoice === 'migrate' && legacyStatus.songCount > 0}
+                      · {t('onboarding.foundSongs', { count: legacyStatus.songCount })}
+                    {/if}
+                  </dd>
+                </div>
+              {/if}
               <div><dt>{t('settings.midiFolder')}</dt><dd class="folder-summary">{draft.midiFolder || t('onboarding.noFolder')}</dd></div>
               {#if completed && draft.midiFolder}<div><dt>{t('onboarding.library')}</dt><dd class="song-count">{t('onboarding.foundSongs', { count: foundSongs })}</dd></div>{/if}
               <div><dt>{t('onboarding.telemetryTitle')}</dt><dd>{t(draft.telemetryOptIn ? 'settings.optedIn' : 'settings.optedOut')}</dd></div>
@@ -649,9 +792,15 @@
     background: var(--bg-hover);
     color: var(--text-primary);
   }
-  .win-btn.close:hover {
+  .win-btn.close {
+    opacity: 0.7;
+    transition: background var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
+  }
+  .win-btn.close:hover,
+  .win-btn.close:focus-visible {
     background: #e81123;
     color: #ffffff;
+    opacity: 1;
   }
 
   /* Pinned Top Progress Bar */
@@ -689,16 +838,46 @@
   }
   .step-progress {
     display: flex;
-    gap: 6px;
     padding: 0;
     margin: 0;
     list-style: none;
     width: 100%;
   }
   .step-progress-item {
-    flex: 1;
+    flex: 1 1 0%;
     min-width: 0;
+    margin-right: 6px;
+    overflow: hidden;
     display: flex;
+    transition:
+      flex var(--shrink-duration, 380ms) cubic-bezier(0.16, 1, 0.3, 1),
+      max-width var(--shrink-duration, 380ms) cubic-bezier(0.16, 1, 0.3, 1),
+      margin-right var(--shrink-duration, 380ms) cubic-bezier(0.16, 1, 0.3, 1),
+      opacity var(--fade-duration, 240ms) ease;
+  }
+  .step-progress-item:last-child {
+    margin-right: 0;
+  }
+  .step-progress-item.shrunk {
+    flex: 0 0 0px !important;
+    max-width: 0px !important;
+    margin-right: 0px !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    visibility: hidden;
+    transition:
+      flex var(--shrink-duration, 380ms) cubic-bezier(0.16, 1, 0.3, 1),
+      max-width var(--shrink-duration, 380ms) cubic-bezier(0.16, 1, 0.3, 1),
+      margin-right var(--shrink-duration, 380ms) cubic-bezier(0.16, 1, 0.3, 1),
+      opacity var(--fade-duration, 180ms) ease,
+      visibility 0s var(--shrink-duration, 380ms);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .step-progress-item,
+    .step-progress-item.shrunk {
+      transition: none !important;
+    }
   }
   .step-bar-button {
     flex: 1;
@@ -829,7 +1008,7 @@
   .folder-choice { display: flex; align-items: center; gap: 16px; padding: 18px; border: 1px solid var(--border-subtle, #ffffff12); border-radius: 8px; color: var(--text-secondary); }
   .folder-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; font-size: 11px; }
   .folder-text strong { font-size: 13px; font-weight: 500; color: var(--text-primary); overflow-wrap: anywhere; }
-  .clear-folder { margin: 10px 0; }
+  .folder-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   .note { display: flex; align-items: flex-start; gap: 8px; margin: 16px 0 0; font-size: 12px; line-height: 1.6; color: var(--text-tertiary); }
   .overlap-setting { margin-top: 16px; }
   .merge-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
@@ -841,6 +1020,150 @@
   .color-palette { display: flex; flex-wrap: wrap; gap: 12px; }
   .color-dot { display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 50%; color: #fff; cursor: pointer; }
   .color-dot[aria-pressed="true"] { outline: 2px solid var(--text-primary); outline-offset: 3px; }
+  /* Migration Options Cards */
+  .migration-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    margin-bottom: 8px;
+  }
+  .migration-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px 18px;
+    background: var(--card-bg-subtle, rgba(255, 255, 255, 0.04));
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.09));
+    border-radius: 8px;
+    color: var(--text-primary);
+    cursor: pointer;
+    text-align: left;
+    outline: none;
+    transition: background var(--transition-fast, 0.15s ease),
+                border-color var(--transition-fast, 0.15s ease),
+                box-shadow var(--transition-fast, 0.15s ease);
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .migration-card:hover {
+    background: var(--bg-hover, rgba(255, 255, 255, 0.07));
+    border-color: var(--border-medium, rgba(255, 255, 255, 0.18));
+  }
+  .migration-card.selected {
+    background: var(--accent-subtle, rgba(29, 185, 84, 0.08));
+    border-color: var(--accent, #1DB954);
+    box-shadow: 0 0 0 1px var(--accent, #1DB954);
+  }
+  .migration-card:focus-visible {
+    outline: 2px solid var(--accent, #1DB954);
+    outline-offset: 2px;
+  }
+  .card-radio {
+    margin-top: 3px;
+    flex-shrink: 0;
+  }
+  .radio-circle {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--border-medium, rgba(255, 255, 255, 0.4));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    transition: border-color var(--transition-fast, 0.15s ease);
+  }
+  .radio-circle.checked {
+    border-color: var(--accent, #1DB954);
+  }
+  .radio-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent, #1DB954);
+  }
+  .card-icon {
+    margin-top: 2px;
+    color: var(--accent, #1DB954);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .card-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .card-header-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .card-desc {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--text-secondary);
+  }
+  .badge {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 2px 7px;
+    border-radius: 999px;
+    line-height: 1.2;
+  }
+  .badge.recommended {
+    background: var(--accent-subtle, rgba(29, 185, 84, 0.2));
+    color: var(--accent, #1DB954);
+    border: 1px solid var(--accent, #1DB954);
+  }
+  .badge.new {
+    background: rgba(0, 120, 212, 0.18);
+    color: #4cc2ff;
+    border: 1px solid rgba(76, 194, 255, 0.5);
+  }
+  .detected-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .stat-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+    color: var(--text-secondary);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .stat-pill.folder-pill {
+    max-width: 320px;
+  }
+  .migration-mode-badge {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .migration-mode-badge.is-migrate {
+    color: var(--accent, #1DB954);
+  }
+
   .summary { margin: 0; }
   .summary > div { display: flex; justify-content: space-between; gap: 24px; padding: 13px 0; border-bottom: 1px solid var(--border-subtle, #ffffff12); font-size: 13px; }
   dt { color: var(--text-secondary); flex-shrink: 0; }

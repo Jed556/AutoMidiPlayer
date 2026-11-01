@@ -3,7 +3,7 @@
   import { searchOverflow } from '../../actions/searchOverflow';
   import { animationStore } from '../../state/animationStore.svelte';
   import { t } from '../../i18n';
-  import FluentIcon from './FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
 
   interface Props {
     value?: string;

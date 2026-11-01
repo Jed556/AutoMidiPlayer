@@ -4,11 +4,11 @@
   import { DEFAULT_APP_SETTINGS } from '$shared/defaults/settings';
   import { animationStore } from '../../state/animationStore.svelte';
   import { t } from '../../i18n';
-  import FluentIcon from '../Common/FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
   import NumberBox from '../Common/NumberBox.svelte';
   import GradientSweep from '../Common/GradientSweep.svelte';
   import Button from '../Common/Button.svelte';
-  import RefreshIcon from '../Common/RefreshIcon.svelte';
+  import RefreshIcon from '../Icons/RefreshIcon.svelte';
 
   let { value, onchange, repressGapMs, onrepressgapchange }: {
     value: OverlapBehavior;

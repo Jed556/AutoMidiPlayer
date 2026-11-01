@@ -8,7 +8,8 @@
 </script>
 
 <script lang="ts">
-  import WindowControlGlyph, { type WindowControlIconProps } from './WindowControlGlyph.svelte';
+  import WindowControlGlyph from './WindowControlGlyph.svelte';
+  import type { WindowControlIconProps } from './windowControlUtils';
   let props: WindowControlIconProps = $props();
 </script>
 

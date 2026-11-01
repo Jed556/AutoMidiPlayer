@@ -4,7 +4,7 @@
   import { playbackStore } from '../../state/playbackStore.svelte';
   import { notificationCenter } from '../../ui/notificationCenter.svelte';
   import { t } from '../../i18n';
-  import FluentIcon from './FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
   import CustomScrollViewer from './CustomScrollViewer.svelte';
   import RollingIndex from './RollingIndex.svelte';
   import SongListRow from './SongListRow.svelte';

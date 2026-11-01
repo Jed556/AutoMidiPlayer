@@ -10,6 +10,7 @@ export interface WindowControlApi {
   maximize: () => Promise<boolean>;
   close: () => Promise<void>;
   isMaximized: () => Promise<boolean>;
+  setTitle: (title: string) => Promise<void>;
   onResized: (callback: () => void) => () => void;
   onNavigateBack?: (callback: () => void) => () => void;
   onNavigateForward?: (callback: () => void) => () => void;
@@ -63,6 +64,8 @@ export interface SongDetailsUpdate {
   mergeMilliseconds: number;
   holdNotes: boolean;
   tapThresholdMs: number;
+  autoChord: boolean;
+  enableKeyChangeMarkers: boolean;
   dateAdded: string;
 }
 
@@ -88,7 +91,7 @@ export interface SongsApi {
   getSongById: (id: string) => Promise<MidiFile | null>;
   readMidiFile: (path: string) => Promise<MidiFile>;
   saveSong: (song: MidiFile, scope: SongSettingsContext & { kind: 'instrument' }) => Promise<boolean>;
-  saveSongSettings: (id: string, settings: { key: number; baseKey?: number | null; transpose: number; disabledTracks?: string | null; keyChanges?: string | null; speed?: number; holdNotes?: boolean; tapThresholdMs?: number; autoChord?: boolean; chordDetectionMilliseconds?: number; enableKeyChangeMarkers?: boolean }, scope: SongSettingsContext & { kind: 'instrument' }) => Promise<boolean>;
+  saveSongSettings: (id: string, settings: { key: number; baseKey?: number | null; transpose: number; bpm?: number | null; mergeNotes?: boolean; mergeMilliseconds?: number; disabledTracks?: string | null; keyChanges?: string | null; speed?: number; holdNotes?: boolean; tapThresholdMs?: number; autoChord?: boolean; chordDetectionMilliseconds?: number; enableKeyChangeMarkers?: boolean }, scope: SongSettingsContext & { kind: 'instrument' }) => Promise<boolean>;
   saveSongMetadata: (id: string, metadata: { title?: string; artist?: string; album?: string; albumId?: string; bpm?: number }) => Promise<boolean>;
   saveSongDetails: (id: string, details: SongDetailsUpdate, scope: SongSettingsScope) => Promise<boolean>;
   analyzeSongFile: (path: string) => Promise<SongFileAnalysis>;
@@ -166,10 +169,28 @@ export interface StorageUsage {
   totalBytes: number;
 }
 
+export interface LegacyDataStatus {
+  detected: boolean;
+  dbPath?: string;
+  songCount: number;
+  playlistCount: number;
+  hasUserConfig: boolean;
+  midiFolder?: string;
+}
+
+export interface LegacyMigrationResult {
+  success: boolean;
+  songCount: number;
+  playlistCount: number;
+  error?: string;
+}
+
 export interface SettingsApi {
   getStorageUsage: () => Promise<StorageUsage>;
   clearDiscoverCache: () => Promise<number>;
   getDataDirectory: () => Promise<string>;
+  getLegacyDataStatus: () => Promise<LegacyDataStatus>;
+  migrateLegacyData: () => Promise<LegacyMigrationResult>;
   getSettings: () => Promise<Partial<AppSettings>>;
   updateSettings: (partial: Partial<AppSettings>) => Promise<boolean>;
   resetSettings: () => Promise<boolean>;

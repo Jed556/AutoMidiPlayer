@@ -142,8 +142,14 @@ pub struct SongDetailsUpdate {
     pub hold_notes: bool,
     #[serde(default)]
     pub tap_threshold_ms: u32,
+    #[serde(default)]
+    pub auto_chord: bool,
+    #[serde(default = "default_enable_key_change_markers")]
+    pub enable_key_change_markers: bool,
     pub date_added: String,
 }
+
+fn default_enable_key_change_markers() -> bool { true }
 
 /// Song defaults configuration applied when newly adding / importing songs
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
