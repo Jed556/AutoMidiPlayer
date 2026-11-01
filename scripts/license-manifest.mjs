@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 export function renderLicenseMarkdown(entries) {
   const texts = new Map();
   const lines = ['# Third-Party Licenses', '',
-    'Notices for the current Svelte/Tauri/Rust dependency graph, including transitive dependencies and build tools. Rust dependencies cover Windows, Linux, and both macOS architectures.', '',
+    'Notices for production-scoped Svelte/Tauri/Rust dependencies, including transitive dependencies. Rust dependencies cover Windows, Linux, and both macOS architectures.', '',
     'The original-project attribution and bundled soundfont notices are retained. Legacy WPF-only dependencies are excluded.', '',
     'The About page reads the index below automatically. Full license texts are shared by reference to preserve each copyright notice without duplicating identical text.', '',
     'Regenerate dependency entries with `pnpm licenses:generate` after updating lockfiles. Supplemental notices also live in this file; no separate license-document directory is needed.', '',
