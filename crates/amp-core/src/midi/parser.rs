@@ -77,6 +77,24 @@ pub fn parse_midi_file<P: AsRef<Path>>(path: P) -> Result<ParsedMidi, MidiError>
     parse_midi_bytes(&bytes)
 }
 
+fn push_note_off(
+    note_events: &mut Vec<TimedNoteEvent>,
+    time_us: u64,
+    pitch: u8,
+    velocity: u8,
+    channel: u8,
+    track_index: usize,
+) {
+    note_events.push(TimedNoteEvent {
+        time_us,
+        note: pitch,
+        velocity,
+        is_note_on: false,
+        channel,
+        track_index,
+    });
+}
+
 pub fn parse_midi_bytes(bytes: &[u8]) -> Result<ParsedMidi, MidiError> {
     let smf = Smf::parse(bytes)?;
 
@@ -172,19 +190,29 @@ pub fn parse_midi_bytes(bytes: &[u8]) -> Result<ParsedMidi, MidiError> {
                             note_count += 1;
                             if let Some(prev_start) = active_notes.insert((ch, pitch), time_us) {
                                 track_notes.push((pitch, prev_start, time_us));
+                                // Treat an overlapping same-pitch NoteOn as
+                                // the end of the prior note. Without this
+                                // release, duration pairing can stretch the
+                                // prior note until the track ends.
+                                push_note_off(&mut note_events, time_us, pitch, 0, ch, track_idx);
                             }
                         } else if let Some(prev_start) = active_notes.remove(&(ch, pitch)) {
                             track_notes.push((pitch, prev_start, time_us));
+                            push_note_off(&mut note_events, time_us, pitch, velocity, ch, track_idx);
+                        } else {
+                            continue;
                         }
 
-                        note_events.push(TimedNoteEvent {
-                            time_us,
-                            note: pitch,
-                            velocity,
-                            is_note_on: is_on,
-                            channel: ch,
-                            track_index: track_idx,
-                        });
+                        if is_on {
+                            note_events.push(TimedNoteEvent {
+                                time_us,
+                                note: pitch,
+                                velocity,
+                                is_note_on: true,
+                                channel: ch,
+                                track_index: track_idx,
+                            });
+                        }
                     }
                     MidiMessage::NoteOff { key, vel } => {
                         let pitch = key.as_int();
@@ -193,16 +221,8 @@ pub fn parse_midi_bytes(bytes: &[u8]) -> Result<ParsedMidi, MidiError> {
 
                         if let Some(prev_start) = active_notes.remove(&(ch, pitch)) {
                             track_notes.push((pitch, prev_start, time_us));
+                            push_note_off(&mut note_events, time_us, pitch, velocity, ch, track_idx);
                         }
-
-                        note_events.push(TimedNoteEvent {
-                            time_us,
-                            note: pitch,
-                            velocity,
-                            is_note_on: false,
-                            channel: ch,
-                            track_index: track_idx,
-                        });
                     }
                     MidiMessage::Controller { controller, value } => {
                         let time_us = tempo_map.tick_to_us(tick);
@@ -232,9 +252,12 @@ pub fn parse_midi_bytes(bytes: &[u8]) -> Result<ParsedMidi, MidiError> {
 
         // Close any remaining dangling note-ons
         let track_end_us = tempo_map.tick_to_us(tick);
-        for ((_ch, pitch), start_us) in active_notes {
-            let end_us = track_end_us.max(start_us + 200_000);
-            track_notes.push((pitch, start_us, end_us));
+        for ((ch, pitch), start_us) in active_notes {
+            let playback_end_us = start_us + 200_000;
+            track_notes.push((pitch, start_us, track_end_us.max(playback_end_us)));
+            // Some MIDI files omit the final NoteOff. Use the same bounded
+            // fallback as playback instead of holding until the track ends.
+            push_note_off(&mut note_events, playback_end_us, pitch, 0, ch, track_idx);
         }
 
         // Calculate detailed statistics
@@ -317,10 +340,16 @@ pub fn parse_midi_bytes(bytes: &[u8]) -> Result<ParsedMidi, MidiError> {
     }
 
     // Sort all events chronologically
-    note_events.sort();
+    // Keep source order for events sharing a timestamp. This is important for
+    // zero-length notes where NoteOn and NoteOff occur on the same tick.
+    // Synthetic retrigger releases are appended before their replacement
+    // NoteOn, so stable sorting preserves that ordering as well.
+    note_events.sort_by_key(|event| event.time_us);
     control_events.sort();
 
-    let duration_us = note_events.last().map(|e| e.time_us).unwrap_or(0);
+    // MIDI duration includes the end of the final note, not merely the last
+    // event timestamp. This matches DryWetMidi's GetDuration behavior.
+    let duration_us = note_events.iter().map(|event| event.time_us).max().unwrap_or(0);
     let title = track_names.into_iter().find(|n| !n.is_empty()).unwrap_or_else(|| "Untitled MIDI".to_string());
 
     // Convert raw key signatures to metric timestamps and normalized labels

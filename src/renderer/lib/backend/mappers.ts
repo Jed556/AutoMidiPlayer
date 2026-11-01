@@ -173,12 +173,14 @@ export function loadedMidiToMidiFile(raw: RawLoadedMidiFile | MidiFile): MidiFil
   const source = raw as unknown as Record<string, unknown>;
   const durationMs = Number(source.durationMs ?? 0);
   const durationSeconds = Number(source.durationSeconds ?? durationMs / 1000);
+  const songEndMs = durationMs > 0 ? durationMs : Number.POSITIVE_INFINITY;
   const bpm = Number(source.bpm ?? source.tempo ?? 120);
   const rawNotes = Array.isArray(source.notes) ? source.notes as Array<Record<string, unknown>> : [];
   const notes = rawNotes.map((note, index) => {
     const noteNumber = Number(note.noteNumber ?? note.pitch ?? 60);
     const startMs = Number(note.startMs ?? (Number(note.startTime ?? 0) * 1000));
-    const lengthMs = Number(note.lengthMs ?? (Number(note.duration ?? 0) * 1000));
+    const sourceLengthMs = Number(note.lengthMs ?? (Number(note.duration ?? 0) * 1000));
+    const lengthMs = Math.max(0, Math.min(sourceLengthMs, songEndMs - startMs));
     const trackIndex = Number(note.trackIndex ?? 0);
 
     return {
@@ -189,7 +191,10 @@ export function loadedMidiToMidiFile(raw: RawLoadedMidiFile | MidiFile): MidiFil
       startMs,
       startTime: Number(note.startTime ?? startMs / 1000),
       lengthMs,
-      duration: Number(note.duration ?? lengthMs / 1000),
+      // lengthMs is the canonical native timeline value. Re-derive the
+      // seconds alias so stale or differently-unit duration fields cannot
+      // stretch notes beyond the song.
+      duration: lengthMs / 1000,
       trackIndex,
       trackId: Number(note.trackId ?? trackIndex + 1),
       velocity: Number(note.velocity ?? 80),

@@ -398,7 +398,7 @@ fn read_midi_payload(
     for (i, ev) in parsed.events.iter().enumerate() {
         if ev.is_note_on {
             let start_ms = (ev.time_us as f64) / 1000.0;
-            let length_ms = note_durations[i].unwrap_or(200_000) as f64 / 1000.0;
+            let length_ms = (note_durations[i].unwrap_or(200_000) as f64 / 1000.0).max(20.0);
 
             notes.push(RollNotePayload {
                 id: format!("n_{}", note_id_counter),

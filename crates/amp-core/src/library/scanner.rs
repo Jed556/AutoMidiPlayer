@@ -179,8 +179,21 @@ pub fn scan_folder(
                 canonical.insert(meta.file_hash, updated_song);
                 updated += 1;
             } else {
-                canonical.insert(meta.file_hash, existing_by_path);
-                skipped += 1;
+                // Refresh derived metadata even when the file bytes are
+                // unchanged. Parser fixes must invalidate stale cached
+                // durations without requiring a file edit.
+                let mut refreshed = existing_by_path;
+                let metadata_changed = refreshed.cached_duration_ms != Some(meta.duration_ms)
+                    || refreshed.cached_native_bpm != Some(meta.native_bpm);
+                if metadata_changed {
+                    refreshed.cached_duration_ms = Some(meta.duration_ms);
+                    refreshed.cached_native_bpm = Some(meta.native_bpm);
+                    db.upsert_song(&refreshed).map_err(|e| e.to_string())?;
+                    updated += 1;
+                } else {
+                    skipped += 1;
+                }
+                canonical.insert(meta.file_hash, refreshed);
             }
             continue;
         }
