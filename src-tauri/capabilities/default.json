@@ -11,6 +11,7 @@
     "core:window:allow-show",
     "core:window:allow-destroy",
     "core:window:allow-start-dragging",
+    "core:window:allow-set-title",
     "dialog:default",
     "global-shortcut:default"
   ]

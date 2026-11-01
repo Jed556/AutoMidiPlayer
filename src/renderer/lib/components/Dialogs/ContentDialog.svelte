@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import FluentIcon from '../Common/FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
   import CustomScrollViewer from '../Common/CustomScrollViewer.svelte';
   import { uiStore } from '../../state/uiStore.svelte';
 

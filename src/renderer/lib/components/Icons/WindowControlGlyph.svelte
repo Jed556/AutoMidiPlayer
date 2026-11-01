@@ -1,20 +1,12 @@
 <script module lang="ts">
-  export interface WindowControlIconProps {
-    maximized?: boolean;
-    hovered?: boolean;
-    trigger?: number | boolean;
-    size?: number;
-    class?: string;
-    style?: string;
-    title?: string;
-    duration?: number;
-  }
+  export type { WindowControlIconProps } from './windowControlUtils';
 </script>
 
 <script lang="ts">
   import { onDestroy, onMount, untrack } from 'svelte';
   import { animationStore } from '../../state/animationStore.svelte';
-  import CrossStrokes, { crossStrokeProgress } from './CrossStrokes.svelte';
+  import CrossStrokes from './CrossStrokes.svelte';
+  import { crossStrokeProgress, type WindowControlIconProps } from './windowControlUtils';
 
   let {
     kind, maximized = false, hovered = false, trigger, size = 12,

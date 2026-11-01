@@ -2,6 +2,8 @@ mod config_manager;
 mod process_monitor;
 mod updates;
 mod storage;
+#[cfg(windows)]
+mod webview_data;
 pub mod logging;
 pub mod telemetry;
 use config_manager::{ConfigManager, ConfigSnapshot};
@@ -279,6 +281,11 @@ fn close_window(window: tauri::Window) {
 #[tauri::command]
 fn is_maximized(window: tauri::Window) -> bool {
     window.is_maximized().unwrap_or(false)
+}
+
+#[tauri::command]
+fn set_window_title(window: tauri::Window, title: String) {
+    let _ = window.set_title(&title);
 }
 
 // Playback commands
@@ -661,6 +668,109 @@ fn update_song_defaults(
 ) -> Result<bool, String> {
     *state.song_defaults.write().unwrap() = defaults;
     Ok(true)
+}
+
+#[derive(serde::Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct LegacyDataStatus {
+    pub detected: bool,
+    pub db_path: Option<String>,
+    pub song_count: usize,
+    pub playlist_count: usize,
+    pub has_user_config: bool,
+    pub midi_folder: Option<String>,
+}
+
+#[derive(serde::Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct LegacyMigrationResult {
+    pub success: bool,
+    pub song_count: usize,
+    pub playlist_count: usize,
+    pub error: Option<String>,
+}
+
+#[tauri::command]
+fn check_legacy_data() -> Result<LegacyDataStatus, String> {
+    let db_path = amp_core::paths::find_legacy_db_path();
+    let config_path = amp_core::paths::find_legacy_config_path();
+
+    let mut song_count = 0;
+    let mut playlist_count = 0;
+    if let Some(ref path) = db_path {
+        if let Ok((sc, pc)) = amp_core::LibraryDatabase::inspect_db_counts(path) {
+            song_count = sc;
+            playlist_count = pc;
+        }
+    }
+
+    let mut midi_folder = None;
+    let has_user_config = config_path.is_some();
+    if let Some(ref path) = config_path {
+        if let Ok(raw) = amp_core::settings::legacy::read(path) {
+            midi_folder = raw.get("MidiFolder").cloned().filter(|f| !f.trim().is_empty());
+        }
+    }
+
+    let detected = db_path.is_some() || has_user_config || song_count > 0;
+
+    Ok(LegacyDataStatus {
+        detected,
+        db_path: db_path.map(|p| p.to_string_lossy().into_owned()),
+        song_count,
+        playlist_count,
+        has_user_config,
+        midi_folder,
+    })
+}
+
+#[tauri::command]
+async fn migrate_legacy_data(state: State<'_, AppState>) -> Result<LegacyMigrationResult, String> {
+    let legacy_db = amp_core::paths::find_legacy_db_path();
+    let legacy_config = amp_core::paths::find_legacy_config_path();
+
+    let mut migrated_songs = 0;
+    let mut migrated_playlists = 0;
+
+    if let Some(ref db_path) = legacy_db {
+        if let Ok((sc, pc)) = amp_core::LibraryDatabase::inspect_db_counts(db_path) {
+            migrated_songs = sc;
+            migrated_playlists = pc;
+        }
+
+        state.db.replace_with_legacy_database(db_path)
+            .map_err(|e| format!("Database migration failed: {e}"))?;
+
+        let cm = state.config_manager.lock().unwrap();
+        if cm.issues.is_empty() {
+            let contexts = cm.games.iter().flat_map(|game| game.instruments.iter().map(|instrument| SongSettingsContext {
+                game_id: game.config.id.clone(),
+                instrument_id: instrument.id.clone(),
+            })).collect::<Vec<_>>();
+            let _ = state.db.migrate_legacy_song_settings(&contexts, || {});
+        }
+    }
+
+    if let Some(ref config_path) = legacy_config {
+        if let Ok(raw) = amp_core::settings::legacy::read(config_path) {
+            let cm = state.config_manager.lock().unwrap();
+            if let Ok(legacy_settings) = amp_core::settings::legacy::map(&raw, &cm.games, &cm.layouts, &state.db) {
+                let _ = state.settings.update(&legacy_settings);
+            }
+            if let Some(queue_ids) = raw.get("QueueSongIds") {
+                let _ = state.db.import_legacy_queue(queue_ids);
+            }
+        }
+    }
+
+    let _ = amp_core::paths::migrate_app_data();
+
+    Ok(LegacyMigrationResult {
+        success: true,
+        song_count: migrated_songs,
+        playlist_count: migrated_playlists,
+        error: None,
+    })
 }
 
 #[tauri::command]
@@ -1466,10 +1576,38 @@ fn set_startup_stage(app: &AppHandle, stage: &str) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let context = tauri::generate_context!();
+    #[cfg(windows)]
+    let context = {
+        let mut context = context;
+        webview_data::prepare(context.config_mut())
+            .expect("Failed to relocate WebView2 data; close other Auto MIDI Player instances and retry");
+        context
+    };
+
     tauri::Builder::default()
         .setup(|app| {
-            // Move legacy data before any logger, database, or settings file is opened.
-            let migration_result = amp_core::paths::migrate_app_data();
+            // Only move legacy data if onboarding was already completed in an earlier run of the new app.
+            // Initial launch defers migration so the user can choose in the welcome screen.
+            let onboarding_already_completed = {
+                let settings_path = amp_core::settings::SettingsStore::default_path();
+                if let Ok(bytes) = std::fs::read(&settings_path) {
+                    if let Ok(val) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+                        val.get("onboardingCompleted").and_then(serde_json::Value::as_bool).unwrap_or(false)
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            };
+
+            if onboarding_already_completed {
+                let migration_result = amp_core::paths::migrate_app_data();
+                if let Err(ref error) = migration_result {
+                    log::warn!("Legacy app data migration encountered a non-fatal error: {error}");
+                }
+            }
 
             // Initialize logging system, panic hook, and sentry telemetry
             let _ = logging::init_logger(logging::ALL_STEPS_VERBOSITY, cfg!(debug_assertions));
@@ -1481,10 +1619,6 @@ pub fn run() {
                 Some(file!()),
                 Some(line!()),
             );
-
-            if let Err(ref error) = migration_result {
-                log::warn!("Legacy app data migration encountered a non-fatal error: {error}");
-            }
 
             // Register dialog plugin
             app.handle().plugin(tauri_plugin_dialog::init())?;
@@ -1749,6 +1883,7 @@ pub fn run() {
             maximize_window,
             close_window,
             is_maximized,
+            set_window_title,
             load_midi_file,
             read_midi_file,
             play_song,
@@ -1782,6 +1917,8 @@ pub fn run() {
             import_midi_files,
             update_song_defaults,
             get_app_settings,
+            check_legacy_data,
+            migrate_legacy_data,
             get_data_directory,
             get_storage_usage,
             clear_discover_cache,
@@ -1845,7 +1982,7 @@ pub fn run() {
             capture_telemetry_exception,
             capture_telemetry_message,
         ])
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("error while building tauri application");
 }
 

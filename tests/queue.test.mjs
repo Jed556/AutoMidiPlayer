@@ -63,6 +63,7 @@ async function createPlayer({ writeQueue, readQueue, writeSongSettings, readSong
     './gameStore.svelte.js': { gameStore },
     './libraryStore.svelte.js': { libraryStore },
     './settingsStore.svelte.js': { settingsStore },
+    '../i18n': { t: (key) => key === 'titleBar.appName' ? 'Auto MIDI Player' : key === 'player.unknownArtist' ? 'Unknown Artist' : key },
   };
   const key = `__queueHarness${++harnessId}`;
   globalThis[key] = mocks;
@@ -76,6 +77,28 @@ async function createPlayer({ writeQueue, readQueue, writeSongSettings, readSong
   return { player, songs, writes, playbackCalls, libraryStore, songSettingsWrites, gameStore, settingsStore, preferenceWrites };
 }
 const ids = songs => songs.map(s => s.id);
+
+test('adding a marker preserves the snapped note boundary through native sync and saving', async () => {
+  const { player, songs, playbackCalls, songSettingsWrites } = await createPlayer();
+  const onsets = [1001, 1004.9, 1005, 1008.384, 105348.384];
+  player.loadSong({ ...songs[0], notes: onsets.map((startMs, i) => ({
+    id: `note-${i}`, noteNumber: 60, startMs, startTime: startMs / 1000, lengthMs: 100,
+  })) });
+  for (const startMs of onsets) {
+    // Isolate each onset, then place the marker just before it, as in Studio.
+    player.activeSong.notes = [{ id: 'target', noteNumber: 60, startMs, startTime: startMs / 1000, lengthMs: 100 }];
+    player.addKeyMarker(startMs / 1000 - 0.02, 3);
+    const marker = player.selectedMarker;
+    assert.ok(marker.timeMs <= startMs, `${marker.timeMs}ms must not fall after the ${startMs}ms note`);
+    assert.ok(startMs - marker.timeMs < 1);
+    assert.equal(marker.time, marker.timeMs / 1000);
+    assert.equal(playbackCalls.findLast(([method]) => method === 'setKeyMarkers')[1]
+      .find(item => item.id === marker.id).timeMs, marker.timeMs);
+    await player.flushSongSettings();
+    assert.ok(JSON.parse(songSettingsWrites.at(-1)[1].keyChanges)
+      .some(item => item.TimeMs === marker.timeMs && item.KeyOffset === 3));
+  }
+});
 
 test('chord toggle and tolerance restore and save for the loaded instrument', async () => {
   const { player, songs, songSettingsWrites } = await createPlayer();
@@ -889,4 +912,30 @@ test('switching songs while playing resets currentTimeSeconds and ignores stale 
   assert.equal(player.currentTimeSeconds, 0, 'New song must start at 0:00 without carrying over old song position');
   const songBSeeks = playbackCalls.filter(([method, ms]) => method === 'seek' && ms > 0);
   assert.equal(songBSeeks.length, 0, 'New song must not seek to old song position');
+});
+
+test('window title reflects the active playing song without artist when unknown, includes artist when present, and reverts when paused or stopped', async () => {
+  const { player, songs } = await createPlayer({ native: true });
+  assert.equal(player.windowTitle, 'Auto MIDI Player');
+
+  player.loadSong(parsedMidi(songs[0]));
+  assert.equal(player.windowTitle, 'Auto MIDI Player', 'Title remains app name when song is loaded but not playing');
+
+  await player.play(parsedMidi(songs[0]));
+  assert.equal(player.windowTitle, 'File title', 'Title shows song title when playing without artist');
+
+  player.activeSong = { ...player.activeSong, artist: 'Artist One' };
+  assert.equal(player.windowTitle, 'File title • Artist One', 'Title includes artist when known');
+
+  player.activeSong = { ...player.activeSong, artist: 'Unknown Artist' };
+  assert.equal(player.windowTitle, 'File title', 'Title excludes Unknown Artist');
+
+  await player.pause();
+  assert.equal(player.windowTitle, 'Auto MIDI Player', 'Title reverts to app name when paused');
+
+  await player.play();
+  assert.equal(player.windowTitle, 'File title', 'Title restores active playing song on resume');
+
+  await player.stop();
+  assert.equal(player.windowTitle, 'Auto MIDI Player', 'Title reverts to app name when stopped');
 });

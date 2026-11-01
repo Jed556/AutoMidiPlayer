@@ -4,7 +4,7 @@
   import { playbackStore } from '../state/playbackStore.svelte';
   import { uiStore } from '../state/uiStore.svelte';
   import { t } from '../i18n';
-  import FluentIcon from '../components/Common/FluentIcon.svelte';
+  import FluentIcon from '../components/Icons/FluentIcon.svelte';
   import Button from '../components/Common/Button.svelte';
   import Slider from '../components/Common/Slider.svelte';
   import GradientSweep from '../components/Common/GradientSweep.svelte';

@@ -16,7 +16,7 @@
   import Picker from '../Common/Picker.svelte';
   import ToggleSwitch from '../Common/ToggleSwitch.svelte';
   import HoldNotesControl from '../Common/HoldNotesControl.svelte';
-  import FluentIcon from '../Common/FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
   import ContentDialog from './ContentDialog.svelte';
   import { t } from '../../i18n';
 
@@ -38,6 +38,8 @@
     mergeMilliseconds: song.mergeToleranceMs ?? 100,
     holdNotes: song.holdNotes ?? false,
     tapThresholdMs: song.tapThresholdMs ?? 0,
+    autoChord: song.autoChord ?? settingsStore.settings.defaultAutoChord,
+    enableKeyChangeMarkers: song.enableKeyChangeMarkers ?? settingsStore.settings.defaultEnableKeyChangeMarkers,
   };
   let title = $state(initial.title);
   let artist = $state(initial.artist);
@@ -52,6 +54,8 @@
   let mergeMilliseconds = $state<number | undefined>(initial.mergeMilliseconds);
   let holdNotes = $state(initial.holdNotes);
   let tapThresholdMs = $state(initial.tapThresholdMs);
+  let autoChord = $state(initial.autoChord);
+  let enableKeyChangeMarkers = $state(initial.enableKeyChangeMarkers);
   let fileDate = $state(song.dateAdded);
   let isSaving = $state(false);
   let isScanning = $state(false);
@@ -123,6 +127,8 @@
     mergeMilliseconds = initial.mergeMilliseconds;
     holdNotes = initial.holdNotes;
     tapThresholdMs = initial.tapThresholdMs;
+    autoChord = initial.autoChord;
+    enableKeyChangeMarkers = initial.enableKeyChangeMarkers;
     error = '';
     if (settingsStore.settings.autoDetectBaseKey) {
       await rescan();
@@ -157,6 +163,7 @@
       title: savedTitle, artist: artist.trim(), album: album.trim(), baseKey, key,
       transpose: { Ignore: 0, Smart: 1, Up: 2, Down: 3 }[transpose],
       bpm: bpmOverride, speed, mergeNotes, mergeMilliseconds: validTolerance ? mergeMilliseconds! : 100, holdNotes, tapThresholdMs,
+      autoChord, enableKeyChangeMarkers,
       dateAdded: fileDate,
     };
     isSaving = true;
@@ -183,8 +190,6 @@
 
 <ContentDialog title={t('dialogs.editTitle')} icon="Edit" class="edit-song-dialog" dividers={false} onClose={() => uiStore.closeDialog()}>
   <div class="edit-fields" class:no-motion={animationStore.isOff}>
-    <p class="save-context">{t('dialogs.songSettingsScope', { game: gameName, instrument: instrumentName })}</p>
-
     <section class="edit-section" aria-labelledby="edit-song-details" style="--section-index: 0">
       <div class="section-header">
         <h3 id="edit-song-details">{t('dialogs.songDetailsSection')}</h3>
@@ -208,6 +213,7 @@
         <input id="edit-song-artist" type="text" bind:value={artist} />
       </div>
     </section>
+    <p class="save-context">{t('dialogs.songSettingsScope', { game: gameName, instrument: instrumentName })}</p>
 
     <section class="edit-section" aria-labelledby="edit-song-key-settings" style="--section-index: 1">
       <h3 id="edit-song-key-settings">{t('dialogs.keyTranspositionsSection')}</h3>
@@ -224,9 +230,14 @@
           <Picker id="edit-song-key" label="Key Offset" bind:value={key} options={keyOptions} />
         </div>
       </div>
-      <div class="form-field">
-        <label for="edit-song-transpose">Transpose</label>
-        <Picker id="edit-song-transpose" label="Transpose" bind:value={transpose} options={transposeOptions} />
+      <div class="key-options-row">
+        <div class="form-field">
+          <label for="edit-song-transpose">Transpose</label>
+          <Picker id="edit-song-transpose" label="Transpose" bind:value={transpose} options={transposeOptions} />
+        </div>
+        <div class="key-marker-toggle">
+          <ToggleSwitch bind:checked={enableKeyChangeMarkers} label="Key Change Markers" />
+        </div>
       </div>
     </section>
 
@@ -253,10 +264,14 @@
         <div class="merge-control">
           <ToggleSwitch bind:checked={mergeNotes} label="Merge Notes" />
           <div class="form-field tolerance-field" class:disabled={!mergeNotes}>
-            <label for="edit-song-tolerance">Tolerance (ms)</label>
-            <input id="edit-song-tolerance" type="number" min="1" max="1000" step="1" bind:value={mergeMilliseconds} disabled={!mergeNotes} />
+            <label for="edit-song-tolerance">Tolerance</label>
+            <div class="tolerance-input-row">
+              <input id="edit-song-tolerance" class="tolerance-input" type="number" min="1" max="1000" step="1" bind:value={mergeMilliseconds} disabled={!mergeNotes} />
+              <span class="tolerance-unit">ms</span>
+            </div>
           </div>
         </div>
+        <ToggleSwitch bind:checked={autoChord} label="Auto Chord Detection" />
       </div>
     </section>
     <div class="file-info">
@@ -284,6 +299,7 @@
 </ContentDialog>
 
 <style>
+  :global(.edit-song-dialog .dialog-body) { padding-top: 0 !important; }
   .edit-fields { display: flex; flex-direction: column; gap: 12px; }
   .save-context { margin: 0 0 4px; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
   .edit-section { display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: var(--radius-md, 8px); background: var(--control-fill); animation: section-enter var(--anim-normal, 0.2s) cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: calc(var(--anim-normal, 0.2s) * var(--section-index) * 0.15); }
@@ -300,11 +316,18 @@
   input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   input:disabled { opacity: 0.5; }
   .inline-field { display: flex; align-items: center; gap: 6px; min-height: 34px; }
-  .note-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 24px; }
-  .merge-control { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
-  .tolerance-field { gap: 4px; transition: opacity var(--transition-fast); }
+  .key-options-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 16px; }
+  .key-marker-toggle { align-self: end; padding-bottom: 7px; }
+  .note-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 16px 24px; }
+  .merge-control { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-width: 0; }
+  .tolerance-field { display: flex; flex-direction: row; align-items: center; gap: 8px; transition: opacity var(--transition-fast); }
+  .tolerance-field label { color: var(--text-secondary); font-size: 10.5px; line-height: 1; }
   .tolerance-field.disabled { opacity: 0.45; }
-  .tolerance-field input { width: 76px; height: 28px; text-align: center; }
+  .tolerance-input-row { display: flex; align-items: center; gap: 0; }
+  .tolerance-input { box-sizing: border-box; width: 76px; height: 28px; padding: 6px 10px; border: none; border-radius: var(--radius-sm); background: var(--bg-tertiary); color: var(--text-primary); font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; text-align: center; }
+  .tolerance-input:hover:enabled { background: var(--bg-hover); }
+  .tolerance-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .tolerance-unit { margin-left: 5px; color: var(--text-tertiary); font-size: 11px; }
   .file-info { display: flex; flex-direction: column; gap: 4px; padding: 4px 2px 0; color: var(--text-secondary); font-size: 11px; }
   .file-path { padding: 0; border: 0; background: transparent; color: var(--accent); text-align: left; font: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
   .form-error { margin: 0; color: var(--danger, #f87171); font-size: 12px; }
@@ -318,6 +341,8 @@
   @media (prefers-reduced-motion: reduce) { .edit-section { animation: none; } input, .tolerance-field { transition: none; } }
   @media (max-width: 560px) {
     .field-pair { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    .key-options-row, .note-controls { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    .key-marker-toggle { align-self: start; padding-bottom: 0; }
     .edit-section { padding: 12px; }
     .edit-footer { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
     .edit-footer :global(.split-button) { grid-column: 1 / -1; display: flex; }

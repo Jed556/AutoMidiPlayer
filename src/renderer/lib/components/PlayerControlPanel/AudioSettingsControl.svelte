@@ -8,7 +8,7 @@
   import { createDropdownState } from '../../ui/dropdownState.svelte';
   import { t } from '../../i18n';
   import { generateKeyOptions, getKeyNoteNameWithOctave } from '../../utils/musicConstants';
-  import FluentIcon from '../Common/FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
   import Slider from '../Common/Slider.svelte';
   import GradientSweep from '../Common/GradientSweep.svelte';
   import CustomScrollViewer from '../Common/CustomScrollViewer.svelte';
@@ -138,7 +138,7 @@
   }
 
   function selectSpeed(s: number) {
-    playbackStore.playbackSpeed = s;
+    void playbackStore.setPlaybackSpeed(s);
     closeAll();
   }
 

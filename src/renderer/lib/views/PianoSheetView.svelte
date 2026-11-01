@@ -4,7 +4,7 @@
   import { notificationCenter } from '../ui/notificationCenter.svelte';
   import { t } from '../i18n';
   import { instrumentKeyPairs } from '../../../shared/utils/instrumentLayout';
-  import FluentIcon from '../components/Common/FluentIcon.svelte';
+  import FluentIcon from '../components/Icons/FluentIcon.svelte';
   import Button from '../components/Common/Button.svelte';
   import Dropdown from '../components/Common/Dropdown.svelte';
   import NumberBox from '../components/Common/NumberBox.svelte';

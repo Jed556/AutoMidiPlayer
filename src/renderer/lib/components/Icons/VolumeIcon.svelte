@@ -21,7 +21,8 @@
 <script lang="ts">
   import { onMount, onDestroy, untrack } from 'svelte';
   import { animationStore } from '../../state/animationStore.svelte';
-  import CrossStrokes, { crossStrokeProgress } from './CrossStrokes.svelte';
+  import CrossStrokes from './CrossStrokes.svelte';
+  import { crossStrokeProgress } from './windowControlUtils';
 
   interface Props {
     volume?: number;

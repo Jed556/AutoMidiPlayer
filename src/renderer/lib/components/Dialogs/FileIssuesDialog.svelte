@@ -7,7 +7,7 @@
   import { api } from '../../backend';
   import { groupDuplicateFiles } from '../../utils/fileIssueGroups';
   import Button from '../Common/Button.svelte';
-  import RefreshIcon from '../Common/RefreshIcon.svelte';
+  import RefreshIcon from '../Icons/RefreshIcon.svelte';
   import SlidingTabs from '../Common/SlidingTabs.svelte';
   import ContentDialog from './ContentDialog.svelte';
   import { t } from '../../i18n';

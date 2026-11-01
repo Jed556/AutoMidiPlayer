@@ -12,6 +12,7 @@
   import WindowCloseIcon from './WindowCloseIcon.svelte';
   import WindowMinimizeIcon from './WindowMinimizeIcon.svelte';
   import WindowMaximizeIcon from './WindowMaximizeIcon.svelte';
+  import PedalIcon from './PedalIcon.svelte';
 
   interface Props {
     name: IconName | string;
@@ -263,6 +264,12 @@
     {duration}
     {loading}
     {trigger}
+  />
+{:else if String(name).toLowerCase() === 'pedal'}
+  <PedalIcon
+    isActive={active}
+    {size}
+    class={className}
   />
 {:else if isThemeVariant}
   <ThemeToggleIcon

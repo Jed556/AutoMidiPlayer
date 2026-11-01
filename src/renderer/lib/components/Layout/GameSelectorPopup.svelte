@@ -4,7 +4,7 @@
   import { notificationCenter } from '../../ui/notificationCenter.svelte';
   import { dialogBackdrop, popupScaleIn, popupScaleOut } from '../../utils/transitions';
   import { t } from '../../i18n';
-  import FluentIcon from '../Common/FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
   import ExpandableSearchBox from '../Common/ExpandableSearchBox.svelte';
   import CustomScrollViewer from '../Common/CustomScrollViewer.svelte';
   import { createFrameResizeObserver } from '../../utils/frameResizeObserver';

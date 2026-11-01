@@ -8,14 +8,14 @@
   import { api } from '../backend/index.js';
   import { notificationCenter } from '../ui/notificationCenter.svelte';
   import { t } from '../i18n';
-  import FluentIcon from '../components/Common/FluentIcon.svelte';
+  import FluentIcon from '../components/Icons/FluentIcon.svelte';
   import AdaptiveText from '../components/Common/AdaptiveText.svelte';
   import Button from '../components/Common/Button.svelte';
   import NumberBox from '../components/Common/NumberBox.svelte';
   import Dropdown from '../components/Common/Dropdown.svelte';
   import ToggleSwitch from '../components/Common/ToggleSwitch.svelte';
-  import RefreshIcon from '../components/Common/RefreshIcon.svelte';
-  import PedalIcon from '../components/Common/PedalIcon.svelte';
+  import RefreshIcon from '../components/Icons/RefreshIcon.svelte';
+  import PedalIcon from '../components/Icons/PedalIcon.svelte';
   import GradientSweep from '../components/Common/GradientSweep.svelte';
   import { createFrameResizeObserver } from '../utils/frameResizeObserver';
   import { tooltip } from '../actions/tooltip';

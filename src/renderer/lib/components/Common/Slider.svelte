@@ -184,7 +184,7 @@
 <script lang="ts">
   import { portal } from '../../actions/portal';
   import { animationStore } from '../../state/animationStore.svelte';
-  import FluentIcon from './FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
 
   let {
     variant = 'default',

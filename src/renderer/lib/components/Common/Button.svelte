@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import FluentIcon from './FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
   import { tooltip } from '../../actions/tooltip';
 
   interface Props {
@@ -278,17 +278,17 @@
 
   .variant-ghost.color-accent {
     color: var(--accent-color);
-    opacity: 0.8;
+    opacity: 0.4;
   }
 
   .variant-ghost.color-danger {
     color: #C42B1C;
-    opacity: 0.8;
+    opacity: 0.4;
   }
 
   .variant-ghost.color-warning {
     color: #FFB900;
-    opacity: 0.8;
+    opacity: 0.4;
   }
 
   .variant-ghost:hover:not(:disabled) {

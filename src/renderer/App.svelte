@@ -52,6 +52,16 @@
     playbackStore.persistSession(untrack(() => playbackStore.currentTimeSeconds));
   });
 
+  $effect(() => {
+    const title = playbackStore.windowTitle;
+    if (typeof document !== 'undefined') {
+      document.title = title;
+    }
+    if (isTauri) {
+      void api.window.setTitle(title).catch(() => {});
+    }
+  });
+
   async function flushSession() {
     if (!startupReady || updateStore.isApplyingUpdate) return;
     uiStore.persistPreferences(libraryStore.selectedPlaylistId);

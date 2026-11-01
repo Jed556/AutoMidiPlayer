@@ -117,7 +117,7 @@ fn portable_config_imports_preferences_selections_and_session_without_changing_l
         ("cacheMaxSizeMb", json!(0)),
         ("cacheAutoClean", json!("monthly")),
         ("updateCheckFrequency", json!("launch")),
-        ("onboardingCompleted", json!(true)),
+        ("onboardingCompleted", json!(false)),
     ] {
         assert_eq!(settings[key], value, "{key}");
     }

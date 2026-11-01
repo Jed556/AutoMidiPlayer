@@ -6,7 +6,7 @@
   import { gameStore } from '../../state/gameStore.svelte';
   import { libraryStore, type PlaylistInfo } from '../../state/libraryStore.svelte';
   import { t } from '../../i18n';
-  import FluentIcon from '../Common/FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
   import AdaptiveText from '../Common/AdaptiveText.svelte';
   import CustomScrollViewer from '../Common/CustomScrollViewer.svelte';
 
@@ -27,7 +27,7 @@
 
   // Primary Page Navigation Items (6 tabs: tracks, studio, sheet, instrument, queue, discover)
   let navItems = $derived([
-    { id: 'tracks', icon: 'AppsListDetail', labelKey: 'nav.tracks' },
+    { id: 'tracks', icon: 'Layer', labelKey: 'nav.tracks' },
     { id: 'studio', icon: 'CalendarMonth', labelKey: 'nav.studio' },
     { id: 'sheet', icon: 'ReadingList', labelKey: 'nav.sheet' },
     { id: 'instrument', icon: 'Guitar', labelKey: 'nav.instrument' },
@@ -417,7 +417,9 @@
 
   .compressed .new-playlist-button {
     width: 48px;
+    height: 48px;
     min-height: 48px;
+    aspect-ratio: 1 / 1;
     margin: 8px 6px;
   }
 
@@ -705,6 +707,7 @@
     height: 60px;
     min-width: 60px;
     min-height: 60px;
+    flex-shrink: 0;
     aspect-ratio: 1 / 1;
     margin: 3px 0 6px 0;
     padding: 0;
@@ -742,24 +745,6 @@
 
   .game-image-host.running .game-image {
     filter: none;
-  }
-
-  @media (max-height: 620px) {
-    .compressed .nav-item,
-    .compressed .game-drawer-item {
-      height: 48px;
-      min-height: 48px;
-      aspect-ratio: auto;
-    }
-
-    .compressed .game-image-host {
-      width: 48px;
-      height: 48px;
-    }
-
-    .nav-top {
-      flex-basis: 328px;
-    }
   }
 
   /* EXPANDED MODE (2-COLUMN & 3-COLUMN) */

@@ -63,7 +63,9 @@ export function createDisplayPitch(settings: DisplaySettings): (note: RollNote) 
   const cache = new Map<string, number>();
 
   return note => {
-    const timeMs = note.startTime !== undefined ? note.startTime * 1000 : note.startMs;
+    // Match amp-core's 10ms lookahead, including existing rounded markers and
+    // markers dragged onto its 10ms grid.
+    const timeMs = note.startMs + 10;
     let lo = 0;
     let hi = markers.length;
     while (lo < hi) {

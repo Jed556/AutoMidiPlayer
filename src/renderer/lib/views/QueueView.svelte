@@ -4,7 +4,7 @@
   import { notificationCenter } from '../ui/notificationCenter.svelte';
   import { t } from '../i18n';
   import type { MidiFile } from '$shared/types/midi';
-  import FluentIcon from '../components/Common/FluentIcon.svelte';
+  import FluentIcon from '../components/Icons/FluentIcon.svelte';
   import SongListTable from '../components/Common/SongListTable.svelte';
   import SearchBox from '../components/Common/SearchBox.svelte';
 

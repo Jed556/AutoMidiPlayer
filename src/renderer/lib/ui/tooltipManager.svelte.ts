@@ -16,6 +16,7 @@ export interface TooltipOptions {
   interactive?: boolean;
   /** Track the pointer when true; anchor to the element when false. Omit to use the global default. */
   followCursor?: boolean;
+  contentType?: 'text' | 'pedals';
 }
 
 class TooltipManager {
@@ -73,7 +74,7 @@ class TooltipManager {
     const revision = this.targetRevision;
     queueMicrotask(() => {
       if (this.currentTarget !== target || this.targetRevision !== revision) return;
-      if (options.text !== this.options.text) {
+      if (options.text !== this.options.text || options.contentType !== this.options.contentType) {
         this.morphContent = this.isVisible;
         this.contentRevision++;
       }
@@ -123,7 +124,7 @@ class TooltipManager {
       target.getAttribute('data-tooltip-disabled') === '' ||
       Boolean(target.closest?.('[data-tooltip-disabled="true"], [data-tooltip-disabled=""]'));
 
-    if (parsedOpts.disabled || isAttrDisabled || !parsedOpts.text || !parsedOpts.text.trim()) {
+    if (parsedOpts.disabled || isAttrDisabled || (!parsedOpts.text?.trim() && parsedOpts.contentType !== 'pedals')) {
       this.hide();
       return;
     }
@@ -650,8 +651,9 @@ class TooltipManager {
         activeGlobalTarget = target;
 
         let text = target.getAttribute('data-amp-tooltip') || target.getAttribute('data-tooltip') || '';
+        const contentType = (target.getAttribute('data-tooltip-content') as any) || 'text';
 
-        if (!text || !text.trim()) {
+        if ((!text || !text.trim()) && contentType !== 'pedals') {
           this.hide();
           return;
         }
@@ -669,7 +671,8 @@ class TooltipManager {
             position,
             arrow,
             variant,
-            followCursor
+            followCursor,
+            contentType
           },
           e
         );
@@ -685,7 +688,7 @@ class TooltipManager {
         const related = e.relatedTarget as HTMLElement | null;
         if (related && activeGlobalTarget.contains(related)) return;
 
-        this.hideAfterUpdate();
+        this.hideAfterUpdate(false, activeGlobalTarget);
         activeGlobalTarget = null;
       },
       true
@@ -715,14 +718,15 @@ class TooltipManager {
 
         processTitleElement(target);
         let text = target.getAttribute('data-amp-tooltip') || target.getAttribute('data-tooltip') || '';
+        const contentType = (target.getAttribute('data-tooltip-content') as any) || 'text';
 
-        if (text && text.trim()) {
+        if ((text && text.trim()) || contentType === 'pedals') {
           const position = (target.getAttribute('data-tooltip-position') || target.getAttribute('data-position') || undefined) as TooltipPosition | undefined;
           const arrow = target.hasAttribute('data-tooltip-arrow');
           const variant = (target.getAttribute('data-tooltip-variant') as any) || 'dark';
           const followAttr = target.getAttribute('data-tooltip-follow');
           const followCursor = followAttr === 'true' ? true : followAttr === 'false' ? false : undefined;
-          this.show(target, { text, position, arrow, variant, followCursor });
+          this.show(target, { text, position, arrow, variant, followCursor, contentType });
         }
       },
       true

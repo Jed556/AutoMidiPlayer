@@ -6,7 +6,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const fluentDir = path.join(rootDir, 'node_modules/@fluentui/svg-icons/icons');
 const localIconsDir = path.join(rootDir, 'src/renderer/assets/icons');
-const outputTs = path.join(rootDir, 'src/renderer/lib/components/Common/iconData.ts');
+const outputTs = path.join(rootDir, 'src/renderer/lib/components/Icons/iconData.ts');
 
 function parseSvg(svgContent) {
   const viewBoxMatch = svgContent.match(/viewBox="([^"]+)"/);
@@ -26,13 +26,21 @@ function parseSvg(svgContent) {
 const FLUENT_ICONS = [
   { symbol: 'Add', base: 'add' },
   { symbol: 'AppsListDetail', base: 'apps_list_detail' },
+  { symbol: 'ArrowAutofitContent', base: 'arrow_autofit_content' },
+  { symbol: 'ArrowAutofitHeight', base: 'arrow_autofit_height' },
+  { symbol: 'ArrowAutofitWidth', base: 'arrow_autofit_width' },
+  { symbol: 'ArrowBidirectionalLeftRight', base: 'arrow_bidirectional_left_right' },
+  { symbol: 'ArrowBidirectionalUpDown', base: 'arrow_bidirectional_up_down' },
   { symbol: 'ArrowCircleDown', base: 'arrow_circle_down' },
   { symbol: 'ArrowCircleUp', base: 'arrow_circle_up' },
   { symbol: 'ArrowClockwise', base: 'arrow_clockwise' },
   { symbol: 'ArrowDownload', base: 'arrow_download' },
   { symbol: 'ArrowLeft', base: 'arrow_left' },
+  { symbol: 'ArrowMaximize', base: 'arrow_maximize' },
+  { symbol: 'ArrowMinimize', base: 'arrow_minimize' },
   { symbol: 'ArrowRight', base: 'arrow_right' },
   { symbol: 'ArrowSort', base: 'arrow_sort' },
+  { symbol: 'ArrowsBidirectional', base: 'arrows_bidirectional' },
   { symbol: 'ArrowSync', base: 'arrow_sync' },
   { symbol: 'Bug', base: 'bug' },
   { symbol: 'CalendarLtr', base: 'calendar_ltr' },
@@ -222,6 +230,12 @@ if (iconRegistry['Subtract']) {
     paths: iconRegistry['Subtract'].paths,
     filledPaths: iconRegistry['Subtract'].filledPaths
   };
+}
+if (iconRegistry['ArrowBidirectionalLeftRight']) {
+  iconRegistry['FitWidth'] = iconRegistry['ArrowBidirectionalLeftRight'];
+}
+if (iconRegistry['ArrowBidirectionalUpDown']) {
+  iconRegistry['FitHeight'] = iconRegistry['ArrowBidirectionalUpDown'];
 }
 
 iconRegistry['TransposeIgnore'] = {

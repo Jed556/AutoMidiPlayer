@@ -4,7 +4,7 @@
   import { playbackStore } from '../../state/playbackStore.svelte';
   import { animationStore } from '../../state/animationStore.svelte';
   import { t } from '../../i18n';
-  import PedalIcon from '../Common/PedalIcon.svelte';
+  import PedalIcon from '../Icons/PedalIcon.svelte';
 
   interface Props {
     open: boolean;

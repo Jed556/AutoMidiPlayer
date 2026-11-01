@@ -4,11 +4,12 @@
   import { uiStore } from '../../state/uiStore.svelte';
   import { playbackStore } from '../../state/playbackStore.svelte';
   import { themeStore } from '../../state/themeStore.svelte';
-  import FluentIcon from '../Common/FluentIcon.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
   import { t } from '../../i18n';
   import type { StudioRenderTrack } from './studioNotes';
   import { noteStart, noteDuration } from '../../utils/noteIndex';
   import type { KeyChangeMarker } from '$shared/types/midi';
+  import MarkerActionPopup from './MarkerActionPopup.svelte';
 
   interface Props {
     renderTracks: StudioRenderTrack[];
@@ -20,6 +21,11 @@
     onZoomChange: (z: number) => void;
     onFitNotes: () => void;
     onZoomYChange?: (y: number) => void;
+    onZoomInX?: () => void;
+    onZoomOutX?: () => void;
+    onResetZoomX?: () => void;
+    onZoomInY?: () => void;
+    onZoomOutY?: () => void;
     hoverTime?: number | null;
     isLockedToPlayhead?: boolean;
   }
@@ -34,13 +40,18 @@
     onZoomChange,
     onFitNotes,
     onZoomYChange,
+    onZoomInX,
+    onZoomOutX,
+    onResetZoomX,
+    onZoomInY,
+    onZoomOutY,
     hoverTime = $bindable(null),
     isLockedToPlayhead = $bindable(DEFAULT_UI_PREFERENCES.studio.isLockedToPlayhead)
   }: Props = $props();
 
-  let scrubberCanvas: HTMLCanvasElement;
-  let scrubberContainer: HTMLDivElement;
-  let canvasWrap: HTMLDivElement;
+  let scrubberCanvas = $state<HTMLCanvasElement>();
+  let scrubberContainer = $state<HTMLDivElement>();
+  let canvasWrap = $state<HTMLDivElement>();
   let ctx: CanvasRenderingContext2D | null = null;
   let animId: number;
 
@@ -54,6 +65,46 @@
   let downCanvasX = 0;
   let isDraggingViewport = $state(false);
   let viewportDragOffset = $state(0);
+
+  // Key marker action popup hover state
+  let activePopupMarker: KeyChangeMarker | null = $state(null);
+  let hoveredBadgeMarker: KeyChangeMarker | null = $state(null);
+  let isPopupHovered = false;
+  let markerHideTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  function showMarkerPopup(marker: KeyChangeMarker) {
+    if (markerHideTimeout) {
+      clearTimeout(markerHideTimeout);
+      markerHideTimeout = null;
+    }
+    if (!isDraggingViewport && !isDraggingScrubber && !isPointerDownViewport && !isPointerDownScrubber && !playbackStore.isPlaying && !playbackStore.isScrubbing) {
+      activePopupMarker = marker;
+    }
+  }
+
+  function startMarkerHideTimer() {
+    if (markerHideTimeout) clearTimeout(markerHideTimeout);
+    markerHideTimeout = setTimeout(() => {
+      if (!isPopupHovered && !hoveredBadgeMarker) {
+        activePopupMarker = null;
+      }
+    }, 180);
+  }
+
+  function hideMarkerPopupImmediate() {
+    if (markerHideTimeout) {
+      clearTimeout(markerHideTimeout);
+      markerHideTimeout = null;
+    }
+    activePopupMarker = null;
+  }
+
+  // Dismiss marker popup during active playback, scrubbing, or when no song is active
+  $effect(() => {
+    if (playbackStore.isPlaying || playbackStore.isScrubbing || !playbackStore.activeSong) {
+      hideMarkerPopupImmediate();
+    }
+  });
 
   let dirty = true;
   let notesDirty = true;
@@ -152,7 +203,7 @@
         ctx.fillText(text, textX, h - 1);
       }
 
-      // 3. Key Change Markers (amber vertical lines and badge tags at top)
+      // 3. Key Change Markers (amber vertical lines)
       const markers = song.keyMarkers || [];
       const selectedId = playbackStore.selectedMarkerId;
       const accentColor = themeStore.accentColor || '#1db954';
@@ -169,19 +220,6 @@
         ctx.moveTo(mx, 0);
         ctx.lineTo(mx, h - 10);
         ctx.stroke();
-
-        // Badge at top
-        const badgeText = marker.noteDisplay || marker.key || 'C';
-        ctx.font = 'bold 9px Inter, system-ui, sans-serif';
-        const tm = ctx.measureText(badgeText);
-        const bw = tm.width + 6;
-        const bh = 11;
-        const bx = Math.max(1, Math.min(w - bw - 1, mx - bw / 2));
-
-        ctx.fillStyle = isSelected ? accentColor : '#f59e0b';
-        ctx.fillRect(bx, 1, bw, bh);
-        ctx.fillStyle = '#000000';
-        ctx.fillText(badgeText, bx + bw / 2, 10);
       }
 
       // Theme-dependent colors for viewport and playhead matching WPF TimelineCanvas
@@ -250,11 +288,44 @@
       ctx.lineTo(px - 5, 6);
       ctx.closePath();
       ctx.fill();
-    }
 
+      // 7. Key Change Marker Badges (Always on top of viewport box and playhead)
+      const sortedMarkers = [...(song.keyMarkers || [])].sort((a, b) => {
+        if (a.id === playbackStore.selectedMarkerId) return 1;
+        if (b.id === playbackStore.selectedMarkerId) return -1;
+        return 0;
+      });
+
+      for (const marker of sortedMarkers) {
+        const mTime = marker.time ?? (marker.timeMs / 1000);
+        const mx = (mTime / totalDur) * w;
+        const isSelected = marker.id === playbackStore.selectedMarkerId;
+
+        // Badge at top
+        const badgeText = marker.noteDisplay || marker.key || 'C';
+        ctx.font = 'bold 9px Inter, system-ui, sans-serif';
+        const tm = ctx.measureText(badgeText);
+        const bw = tm.width + 6;
+        const bh = 11;
+        const bx = Math.max(1, Math.min(w - bw - 1, mx - bw / 2));
+
+        ctx.fillStyle = isSelected ? (themeStore.accentColor || '#1db954') : '#f59e0b';
+        ctx.fillRect(bx, 1, bw, bh);
+        ctx.fillStyle = '#000000';
+        ctx.fillText(badgeText, bx + bw / 2, 10);
+      }
+    } else {
+      if (notesDirty) {
+        const layer = noteLayer?.getContext('2d');
+        if (layer) layer.clearRect(0, 0, w, h);
+        notesDirty = false;
+      }
+      cachedTracks = renderTracks;
+      cachedDuration = totalDur;
+    }
   }
 
-  function hitTestMarker(canvasX: number): KeyChangeMarker | null {
+  function hitTestMarker(canvasX: number, canvasY?: number): { marker: KeyChangeMarker; isBadge: boolean } | null {
     const song = playbackStore.activeSong;
     if (!song?.keyMarkers || !canvasWrap) return null;
     const w = canvasWrap.clientWidth;
@@ -264,8 +335,12 @@
     for (const marker of song.keyMarkers) {
       const mTime = marker.time ?? (marker.timeMs / 1000);
       const mx = (mTime / totalDur) * w;
-      if (Math.abs(canvasX - mx) <= 10) {
-        return marker;
+      if (canvasY !== undefined && canvasY <= 14) {
+        if (Math.abs(canvasX - mx) <= 14) {
+          return { marker, isBadge: true };
+        }
+      } else if (Math.abs(canvasX - mx) <= 8) {
+        return { marker, isBadge: false };
       }
     }
     return null;
@@ -275,16 +350,22 @@
     if (!canvasWrap || e.button !== 0) return;
     const rect = canvasWrap.getBoundingClientRect();
     const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
     const w = rect.width;
     const totalDur = getTotalDuration();
     if (w <= 0 || totalDur <= 0) return;
 
+    // Dismiss marker popup on any click
+    hideMarkerPopupImmediate();
+
     // 1. Check if clicked on a marker
-    const hit = hitTestMarker(x);
+    const hit = hitTestMarker(x, y);
     if (hit) {
-      playbackStore.selectMarker(hit);
-      const mTime = hit.time ?? (hit.timeMs / 1000);
-      playbackStore.seek(mTime);
+      const isSelected = playbackStore.toggleMarker(hit.marker);
+      if (isSelected && !hit.isBadge) {
+        const mTime = hit.marker.time ?? (hit.marker.timeMs / 1000);
+        playbackStore.seek(mTime);
+      }
       return;
     }
 
@@ -328,6 +409,7 @@
   function handleCanvasMouseMove(e: MouseEvent) {
     if (isDraggingViewport || isDraggingScrubber || isPointerDownViewport || isPointerDownScrubber) {
       hoverTime = null;
+      hideMarkerPopupImmediate();
       return;
     }
     if (!canvasWrap) return;
@@ -342,16 +424,32 @@
     } else {
       hoverTime = null;
     }
+
+    const hit = hitTestMarker(x, y);
+    hoveredBadgeMarker = hit?.isBadge ? hit.marker : null;
+    if (hoveredBadgeMarker) {
+      showMarkerPopup(hoveredBadgeMarker);
+    } else if (activePopupMarker && !isPopupHovered) {
+      startMarkerHideTimer();
+    }
   }
 
   function handleCanvasMouseLeave() {
+    hoveredBadgeMarker = null;
     if (!isDraggingViewport && !isDraggingScrubber && !isPointerDownViewport && !isPointerDownScrubber) {
       hoverTime = null;
+      if (!isPopupHovered) {
+        startMarkerHideTimer();
+      }
     }
   }
 
   function handleWindowMouseMove(e: MouseEvent) {
     if (!canvasWrap) return;
+
+    if (isDraggingViewport || isDraggingScrubber) {
+      hideMarkerPopupImmediate();
+    }
 
     // Scrubber drag threshold check
     if (isPointerDownScrubber && !isDraggingScrubber) {
@@ -418,31 +516,70 @@
   }
 
   function zoomInX() {
-    onZoomChange(Math.min(400, Math.round(zoomX * 1.25)));
+    if (onZoomInX) {
+      onZoomInX();
+    } else {
+      onZoomChange(Math.min(400, Math.round(zoomX * 1.25)));
+    }
   }
 
   function zoomOutX() {
-    onZoomChange(Math.max(20, Math.round(zoomX * 0.8)));
+    if (onZoomOutX) {
+      onZoomOutX();
+    } else {
+      onZoomChange(Math.max(20, Math.round(zoomX * 0.8)));
+    }
   }
 
   function resetZoomX() {
-    onZoomChange(DEFAULT_UI_PREFERENCES.studio.zoomX);
+    if (onResetZoomX) {
+      onResetZoomX();
+    } else {
+      onZoomChange(DEFAULT_UI_PREFERENCES.studio.zoomX);
+    }
   }
 
   function zoomInY() {
-    const nextY = Math.min(40, zoomY + 2);
-    zoomY = nextY;
-    onZoomYChange?.(nextY);
+    if (onZoomInY) {
+      onZoomInY();
+    } else {
+      const nextY = Math.min(40, zoomY + 2);
+      zoomY = nextY;
+      onZoomYChange?.(nextY);
+    }
   }
 
   function zoomOutY() {
-    const nextY = Math.max(2, zoomY - 2);
-    zoomY = nextY;
-    onZoomYChange?.(nextY);
+    if (onZoomOutY) {
+      onZoomOutY();
+    } else {
+      const nextY = Math.max(2, zoomY - 2);
+      zoomY = nextY;
+      onZoomYChange?.(nextY);
+    }
   }
 
   function resetZoomY() {
     onFitNotes();
+  }
+
+  function handleScrubberWheel(e: WheelEvent) {
+    hideMarkerPopupImmediate();
+    if (e.ctrlKey && !e.shiftKey) {
+      e.preventDefault();
+      if (e.deltaY < 0) {
+        zoomInX();
+      } else {
+        zoomOutX();
+      }
+    } else if (e.altKey || (e.shiftKey && e.ctrlKey)) {
+      e.preventDefault();
+      if (e.deltaY < 0) {
+        zoomInY();
+      } else {
+        zoomOutY();
+      }
+    }
   }
 
   function resize() {
@@ -495,6 +632,7 @@
   });
 
   onDestroy(() => {
+    hideMarkerPopupImmediate();
     if (animId) cancelAnimationFrame(animId);
     if (resizeObserver) {
       resizeObserver.disconnect();
@@ -508,7 +646,7 @@
   });
 </script>
 
-<div class="scrubber-bar" bind:this={scrubberContainer}>
+<div class="scrubber-bar" bind:this={scrubberContainer} onwheel={handleScrubberWheel}>
   <div
     class="canvas-wrap"
     class:dragging={isDraggingViewport}
@@ -569,10 +707,47 @@
       </button>
     </div>
   </div>
+
+  {#if activePopupMarker}
+    {@const totalDur = getTotalDuration()}
+    {@const w = canvasWrap?.clientWidth || 800}
+    {@const mTime = activePopupMarker.time ?? (activePopupMarker.timeMs / 1000)}
+    {@const mx = totalDur > 0 ? (mTime / totalDur) * w : 0}
+    {@const leftOffset = canvasWrap?.offsetLeft || 10}
+    {@const containerW = scrubberContainer?.clientWidth || 800}
+    {@const popupX = Math.max(48, Math.min(containerW - 48, leftOffset + mx))}
+    <MarkerActionPopup
+      marker={activePopupMarker}
+      x={popupX}
+      y={4}
+      placement="above"
+      isSelected={playbackStore.selectedMarkerId === activePopupMarker.id}
+      onDelete={(id) => {
+        playbackStore.deleteKeyMarker(id);
+        hideMarkerPopupImmediate();
+      }}
+      onEdit={(m) => {
+        playbackStore.toggleMarker(m);
+      }}
+      onClose={hideMarkerPopupImmediate}
+      onmouseenter={() => {
+        isPopupHovered = true;
+        if (markerHideTimeout) {
+          clearTimeout(markerHideTimeout);
+          markerHideTimeout = null;
+        }
+      }}
+      onmouseleave={() => {
+        isPopupHovered = false;
+        startMarkerHideTimer();
+      }}
+    />
+  {/if}
 </div>
 
 <style>
   .scrubber-bar {
+    position: relative;
     display: flex;
     align-items: center;
     background: var(--bg-secondary);

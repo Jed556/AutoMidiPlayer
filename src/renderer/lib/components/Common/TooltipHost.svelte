@@ -3,13 +3,16 @@
   import { portal } from '../../actions/portal';
   import { tooltipManager } from '../../ui/tooltipManager.svelte';
   import { animationStore } from '../../state/animationStore.svelte';
+  import { playbackStore } from '../../state/playbackStore.svelte';
+  import { t } from '../../i18n';
   import { createFrameResizeObserver } from '../../utils/frameResizeObserver';
   import { animateTextSweep } from '../../utils/textSweep';
+  import PedalIcon from '../Icons/PedalIcon.svelte';
 
   let wrapper = $state<HTMLDivElement>();
   let surface = $state<HTMLDivElement>();
   let content = $state<HTMLDivElement>();
-  let label = $state<HTMLSpanElement>();
+  let label = $state<HTMLElement>();
   let animations: Animation[] = [];
   let outgoing: HTMLElement | null = null;
 
@@ -26,7 +29,7 @@
     const revision = tooltipManager.contentRevision;
     untrack(() => {
       const before = surface?.getBoundingClientRect();
-      const oldLabel = label?.cloneNode(true) as HTMLSpanElement | undefined;
+      const oldLabel = label?.cloneNode(true) as HTMLElement | undefined;
       const oldWidth = label?.offsetWidth;
       const morph = tooltipManager.morphContent && tooltipManager.isVisible;
 
@@ -61,7 +64,7 @@
           { clipPath: 'inset(0px 0px 0px 0px)' }
         ], timing));
 
-        if (oldLabel && oldLabel.textContent !== label.textContent) {
+        if (oldLabel && (oldLabel.textContent !== label.textContent || oldLabel.className !== label.className)) {
           outgoing = oldLabel;
           animations.push(...animateTextSweep(label, oldLabel, content, duration, oldWidth));
           const finished = animations[animations.length - 1];
@@ -112,11 +115,28 @@
         <div
           use:registerBox
           class="amp-tooltip-box {tooltipManager.options.variant || 'dark'} {tooltipManager.options.className || ''}"
+          class:is-pedals={tooltipManager.options.contentType === 'pedals'}
           style={tooltipManager.options.maxWidth ? `--tooltip-max-width: ${tooltipManager.options.maxWidth};` : ''}
         >
           <div bind:this={surface} class="amp-tooltip-surface"></div>
-          <div bind:this={content} class="amp-tooltip-content">
-            <span bind:this={label} class="amp-tooltip-label">{tooltipManager.options.text}</span>
+          <div bind:this={content} class="amp-tooltip-content" class:is-pedals={tooltipManager.options.contentType === 'pedals'}>
+            {#if tooltipManager.options.contentType === 'pedals'}
+              <div bind:this={label} class="amp-tooltip-pedal-card">
+                <PedalIcon
+                  size={60}
+                  isSoftActive={playbackStore.pedals.enabled && playbackStore.pedals.unaCorda}
+                  isSostenutoActive={playbackStore.pedals.enabled && playbackStore.pedals.sostenuto}
+                  isSustainActive={playbackStore.pedals.enabled && playbackStore.pedals.sustain}
+                  isActive={playbackStore.pedals.enabled}
+                />
+                <div class="pedal-status-indicator">
+                  <span class="status-dot" class:active={playbackStore.pedals.enabled}></span>
+                  <span class="status-text">{tooltipManager.options.text || t('player.pedals') || 'Pedals'}</span>
+                </div>
+              </div>
+            {:else}
+              <span bind:this={label} class="amp-tooltip-label">{tooltipManager.options.text}</span>
+            {/if}
           </div>
 
           {#if tooltipManager.options.arrow}
@@ -213,15 +233,18 @@
     max-width: min(var(--tooltip-max-width, 100vw), max(0px, calc(100vw - 16px)));
     max-height: max(0px, calc(100vh - 16px));
     align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
-    border-radius: 6px;
+    padding: 0;
+    border-radius: 8px;
     font-size: 11px;
     font-weight: 500;
     line-height: 1.35;
     letter-spacing: -0.01em;
     white-space: normal;
     overflow-wrap: anywhere;
+  }
+
+  .amp-tooltip-box.is-pedals {
+    border-radius: 8px;
   }
 
   .amp-tooltip-content {
@@ -235,6 +258,49 @@
     display: block;
     max-height: max(0px, calc(100vh - 24px));
     overflow: hidden;
+    padding: 4px 10px;
+    box-sizing: border-box;
+  }
+
+  .amp-tooltip-pedal-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 18px 12px 18px;
+    min-width: 96px;
+    box-sizing: border-box;
+    user-select: none;
+  }
+
+  .pedal-status-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-tertiary, rgba(255, 255, 255, 0.35));
+    transition: background var(--transition-fast, 0.15s ease), box-shadow var(--transition-fast, 0.15s ease);
+  }
+
+  .status-dot.active {
+    background: var(--accent, #1DB954);
+    box-shadow: 0 0 8px var(--accent-glow, rgba(29, 185, 84, 0.6));
+  }
+
+  .status-text {
+    font-size: 12px;
+    color: inherit;
+    opacity: 0.85;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: -0.01em;
   }
 
   .amp-tooltip-surface {

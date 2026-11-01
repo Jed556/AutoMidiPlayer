@@ -5,7 +5,7 @@
   import { animationStore } from '../state/animationStore.svelte';
   import { notificationCenter } from '../ui/notificationCenter.svelte';
   import { t } from '../i18n';
-  import FluentIcon from '../components/Common/FluentIcon.svelte';
+  import FluentIcon from '../components/Icons/FluentIcon.svelte';
   import ToggleSwitch from '../components/Common/ToggleSwitch.svelte';
   import Slider from '../components/Common/Slider.svelte';
   import {
@@ -14,15 +14,15 @@
     type IconParamPreset,
     type TogglePreset,
     type OptionPreset
-  } from '../components/Common/iconData';
-  import { metadata as speedMetadata } from '../components/Common/SpeedIcon.svelte';
-  import { metadata as transposeMetadata } from '../components/Common/TransposeIcon.svelte';
-  import { metadata as shuffleMetadata } from '../components/Common/ShuffleIcon.svelte';
-  import { metadata as headphonesMetadata } from '../components/Common/HeadphonesIcon.svelte';
-  import { metadata as refreshMetadata } from '../components/Common/RefreshIcon.svelte';
-  import { metadata as playPauseMetadata } from '../components/Common/PlayPauseIcon.svelte';
-  import { metadata as loopMetadata } from '../components/Common/LoopIcon.svelte';
-  import { metadata as themeToggleMetadata } from '../components/Common/ThemeToggleIcon.svelte';
+  } from '../components/Icons/iconData';
+  import { metadata as speedMetadata } from '../components/Icons/SpeedIcon.svelte';
+  import { metadata as transposeMetadata } from '../components/Icons/TransposeIcon.svelte';
+  import { metadata as shuffleMetadata } from '../components/Icons/ShuffleIcon.svelte';
+  import { metadata as headphonesMetadata } from '../components/Icons/HeadphonesIcon.svelte';
+  import { metadata as refreshMetadata } from '../components/Icons/RefreshIcon.svelte';
+  import { metadata as playPauseMetadata } from '../components/Icons/PlayPauseIcon.svelte';
+  import { metadata as loopMetadata } from '../components/Icons/LoopIcon.svelte';
+  import { metadata as themeToggleMetadata } from '../components/Icons/ThemeToggleIcon.svelte';
 
   // --- Icon Catalog & Categorization ---
   // Discover standalone components as well as generated SVG definitions. New icon
@@ -30,7 +30,7 @@
   const iconModules = import.meta.glob<{
     default: Component<any>;
     metadata?: IconMetadata;
-  }>('../components/Common/*Icon.svelte', { eager: true });
+  }>('../components/Icons/*Icon.svelte', { eager: true });
   // Existing component families use their established catalog names.
   const componentKeys: Record<string, string> = {
     Volume: 'Volume3', Speed: 'TopSpeed', Transpose: 'TransposeSmart',

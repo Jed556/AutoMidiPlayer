@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use serde_json::Value;
 use uuid::Uuid;
 use chrono::Utc;
@@ -128,6 +128,44 @@ impl LibraryDatabase {
 
     pub fn path(&self) -> &Path {
         &self.db_path
+    }
+
+    /// Read song and playlist counts from an external SQLite database without locking it.
+    pub fn inspect_db_counts(path: &Path) -> Result<(usize, usize), rusqlite::Error> {
+        let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        let song_count: usize = conn
+            .query_row("SELECT COUNT(*) FROM Songs", [], |row| row.get(0))
+            .unwrap_or(0);
+        let playlist_count: usize = conn
+            .query_row("SELECT COUNT(*) FROM Playlists", [], |row| row.get(0))
+            .unwrap_or(0);
+        Ok((song_count, playlist_count))
+    }
+
+    /// Replaces the current database file with a legacy database file, upgrades schema in-place,
+    /// and reconnects SQLite cleanly.
+    pub fn replace_with_legacy_database(&self, legacy_db_path: &Path) -> Result<(), rusqlite::Error> {
+        let mut conn_guard = self.conn.lock().unwrap();
+        // Switch to an in-memory connection to completely release file locks on self.db_path
+        *conn_guard = Connection::open_in_memory()?;
+
+        if legacy_db_path != self.db_path {
+            let _ = std::fs::remove_file(&self.db_path);
+            let _ = std::fs::remove_file(self.db_path.with_extension("db-wal"));
+            let _ = std::fs::remove_file(self.db_path.with_extension("db-shm"));
+            if let Some(parent) = self.db_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            std::fs::copy(legacy_db_path, &self.db_path)
+                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+        }
+
+        *conn_guard = Connection::open(&self.db_path)?;
+        conn_guard.execute("PRAGMA foreign_keys = ON;", [])?;
+        drop(conn_guard);
+
+        self.init_schema()?;
+        Ok(())
     }
 
     /// Ensure tables and columns exist while maintaining 100% backward compatibility
@@ -444,6 +482,7 @@ impl LibraryDatabase {
             "bpm": details.bpm, "speed": details.speed, "mergeNotes": details.merge_notes,
             "mergeMilliseconds": details.merge_milliseconds, "holdNotes": details.hold_notes,
             "tapThresholdMs": details.tap_threshold_ms,
+            "autoChord": details.auto_chord, "enableKeyChangeMarkers": details.enable_key_change_markers,
         });
         Self::write_song_settings_patch(&tx, id, scope, &patch)?;
         tx.commit()
@@ -867,10 +906,11 @@ impl LibraryDatabase {
             "UPDATE Songs SET Title = ?1, Artist = NULLIF(?2, ''), Album = NULLIF(?3, ''),
                 AlbumId = ?4, BaseKey = ?5, Key = ?6, Transpose = ?7, Bpm = ?8,
                 Speed = ?9, MergeNotes = ?10, MergeMilliseconds = ?11, HoldNotes = ?12,
-                DateAdded = ?13, TapThresholdMs = ?15 WHERE Id = ?14",
+                AutoChord = ?13, EnableKeyChangeMarkers = ?14, DateAdded = ?15, TapThresholdMs = ?17 WHERE Id = ?16",
             params![details.title, details.artist, details.album, album_id, details.base_key,
                 details.key, details.transpose, details.bpm, details.speed, details.merge_notes,
-                details.merge_milliseconds, details.hold_notes, details.date_added, id, details.tap_threshold_ms],
+                details.merge_milliseconds, details.hold_notes, details.auto_chord,
+                details.enable_key_change_markers, details.date_added, id, details.tap_threshold_ms],
         )?;
         if changed == 0 { return Err(rusqlite::Error::QueryReturnedNoRows); }
         Ok(())

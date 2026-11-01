@@ -8,7 +8,7 @@
   import KeyPicker from '../components/Common/KeyPicker.svelte';
   import Button from '../components/Common/Button.svelte';
   import GradientSweep from '../components/Common/GradientSweep.svelte';
-  import FluentIcon from '../components/Common/FluentIcon.svelte';
+  import FluentIcon from '../components/Icons/FluentIcon.svelte';
   import Dropdown from '../components/Common/Dropdown.svelte';
   import { gameStore } from '../state/gameStore.svelte';
   import { themeStore } from '../state/themeStore.svelte';
@@ -81,7 +81,17 @@
   let rollAreaWidth = $state(getInitialRollAreaWidth());
   const showToolbarLabels = $derived(rollAreaWidth >= 900);
   let hoverTime = $state<number | null>(null);
-  let pianoRoll = $state<{ fitKeyHeight: () => void }>();
+  let pianoRoll = $state<{
+    fitKeyHeight: () => void;
+    cancelZoomAnimations: () => void;
+    zoomToX: (z: number) => void;
+    zoomInX: () => void;
+    zoomOutX: () => void;
+    resetZoomX: () => void;
+    zoomToY: (z: number, specificCenterFromTop?: number) => void;
+    zoomInY: () => void;
+    zoomOutY: () => void;
+  }>();
   let selectedTrackIndex = $state<number | null>(null);
   let hoveredTrackIndex = $state<number | null>(null);
 
@@ -91,11 +101,16 @@
   }
 
   function handleScrubberScroll(newX: number) {
+    pianoRoll?.cancelZoomAnimations();
     scrollX = newX;
   }
 
   function handleZoomChange(newZoom: number) {
-    uiStore.studio.zoomX = newZoom;
+    if (pianoRoll) {
+      pianoRoll.zoomToX(newZoom);
+    } else {
+      uiStore.studio.zoomX = newZoom;
+    }
   }
 
   function handleAddOrSetOffset() {
@@ -155,6 +170,11 @@
         viewportWidth={Math.max(200, rollAreaWidth - 58)}
         onScroll={handleScrubberScroll}
         onZoomChange={handleZoomChange}
+        onZoomInX={() => pianoRoll?.zoomInX()}
+        onZoomOutX={() => pianoRoll?.zoomOutX()}
+        onResetZoomX={() => pianoRoll?.resetZoomX()}
+        onZoomInY={() => pianoRoll?.zoomInY()}
+        onZoomOutY={() => pianoRoll?.zoomOutY()}
         onFitNotes={() => pianoRoll?.fitKeyHeight()}
         bind:hoverTime
         bind:isLockedToPlayhead={uiStore.studio.isLockedToPlayhead}
@@ -171,11 +191,6 @@
               placement="top"
               variant="ghost"
               width="96px"
-              onchange={(newOffset) => {
-                if (playbackStore.selectedMarker) {
-                  playbackStore.updateKeyMarker(playbackStore.selectedMarker.id, newOffset);
-                }
-              }}
             />
           </div>
 
