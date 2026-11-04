@@ -6,16 +6,16 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Auto: infer from commit prefixes since the last stable release. Override with 8.1.0 or 8.1.0-beta.1 / 8.1.0-rc.1'
+        description: 'Default: use existing version from package.json (versioning managed by commit bumper). Override with version such as 8.1.0'
         required: false
-        default: 'auto'
+        default: 'current'
         type: string
       beta:
         description: 'Publish a beta prerelease (automatically adds/increments -beta.N)'
         type: boolean
         default: false
       build_only:
-        description: 'Validate all packages without pushing commits/tags or publishing'
+        description: 'Validate all packages without pushing tags or publishing'
         type: boolean
         default: true
 
@@ -113,7 +113,7 @@ jobs:
         with:
           name: dependency-notices
           path: dist/license-input
-      - name: Prepare or validate release commit
+      - name: Prepare or validate release
         id: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -128,7 +128,7 @@ jobs:
           set -euo pipefail
           if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
             test "$GITHUB_REF_TYPE" = branch || { echo 'Select a source branch for preparation'; exit 1; }
-            node scripts/release.mjs prepare "$VERSION_INPUT"
+            node scripts/release.mjs prepare "${VERSION_INPUT:-current}"
           else
             node scripts/release.mjs validate "$GITHUB_REF_NAME"
             echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
