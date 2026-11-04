@@ -542,6 +542,10 @@ export async function summaryStep() {
   console.log('📊 [SUMMARY] Version Bumper Execution Summary');
   console.log('='.repeat(80));
 
+  const escapeMarkdownTableCell = (value) => String(value)
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|');
+
   let md = `## 🏷️ Auto Version Bumper Summary\n\n`;
   md += `| Property | Value |\n`;
   md += `| :--- | :--- |\n`;
@@ -564,7 +568,7 @@ export async function summaryStep() {
     md += `| # | Commit | Date | Classification | Description |\n`;
     md += `| :-: | :---: | :---: | :---: | :--- |\n`;
     for (const c of summary.commits) {
-      md += `| ${c.index} | \`${c.sha}\` | ${c.date} | ${c.typeLabel} | ${c.message.replace(/\|/g, '\\|')} |\n`;
+      md += `| ${c.index} | \`${c.sha}\` | ${c.date} | ${c.typeLabel} | ${escapeMarkdownTableCell(c.message)} |\n`;
     }
   }
 
