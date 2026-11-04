@@ -64,6 +64,8 @@ struct SynthEngine {
     master_volume: f32,
     track_volumes: HashMap<usize, f32>,
     muted_tracks: HashSet<usize>,
+    channel_programs: [u8; 16],
+    channel_controllers: [HashMap<u8, u8>; 16],
     left_buf: Vec<f32>,
     right_buf: Vec<f32>,
 }
@@ -82,6 +84,8 @@ impl SynthEngine {
             master_volume: crate::settings::defaults::value("/ui/playback/volume"),
             track_volumes: HashMap::new(),
             muted_tracks: HashSet::new(),
+            channel_programs: [0; 16],
+            channel_controllers: std::array::from_fn(|_| HashMap::new()),
             left_buf: vec![0.0f32; BLOCK_SIZE],
             right_buf: vec![0.0f32; BLOCK_SIZE],
         }
@@ -138,11 +142,24 @@ impl SynthEngine {
                     }
                 }
                 AudioCommand::ControlChange { channel, controller, value } => {
+                    let ch = channel as usize;
+                    if ch < 16 {
+                        if controller == 121 {
+                            // Reset All Controllers: clears channel controller map
+                            self.channel_controllers[ch].clear();
+                        } else if controller < 120 {
+                            self.channel_controllers[ch].insert(controller, value);
+                        }
+                    }
                     if let Some(ref mut s) = self.synth {
                         s.process_midi_message(channel as i32, 0xB0, controller as i32, value as i32);
                     }
                 }
                 AudioCommand::ProgramChange { channel, program } => {
+                    let ch = channel as usize;
+                    if ch < 16 {
+                        self.channel_programs[ch] = program;
+                    }
                     if let Some(ref mut s) = self.synth {
                         s.process_midi_message(channel as i32, 0xC0, program as i32, 0);
                     }
@@ -162,12 +179,39 @@ impl SynthEngine {
                 }
                 AudioCommand::LoadSoundFont(sf) => {
                     let settings = SynthesizerSettings::new(self.sample_rate as i32);
-                    if let Ok(new_synth) = Synthesizer::new(&sf, &settings) {
+                    if let Ok(mut new_synth) = Synthesizer::new(&sf, &settings) {
+                        // Re-apply cached channel state (Bank Selects, Program Changes, Continuous Controllers)
+                        // so changing SoundFonts during playback doesn't reset all channels to Grand Piano (Program 0)
+                        // or default volume/expression/pan.
+                        for ch in 0..16 {
+                            // 1. Bank Select MSB (CC 0) and LSB (CC 32)
+                            if let Some(&bank_msb) = self.channel_controllers[ch].get(&0) {
+                                new_synth.process_midi_message(ch as i32, 0xB0, 0, bank_msb as i32);
+                            }
+                            if let Some(&bank_lsb) = self.channel_controllers[ch].get(&32) {
+                                new_synth.process_midi_message(ch as i32, 0xB0, 32, bank_lsb as i32);
+                            }
+
+                            // 2. Program Change
+                            let prog = self.channel_programs[ch];
+                            new_synth.process_midi_message(ch as i32, 0xC0, prog as i32, 0);
+
+                            // 3. Continuous Controllers (volume CC 7, pan CC 10, expression CC 11, sustain CC 64, etc.)
+                            for (&cc, &val) in &self.channel_controllers[ch] {
+                                if cc != 0 && cc != 32 {
+                                    new_synth.process_midi_message(ch as i32, 0xB0, cc as i32, val as i32);
+                                }
+                            }
+                        }
                         self.synth = Some(new_synth);
                     }
                 }
                 AudioCommand::AllNotesOff => self.silence_all(),
                 AudioCommand::Reset => {
+                    self.channel_programs = [0; 16];
+                    for map in &mut self.channel_controllers {
+                        map.clear();
+                    }
                     if let Some(ref mut s) = self.synth {
                         s.reset();
                     }

@@ -25,6 +25,9 @@
     disabled?: boolean;
     isSubmenu?: boolean;
     items?: DropdownOption[];
+    actionIcon?: string;
+    actionTitle?: string;
+    onaction?: (opt: DropdownOption, e: MouseEvent) => void;
     [key: string]: any;
   }
 
@@ -575,6 +578,26 @@
                     {/if}
                   </div>
                 </div>
+                {#if opt.actionIcon}
+                  <span
+                    role="button"
+                    tabindex="0"
+                    class="item-action-btn"
+                    title={opt.actionTitle}
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      opt.onaction?.(opt, e);
+                    }}
+                    onkeydown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.stopPropagation();
+                        opt.onaction?.(opt, e as any);
+                      }
+                    }}
+                  >
+                    <FluentIcon name={opt.actionIcon} size={13} />
+                  </span>
+                {/if}
                 {#if isSelected}
                   <div class="check-indicator">
                     <FluentIcon name="Checkmark" size={13} />
@@ -971,6 +994,25 @@
     justify-content: center;
     color: var(--accent);
     flex-shrink: 0;
+  }
+
+  .item-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    color: var(--text-tertiary, rgba(255, 255, 255, 0.45));
+    background: transparent;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background var(--transition-fast, 0.16s), color var(--transition-fast, 0.16s);
+  }
+
+  .item-action-btn:hover {
+    background: var(--danger-subtle, rgba(239, 68, 68, 0.15));
+    color: var(--danger, #EF4444);
   }
 
   /* Submenu Styles */

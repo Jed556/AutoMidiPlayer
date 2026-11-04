@@ -541,6 +541,8 @@ export const enUS = {
     soundFontDefault: 'Default (General MIDI)',
     soundFontLegacy: 'Legacy',
     soundFontCustom: 'Custom',
+    addSoundFont: 'Add',
+    deleteSoundFont: 'Delete SoundFont',
     synthMode: 'Synthesis Mode',
     synthModeGamePreview: 'Game Preview (Adapted)',
     synthModeGamePreviewDesc: 'Adapts and snaps notes to the 21-key diatonic range with key offset & transpositions.',

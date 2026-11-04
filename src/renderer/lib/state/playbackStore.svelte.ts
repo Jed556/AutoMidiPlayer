@@ -38,6 +38,9 @@ class PlaybackStore {
   isListenMode = $state<boolean>(DEFAULT_UI_PREFERENCES.playback.isListenMode);
   synthMode = $state<'adapted' | 'raw'>(DEFAULT_UI_PREFERENCES.playback.synthMode);
   trackVolumes = $state<Record<number, number>>({});
+  soundFontId = $state<string>('default');
+  availableSoundFonts = $state<string[]>([]);
+  customSoundFontPath = $state<string>('');
   customSoundFontName = $state<string>('Default (General MIDI)');
 
   // Active playing notes for visualizers (piano keys / card glow / piano roll)
@@ -452,6 +455,7 @@ class PlaybackStore {
       api.playback.setVolume(Math.round(this.volume * 100)),
       api.playback.setListenMode(this.isListenMode),
       api.playback.setSynthMode(this.synthMode),
+      this.refreshSoundFonts(),
     ]);
   }
 
@@ -936,14 +940,64 @@ class PlaybackStore {
     return false;
   }
 
+  async refreshSoundFonts() {
+    try {
+      this.availableSoundFonts = await api.playback.listSoundFonts();
+      if (this.soundFontId !== 'default' && this.soundFontId !== 'legacy' && !this.availableSoundFonts.includes(this.soundFontId)) {
+        this.soundFontId = 'default';
+        this.customSoundFontName = 'Default (General MIDI)';
+      }
+    } catch (e) {
+      console.error('Failed to list SoundFonts:', e);
+    }
+  }
+
+  async loadPresetSoundFont(preset: 'default' | 'legacy') {
+    if (preset === 'default') {
+      await this.resetSoundFont();
+      return;
+    }
+    await api.playback.loadPresetSoundFont(preset);
+    this.soundFontId = preset;
+    this.customSoundFontName = 'Legacy';
+    notificationCenter.success('SoundFont Loaded', 'Active: Legacy');
+  }
+
+  async loadSoundFont(name: string) {
+    if (name === 'default' || name === 'legacy') {
+      await this.loadPresetSoundFont(name);
+      return;
+    }
+    await api.playback.loadSoundFont(name);
+    this.soundFontId = name;
+    this.customSoundFontName = name;
+    notificationCenter.success('SoundFont Loaded', `Active: ${name}`);
+  }
+
+  async addSoundFont(path: string) {
+    const fileName = await api.playback.addSoundFont(path);
+    await this.refreshSoundFonts();
+    this.soundFontId = fileName;
+    this.customSoundFontName = fileName;
+    notificationCenter.success('SoundFont Added', `Active: ${fileName}`);
+  }
+
+  async deleteSoundFont(name: string) {
+    if (this.soundFontId === name) {
+      await this.resetSoundFont();
+    }
+    await api.playback.deleteSoundFont(name);
+    await this.refreshSoundFonts();
+    notificationCenter.info('SoundFont Deleted', `Deleted: ${name}`);
+  }
+
   async loadCustomSoundFont(path: string) {
-    await api.playback.loadCustomSoundFont(path);
-    this.customSoundFontName = path.split(/[/\\]/).pop() || path;
-    notificationCenter.success('SoundFont Loaded', `Active: ${this.customSoundFontName}`);
+    await this.addSoundFont(path);
   }
 
   async resetSoundFont() {
     await api.playback.resetSoundFont();
+    this.soundFontId = 'default';
     this.customSoundFontName = 'Default (General MIDI)';
     notificationCenter.info('SoundFont Reset', 'Default General MIDI SoundFont restored');
   }

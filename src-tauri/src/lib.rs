@@ -11,7 +11,7 @@ use process_monitor::{
     focus_window_by_pid, GameProcessTarget, GameStatusPayload,
     ProcessMonitor,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
 use std::str::FromStr;
 
@@ -607,30 +607,141 @@ fn load_custom_soundfont(path: String, state: State<AppState>) -> Result<bool, S
 }
 
 #[tauri::command]
-fn reset_soundfont(state: State<AppState>, app: AppHandle) -> Result<bool, String> {
-    if let Some(default_path) = find_default_soundfont(&app) {
-        let mut file = std::fs::File::open(&default_path)
-            .map_err(|e| format!("Failed to open default SoundFont: {}", e))?;
+fn list_soundfonts() -> Result<Vec<String>, String> {
+    let dir = amp_core::paths::soundfonts_dir();
+    if !dir.exists() {
+        let _ = std::fs::create_dir_all(&dir);
+        return Ok(Vec::new());
+    }
+    let entries = std::fs::read_dir(&dir).map_err(|e| e.to_string())?;
+    let mut fonts = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() {
+            if let Some(ext) = path.extension() {
+                if ext.to_string_lossy().eq_ignore_ascii_case("sf2") {
+                    if let Some(name) = path.file_name() {
+                        fonts.push(name.to_string_lossy().into_owned());
+                    }
+                }
+            }
+        }
+    }
+    fonts.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+    Ok(fonts)
+}
+
+#[tauri::command]
+fn add_soundfont(path: String, state: State<AppState>) -> Result<String, String> {
+    let path_buf = PathBuf::from(&path);
+    if !path_buf.is_file() {
+        return Err(format!("SoundFont file not found: {}", path));
+    }
+
+    let mut file = std::fs::File::open(&path_buf)
+        .map_err(|e| format!("Failed to open SoundFont file: {}", e))?;
+    let sf = SoundFont::new(&mut file)
+        .map_err(|e| format!("Failed to parse SoundFont: {:?}", e))?;
+
+    let file_name = path_buf
+        .file_name()
+        .ok_or_else(|| "Invalid file name".to_string())?
+        .to_string_lossy()
+        .into_owned();
+
+    let target_dir = amp_core::paths::soundfonts_dir();
+    std::fs::create_dir_all(&target_dir).map_err(|e| e.to_string())?;
+    let target_path = target_dir.join(&file_name);
+
+    if path_buf != target_path {
+        std::fs::copy(&path_buf, &target_path)
+            .map_err(|e| format!("Failed to copy SoundFont to SoundFonts folder: {}", e))?;
+    }
+
+    if let Some(ref synth) = *state.audio_synth.lock().unwrap() {
+        synth.load_soundfont(Arc::new(sf));
+    }
+
+    Ok(file_name)
+}
+
+#[tauri::command]
+fn load_soundfont(name: String, state: State<AppState>, app: AppHandle) -> Result<bool, String> {
+    if name == "default" || name == "legacy" {
+        return load_preset_soundfont(name, state, app);
+    }
+
+    let sanitized_name = Path::new(&name)
+        .file_name()
+        .ok_or_else(|| "Invalid soundfont name".to_string())?;
+    let sf_path = amp_core::paths::soundfonts_dir().join(sanitized_name);
+    if !sf_path.is_file() {
+        return Err(format!("SoundFont not found: {}", name));
+    }
+
+    let mut file = std::fs::File::open(&sf_path)
+        .map_err(|e| format!("Failed to open SoundFont file: {}", e))?;
+    let sf = SoundFont::new(&mut file)
+        .map_err(|e| format!("Failed to parse SoundFont: {:?}", e))?;
+
+    if let Some(ref synth) = *state.audio_synth.lock().unwrap() {
+        synth.load_soundfont(Arc::new(sf));
+        Ok(true)
+    } else {
+        Err("Audio synthesizer is not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+fn delete_soundfont(name: String, _state: State<AppState>, _app: AppHandle) -> Result<bool, String> {
+    let sanitized_name = Path::new(&name)
+        .file_name()
+        .ok_or_else(|| "Invalid soundfont name".to_string())?;
+    let sf_path = amp_core::paths::soundfonts_dir().join(sanitized_name);
+    if sf_path.is_file() {
+        std::fs::remove_file(&sf_path)
+            .map_err(|e| format!("Failed to delete SoundFont file: {}", e))?;
+        Ok(true)
+    } else {
+        Err(format!("SoundFont file not found: {}", name))
+    }
+}
+
+#[tauri::command]
+fn load_preset_soundfont(name: String, state: State<AppState>, app: AppHandle) -> Result<bool, String> {
+    if let Some(path) = find_preset_soundfont(&app, &name) {
+        let mut file = std::fs::File::open(&path)
+            .map_err(|e| format!("Failed to open preset SoundFont ({}): {}", name, e))?;
         let sf = SoundFont::new(&mut file)
-            .map_err(|e| format!("Failed to parse default SoundFont: {:?}", e))?;
+            .map_err(|e| format!("Failed to parse preset SoundFont ({}): {:?}", name, e))?;
         if let Some(ref synth) = *state.audio_synth.lock().unwrap() {
             synth.load_soundfont(Arc::new(sf));
             return Ok(true);
         }
     }
-    Err("Failed to find or reload default SoundFont".to_string())
+    Err(format!("Failed to find or reload preset SoundFont: {}", name))
 }
 
-fn find_default_soundfont(app: &AppHandle) -> Option<PathBuf> {
-    if let Ok(path) = app.path().resolve("resources/default.sf2", tauri::path::BaseDirectory::Resource) {
+#[tauri::command]
+fn reset_soundfont(state: State<AppState>, app: AppHandle) -> Result<bool, String> {
+    load_preset_soundfont("default".to_string(), state, app)
+}
+
+fn find_preset_soundfont(app: &AppHandle, name: &str) -> Option<PathBuf> {
+    let filename = match name {
+        "legacy" => "legacy.sf2",
+        _ => "default.sf2",
+    };
+    let rel_resource = format!("resources/{}", filename);
+    if let Ok(path) = app.path().resolve(&rel_resource, tauri::path::BaseDirectory::Resource) {
         if path.exists() {
             return Some(path);
         }
     }
     let candidates = [
-        PathBuf::from("resources/default.sf2"),
-        PathBuf::from("src-tauri/resources/default.sf2"),
-        PathBuf::from("../src-tauri/resources/default.sf2"),
+        PathBuf::from(&rel_resource),
+        PathBuf::from(format!("src-tauri/{}", rel_resource)),
+        PathBuf::from(format!("../src-tauri/{}", rel_resource)),
     ];
     for c in candidates {
         if c.exists() {
@@ -638,6 +749,10 @@ fn find_default_soundfont(app: &AppHandle) -> Option<PathBuf> {
         }
     }
     None
+}
+
+fn find_default_soundfont(app: &AppHandle) -> Option<PathBuf> {
+    find_preset_soundfont(app, "default")
 }
 
 fn md5_hash(input: &str) -> u64 {
@@ -1887,7 +2002,12 @@ pub fn run() {
             set_master_volume,
             set_track_volume,
             set_synth_mode,
+            list_soundfonts,
+            add_soundfont,
+            load_soundfont,
+            delete_soundfont,
             load_custom_soundfont,
+            load_preset_soundfont,
             reset_soundfont,
             // Phase 5 library commands
             get_library_songs,

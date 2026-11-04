@@ -543,6 +543,8 @@ export const zhCN: TranslationSchema = {
     soundFontDefault: '默认 (通用 MIDI)',
     soundFontLegacy: '旧版 (Legacy)',
     soundFontCustom: '自定义',
+    addSoundFont: '添加',
+    deleteSoundFont: '删除 SoundFont',
     synthMode: '合成模式',
     synthModeGamePreview: '游戏预览 (适配)',
     synthModeGamePreviewDesc: '根据调性与移调设置，将音符自适应映射至 21 键全音阶音域。',

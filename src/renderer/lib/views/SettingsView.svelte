@@ -59,14 +59,38 @@
     { value: 'raw', label: t('settings.synthModeFullChromatic') }
   ]);
 
-  async function handleBrowseSoundFont() {
+  let soundFontOptions = $derived([
+    { value: 'default', label: t('settings.soundFontDefault') },
+    { value: 'legacy', label: t('settings.soundFontLegacy') },
+    ...playbackStore.availableSoundFonts.map(sf => ({
+      value: sf,
+      label: sf,
+      actionIcon: 'Delete',
+      actionTitle: t('settings.deleteSoundFont'),
+      onaction: () => handleDeleteSoundFont(sf)
+    }))
+  ]);
+
+  async function handleSoundFontChange(val: string) {
+    await playbackStore.loadSoundFont(val);
+  }
+
+  async function handleAddSoundFont() {
     try {
       const path = await api.settings.browseSoundFont();
       if (path) {
-        await playbackStore.loadCustomSoundFont(path);
+        await playbackStore.addSoundFont(path);
       }
     } catch (e) {
-      console.error('Failed to browse SoundFont:', e);
+      console.error('Failed to add SoundFont:', e);
+    }
+  }
+
+  async function handleDeleteSoundFont(name: string) {
+    try {
+      await playbackStore.deleteSoundFont(name);
+    } catch (e) {
+      console.error('Failed to delete SoundFont:', e);
     }
   }
 
@@ -315,6 +339,8 @@
       }
     }
 
+    void playbackStore.refreshSoundFonts();
+
     return () => {
       container?.removeEventListener('scrollend', handleScrollEnd);
       if (scrollReleaseTimer) clearTimeout(scrollReleaseTimer);
@@ -498,7 +524,7 @@
             <span class="card-subtext">{t('settings.audioSubtext')}</span>
           </div>
 
-          {#if playbackStore.customSoundFontName !== 'Default (General MIDI)'}
+          {#if playbackStore.soundFontId !== 'default'}
             <Button variant="ghost" size="icon" colorMode="danger"
               onclick={handleResetSoundFont}
               title={t('settings.resetSoundFont')}
@@ -511,40 +537,45 @@
         <div class="card-body">
           <div class="settings-grid-2col">
             <!-- SoundFont Selection -->
-            <div class="setting-group grid-col-full">
-              <span class="setting-label">{t('settings.soundFont')}</span>
-              <p class="setting-description" style="margin-bottom: 8px;">
-                {t('settings.soundFontDesc')}
-              </p>
-
-              <div class="soundfont-picker-row">
-                <div class="soundfont-badge">
-                  <FluentIcon name="MusicNote2" size={16} />
-                  <span class="soundfont-label-sub">{t('settings.activeSoundFont')}</span>
-                  <span class="soundfont-name"><OverflowText text={playbackStore.customSoundFontName} /></span>
-                </div>
-                <div class="soundfont-actions">
-                  <Button variant="ghost" size="md" colorMode="default"
-                    onclick={handleBrowseSoundFont}
-                  >
-                    <FluentIcon name="Folder" size={14} />
-                    <span>{t('settings.browseSoundFont')}</span>
-                  </Button>
-                  {#if playbackStore.customSoundFontName !== 'Default (General MIDI)'}
-                    <Button variant="ghost" size="md" colorMode="danger"
-                      onclick={handleResetSoundFont}
-                    >
-                      <FluentIcon name="ArrowClockwise" loading={isResettingSoundFont} size={14} />
-                      <span>{t('settings.resetSoundFont')}</span>
-                    </Button>
-                  {/if}
-                </div>
+            <div class="setting-group">
+              <div class="setting-header">
+                <span class="setting-label">{t('settings.soundFont')}</span>
+                <p class="setting-description">
+                  {t('settings.soundFontDesc')}
+                </p>
+              </div>
+              <div class="soundfont-control-row">
+                <Dropdown
+                  variant="ghost"
+                  value={playbackStore.soundFontId}
+                  options={soundFontOptions}
+                  onchange={(v) => handleSoundFontChange(v as string)}
+                />
+                <Button
+                  variant="ghost"
+                  compact
+                  icon="Add"
+                  class="soundfont-add-btn"
+                  onclick={handleAddSoundFont}
+                  title={t('settings.addSoundFont')}
+                >
+                  <span>{t('settings.addSoundFont')}</span>
+                </Button>
               </div>
             </div>
 
             <!-- Synthesis Mode Group -->
             <div class="setting-group">
-              <span class="setting-label">{t('settings.synthMode')}</span>
+              <div class="setting-header">
+                <span class="setting-label">{t('settings.synthMode')}</span>
+                <p class="setting-description">
+                  {#if playbackStore.synthMode === 'adapted'}
+                    {t('settings.synthModeGamePreviewDesc')}
+                  {:else}
+                    {t('settings.synthModeFullChromaticDesc')}
+                  {/if}
+                </p>
+              </div>
               <Dropdown
                 variant="ghost"
                 width="fit-content"
@@ -552,17 +583,10 @@
                 options={synthModeOptions}
                 onchange={(v) => playbackStore.setSynthMode(v as 'adapted' | 'raw')}
               />
-              <p class="setting-description">
-                {#if playbackStore.synthMode === 'adapted'}
-                  {t('settings.synthModeGamePreviewDesc')}
-                {:else}
-                  {t('settings.synthModeFullChromaticDesc')}
-                {/if}
-              </p>
             </div>
 
             <!-- Master Volume Group -->
-            <div class="setting-group">
+            <div class="setting-group grid-col-full">
               <span class="setting-label" class:is-overshoot={playbackStore.volume > 1}>
                 {t('settings.masterVolume')} ({Math.round(playbackStore.volume * 100)}%)
               </span>
@@ -2309,44 +2333,41 @@
     border-color: var(--border-medium, rgba(255, 255, 255, 0.16));
   }
 
-  .soundfont-picker-row {
+  .setting-header {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 10px 14px;
-    background: var(--control-fill, rgba(255, 255, 255, 0.03));
-    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
-    border-radius: 6px;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 2px;
   }
 
-  .soundfont-badge {
-    min-width: 0;
-    max-width: 100%;
-    flex: 1;
-    display: flex;
+  .setting-header .setting-description {
+    margin: 0;
+  }
+
+  .soundfont-control-row {
+    display: inline-flex;
     align-items: center;
     gap: 8px;
-    font-size: 13px;
-    color: var(--text-primary);
+    width: fit-content;
   }
 
-  .soundfont-label-sub {
-    color: var(--text-secondary);
-    font-size: 12px;
-  }
-
-  .soundfont-name {
-    min-width: 0;
-    color: var(--accent-color, var(--accent, #1DB954));
-    font-weight: 600;
-  }
-
-  .soundfont-actions {
-    display: flex;
+  .soundfont-control-row :global(.fluent-dropdown) {
+    align-self: center !important;
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
+  }
+
+  .soundfont-control-row :global(.dropdown-trigger) {
+    display: inline-flex;
+    align-items: center;
+    height: 26px;
+    padding: 0;
+  }
+
+  .soundfont-control-row :global(.soundfont-add-btn) {
+    height: 26px;
+    padding: 0 6px;
+    gap: 4px;
+    align-self: center;
   }
 
   .setting-label.is-overshoot {

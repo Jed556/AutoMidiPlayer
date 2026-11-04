@@ -4,7 +4,13 @@ import { createNoteIndex } from '../src/renderer/lib/utils/noteIndex.ts';
 import { PlaybackPositionGate } from '../src/renderer/lib/utils/playbackPosition.ts';
 import { getNoteTextColor } from '../src/renderer/lib/utils/noteAppearance.ts';
 import { TRACK_COLORS } from '../src/renderer/lib/utils/musicConstants.ts';
-import { createDisplayPitch, getDisplayTiming } from '../src/renderer/lib/components/Studio/studioDisplay.ts';
+import {
+  createDisplayPitch,
+  getDisplayTiming,
+  calculateFitKeyHeight,
+  calculateScrollYFromCenter,
+  interpolateZoomAndCenterScroll,
+} from '../src/renderer/lib/components/Studio/studioDisplay.ts';
 import { projectNoteTiming } from '../src/renderer/lib/utils/noteTiming.ts';
 
 test('Studio projects threshold taps while retaining original duration for the tooltip', () => {
@@ -214,4 +220,59 @@ test('seeks reject queued old playback positions and accept engine acknowledgeme
   assert.equal(gate.accepts({ timeMs: 10000, seekId: first }), false);
   gate.reset();
   assert.equal(gate.accepts({ timeMs: 0, seekId: latest }), true);
+});
+
+test('Fit to height calculates target zoom and middle pitch center accurately', () => {
+  const { targetZoom, targetCenterFromTop } = calculateFitKeyHeight(400, { lowest: 48, highest: 72 });
+  // padded: 45 to 75 -> 31 keys. 400 / 31 = 12.903...
+  assert.ok(targetZoom > 12 && targetZoom < 13);
+  // (48 + 72)/2 = 60. Center from top = 108 - 60 + 0.5 = 48.5
+  assert.equal(targetCenterFromTop, 48.5);
+
+  // Fallback when no notes are provided
+  const fallback = calculateFitKeyHeight(400, null);
+  assert.equal(fallback.targetCenterFromTop, 108 - (48 + 83) / 2 + 0.5);
+});
+
+test('Fit to height smoothly eases movement to the center without snapping at start', () => {
+  const containerH = 400;
+  const initialZoom = 20;
+  const initialScrollY = 800;
+  const initialCenter = (initialScrollY + containerH / 2) / initialZoom;
+
+  const targetZoom = 15;
+  const targetCenter = 40;
+
+  // At progress = 0 (start of ease)
+  const start = interpolateZoomAndCenterScroll(initialZoom, targetZoom, initialCenter, targetCenter, 0, containerH);
+  assert.equal(start.zoomY, initialZoom);
+  // Must NOT snap: starting scroll position must match the existing scroll position exactly
+  assert.equal(start.scrollY, initialScrollY);
+
+  // At progress = 0.5 (mid-flight)
+  const mid = interpolateZoomAndCenterScroll(initialZoom, targetZoom, initialCenter, targetCenter, 0.5, containerH);
+  assert.equal(mid.zoomY, 17.5);
+  assert.equal(mid.scrollY, 45 * 17.5 - 200);
+
+  // At progress = 1 (finished)
+  const end = interpolateZoomAndCenterScroll(initialZoom, targetZoom, initialCenter, targetCenter, 1, containerH);
+  assert.equal(end.zoomY, targetZoom);
+  assert.equal(end.scrollY, targetCenter * targetZoom - containerH / 2);
+});
+
+test('Fit to height eases to center even when key height is already at target zoom', () => {
+  const containerH = 400;
+  const currentZoom = 15;
+  const initialScrollY = 200;
+  const initialCenter = (initialScrollY + containerH / 2) / currentZoom;
+  const targetCenter = 45;
+
+  const start = interpolateZoomAndCenterScroll(currentZoom, currentZoom, initialCenter, targetCenter, 0, containerH);
+  assert.equal(start.scrollY, initialScrollY);
+
+  const mid = interpolateZoomAndCenterScroll(currentZoom, currentZoom, initialCenter, targetCenter, 0.5, containerH);
+  assert.ok(mid.scrollY > initialScrollY && mid.scrollY < 45 * 15 - 200);
+
+  const end = interpolateZoomAndCenterScroll(currentZoom, currentZoom, initialCenter, targetCenter, 1, containerH);
+  assert.equal(end.scrollY, 45 * 15 - 200);
 });
