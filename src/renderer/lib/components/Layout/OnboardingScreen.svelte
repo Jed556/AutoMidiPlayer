@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { canSkipOnboarding } from './onboardingPolicy';
   import { tick, untrack, onMount, onDestroy } from 'svelte';
   import type { AppSettings, ThemeMode } from '$shared/types/settings';
   import type { LegacyDataStatus } from '$shared/types/ipc';
@@ -12,6 +13,8 @@
   import Dropdown from '../Common/Dropdown.svelte';
   import FluentIcon from '../Icons/FluentIcon.svelte';
   import ToggleSwitch from '../Common/ToggleSwitch.svelte';
+  import Checkbox from '../Common/Checkbox.svelte';
+  import PathText from '../Common/PathText.svelte';
   import HoldNotesControl from '../Common/HoldNotesControl.svelte';
   import OverlapBehaviorPicker from '../Settings/OverlapBehaviorPicker.svelte';
   import ContentDialog from '../Dialogs/ContentDialog.svelte';
@@ -26,6 +29,8 @@
     playlistCount: 0,
     hasUserConfig: false,
   });
+  let removeLegacy = $state(false);
+  let legacyCheckPending = $state(true);
   let migrationChoice = $state<'migrate' | 'fresh'>('migrate');
   let isLegacyDetected = $derived(legacyStatus.detected);
   let step = $state(0);
@@ -63,7 +68,7 @@
           draft.midiFolder = status.midiFolder;
         }
       }
-    }).catch(console.warn);
+    }).catch(console.warn).finally(() => { legacyCheckPending = false; });
 
     let revision = 0;
     async function syncMaximized() {
@@ -102,6 +107,7 @@
   }
 
   let pages = $derived(allPages.filter(p => !isPageSkipped(p)));
+  let canSkip = $derived(canSkipOnboarding(effectiveStep, pages.length, legacyCheckPending));
   let page = $derived(pages[step] ?? pages[0]);
   let effectiveStep = $derived(animating ? targetStep : step);
 
@@ -131,7 +137,7 @@
   });
 
   async function navigate(next: number) {
-    if (animating || next === step) return;
+    if (animating || next === step || (legacyCheckPending && next > step)) return;
     error = '';
     const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : animationStore.durationMs;
     const isSkip = Math.abs(next - step) > 1;
@@ -208,9 +214,7 @@
     busy = true;
     error = '';
     try {
-      if (isLegacyDetected && migrationChoice === 'migrate') {
-        await api.settings.migrateLegacyData?.();
-      }
+      await api.settings.migrateLegacyData?.(isLegacyDetected && migrationChoice === 'migrate', isLegacyDetected && removeLegacy);
       foundSongs = await settingsStore.finishOnboarding(draft, {
         locale: i18n.currentLocale,
         animationTiming: animationStore.timing,
@@ -239,12 +243,13 @@
   }
 
   function promptSkip() {
-    if (busy || browsing || animating) return;
+    if (!canSkip || busy || browsing || animating) return;
     showSkipConfirm = true;
   }
 
   function confirmSkip() {
     showSkipConfirm = false;
+    if (!canSkip) return;
     void navigate(pages.length - 1);
   }
 
@@ -484,11 +489,6 @@
                 role="radio"
                 aria-checked={migrationChoice === 'migrate'}
               >
-                <div class="card-radio">
-                  <div class="radio-circle" class:checked={migrationChoice === 'migrate'}>
-                    {#if migrationChoice === 'migrate'}<div class="radio-dot"></div>{/if}
-                  </div>
-                </div>
                 <div class="card-icon">
                   <FluentIcon name="ArrowSync" size={24} />
                 </div>
@@ -508,7 +508,7 @@
                       <span class="stat-pill"><FluentIcon name="AppsListDetail" size={14} />{t('onboarding.migrationPlaylistsFound', { count: legacyStatus.playlistCount })}</span>
                     {/if}
                     {#if legacyStatus.midiFolder}
-                      <span class="stat-pill folder-pill"><FluentIcon name="Folder" size={14} />{legacyStatus.midiFolder}</span>
+                      <span class="stat-pill folder-pill"><FluentIcon name="Folder" size={14} /><PathText path={legacyStatus.midiFolder} /></span>
                     {/if}
                   </div>
                 </div>
@@ -524,18 +524,12 @@
                 role="radio"
                 aria-checked={migrationChoice === 'fresh'}
               >
-                <div class="card-radio">
-                  <div class="radio-circle" class:checked={migrationChoice === 'fresh'}>
-                    {#if migrationChoice === 'fresh'}<div class="radio-dot"></div>{/if}
-                  </div>
-                </div>
                 <div class="card-icon">
                   <FluentIcon name="Sparkle" size={24} />
                 </div>
                 <div class="card-content">
                   <div class="card-header-row">
                     <span class="card-title">{t('onboarding.migrationOptionFresh')}</span>
-                    <span class="badge new">{t('onboarding.migrationBadgeNew')}</span>
                   </div>
                   <p class="card-desc">
                     {t('onboarding.migrationOptionFreshDesc')}
@@ -543,7 +537,9 @@
                 </div>
               </button>
             </div>
-            <p class="note"><FluentIcon name="Info" size={16} />{t('onboarding.migrationNote')}</p>
+            <div class="legacy-cleanup">
+              <Checkbox bind:checked={removeLegacy} label={t('onboarding.removeLegacy')} description={t('onboarding.removeLegacyHelp')} />
+            </div>
           {:else if page === 'telemetry'}
             <div class="setting-row">
               <ToggleSwitch label={t('onboarding.telemetryChoice')} description={t('onboarding.telemetryHelp')}
@@ -636,16 +632,16 @@
             <FluentIcon name="ChevronLeft" size={16} />
             {t('onboarding.previous')}
           </Button>
-          {#if step < pages.length - 1}
+          <div class="skip-availability" class:available={canSkip} inert={!canSkip} aria-hidden={!canSkip}>
             <Button
               variant="secondary"
               class="skip-btn"
-              disabled={busy || browsing || animating}
+              disabled={!canSkip || busy || browsing || animating}
               onclick={promptSkip}
             >
               {t('onboarding.skip')}
             </Button>
-          {/if}
+          </div>
         {/if}
       </div>
 
@@ -661,7 +657,7 @@
             {t(busy ? 'onboarding.finishing' : 'onboarding.finish')}
           </Button>
         {:else}
-          <Button variant="accent" disabled={browsing || animating} onclick={() => navigate(step + 1)}>
+          <Button variant="accent" disabled={legacyCheckPending || browsing || animating} onclick={() => navigate(step + 1)}>
             {t('onboarding.next')}
             <FluentIcon name="ChevronRight" size={16} />
           </Button>
@@ -1021,6 +1017,9 @@
   .color-dot { display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 50%; color: #fff; cursor: pointer; }
   .color-dot[aria-pressed="true"] { outline: 2px solid var(--text-primary); outline-offset: 3px; }
   /* Migration Options Cards */
+  .skip-availability { opacity: 0; pointer-events: none; transition: opacity var(--transition-normal, 0.22s); }
+  .skip-availability.available { opacity: 1; pointer-events: auto; }
+  .legacy-cleanup { margin-top: 18px; }
   .migration-options {
     display: flex;
     flex-direction: column;
@@ -1058,30 +1057,6 @@
   .migration-card:focus-visible {
     outline: 2px solid var(--accent, #1DB954);
     outline-offset: 2px;
-  }
-  .card-radio {
-    margin-top: 3px;
-    flex-shrink: 0;
-  }
-  .radio-circle {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    border: 2px solid var(--border-medium, rgba(255, 255, 255, 0.4));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-sizing: border-box;
-    transition: border-color var(--transition-fast, 0.15s ease);
-  }
-  .radio-circle.checked {
-    border-color: var(--accent, #1DB954);
-  }
-  .radio-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--accent, #1DB954);
   }
   .card-icon {
     margin-top: 2px;
@@ -1128,11 +1103,6 @@
     color: var(--accent, #1DB954);
     border: 1px solid var(--accent, #1DB954);
   }
-  .badge.new {
-    background: rgba(0, 120, 212, 0.18);
-    color: #4cc2ff;
-    border: 1px solid rgba(76, 194, 255, 0.5);
-  }
   .detected-stats {
     display: flex;
     flex-wrap: wrap;
@@ -1154,7 +1124,10 @@
     white-space: nowrap;
   }
   .stat-pill.folder-pill {
-    max-width: 320px;
+    width: 320px;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
   }
   .migration-mode-badge {
     font-weight: 600;
@@ -1268,6 +1241,7 @@
     dd { text-align: left; }
   }
   @media (prefers-reduced-motion: reduce) {
+    .skip-availability { transition: none; }
     .onboarding-screen.finished { animation: none !important; opacity: 0; }
     .linear-bar-fill { transition: none !important; }
     .linear-bar-fill::after { display: none !important; }

@@ -190,7 +190,7 @@ export interface SettingsApi {
   clearDiscoverCache: () => Promise<number>;
   getDataDirectory: () => Promise<string>;
   getLegacyDataStatus: () => Promise<LegacyDataStatus>;
-  migrateLegacyData: () => Promise<LegacyMigrationResult>;
+  migrateLegacyData: (importData: boolean, removeLegacy: boolean) => Promise<LegacyMigrationResult>;
   getSettings: () => Promise<Partial<AppSettings>>;
   updateSettings: (partial: Partial<AppSettings>) => Promise<boolean>;
   resetSettings: () => Promise<boolean>;

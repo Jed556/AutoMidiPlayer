@@ -77,7 +77,7 @@ impl SettingsStore {
             .and_then(|m| m.get("userConfig"))
             .and_then(Value::as_bool)
             == Some(true);
-        let importing = !imported && config_path.is_file();
+        let importing = !imported && !crate::legacy_migration::is_complete() && config_path.is_file();
         if importing {
             let raw = legacy::read(&config_path)?;
             // The legacy file seeds the new preferences; an existing settings.json

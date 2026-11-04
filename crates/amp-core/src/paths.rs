@@ -43,6 +43,7 @@ pub fn legacy_data_dir() -> PathBuf {
 
 /// Locate legacy SQLite database if one exists.
 pub fn find_legacy_db_path() -> Option<PathBuf> {
+    if crate::legacy_migration::is_complete() { return None; }
     let legacy_db = legacy_data_dir().join("AutoMidiPlayer.db");
     if legacy_db.is_file() {
         return Some(legacy_db);
@@ -62,6 +63,7 @@ pub fn find_legacy_db_path() -> Option<PathBuf> {
 
 /// Locate legacy user.config if one exists.
 pub fn find_legacy_config_path() -> Option<PathBuf> {
+    if crate::legacy_migration::is_complete() { return None; }
     let legacy_config = legacy_data_dir().join("user.config");
     if legacy_config.is_file() {
         return Some(legacy_config);
@@ -85,6 +87,7 @@ pub fn has_legacy_data() -> bool {
 /// Move legacy data before opening logs, SQLite, or any other application files.
 /// Retrying a partial migration moves the remaining entries without overwriting data.
 pub fn migrate_app_data() -> io::Result<()> {
+    if crate::legacy_migration::is_complete() { return Ok(()); }
     migrate_directory(&data_base_dir().join("AutoMidiPlayer"), &app_data_dir())
 }
 

@@ -725,9 +725,12 @@ fn check_legacy_data() -> Result<LegacyDataStatus, String> {
 }
 
 #[tauri::command]
-async fn migrate_legacy_data(state: State<'_, AppState>) -> Result<LegacyMigrationResult, String> {
-    let legacy_db = amp_core::paths::find_legacy_db_path();
-    let legacy_config = amp_core::paths::find_legacy_config_path();
+async fn migrate_legacy_data(state: State<'_, AppState>, import_data: bool, remove_legacy: bool) -> Result<LegacyMigrationResult, String> {
+    if amp_core::legacy_migration::is_complete() {
+        return Ok(LegacyMigrationResult { success: true, song_count: 0, playlist_count: 0, error: None });
+    }
+    let legacy_db = import_data.then(amp_core::paths::find_legacy_db_path).flatten();
+    let legacy_config = import_data.then(amp_core::paths::find_legacy_config_path).flatten();
 
     let mut migrated_songs = 0;
     let mut migrated_playlists = 0;
@@ -752,18 +755,16 @@ async fn migrate_legacy_data(state: State<'_, AppState>) -> Result<LegacyMigrati
     }
 
     if let Some(ref config_path) = legacy_config {
-        if let Ok(raw) = amp_core::settings::legacy::read(config_path) {
-            let cm = state.config_manager.lock().unwrap();
-            if let Ok(legacy_settings) = amp_core::settings::legacy::map(&raw, &cm.games, &cm.layouts, &state.db) {
-                let _ = state.settings.update(&legacy_settings);
-            }
-            if let Some(queue_ids) = raw.get("QueueSongIds") {
-                let _ = state.db.import_legacy_queue(queue_ids);
-            }
+        let raw = amp_core::settings::legacy::read(config_path)?;
+        let cm = state.config_manager.lock().unwrap();
+        let legacy_settings = amp_core::settings::legacy::map(&raw, &cm.games, &cm.layouts, &state.db)?;
+        state.settings.update(&legacy_settings)?;
+        if let Some(queue_ids) = raw.get("QueueSongIds") {
+            state.db.import_legacy_queue(queue_ids).map_err(|e| e.to_string())?;
         }
     }
 
-    let _ = amp_core::paths::migrate_app_data();
+    amp_core::legacy_migration::finish(remove_legacy).map_err(|e| e.to_string())?;
 
     Ok(LegacyMigrationResult {
         success: true,
@@ -1587,28 +1588,6 @@ pub fn run() {
 
     tauri::Builder::default()
         .setup(|app| {
-            // Only move legacy data if onboarding was already completed in an earlier run of the new app.
-            // Initial launch defers migration so the user can choose in the welcome screen.
-            let onboarding_already_completed = {
-                let settings_path = amp_core::settings::SettingsStore::default_path();
-                if let Ok(bytes) = std::fs::read(&settings_path) {
-                    if let Ok(val) = serde_json::from_slice::<serde_json::Value>(&bytes) {
-                        val.get("onboardingCompleted").and_then(serde_json::Value::as_bool).unwrap_or(false)
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                }
-            };
-
-            if onboarding_already_completed {
-                let migration_result = amp_core::paths::migrate_app_data();
-                if let Err(ref error) = migration_result {
-                    log::warn!("Legacy app data migration encountered a non-fatal error: {error}");
-                }
-            }
-
             // Initialize logging system, panic hook, and sentry telemetry
             let _ = logging::init_logger(logging::ALL_STEPS_VERBOSITY, cfg!(debug_assertions));
             telemetry::register_panic_hook();
