@@ -15,6 +15,7 @@
   let visible = $state(false);
   let categories = $derived([
     { key: 'app', label: t('settings.appDataSize'), bytes: usage?.appDataBytes ?? 0 },
+    { key: 'webview', label: t('settings.webViewCacheSize'), bytes: usage?.webViewCacheBytes ?? 0 },
     { key: 'online', label: t('settings.onlineMidiFolderSize'), bytes: usage?.onlineMidiBytes ?? 0 },
     { key: 'cache', label: t('settings.discoverCacheSize'), bytes: usage?.discoverCacheBytes ?? 0 },
   ]);
@@ -85,6 +86,7 @@
   .visible.ready .usage-fill { transform: scaleX(1); opacity: 1; }
   .segment { min-width: 0; flex-basis: 0; border-radius: 2px; }
   .app { background: var(--accent, #1db954); }
+  .webview { background: #3b82f6; }
   .online { background: var(--text-secondary); }
   .cache { background: var(--warning-color, #d5a85f); }
   .usage-legend { display: flex; flex-wrap: wrap; gap: 8px 24px; }

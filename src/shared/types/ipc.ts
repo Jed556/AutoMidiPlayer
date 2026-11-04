@@ -46,6 +46,7 @@ export interface PlaybackApi {
   loadMidiFile: (path: string) => Promise<MidiFile>;
   setUiFps: (fps: number) => Promise<boolean>;
   setSynthMode: (mode: 'adapted' | 'raw') => Promise<boolean>;
+  loadPresetSoundFont: (name: string) => Promise<boolean>;
   loadCustomSoundFont: (path: string) => Promise<boolean>;
   resetSoundFont: () => Promise<boolean>;
   panicStop: () => Promise<boolean>;
@@ -162,8 +163,9 @@ export interface GamesApi {
 }
 
 export interface StorageUsage {
-  /** App data excluding the two separately counted categories. */
+  /** App data excluding the separately counted categories. */
   appDataBytes: number;
+  webViewCacheBytes: number;
   onlineMidiBytes: number;
   discoverCacheBytes: number;
   totalBytes: number;
