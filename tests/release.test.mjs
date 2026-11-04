@@ -254,6 +254,35 @@ for (const isBeta of [false, true]) test(`build-only automatic ${isBeta ? 'beta'
   assert.equal(git('status', '--porcelain'), '');
 });
 
+test('build-only prepare current uses existing package.json version without bumping or modifying version files', t => {
+  const { directory, git, run } = releaseRepository(t, '8.2.0');
+  writeFileSync(join(directory, 'dist/mock-cliff.mjs'), `
+    import childProcess from 'node:child_process';
+    import { syncBuiltinESMExports } from 'node:module';
+    const original = childProcess.execFileSync;
+    childProcess.execFileSync = (command, args, options) => {
+      if (command === process.env.GIT_CLIFF_BIN) return JSON.stringify([{ version: args[args.indexOf('--tag') + 1], commits: [] }]);
+      return original(command, args, options);
+    };
+    syncBuiltinESMExports();
+  `);
+  git('tag', 'v8.1.0');
+  git('commit', '--allow-empty', '-m', 'feat: already committed feature');
+  const sha = git('rev-parse', 'HEAD');
+  const result = spawnSync(process.execPath, ['--import', pathToFileURL(join(directory, 'dist/mock-cliff.mjs')).href, 'scripts/release.mjs', 'prepare', 'current'], {
+    cwd: directory, encoding: 'utf8', env: {
+      ...process.env, BUILD_ONLY: 'true', SOURCE_BRANCH: 'main', GITHUB_TOKEN: '', GITHUB_REPOSITORY: 'example/app',
+      GITHUB_OUTPUT: join(directory, 'dist/github-output'), RELEASE_LICENSE_MANIFEST: '', GIT_CLIFF_BIN: 'mock-git-cliff',
+    },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(result.stdout.includes('Preparing v8.2.0'));
+  assert.equal(JSON.parse(readFileSync(join(directory, 'package.json'))).version, '8.2.0');
+  assert.equal(git('rev-parse', 'HEAD'), sha);
+  const output = readFileSync(join(directory, 'dist/github-output'), 'utf8');
+  assert.ok(output.includes('version=8.2.0\ntag=v8.2.0\nsha='));
+});
+
 test('version synchronization changes only the desktop Cargo package', () => {
   const source = '[[package]]\nname = "amp-core"\nversion = "0.1.0"\n\n[[package]]\nname = "auto-midi-player"\nversion = "8.0.0"\ndependencies = []\n';
   assert.equal(replaceCargoVersion(source, 'auto-midi-player', '8.1.0'), source.replace('"8.0.0"', '"8.1.0"'));

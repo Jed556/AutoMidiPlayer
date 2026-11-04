@@ -13,9 +13,12 @@ if (!['next-version', 'preview', 'prepare', 'validate'].includes(command)) {
   throw new Error('Usage: node scripts/release.mjs <next-version|preview|prepare|validate> [auto|version]');
 }
 const requested = input?.trim();
-const automatic = command !== 'validate' && (!requested || requested === 'auto');
+const isCurrent = requested === 'current';
+const automatic = command !== 'validate' && !isCurrent && (!requested || requested === 'auto');
 const beta = command !== 'validate' && process.env.BETA_RELEASE === 'true';
-const baseVersion = automatic ? await automaticVersion() : releaseVersion(requested || JSON.parse(await text('package.json')).version);
+const baseVersion = isCurrent
+  ? releaseVersion(JSON.parse(await text('package.json')).version)
+  : (automatic ? await automaticVersion() : releaseVersion(requested || JSON.parse(await text('package.json')).version));
 const version = beta ? betaVersion(baseVersion) : baseVersion;
 const tag = `v${version}`;
 const repo = process.env.GITHUB_REPOSITORY || 'Jed556/AutoMidiPlayer';
@@ -123,22 +126,32 @@ if (command === 'next-version') {
       await writeFile('THIRD-PARTY-LICENSES.md', await readFile(process.env.RELEASE_LICENSE_MANIFEST));
     } else run(process.execPath, ['scripts/generate-licenses.mjs']);
     const releaseNotes = await notes();
-    for (const path of ['package.json', 'src-tauri/tauri.conf.json']) {
-      const source = await text(path);
-      await writeFile(path, source.replace(/("version"\s*:\s*")[^"]+(")/, (_, prefix, suffix) => `${prefix}${version}${suffix}`));
-    }
-    for (const path of ['src-tauri/Cargo.toml', 'Cargo.lock']) {
-      await writeFile(path, replaceCargoVersion(await text(path), 'auto-midi-player', version));
+    if (!isCurrent) {
+      for (const path of ['package.json', 'src-tauri/tauri.conf.json']) {
+        const source = await text(path);
+        await writeFile(path, source.replace(/("version"\s*:\s*")[^"]+(")/, (_, prefix, suffix) => `${prefix}${version}${suffix}`));
+      }
+      for (const path of ['src-tauri/Cargo.toml', 'Cargo.lock']) {
+        await writeFile(path, replaceCargoVersion(await text(path), 'auto-midi-player', version));
+      }
     }
     await writeFile('RELEASE.md', releaseNotes);
     await validate();
     if (!buildOnly) {
       git('config', 'user.name', 'github-actions[bot]');
       git('config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com');
-      git('add', '--', 'package.json', 'src-tauri/tauri.conf.json', 'src-tauri/Cargo.toml', 'Cargo.lock', 'RELEASE.md', 'THIRD-PARTY-LICENSES.md');
-      git('commit', '-m', `chore(release): ${tag}`);
-      git('tag', '-a', tag, '-m', `Release ${tag}`);
-      git('push', '--atomic', 'origin', `HEAD:refs/heads/${branch}`, `refs/tags/${tag}`);
+      if (!isCurrent) {
+        git('add', '--', 'package.json', 'src-tauri/tauri.conf.json', 'src-tauri/Cargo.toml', 'Cargo.lock', 'RELEASE.md', 'THIRD-PARTY-LICENSES.md');
+        git('commit', '-m', `chore(release): ${tag}`);
+        git('tag', '-a', tag, '-m', `Release ${tag}`);
+        git('push', '--atomic', 'origin', `HEAD:refs/heads/${branch}`, `refs/tags/${tag}`);
+      } else {
+        const tagExists = existsRef(`refs/tags/${tag}^{commit}`);
+        if (!tagExists) {
+          git('tag', '-a', tag, '-m', `Release ${tag}`);
+          git('push', 'origin', `refs/tags/${tag}`);
+        }
+      }
     }
     await output(git('rev-parse', 'HEAD'));
   }

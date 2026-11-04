@@ -26,8 +26,11 @@
     "release:notes": "node scripts/release.mjs preview",
     "release:validate": "node scripts/release.mjs validate",
     "release:docs": "node scripts/stage-release-docs.mjs",
+    "version:bump": "node scripts/bump-version.mjs",
+    "version:preview": "node scripts/bump-version.mjs --preview",
     "licenses:generate": "node scripts/generate-licenses.mjs",
     "test:licenses": "node --test tests/licenses.test.mjs",
+    "test:bump": "node --test tests/bump-version.test.mjs",
     "test:release": "node --test tests/release.test.mjs"
   },
   "dependencies": {
