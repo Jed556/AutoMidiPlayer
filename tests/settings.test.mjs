@@ -46,7 +46,7 @@ async function harness(initial = {}) {
   const api = {
     settings: {
       getDataDirectory: async () => '',
-      getStorageUsage: async () => ({ appDataBytes: 11, onlineMidiBytes: 23, discoverCacheBytes: 37, totalBytes: 71 }),
+      getStorageUsage: async () => ({ appDataBytes: 11, webViewCacheBytes: 0, onlineMidiBytes: 23, discoverCacheBytes: 37, totalBytes: 71 }),
       clearDiscoverCache: async () => 37,
       getSettings: async () => structuredClone(saved),
       updateSettings: async value => { saved = { ...saved, ...JSON.parse(JSON.stringify(value)) }; return true; },
@@ -397,9 +397,9 @@ test('storage ignores stale scans and keeps previous measurements on a refresh f
   let finish;
   h.api.settings.getStorageUsage = () => new Promise(resolve => { finish = resolve; });
   const stale = h.store.refreshStorage();
-  h.api.settings.getStorageUsage = async () => ({ appDataBytes: 19, onlineMidiBytes: 0, discoverCacheBytes: 0, totalBytes: 19 });
+  h.api.settings.getStorageUsage = async () => ({ appDataBytes: 19, webViewCacheBytes: 0, onlineMidiBytes: 0, discoverCacheBytes: 0, totalBytes: 19 });
   await h.store.refreshStorage();
-  finish({ appDataBytes: 99, onlineMidiBytes: 0, discoverCacheBytes: 0, totalBytes: 99 });
+  finish({ appDataBytes: 99, webViewCacheBytes: 0, onlineMidiBytes: 0, discoverCacheBytes: 0, totalBytes: 99 });
   await stale;
   assert.equal(h.store.storageUsage.totalBytes, 19);
   h.api.settings.getStorageUsage = async () => { throw new Error('Storage offline'); };

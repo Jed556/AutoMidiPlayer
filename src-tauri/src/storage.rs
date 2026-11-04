@@ -8,10 +8,11 @@ use std::{
 // Serialize scans and cleanup so the UI never measures a half-finished cleanup.
 static STORAGE_LOCK: Mutex<()> = Mutex::new(());
 
-#[derive(serde::Serialize, Debug)]
+#[derive(serde::Serialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct StorageUsage {
     pub app_data_bytes: u64,
+    pub web_view_cache_bytes: u64,
     pub online_midi_bytes: u64,
     pub discover_cache_bytes: u64,
     pub total_bytes: u64,
@@ -65,11 +66,34 @@ fn files(root: &Path) -> Result<Vec<StoredFile>, String> {
     Ok(result)
 }
 
+fn is_webview_cache(path: &Path, root: &Path) -> bool {
+    let ebwebview = root.join("EBWebView");
+    path.starts_with(&ebwebview)
+}
+
+fn delete_legacy_ebwebview_backups(root: &Path) {
+    if let Ok(entries) = fs::read_dir(root) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if name_str.starts_with("EBWebView.legacy") && name_str.ends_with(".bak") {
+                let path = entry.path();
+                if let Ok(meta) = fs::symlink_metadata(&path) {
+                    if !is_link(&meta) && meta.is_dir() {
+                        let _ = fs::remove_dir_all(path);
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn measure(root: &Path) -> Result<StorageUsage, String> {
     let online = root.join("OnlineMidi");
     let discover = root.join("cache").join("discover");
     let mut usage = StorageUsage {
         app_data_bytes: 0,
+        web_view_cache_bytes: 0,
         online_midi_bytes: 0,
         discover_cache_bytes: 0,
         total_bytes: 0,
@@ -79,6 +103,8 @@ fn measure(root: &Path) -> Result<StorageUsage, String> {
             usage.online_midi_bytes += file.bytes;
         } else if file.path.starts_with(&discover) {
             usage.discover_cache_bytes += file.bytes;
+        } else if is_webview_cache(&file.path, root) {
+            usage.web_view_cache_bytes += file.bytes;
         } else {
             usage.app_data_bytes += file.bytes;
         }
@@ -184,6 +210,7 @@ fn clean_with(
 }
 
 fn clean(root: &Path, settings: &serde_json::Value, force: bool) -> Result<u64, String> {
+    delete_legacy_ebwebview_backups(root);
     clean_with(root, settings, force, |paths| {
         trash::delete_all(paths).map_err(|e| format!("Unable to recycle cached files: {e}"))
     })
@@ -222,20 +249,44 @@ mod tests {
         fs::create_dir_all(root.join("OnlineMidi")).unwrap();
         fs::create_dir_all(root.join("cache/discover/MidiShow")).unwrap();
         fs::create_dir_all(root.join("cache/update")).unwrap();
+        fs::create_dir_all(root.join("EBWebView/Default")).unwrap();
         fs::write(root.join("AutoMidiPlayer.db"), [0; 11]).unwrap();
         fs::write(root.join("OnlineMidi/saved.mid"), [0; 23]).unwrap();
         fs::write(root.join("cache/discover/MidiShow/preview.mid"), [0; 37]).unwrap();
         fs::write(root.join("cache/update/installer.exe"), [0; 5]).unwrap();
+        fs::write(root.join("EBWebView/Default/data"), [0; 42]).unwrap();
         let usage = measure(&root).unwrap();
         assert_eq!(
             (
                 usage.app_data_bytes,
+                usage.web_view_cache_bytes,
                 usage.online_midi_bytes,
                 usage.discover_cache_bytes,
                 usage.total_bytes
             ),
-            (16, 23, 37, 76)
+            (16, 42, 23, 37, 118)
         );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn removes_legacy_ebwebview_backups() {
+        let root = std::env::temp_dir().join(format!(
+            "amp-legacy-ebwebview-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(root.join("EBWebView.legacy.bak")).unwrap();
+        fs::create_dir_all(root.join("EBWebView.legacy.1.bak")).unwrap();
+        fs::create_dir_all(root.join("EBWebView")).unwrap();
+        fs::write(root.join("EBWebView.legacy.bak/file"), [0; 10]).unwrap();
+        delete_legacy_ebwebview_backups(&root);
+        assert!(!root.join("EBWebView.legacy.bak").exists());
+        assert!(!root.join("EBWebView.legacy.1.bak").exists());
+        assert!(root.join("EBWebView").exists());
         fs::remove_dir_all(root).unwrap();
     }
 
