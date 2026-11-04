@@ -441,6 +441,10 @@ fn run_playback_loop(
                             control_idx = 0;
                             last_sync_us = 0;
                             *time_arc.lock().unwrap() = 0;
+                            if let Some(ref synth) = audio_synth {
+                                synth.all_notes_off();
+                                synth.reset();
+                            }
                             callback(PlayerEvent::TimeUpdate { time_us: current_us, seek_id });
                         }
                         if let Some(ref song) = current_song {
@@ -482,6 +486,7 @@ fn run_playback_loop(
                     key_sim.release_all(&all_keys);
                     if let Some(ref synth) = audio_synth {
                         synth.all_notes_off();
+                        synth.reset();
                     }
                     active_notes.clear();
                     active_track_notes.clear();
@@ -509,6 +514,17 @@ fn run_playback_loop(
                         key_sim.release_all(&all_keys);
                         if let Some(ref synth) = audio_synth {
                             synth.all_notes_off();
+                            synth.reset();
+                            for cev in &song.control_events[..control_idx] {
+                                match cev.kind {
+                                    ControlEventKind::ControlChange { controller, value } => {
+                                        synth.control_change(cev.channel, controller, value);
+                                    }
+                                    ControlEventKind::ProgramChange { program } => {
+                                        synth.program_change(cev.channel, program);
+                                    }
+                                }
+                            }
                         }
                         active_notes.clear();
                         active_track_notes.clear();
@@ -598,6 +614,7 @@ fn run_playback_loop(
                     key_sim.release_all(&all_keys);
                     if let Some(ref synth) = audio_synth {
                         synth.all_notes_off();
+                        synth.reset();
                     }
                     if status == PlaybackStatus::Playing {
                         last_instant = Instant::now();
@@ -609,6 +626,7 @@ fn run_playback_loop(
                     key_sim.release_all(&all_keys);
                     if let Some(ref synth) = audio_synth {
                         synth.all_notes_off();
+                        synth.reset();
                     }
                     active_notes.clear();
                     active_track_notes.clear();
@@ -639,6 +657,19 @@ fn run_playback_loop(
                     key_releases.clear();
                     if listen_mode {
                         key_sim.release_all(&all_keys);
+                        if let (Some(ref song), Some(ref synth)) = (&current_song, &audio_synth) {
+                            synth.reset();
+                            for cev in &song.control_events[..control_idx] {
+                                match cev.kind {
+                                    ControlEventKind::ControlChange { controller, value } => {
+                                        synth.control_change(cev.channel, controller, value);
+                                    }
+                                    ControlEventKind::ProgramChange { program } => {
+                                        synth.program_change(cev.channel, program);
+                                    }
+                                }
+                            }
+                        }
                     } else if let Some(ref synth) = audio_synth {
                         synth.all_notes_off();
                     }

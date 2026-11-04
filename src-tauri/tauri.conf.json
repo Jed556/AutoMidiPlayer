@@ -55,6 +55,7 @@
     ],
     "resources": [
       "resources/default.sf2",
+      "resources/legacy.sf2",
       "resources/defaults/**/*",
       "resources/docs/*"
     ]
