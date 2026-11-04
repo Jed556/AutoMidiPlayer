@@ -293,7 +293,7 @@ export function createAppApi(): AppWindowApi {
       clearDiscoverCache: () => invokeTauri<number>('Storage', 'clear_discover_cache', undefined),
       getDataDirectory: () => invokeTauri<string>('Settings', 'get_data_directory', undefined),
       getLegacyDataStatus: () => invokeTauri<LegacyDataStatus>('Settings', 'check_legacy_data', undefined),
-      migrateLegacyData: () => invokeTauri<LegacyMigrationResult>('Settings', 'migrate_legacy_data', undefined),
+      migrateLegacyData: (importData, removeLegacy) => invokeTauri<LegacyMigrationResult>('Settings', 'migrate_legacy_data', { importData, removeLegacy }),
       getSettings,
       updateSettings,
       resetSettings: () => enqueueSettingsWrite(() => invokeTauri<boolean>('Settings', 'reset_app_settings', undefined)),
