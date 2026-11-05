@@ -554,6 +554,19 @@ fn run_playback_loop(
                 Command::SetTrackMuted(track_idx, muted) => {
                     if muted {
                         muted_tracks.insert(track_idx);
+                        let owners: Vec<_> = live_notes.iter()
+                            .filter_map(|(&owner, note)| (note.track_index == track_idx).then_some(owner)).collect();
+                        for owner in owners {
+                            if let Some(key) = live_notes[&owner].key {
+                                if key_releases.cancel_owner(key, owner) {
+                                    key_sim.send_key(key, true);
+                                }
+                            }
+                            finish_live_note(owner, &mut live_notes, &audio_synth, &callback);
+                        }
+                        // Keep the source FIFO entries until their NoteOff arrives,
+                        // so an old release cannot consume a newly enabled note.
+                        publish_live_notes(&live_notes, &mut active_notes, &mut active_track_notes, &callback);
                     } else {
                         muted_tracks.remove(&track_idx);
                     }
@@ -899,7 +912,7 @@ fn run_playback_loop(
 
             let track_vol = track_volumes.get(&ev.track_index).copied().unwrap_or(1.0);
 
-            if !muted_tracks.contains(&ev.track_index) && track_vol > 0.0 {
+            if ev.is_note_on && ev.velocity > 0 {
                 let effective_vel = ((ev.velocity as f32) * track_vol).round().clamp(0.0, 127.0) as u8;
 
                 // Look up dynamic key marker with 10ms lookahead (parity with WPF)
@@ -913,7 +926,7 @@ fn run_playback_loop(
                 let active_key_offset = active_marker.map(|m| m.key_offset).unwrap_or(key_offset);
                 let active_transpose_mode = active_marker.and_then(|m| m.transpose).unwrap_or(transpose_mode);
 
-                if ev.is_note_on && effective_vel > 0 {
+                if !muted_tracks.contains(&ev.track_index) && effective_vel > 0 {
                     let adapted_timing = !listen_mode || synth_mode == SynthMode::Adapted;
                     if restoring && (durations[owner_index].is_some_and(|duration|
                         ev.time_us.saturating_add(duration) <= current_us)
@@ -982,38 +995,27 @@ fn run_playback_loop(
                         });
                     }
                 } else {
-                    // NoteOff: release the exact note and physical key that were previously held
-                    let (_prev_mapped_note, prev_mapped_key, owner) = active_held_notes
-                        .get_mut(&(ev.track_index, ev.channel, ev.note))
-                        .and_then(VecDeque::pop_front)
-                        .unwrap_or_else(|| {
-                            let mn = process_note_pitch(
-                                ev.note,
-                                active_key_offset,
-                                active_transpose_mode,
-                                min_pitch,
-                                max_pitch,
-                                &playable_notes,
-                            );
-                            let mk = mn.and_then(|n| mapping.get_key(n));
-                            (mn, mk, usize::MAX)
-                        });
-
-                    if !listen_mode && send_input {
-                        if let Some(key) = prev_mapped_key {
-                            if key_releases.note_off(key, owner) {
-                                key_sim.send_key(key, true);
-                            }
+                    // Every source NoteOn reserves its FIFO slot, even when muted
+                    // or scaled to zero velocity. Its NoteOff must not steal a
+                    // later same-pitch note's owner after the track is enabled.
+                    active_held_notes.entry((ev.track_index, ev.channel, ev.note)).or_default()
+                        .push_back((None, None, owner_index));
+                }
+            } else {
+                // NoteOff always runs, regardless of the current mute or volume.
+                // Only release the exact output acquired by its matching NoteOn.
+                if let Some((_pitch, key, owner)) = active_held_notes
+                    .get_mut(&(ev.track_index, ev.channel, ev.note))
+                    .and_then(VecDeque::pop_front) {
+                    if let Some(key) = key {
+                        if key_releases.note_off(key, owner) {
+                            key_sim.send_key(key, true);
                         }
                     }
-
                     if live_notes.get(&owner).is_some_and(|note| note.deadline.is_none()) {
                         finish_live_note(owner, &mut live_notes, &audio_synth, &callback);
                     }
                 }
-            } else if restoring {
-                active_held_notes.entry((ev.track_index, ev.channel, ev.note)).or_default()
-                    .push_back((None, None, owner_index));
             }
 
             if !restoring { event_idx += 1; }

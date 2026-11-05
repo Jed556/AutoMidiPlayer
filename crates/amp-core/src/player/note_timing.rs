@@ -141,9 +141,18 @@ impl KeyReleases {
     }
 
     pub fn note_off(&mut self, key: Key, owner: usize) -> bool {
+        if !self.pressed.get(&key).and_then(|owners| owners.get(&owner)).is_some_and(Option::is_none) { return false; }
+        self.cancel_owner(key, owner)
+    }
+
+    /// Track muting cancels holds, taps and queued attacks for this owner only.
+    /// Return true only when the physical key has no remaining owners.
+    pub fn cancel_owner(&mut self, key: Key, owner: usize) -> bool {
         let Some(owners) = self.pressed.get_mut(&key) else { return false };
-        if !owners.get(&owner).is_some_and(Option::is_none) { return false; }
-        owners.remove(&owner);
+        if owners.remove(&owner).is_none() { return false; }
+        if let Some(press) = self.pending.get_mut(&key) {
+            press.owners.retain(|&pending_owner| pending_owner != owner);
+        }
         if !owners.is_empty() { return false; }
         self.pressed.remove(&key);
         self.pending.remove(&key);
@@ -179,6 +188,42 @@ impl KeyReleases {
 mod tests {
     use super::*;
     use std::time::Duration;
+
+    #[test]
+    fn muting_cancels_taps_and_pending_attacks_without_releasing_other_owners() {
+        let now = Instant::now();
+        let stroke = KeyStroke::plain(Key::A);
+        let mut releases = KeyReleases::default();
+        releases.begin_stroke(stroke, 1, now, None, OverlapBehavior::Retrigger);
+        releases.begin_stroke(stroke, 2, now, Some(now + Duration::from_secs(1)), OverlapBehavior::Retrigger);
+        assert!(!releases.cancel_owner(Key::A, 2));
+        // The older owner still needs the queued key-down after the retrigger's
+        // key-up, even though the owner that requested the retrigger was muted.
+        assert_eq!(releases.take_presses(now + default_repress_gap()), vec![(stroke, vec![])]);
+        assert!(releases.note_off(Key::A, 1));
+        assert!(releases.next_deadline().is_none());
+
+        releases.begin_stroke(stroke, 3, now, None, OverlapBehavior::Retrigger);
+        releases.begin_stroke(stroke, 4, now, Some(now + Duration::from_secs(1)), OverlapBehavior::Retrigger);
+        assert!(!releases.cancel_owner(Key::A, 3));
+        assert!(releases.cancel_owner(Key::A, 4));
+        assert!(releases.take_presses(now + default_repress_gap()).is_empty());
+        assert!(releases.take_due(now + Duration::from_secs(2)).is_empty());
+        assert!(releases.next_deadline().is_none());
+    }
+
+    #[test]
+    fn a_muted_or_ignored_owner_cannot_release_a_newer_hold_on_the_same_key() {
+        let mut releases = KeyReleases::default();
+        releases.begin_press(Key::A, 1, None, OverlapBehavior::Hold);
+        assert_eq!(releases.begin_press(Key::A, 2, None, OverlapBehavior::Hold), KeyPressAction::Ignore);
+        assert!(!releases.cancel_owner(Key::A, 2));
+        assert!(releases.cancel_owner(Key::A, 1));
+        releases.begin_press(Key::A, 3, None, OverlapBehavior::Hold);
+        assert!(!releases.note_off(Key::A, 1));
+        assert!(!releases.cancel_owner(Key::A, 1));
+        assert!(releases.note_off(Key::A, 3));
+    }
 
     #[test]
     fn configured_repress_gap_controls_output_and_preserves_the_original_hold() {
