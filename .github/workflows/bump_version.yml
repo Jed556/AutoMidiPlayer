@@ -28,7 +28,7 @@ jobs:
         with:
           node-version: '24'
 
-      - name: 🔍 Analyze commits & evaluate version bump
+      - name: Analyze commits & evaluate version bump
         id: evaluate
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

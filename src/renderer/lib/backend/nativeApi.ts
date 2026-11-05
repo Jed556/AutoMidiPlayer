@@ -170,6 +170,7 @@ export function createAppApi(): AppWindowApi {
       },
       setUiFps: (fps) => invokeTauri<boolean>('Playback', 'set_ui_fps', { fps }),
       setSynthMode: (mode) => invokeTauri<boolean>('Playback', 'set_synth_mode', { mode }),
+      configureSoundFontStack: (names) => invokeTauri<boolean>('Playback', 'configure_soundfont_stack', { names }),
       listSoundFonts: () => invokeTauri<string[]>('Playback', 'list_soundfonts', undefined),
       addSoundFont: (path) => invokeTauri<string>('Playback', 'add_soundfont', { path }),
       loadSoundFont: (name) => invokeTauri<boolean>('Playback', 'load_soundfont', { name }),

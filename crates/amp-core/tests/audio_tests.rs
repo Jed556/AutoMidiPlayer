@@ -5,9 +5,9 @@ use rustysynth::SoundFont;
 
 #[test]
 fn test_soundfont_load_and_synth() {
-    let sf_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../src-tauri/resources/default.sf2");
+    let sf_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../src-tauri/resources/TimGM6mb.sf2");
     if let Ok(mut file) = File::open(sf_path) {
-        let sf = SoundFont::new(&mut file).expect("Failed to parse default.sf2");
+        let sf = SoundFont::new(&mut file).expect("Failed to parse TimGM6mb.sf2");
         let sf_arc = Arc::new(sf);
 
         // Test AudioDevice initialization
@@ -29,8 +29,8 @@ fn test_soundfont_load_and_synth() {
             let legacy_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../src-tauri/resources/legacy.sf2");
             if let Ok(mut leg_file) = File::open(legacy_path) {
                 if let Ok(leg_sf) = SoundFont::new(&mut leg_file) {
-                    synth.load_soundfont(Arc::new(leg_sf));
-                    synth.load_soundfont(sf_arc.clone());
+                    synth.load_soundfont(Arc::new(leg_sf)).unwrap();
+                    synth.load_soundfont(sf_arc.clone()).unwrap();
                 }
             }
 

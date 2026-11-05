@@ -17,6 +17,7 @@
   import KeyPicker from '../components/Common/KeyPicker.svelte';
   import Slider from '../components/Common/Slider.svelte';
   import KeyEditControl from '../components/Settings/KeyEditControl.svelte';
+  import SoundFontStack from '../components/Settings/SoundFontStack.svelte';
   import StorageUsageChart from '../components/Settings/StorageUsageChart.svelte';
   import OverlapBehaviorPicker from '../components/Settings/OverlapBehaviorPicker.svelte';
   import RefreshIcon from '../components/Icons/RefreshIcon.svelte';
@@ -58,41 +59,6 @@
     { value: 'adapted', label: t('settings.synthModeGamePreview') },
     { value: 'raw', label: t('settings.synthModeFullChromatic') }
   ]);
-
-  let soundFontOptions = $derived([
-    { value: 'default', label: t('settings.soundFontDefault') },
-    { value: 'legacy', label: t('settings.soundFontLegacy') },
-    ...playbackStore.availableSoundFonts.map(sf => ({
-      value: sf,
-      label: sf,
-      actionIcon: 'Delete',
-      actionTitle: t('settings.deleteSoundFont'),
-      onaction: () => handleDeleteSoundFont(sf)
-    }))
-  ]);
-
-  async function handleSoundFontChange(val: string) {
-    await playbackStore.loadSoundFont(val);
-  }
-
-  async function handleAddSoundFont() {
-    try {
-      const path = await api.settings.browseSoundFont();
-      if (path) {
-        await playbackStore.addSoundFont(path);
-      }
-    } catch (e) {
-      console.error('Failed to add SoundFont:', e);
-    }
-  }
-
-  async function handleDeleteSoundFont(name: string) {
-    try {
-      await playbackStore.deleteSoundFont(name);
-    } catch (e) {
-      console.error('Failed to delete SoundFont:', e);
-    }
-  }
 
   let isResettingSoundFont = $state(false);
 
@@ -536,34 +502,7 @@
 
         <div class="card-body">
           <div class="settings-grid-2col">
-            <!-- SoundFont Selection -->
-            <div class="setting-group">
-              <div class="setting-header">
-                <span class="setting-label">{t('settings.soundFont')}</span>
-                <p class="setting-description">
-                  {t('settings.soundFontDesc')}
-                </p>
-              </div>
-              <div class="soundfont-control-row">
-                <Dropdown
-                  variant="ghost"
-                  value={playbackStore.soundFontId}
-                  options={soundFontOptions}
-                  onchange={(v) => handleSoundFontChange(v as string)}
-                />
-                <Button
-                  variant="ghost"
-                  compact
-                  icon="Add"
-                  class="soundfont-add-btn"
-                  onclick={handleAddSoundFont}
-                  title={t('settings.addSoundFont')}
-                >
-                  <span>{t('settings.addSoundFont')}</span>
-                </Button>
-              </div>
-            </div>
-
+            <div class="audio-controls-column">
             <!-- Synthesis Mode Group -->
             <div class="setting-group">
               <div class="setting-header">
@@ -586,7 +525,7 @@
             </div>
 
             <!-- Master Volume Group -->
-            <div class="setting-group grid-col-full">
+            <div class="setting-group">
               <span class="setting-label" class:is-overshoot={playbackStore.volume > 1}>
                 {t('settings.masterVolume')} ({Math.round(playbackStore.volume * 100)}%)
               </span>
@@ -623,6 +562,8 @@
                 </div>
               </div>
             </div>
+            </div>
+            <SoundFontStack />
           </div>
         </div>
       </section>
@@ -2343,32 +2284,7 @@
     margin: 0;
   }
 
-  .soundfont-control-row {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    width: fit-content;
-  }
-
-  .soundfont-control-row :global(.fluent-dropdown) {
-    align-self: center !important;
-    display: inline-flex;
-    align-items: center;
-  }
-
-  .soundfont-control-row :global(.dropdown-trigger) {
-    display: inline-flex;
-    align-items: center;
-    height: 26px;
-    padding: 0;
-  }
-
-  .soundfont-control-row :global(.soundfont-add-btn) {
-    height: 26px;
-    padding: 0 6px;
-    gap: 4px;
-    align-self: center;
-  }
+  .audio-controls-column { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
 
   .setting-label.is-overshoot {
     color: var(--warning-color, #F59E0B);

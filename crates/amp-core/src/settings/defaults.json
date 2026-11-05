@@ -26,6 +26,9 @@
       "loopMode": "off",
       "isListenMode": false,
       "synthMode": "adapted",
+      "soundFontGapFilling": true,
+      "soundFontOrder": ["default", "generaluser", "legacy"],
+      "soundFontId": "default",
       "volume": 0.85
     }
   },

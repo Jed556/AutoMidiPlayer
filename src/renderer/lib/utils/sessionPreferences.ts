@@ -33,6 +33,9 @@ export function normalizePlayback(value: Partial<PlaybackPreferences> = {}): Pla
     loopMode: value.loopMode === 'off' || value.loopMode === 'all' || value.loopMode === 'single' ? value.loopMode : DEFAULT_UI_PREFERENCES.playback.loopMode,
     isListenMode: typeof value.isListenMode === 'boolean' ? value.isListenMode : DEFAULT_UI_PREFERENCES.playback.isListenMode,
     synthMode: value.synthMode === 'raw' || value.synthMode === 'adapted' ? value.synthMode : DEFAULT_UI_PREFERENCES.playback.synthMode,
+    soundFontGapFilling: typeof value.soundFontGapFilling === 'boolean' ? value.soundFontGapFilling : true,
+    soundFontOrder: Array.isArray(value.soundFontOrder) ? [...new Set(value.soundFontOrder.filter(v => typeof v === 'string'))] : ['default', 'generaluser', 'legacy'],
+    soundFontId: typeof value.soundFontId === 'string' ? value.soundFontId : 'default',
     volume: boundedNumber(value.volume, DEFAULT_UI_PREFERENCES.playback.volume, 0, 2),
   };
 }

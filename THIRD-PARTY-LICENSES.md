@@ -1,6 +1,6 @@
 # Third-Party Licenses
 
-Notices for the current Svelte/Tauri/Rust dependency graph, including transitive dependencies and build tools. Rust dependencies cover Windows, Linux, and both macOS architectures.
+Notices for production-scoped Svelte/Tauri/Rust dependencies, including transitive dependencies. Rust dependencies cover Windows, Linux, and both macOS architectures.
 
 The original-project attribution and bundled soundfont notices are retained. Legacy WPF-only dependencies are excluded.
 
@@ -1330,6 +1330,15 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Repository/source: [https://github.com/gtk-rs/gtk3-rs](https://github.com/gtk-rs/gtk3-rs)
 - Category: rust
 - Full notice: [21a2121221d2a35df2d8](#notice-21a2121221d2a35df2d8)
+
+<!-- amp-license: {"name":"GeneralUser GS SoundFont","version":"2.0.3","licenseName":"GeneralUser GS License v2.0","url":"https://github.com/mrbumpy409/GeneralUser-GS","kind":"resource","notice":"By S. Christian Collins. Bundled as resources/GeneralUser-GS.sf2.","textId":"e932c008125ce840e507"} -->
+### GeneralUser GS SoundFont 2.0.3
+
+- License: GeneralUser GS License v2.0
+- Repository/source: [https://github.com/mrbumpy409/GeneralUser-GS](https://github.com/mrbumpy409/GeneralUser-GS)
+- Category: resource
+- Full notice: [e932c008125ce840e507](#notice-e932c008125ce840e507)
+- By S. Christian Collins. Bundled as resources/GeneralUser-GS.sf2.
 
 <!-- amp-license: {"name":"generic-array","version":"0.14.7","licenseName":"MIT","url":"https://github.com/fizyk20/generic-array","kind":"rust","textId":"ad4fcfaf8d5b12b97409"} -->
 ### generic-array 0.14.7
@@ -3453,14 +3462,14 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [7fdbca77dec6709aaa7c](#notice-7fdbca77dec6709aaa7c)
 
-<!-- amp-license: {"name":"TimGM6mb soundfont","version":"","licenseName":"GPL-2.0-only","url":"https://github.com/musescore/musescore-old/commit/90c33ef9d87b3f5ff92efd3b07d89eb455fb1fef","kind":"resource","notice":"Bundled as resources/default.sf2 (INFO name TimGM6mb1.sf2). Copyright 2004 Tim Brechbill; 2010 David Bolton. Attribution follows https://sources.debian.org/copyright/license/timgm6mb-soundfont/1.3-5/.","textId":"f973475686c3343f82f1"} -->
+<!-- amp-license: {"name":"TimGM6mb soundfont","version":"","licenseName":"GPL-2.0-only","url":"https://github.com/musescore/musescore-old/commit/90c33ef9d87b3f5ff92efd3b07d89eb455fb1fef","kind":"resource","notice":"Bundled as resources/TimGM6mb.sf2 (INFO name TimGM6mb1.sf2). Copyright 2004 Tim Brechbill; 2010 David Bolton. Attribution follows https://sources.debian.org/copyright/license/timgm6mb-soundfont/1.3-5/.","textId":"f973475686c3343f82f1"} -->
 ### TimGM6mb soundfont
 
 - License: GPL-2.0-only
 - Repository/source: [https://github.com/musescore/musescore-old/commit/90c33ef9d87b3f5ff92efd3b07d89eb455fb1fef](https://github.com/musescore/musescore-old/commit/90c33ef9d87b3f5ff92efd3b07d89eb455fb1fef)
 - Category: resource
 - Full notice: [f973475686c3343f82f1](#notice-f973475686c3343f82f1)
-- Bundled as resources/default.sf2 (INFO name TimGM6mb1.sf2). Copyright 2004 Tim Brechbill; 2010 David Bolton. Attribution follows https://sources.debian.org/copyright/license/timgm6mb-soundfont/1.3-5/.
+- Bundled as resources/TimGM6mb.sf2 (INFO name TimGM6mb1.sf2). Copyright 2004 Tim Brechbill; 2010 David Bolton. Attribution follows https://sources.debian.org/copyright/license/timgm6mb-soundfont/1.3-5/.
 
 <!-- amp-license: {"name":"tinyglobby","version":"0.2.17","licenseName":"MIT","url":"https://github.com/SuperchupuDev/tinyglobby","kind":"javascript","textId":"4918b99deb04bad7ac6e"} -->
 ### tinyglobby 0.2.17
@@ -9035,6 +9044,59 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
+```
+
+<!-- amp-license-text: e932c008125ce840e507 -->
+### Notice e932c008125ce840e507
+
+```text
+*** GeneralUser GS v2.0.3 ***
+***      License v2.0     ***
+
+** License of the complete work **
+You may use GeneralUser GS without restriction for your own music creation,
+private or commercial. This SoundFont bank is provided to the community free of
+charge. Please feel free to use it in your software projects, and to modify the
+SoundFont bank or its packaging to suit your needs.
+
+** License of contained samples **
+GeneralUser GS inherits the usage rights of the samples contained within, all of
+which allow full use in music production, including the ability to make profit
+from musical recordings created with GeneralUser GS.
+
+Many of the samples are original, but some were taken from other banks freely
+(and legally) available on the Internet from various SoundFont websites. Because
+GeneralUser GS originated as a personal project with no intention for
+publication, I cannot be 100% sure where all of the samples originated, although
+I do know that none of them came from commercially published SoundFont packages
+or sample CDs. Regardless, many "free" SoundFonts available on the web may
+indeed contain samples of questionable origin. My understanding of the
+copyrights of all samples is only as good as the information provided by the
+original sources. If you become aware of any restricted samples being used in
+GeneralUser GS, please let me know so I can replace them.
+
+This uncertainty may concern you if you intend to use GeneralUser GS in a
+commercial software product. That being said, I have never received any
+complaint regarding sample ownership since I published the original GeneralUser
+GS back in 2000, and as far as I am aware, neither have any of the companies
+creating commercial software products using GeneralUser GS.
+
+** More info **
+If you plan to feature GeneralUser GS on your own website, please do not link
+directly to my download files. Either link to my website, or provide your own
+local copy instead.
+
+I hope you enjoy GeneralUser GS! This SoundFont bank is the product of many
+years of hard work.
+
+You can find updates to GeneralUser GS and more of my virtual instruments at:
+http://www.schristiancollins.com
+
+I can be reached via the contact page on my website here:
+https://www.schristiancollins.com/contact
+
+Thank you!
+-~Chris
 ```
 
 <!-- amp-license-text: ad4fcfaf8d5b12b97409 -->

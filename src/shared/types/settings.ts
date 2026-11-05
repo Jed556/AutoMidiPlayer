@@ -25,6 +25,9 @@ export interface PlaybackPreferences {
   loopMode: 'off' | 'all' | 'single';
   isListenMode: boolean;
   synthMode: 'adapted' | 'raw';
+  soundFontGapFilling: boolean;
+  soundFontOrder: string[];
+  soundFontId: string;
   volume: number;
 }
 
