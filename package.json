@@ -34,7 +34,7 @@
     "test:release": "node --test tests/release.test.mjs"
   },
   "dependencies": {
-    "@fluentui/svg-icons": "^1.1.344",
+    "@fluentui/svg-icons": "^1.1.345",
     "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-dialog": "^2.8.4",
     "@tauri-apps/plugin-shell": "^2.6.0",
@@ -46,6 +46,6 @@
     "@types/node": "^26.6.6",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
-    "vite": "^8.3.5"
+    "vite": "^8.3.6"
   }
 }
