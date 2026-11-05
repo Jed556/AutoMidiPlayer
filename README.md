@@ -51,6 +51,7 @@ See the [Support wiki page][wiki-support] for details on supported games, instru
 * **Spotify-style UI** - Modern player interface with fixed bottom controls
 * **Studio View** - Piano roll interface with scrubbing and mid-song key changes
 * **Per-song Settings** - Key offset, transpose, speed, and BPM settings are saved for each song
+* **System Media Controls** - Control playback with media buttons on Windows, macOS, and Linux, even while minimized.
 
 ### Instrument Playback
 * Test MIDI files through speakers before playing in-game

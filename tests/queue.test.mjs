@@ -78,6 +78,68 @@ async function createPlayer({ writeQueue, readQueue, writeSongSettings, readSong
 }
 const ids = songs => songs.map(s => s.id);
 
+test('system Play and Pause are idempotent while Toggle changes state', async () => {
+  const { player, songs, playbackCalls } = await createPlayer();
+  await player.setQueueList(songs.slice(0, 2));
+  await player.handleMediaControl({ action: 'play' });
+  await player.handleMediaControl({ action: 'play' });
+  assert.equal(player.activeSong.id, 'a');
+  assert.equal(player.status, 'Playing');
+  assert.equal(playbackCalls.filter(([method]) => method === 'play').length, 1);
+  await player.handleMediaControl({ action: 'pause' });
+  await player.handleMediaControl({ action: 'pause' });
+  assert.equal(player.status, 'Paused');
+  assert.equal(playbackCalls.filter(([method]) => method === 'pause').length, 1);
+  await player.handleMediaControl({ action: 'toggle' });
+  assert.equal(player.status, 'Playing');
+  await player.handleMediaControl({ action: 'stop' });
+  assert.equal(player.status, 'Stopped');
+  assert.equal(player.currentTimeSeconds, 0);
+});
+
+test('system Next bypasses repeat-one and Previous retains restart/history behavior', async () => {
+  const { player, songs } = await createPlayer();
+  await player.setQueueList(songs.slice(0, 3));
+  await player.play(songs[0]);
+  player.loopMode = 'single';
+  await player.handleMediaControl({ action: 'next' });
+  assert.equal(player.activeSong.id, 'b');
+  player.currentTimeSeconds = 10;
+  await player.handleMediaControl({ action: 'previous' });
+  assert.equal(player.activeSong.id, 'b');
+  assert.equal(player.currentTimeSeconds, 0);
+  await player.handleMediaControl({ action: 'previous' });
+  assert.equal(player.activeSong.id, 'a');
+});
+
+test('system playback retains game checks and handles empty queues', async () => {
+  const { player, songs, playbackCalls } = await createPlayer();
+  await player.handleMediaControl({ action: 'play' });
+  await player.handleMediaControl({ action: 'next' });
+  await player.handleMediaControl({ action: 'previous' });
+  assert.equal(playbackCalls.filter(([method]) => method === 'play').length, 0);
+  await player.setQueueList([songs[0]]);
+  player.isListenMode = false;
+  await player.handleMediaControl({ action: 'play' });
+  assert.equal(player.status, 'Stopped', 'A media key must not bypass the game-running check');
+});
+
+test('system seek and volume use seconds, clamp values, and ignore invalid numbers', async () => {
+  const { player, songs } = await createPlayer();
+  await player.play(songs[0]);
+  await player.handleMediaControl({ action: 'seek', seconds: 25 });
+  await player.handleMediaControl({ action: 'seekBy', seconds: -5 });
+  assert.equal(player.currentTimeSeconds, 20);
+  await player.handleMediaControl({ action: 'seek', seconds: 999 });
+  assert.equal(player.currentTimeSeconds, 60);
+  await player.handleMediaControl({ action: 'seek', seconds: NaN });
+  assert.equal(player.currentTimeSeconds, 60);
+  await player.handleMediaControl({ action: 'volume', volume: 5 });
+  assert.equal(player.volume, 2);
+  await player.handleMediaControl({ action: 'volume', volume: NaN });
+  assert.equal(player.volume, 2);
+});
+
 test('adding a marker preserves the snapped note boundary through native sync and saving', async () => {
   const { player, songs, playbackCalls, songSettingsWrites } = await createPlayer();
   const onsets = [1001, 1004.9, 1005, 1008.384, 105348.384];
