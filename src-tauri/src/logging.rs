@@ -1,3 +1,4 @@
+use crate::log_privacy::redact_paths;
 use chrono::Local;
 use log::{Level, LevelFilter, Metadata, Record, SetLoggerError};
 use std::fs::{self, OpenOptions};
@@ -178,19 +179,9 @@ pub fn write_log_line(
     file: Option<&str>,
     line: Option<u32>,
 ) {
-    let time_str = Local::now().format("%H:%M:%S%.3f").to_string();
-    let file_display = file
-        .and_then(|f| Path::new(f).file_name()?.to_str())
-        .unwrap_or("unknown");
-    let line_num = line.unwrap_or(0);
-    let caller_str = caller.unwrap_or("app");
+    let formatted = format_log_line(message, caller, file, line);
 
-    let formatted = format!(
-        "[{}] [{}:{}] [{}] {}\n",
-        time_str, file_display, line_num, caller_str, message
-    );
-
-    // Also write to stdout/stderr in debug mode or console
+    // Both sinks receive exactly the same redacted diagnostic text.
     if cfg!(debug_assertions) {
         if channel == LogChannel::Errors {
             eprint!("{}", formatted);
@@ -203,9 +194,32 @@ pub fn write_log_line(
     let file_path = logs_dir.join(channel.file_name());
 
     let _guard = FILE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-    if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&file_path) {
+    if let Ok(mut f) = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&file_path)
+    {
         let _ = f.write_all(formatted.as_bytes());
     }
+}
+
+fn format_log_line(
+    message: &str,
+    caller: Option<&str>,
+    file: Option<&str>,
+    line: Option<u32>,
+) -> String {
+    let time_str = Local::now().format("%H:%M:%S%.3f").to_string();
+    let file_display = file
+        .and_then(|f| Path::new(f).file_name()?.to_str())
+        .unwrap_or("unknown");
+    let line_num = line.unwrap_or(0);
+    let caller_str = caller.unwrap_or("app");
+
+    redact_paths(&format!(
+        "[{}] [{}:{}] [{}] {}\n",
+        time_str, file_display, line_num, caller_str, message
+    ))
 }
 
 /// General log to app.log, filtered by verbosity
@@ -354,7 +368,7 @@ pub fn read_log_tail(path: &Path, max_lines: usize) -> String {
     }
 
     let start = lines.len().saturating_sub(max_lines);
-    lines[start..].join("\n")
+    redact_paths(&lines[start..].join("\n"))
 }
 
 /// Opens the logs directory in Windows Explorer (or default file manager)
@@ -383,6 +397,15 @@ pub struct AmpLogger;
 
 impl log::Log for AmpLogger {
     fn enabled(&self, metadata: &Metadata) -> bool {
+        // Enigo logs every key press/release at debug level. Suppress this chatter
+        // before formatting or writing to the console and disk; retain warnings/errors.
+        let target = metadata.target();
+        if (target == "enigo" || target.starts_with("enigo::"))
+            && metadata.level() > Level::Warn
+        {
+            return false;
+        }
+
         let verbosity = get_effective_verbosity();
         match metadata.level() {
             Level::Error => true,
@@ -488,6 +511,39 @@ mod tests {
 
         // All steps (2)
         assert!(should_write_message("Everything normal", ALL_STEPS_VERBOSITY));
+    }
+
+    #[test]
+    fn formatted_line_redacts_message_stack_and_caller_without_mutating_input() {
+        let message = r#"Failed to read "C:\\Users\\Jane Smith\\Music\\song.mid"
+  at C:\Users\Jane Smith\source\player.rs:42"#;
+        let original = message.to_owned();
+        let line = format_log_line(
+            message,
+            Some(r"C:\Users\Jane Smith\renderer"),
+            Some("config_manager.rs"),
+            Some(62),
+        );
+        assert!(!line.contains("Jane Smith"));
+        assert!(line.contains("[config_manager.rs:62]"));
+        assert!(line.contains(r"[%USERPROFILE%\renderer]"));
+        assert!(line.contains(r"%USERPROFILE%\\Music\\song.mid"));
+        assert!(line.contains(r"%USERPROFILE%\source\player.rs:42"));
+        assert_eq!(message, original);
+    }
+
+    #[test]
+    fn old_log_tail_is_redacted_without_rewriting_the_file() {
+        let directory =
+            std::env::temp_dir().join(format!("amp-private-tail-{}", std::process::id()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("old.log");
+        let original = "old entry\nC:\\Users\\Jane Smith\\Music\\song.mid\n";
+        fs::write(&path, original).unwrap();
+        assert_eq!(read_log_tail(&path, 1), r"%USERPROFILE%\Music\song.mid");
+        assert_eq!(fs::read_to_string(&path).unwrap(), original);
+        fs::remove_file(path).unwrap();
+        fs::remove_dir(directory).unwrap();
     }
 
     #[test]

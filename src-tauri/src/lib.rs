@@ -5,6 +5,7 @@ mod updates;
 mod storage;
 #[cfg(windows)]
 mod webview_data;
+mod log_privacy;
 pub mod logging;
 pub mod telemetry;
 use config_manager::{ConfigManager, ConfigSnapshot};
