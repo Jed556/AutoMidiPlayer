@@ -4,6 +4,7 @@ import { normalizePlayback } from '../utils/sessionPreferences.js';
 import type { UiPreferences } from '../../../shared/types/settings.js';
 import type { MidiFile, MidiTrack, TransposeMode, KeyChangeMarker } from '../../../shared/types/midi.js';
 import type { PlaybackStatus } from '../../../shared/types/playback.js';
+import type { MediaControlAction } from '../../../shared/types/mediaControls.js';
 import type { GameInfo } from '../../../shared/types/games.js';
 import type { SongSettingsContext } from '../../../shared/types/ipc.js';
 import { api, isTauri, loadedMidiToMidiFile, type RawLoadedMidiFile } from '../backend/index.js';
@@ -1162,6 +1163,27 @@ class PlaybackStore {
       await this.pause();
     } else {
       await this.play();
+    }
+  }
+
+  async handleMediaControl(command: MediaControlAction) {
+    switch (command.action) {
+      // OS play and pause commands are idempotent, unlike a play/pause key.
+      case 'play': if (!this.isPlaying) await this.play(); break;
+      case 'pause': if (this.isPlaying) await this.pause(); break;
+      case 'toggle': await this.togglePlay(); break;
+      case 'stop': await this.stop(); break;
+      case 'next': await this.nextTrack(true); break;
+      case 'previous': await this.prevTrack(); break;
+      case 'seek':
+        if (Number.isFinite(command.seconds)) await this.seek(command.seconds);
+        break;
+      case 'seekBy':
+        if (Number.isFinite(command.seconds)) await this.seek(this.currentTimeSeconds + command.seconds);
+        break;
+      case 'volume':
+        if (Number.isFinite(command.volume)) await this.setVolume(command.volume);
+        break;
     }
   }
 

@@ -1,4 +1,5 @@
 mod config_manager;
+mod media_controls;
 mod process_monitor;
 mod updates;
 mod storage;
@@ -146,43 +147,6 @@ pub fn apply_hotkeys_config(
 
         if let Err(e) = res {
             eprintln!("[Hotkeys] Failed to register shortcut '{}' for action '{}': {}", shortcut_str, binding.action, e);
-        }
-    }
-
-    // Hardware media keys
-    let app_m_pp = app.clone();
-    for s in ["mediaplaypause", "media_play_pause"] {
-        if let Ok(sc) = s.parse::<Shortcut>() {
-            let app_c = app_m_pp.clone();
-            let _ = global_shortcut.on_shortcut(sc, move |_app, _sc, event| {
-                if event.state() == ShortcutState::Pressed {
-                    let _ = app_c.emit("playback:toggle_play", ());
-                }
-            });
-        }
-    }
-
-    let app_m_next = app.clone();
-    for s in ["mediatracknext", "media_track_next"] {
-        if let Ok(sc) = s.parse::<Shortcut>() {
-            let app_c = app_m_next.clone();
-            let _ = global_shortcut.on_shortcut(sc, move |_app, _sc, event| {
-                if event.state() == ShortcutState::Pressed {
-                    let _ = app_c.emit("playback:next", ());
-                }
-            });
-        }
-    }
-
-    let app_m_prev = app.clone();
-    for s in ["mediatrackprevious", "media_track_prev", "media_track_previous"] {
-        if let Ok(sc) = s.parse::<Shortcut>() {
-            let app_c = app_m_prev.clone();
-            let _ = global_shortcut.on_shortcut(sc, move |_app, _sc, event| {
-                if event.state() == ShortcutState::Pressed {
-                    let _ = app_c.emit("playback:prev", ());
-                }
-            });
         }
     }
 
@@ -1968,6 +1932,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            media_controls::sync_media_controls,
             get_startup_status,
             updates::prepare_update,
             updates::download_update,
@@ -2081,8 +2046,13 @@ pub fn run() {
             capture_telemetry_exception,
             capture_telemetry_message,
         ])
-        .run(context)
-        .expect("error while building tauri application");
+        .build(context)
+        .expect("error while building tauri application")
+        .run(|_app, event| {
+            if matches!(event, tauri::RunEvent::Exit) {
+                media_controls::shutdown();
+            }
+        });
 }
 
 #[cfg(test)]

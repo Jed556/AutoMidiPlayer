@@ -10,6 +10,7 @@
   import { updateStore } from './lib/state/updateStore.svelte';
   import { t } from './lib/i18n';
   import { api, isTauri } from './lib/backend';
+  import { connectMediaControls } from './lib/backend/mediaControls';
 
   // Layout components
   import TitleBar from './lib/components/Layout/TitleBar.svelte';
@@ -31,6 +32,30 @@
   let startupReady = $state(false);
   let showStartup = $state(true);
   let showOnboarding = $state(false);
+
+  // Native media sessions work even when the window is minimized or unfocused.
+  // Publish progress once per second instead of on every engine/UI frame.
+  const mediaPositionSeconds = $derived(Math.floor(playbackStore.currentTimeSeconds));
+  $effect(() => {
+    if (!isTauri || !startupReady || showOnboarding || updateStore.isApplyingUpdate) return;
+    const song = playbackStore.activeSong;
+    void api.playback.syncMediaControls({
+      title: song?.title ?? '',
+      artist: song?.artist ?? '',
+      album: song?.album ?? '',
+      durationSeconds: song ? playbackStore.durationSeconds : 0,
+      positionSeconds: mediaPositionSeconds,
+      status: playbackStore.status,
+      volume: playbackStore.volume,
+    }).catch(error => console.error('Unable to sync system media controls:', error));
+  });
+
+  $effect(() => {
+    if (!isTauri || !startupReady || showOnboarding || updateStore.isApplyingUpdate) return;
+    return connectMediaControls(api.playback,
+      command => playbackStore.handleMediaControl(command),
+      error => console.error('Unable to handle system media control:', error));
+  });
 
   $effect(() => {
     if (showOnboarding && settingsStore.settings.onboardingCompleted) {

@@ -1,5 +1,5 @@
 import { DEFAULT_APP_SETTINGS } from '../../../shared/defaults/settings.js';
-import type { AppWindowApi, PedalState, SongSettingsContext, StorageUsage } from '$shared/types/ipc.js';
+import type { AppWindowApi, PedalState, SongSettingsContext, StorageUsage, LegacyDataStatus, LegacyMigrationResult } from '$shared/types/ipc.js';
 import type { GameStatus, GameConfigState, ConfigIssue, KeyboardLayoutConfig } from '$shared/types/games.js';
 import type { MidiFile } from '$shared/types/midi.js';
 import type { OnlineMidiItem } from '$shared/types/onlineMidi.js';
@@ -114,6 +114,8 @@ export function createAppApi(): AppWindowApi {
     },
 
     playback: {
+      onMediaControl: (callback) => listenTauri('playback:media_action', callback),
+      syncMediaControls: (snapshot) => invokeTauri<void>('Playback', 'sync_media_controls', { snapshot }),
       play: () => invokeTauri<boolean>('Playback', 'play_song', undefined),
       pause: () => invokeTauri<boolean>('Playback', 'pause_song', undefined),
       stop: () => invokeTauri<boolean>('Playback', 'stop_song', undefined),

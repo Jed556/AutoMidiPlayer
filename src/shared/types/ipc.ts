@@ -1,5 +1,6 @@
 import type { MidiFile } from './midi.js';
 import type { PlaybackStatus } from './playback.js';
+import type { MediaControlAction, MediaControlsSnapshot } from './mediaControls.js';
 import type { GameInfo, GameStatus, GameConfigState, KeyboardLayoutConfig } from './games.js';
 import type { AppSettings } from './settings.js';
 import type { OnlineMidiItem } from './onlineMidi.js';
@@ -23,6 +24,8 @@ export interface PedalState {
 }
 
 export interface PlaybackApi {
+  onMediaControl: (callback: (action: MediaControlAction) => void) => () => void;
+  syncMediaControls: (snapshot: MediaControlsSnapshot) => Promise<void>;
   play: (songId?: string) => Promise<boolean>;
   pause: () => Promise<boolean>;
   stop: () => Promise<boolean>;
