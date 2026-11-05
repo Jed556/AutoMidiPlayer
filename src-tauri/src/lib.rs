@@ -548,26 +548,18 @@ fn set_synth_mode(mode: String, state: State<AppState>) -> Result<bool, String> 
     Ok(true)
 }
 
+async fn activate_soundfont_paths(paths: Vec<PathBuf>, state: State<'_, AppState>) -> Result<bool, String> {
+    let synth = state.audio_synth.lock().unwrap().as_ref().cloned()
+        .ok_or("Audio synthesizer is not initialized")?;
+    // The blocking wait is off the UI executor; the loader owns IO and preparation.
+    tauri::async_runtime::spawn_blocking(move || synth.load_soundfont_paths(paths))
+        .await.map_err(|e| e.to_string())??;
+    Ok(true)
+}
+
 #[tauri::command]
-fn load_custom_soundfont(path: String, state: State<AppState>) -> Result<bool, String> {
-    let path_buf = PathBuf::from(&path);
-    if !path_buf.exists() {
-        return Err(format!("SoundFont file not found: {}", path));
-    }
-
-    let mut file = std::fs::File::open(&path_buf)
-        .map_err(|e| format!("Failed to open SoundFont file: {}", e))?;
-
-    let sf = SoundFont::new(&mut file)
-        .map_err(|e| format!("Failed to parse SoundFont: {:?}", e))?;
-
-    let sf_arc = Arc::new(sf);
-    if let Some(ref synth) = *state.audio_synth.lock().unwrap() {
-        synth.load_soundfont(sf_arc);
-        Ok(true)
-    } else {
-        Err("Audio synthesizer is not initialized".to_string())
-    }
+async fn load_custom_soundfont(path: String, state: State<'_, AppState>) -> Result<bool, String> {
+    activate_soundfont_paths(vec![PathBuf::from(path)], state).await
 }
 
 #[tauri::command]
@@ -596,7 +588,7 @@ fn list_soundfonts() -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
-fn add_soundfont(path: String, state: State<AppState>) -> Result<String, String> {
+fn add_soundfont(path: String) -> Result<String, String> {
     let path_buf = PathBuf::from(&path);
     if !path_buf.is_file() {
         return Err(format!("SoundFont file not found: {}", path));
@@ -604,7 +596,7 @@ fn add_soundfont(path: String, state: State<AppState>) -> Result<String, String>
 
     let mut file = std::fs::File::open(&path_buf)
         .map_err(|e| format!("Failed to open SoundFont file: {}", e))?;
-    let sf = SoundFont::new(&mut file)
+    let _sf = SoundFont::new(&mut file)
         .map_err(|e| format!("Failed to parse SoundFont: {:?}", e))?;
 
     let file_name = path_buf
@@ -622,38 +614,30 @@ fn add_soundfont(path: String, state: State<AppState>) -> Result<String, String>
             .map_err(|e| format!("Failed to copy SoundFont to SoundFonts folder: {}", e))?;
     }
 
-    if let Some(ref synth) = *state.audio_synth.lock().unwrap() {
-        synth.load_soundfont(Arc::new(sf));
-    }
-
     Ok(file_name)
 }
 
 #[tauri::command]
-fn load_soundfont(name: String, state: State<AppState>, app: AppHandle) -> Result<bool, String> {
-    if name == "default" || name == "legacy" {
-        return load_preset_soundfont(name, state, app);
+async fn configure_soundfont_stack(names: Vec<String>, state: State<'_, AppState>, app: AppHandle) -> Result<bool, String> {
+    if names.is_empty() || names.len() > 32 { return Err("Choose between 1 and 32 SoundFonts".into()); }
+    let mut paths = Vec::with_capacity(names.len());
+    for name in names {
+        let path = if matches!(name.as_str(), "default" | "generaluser" | "legacy") {
+            find_preset_soundfont(&app, &name).ok_or_else(|| format!("SoundFont not found: {name}"))?
+        } else {
+            if Path::new(&name).file_name().and_then(|n| n.to_str()) != Some(name.as_str()) {
+                return Err("Invalid SoundFont name".into());
+            }
+            amp_core::paths::soundfonts_dir().join(&name)
+        };
+        paths.push(path);
     }
+    activate_soundfont_paths(paths, state).await
+}
 
-    let sanitized_name = Path::new(&name)
-        .file_name()
-        .ok_or_else(|| "Invalid soundfont name".to_string())?;
-    let sf_path = amp_core::paths::soundfonts_dir().join(sanitized_name);
-    if !sf_path.is_file() {
-        return Err(format!("SoundFont not found: {}", name));
-    }
-
-    let mut file = std::fs::File::open(&sf_path)
-        .map_err(|e| format!("Failed to open SoundFont file: {}", e))?;
-    let sf = SoundFont::new(&mut file)
-        .map_err(|e| format!("Failed to parse SoundFont: {:?}", e))?;
-
-    if let Some(ref synth) = *state.audio_synth.lock().unwrap() {
-        synth.load_soundfont(Arc::new(sf));
-        Ok(true)
-    } else {
-        Err("Audio synthesizer is not initialized".to_string())
-    }
+#[tauri::command]
+async fn load_soundfont(name: String, state: State<'_, AppState>, app: AppHandle) -> Result<bool, String> {
+    configure_soundfont_stack(vec![name], state, app).await
 }
 
 #[tauri::command]
@@ -672,29 +656,21 @@ fn delete_soundfont(name: String, _state: State<AppState>, _app: AppHandle) -> R
 }
 
 #[tauri::command]
-fn load_preset_soundfont(name: String, state: State<AppState>, app: AppHandle) -> Result<bool, String> {
-    if let Some(path) = find_preset_soundfont(&app, &name) {
-        let mut file = std::fs::File::open(&path)
-            .map_err(|e| format!("Failed to open preset SoundFont ({}): {}", name, e))?;
-        let sf = SoundFont::new(&mut file)
-            .map_err(|e| format!("Failed to parse preset SoundFont ({}): {:?}", name, e))?;
-        if let Some(ref synth) = *state.audio_synth.lock().unwrap() {
-            synth.load_soundfont(Arc::new(sf));
-            return Ok(true);
-        }
-    }
-    Err(format!("Failed to find or reload preset SoundFont: {}", name))
+async fn load_preset_soundfont(name: String, state: State<'_, AppState>, app: AppHandle) -> Result<bool, String> {
+    if !matches!(name.as_str(), "default" | "generaluser" | "legacy") { return Err("Unknown preset SoundFont".into()); }
+    configure_soundfont_stack(vec![name], state, app).await
 }
 
 #[tauri::command]
-fn reset_soundfont(state: State<AppState>, app: AppHandle) -> Result<bool, String> {
-    load_preset_soundfont("default".to_string(), state, app)
+async fn reset_soundfont(state: State<'_, AppState>, app: AppHandle) -> Result<bool, String> {
+    load_preset_soundfont("default".to_string(), state, app).await
 }
 
 fn find_preset_soundfont(app: &AppHandle, name: &str) -> Option<PathBuf> {
     let filename = match name {
         "legacy" => "legacy.sf2",
-        _ => "default.sf2",
+        "generaluser" => "GeneralUser-GS.sf2",
+        _ => "TimGM6mb.sf2",
     };
     let rel_resource = format!("resources/{}", filename);
     if let Ok(path) = app.path().resolve(&rel_resource, tauri::path::BaseDirectory::Resource) {
@@ -1973,6 +1949,7 @@ pub fn run() {
             delete_soundfont,
             load_custom_soundfont,
             load_preset_soundfont,
+            configure_soundfont_stack,
             reset_soundfont,
             // Phase 5 library commands
             get_library_songs,

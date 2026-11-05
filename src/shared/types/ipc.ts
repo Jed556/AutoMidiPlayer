@@ -49,6 +49,7 @@ export interface PlaybackApi {
   loadMidiFile: (path: string) => Promise<MidiFile>;
   setUiFps: (fps: number) => Promise<boolean>;
   setSynthMode: (mode: 'adapted' | 'raw') => Promise<boolean>;
+  configureSoundFontStack: (names: string[]) => Promise<boolean>;
   listSoundFonts: () => Promise<string[]>;
   addSoundFont: (path: string) => Promise<string>;
   loadSoundFont: (name: string) => Promise<boolean>;

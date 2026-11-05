@@ -47,7 +47,7 @@ async function createPlayer({ writeQueue, readQueue, writeSongSettings, readSong
     },
     playback: new Proxy({}, { get: (_, method) => async (...args) => {
       playbackCalls.push([method, ...args]);
-      return playback[method] ? playback[method](...args) : true;
+      return playback[method] ? playback[method](...args) : method === 'listSoundFonts' ? [] : true;
     } }),
   };
   const mocks = {
@@ -1000,4 +1000,32 @@ test('window title reflects the active playing song without artist when unknown,
 
   await player.stop();
   assert.equal(player.windowTitle, 'Auto MIDI Player', 'Title reverts to app name when stopped');
+});
+
+
+test('SoundFont hierarchy persists, restores and keeps the selected single bank when disabled', async () => {
+  const {player, preferenceWrites, playbackCalls} = await createPlayer();
+  await player.refreshSoundFonts();
+  assert.deepEqual(player.soundFontOrder, ['default', 'generaluser', 'legacy']);
+  await player.applySoundFontConfiguration(['generaluser', 'legacy', 'default'], true, 'legacy');
+  await player.applySoundFontConfiguration(undefined, false);
+  assert.deepEqual(playbackCalls.filter(c => c[0] === 'configureSoundFontStack').at(-1)[1], ['legacy']);
+  const saved = preferenceWrites.at(-1).playback;
+  assert.equal(saved.soundFontGapFilling, false);
+  const restored = await createPlayer();
+  await restored.player.restoreSession({playback: saved});
+  assert.deepEqual(restored.player.soundFontOrder, ['generaluser', 'legacy', 'default']);
+  assert.equal(restored.player.soundFontId, 'legacy');
+  assert.equal(restored.player.soundFontGapFilling, false);
+});
+
+test('failed SoundFont configuration preserves the previous settings and can be retried', async () => {
+  let fail = true;
+  const {player} = await createPlayer({playback: {configureSoundFontStack: async () => { if(fail) throw new Error('Bad bank'); return true; }}});
+  await assert.rejects(player.applySoundFontConfiguration(['legacy','default','generaluser'], false, 'legacy'));
+  assert.deepEqual(player.soundFontOrder, ['default','generaluser','legacy']);
+  assert.equal(player.soundFontGapFilling, true);
+  fail = false;
+  await player.applySoundFontConfiguration(['legacy','default','generaluser'], false, 'legacy');
+  assert.equal(player.soundFontId, 'legacy');
 });

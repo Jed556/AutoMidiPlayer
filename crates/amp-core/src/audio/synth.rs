@@ -5,7 +5,9 @@ use std::time::Duration;
 use crossbeam_channel::{bounded, unbounded, Receiver, RecvTimeoutError, Sender};
 use rodio::cpal::{self, traits::{DeviceTrait, HostTrait}};
 use rodio::{DeviceSinkBuilder, MixerDeviceSink, Player, Source};
-use rustysynth::{SoundFont, Synthesizer, SynthesizerSettings};
+use rustysynth::{SoundFont, SynthesizerSettings};
+use super::font_stack::FontStack;
+use super::font_loader::{FontLoader, FontInput, PreparedSoundFont};
 
 const SAMPLE_RATE: u32 = 44100;
 const BLOCK_SIZE: usize = 256;
@@ -46,7 +48,7 @@ pub enum AudioCommand {
     SetMasterVolume(f32),
     SetTrackMuted { track_index: usize, muted: bool },
     SetTrackVolume { track_index: usize, volume: f32 },
-    LoadSoundFont(Arc<SoundFont>),
+    InstallSoundFont(Box<PreparedSoundFont>),
     AllNotesOff,
     Reset,
 }
@@ -57,8 +59,14 @@ pub enum AudioCommand {
 /// the system default audio device). Keeping the synth state here, behind a shared handle,
 /// lets a fresh stream pick up exactly where the previous one left off (loaded SoundFont,
 /// volumes, programs, sounding notes) instead of resetting everything.
+struct RetiringStack { stack: Box<FontStack>, quiet_samples: u32 }
+
 struct SynthEngine {
-    synth: Option<Synthesizer>,
+    synth: Option<Box<FontStack>>,
+    retiring: Vec<RetiringStack>,
+    reclaim_tx: Sender<Box<FontStack>>,
+    tail_left: Vec<f32>,
+    tail_right: Vec<f32>,
     cmd_rx: Receiver<AudioCommand>,
     sample_rate: u32,
     master_volume: f32,
@@ -74,11 +82,17 @@ impl SynthEngine {
     fn new(initial_soundfont: Option<Arc<SoundFont>>, cmd_rx: Receiver<AudioCommand>) -> Self {
         let synth = initial_soundfont.and_then(|sf| {
             let settings = SynthesizerSettings::new(SAMPLE_RATE as i32);
-            Synthesizer::new(&sf, &settings).ok()
+            FontStack::new(vec![sf], &settings).ok().map(Box::new)
         });
 
+        let (reclaim_tx, reclaim_rx) = unbounded::<Box<FontStack>>();
+        std::thread::Builder::new().name("soundfont-reclaimer".into()).spawn(move || {
+            while let Ok(stack) = reclaim_rx.recv() { drop(stack); }
+        }).expect("start SoundFont reclaimer");
         Self {
             synth,
+            retiring: Vec::with_capacity(16), reclaim_tx,
+            tail_left: vec![0.0; BLOCK_SIZE], tail_right: vec![0.0; BLOCK_SIZE],
             cmd_rx,
             sample_rate: SAMPLE_RATE,
             master_volume: crate::settings::defaults::value("/ui/playback/volume"),
@@ -93,39 +107,47 @@ impl SynthEngine {
 
     /// Drains pending commands and renders one interleaved stereo block into `out`.
     fn render_block(&mut self, out: &mut Vec<f32>) {
+        // SynthSource reuses this Vec. Keeping previous blocks would replay
+        // their samples and grow playback latency on every render.
+        out.clear();
+
         // 1. Drain pending commands
         self.process_pending_commands();
 
-        // 2. Render samples from synthesizer
-        out.clear();
-
-        if let Some(ref mut s) = self.synth {
-            self.left_buf.fill(0.0);
-            self.right_buf.fill(0.0);
-            s.render(&mut self.left_buf, &mut self.right_buf);
-
-            let vol = self.master_volume;
-            for i in 0..BLOCK_SIZE {
-                let l = (self.left_buf[i] * vol).clamp(-1.0, 1.0);
-                let r = (self.right_buf[i] * vol).clamp(-1.0, 1.0);
-                out.push(l);
-                out.push(r);
-            }
-        } else {
-            // Silence
-            out.resize(BLOCK_SIZE * 2, 0.0);
+        self.left_buf.fill(0.0); self.right_buf.fill(0.0);
+        if let Some(s) = &mut self.synth { s.render(&mut self.left_buf, &mut self.right_buf); }
+        let mut i = 0;
+        while i < self.retiring.len() {
+            let tail = &mut self.retiring[i];
+            tail.stack.render(&mut self.tail_left, &mut self.tail_right);
+            let quiet = self.tail_left.iter().chain(&self.tail_right).all(|v| v.abs() < 0.0000316227766);
+            if quiet && !tail.stack.has_pending_notes() { tail.quiet_samples += BLOCK_SIZE as u32; }
+            else { tail.quiet_samples = 0; }
+            for j in 0..BLOCK_SIZE { self.left_buf[j] += self.tail_left[j]; self.right_buf[j] += self.tail_right[j]; }
+            if tail.quiet_samples >= self.sample_rate / 4 {
+                let tail = self.retiring.swap_remove(i);
+                let _ = self.reclaim_tx.send(tail.stack);
+            } else { i += 1; }
+        }
+        for i in 0..BLOCK_SIZE {
+            out.push((self.left_buf[i] * self.master_volume).clamp(-1.0, 1.0));
+            out.push((self.right_buf[i] * self.master_volume).clamp(-1.0, 1.0));
         }
     }
 
-    /// Silences every voice (used after an output outage so queued notes don't burst out at once).
+    fn clear_retiring(&mut self) {
+        for tail in self.retiring.drain(..) { let _ = self.reclaim_tx.send(tail.stack); }
+    }
+
+    /// Panic/stop also clears retiring voices and effect tails.
     fn silence_all(&mut self) {
-        if let Some(ref mut s) = self.synth {
-            for ch in 0..16 {
-                s.process_midi_message(ch, 0xB0, 123, 0); // All Notes Off
-                s.process_midi_message(ch, 0xB0, 120, 0); // All Sound Off
-                s.process_midi_message(ch, 0xB0, 64, 0);  // Release Damper / Sustain
-            }
+        for map in &mut self.channel_controllers { map.remove(&64); }
+        if let Some(mut s) = self.synth.take() {
+            s.reset();
+            self.restore_channels(&mut s);
+            self.synth = Some(s);
         }
+        self.clear_retiring();
     }
 
     fn process_pending_commands(&mut self) {
@@ -135,18 +157,22 @@ impl SynthEngine {
                     if let Some(ref mut s) = self.synth {
                         s.note_on(channel as i32, note as i32, velocity as i32);
                     }
+                    if velocity == 0 {
+                        for tail in &mut self.retiring { tail.stack.note_off(channel as i32, note as i32); }
+                    }
                 }
                 AudioCommand::NoteOff { channel, note } => {
                     if let Some(ref mut s) = self.synth {
                         s.note_off(channel as i32, note as i32);
                     }
+                    for tail in &mut self.retiring { tail.stack.note_off(channel as i32, note as i32); }
                 }
                 AudioCommand::ControlChange { channel, controller, value } => {
                     let ch = channel as usize;
                     if ch < 16 {
                         if controller == 121 {
-                            // Reset All Controllers: clears channel controller map
-                            self.channel_controllers[ch].clear();
+                            // Preserve bank, volume and pan; clear only controllers reset by CC121.
+                            self.channel_controllers[ch].retain(|cc, _| ![1, 33, 11, 43, 64, 98, 99, 100, 101].contains(cc));
                         } else if controller < 120 {
                             self.channel_controllers[ch].insert(controller, value);
                         }
@@ -154,6 +180,7 @@ impl SynthEngine {
                     if let Some(ref mut s) = self.synth {
                         s.process_midi_message(channel as i32, 0xB0, controller as i32, value as i32);
                     }
+                    for tail in &mut self.retiring { tail.stack.process_midi_message(channel as i32, 0xB0, controller as i32, value as i32); }
                 }
                 AudioCommand::ProgramChange { channel, program } => {
                     let ch = channel as usize;
@@ -163,6 +190,7 @@ impl SynthEngine {
                     if let Some(ref mut s) = self.synth {
                         s.process_midi_message(channel as i32, 0xC0, program as i32, 0);
                     }
+                    for tail in &mut self.retiring { tail.stack.process_midi_message(channel as i32, 0xC0, program as i32, 0); }
                 }
                 AudioCommand::SetMasterVolume(vol) => {
                     self.master_volume = vol.clamp(0.0, 2.0);
@@ -177,48 +205,59 @@ impl SynthEngine {
                 AudioCommand::SetTrackVolume { track_index, volume } => {
                     self.track_volumes.insert(track_index, volume.clamp(0.0, 1.0));
                 }
-                AudioCommand::LoadSoundFont(sf) => {
-                    let settings = SynthesizerSettings::new(self.sample_rate as i32);
-                    if let Ok(mut new_synth) = Synthesizer::new(&sf, &settings) {
-                        // Re-apply cached channel state (Bank Selects, Program Changes, Continuous Controllers)
-                        // so changing SoundFonts during playback doesn't reset all channels to Grand Piano (Program 0)
-                        // or default volume/expression/pan.
-                        for ch in 0..16 {
-                            // 1. Bank Select MSB (CC 0) and LSB (CC 32)
-                            if let Some(&bank_msb) = self.channel_controllers[ch].get(&0) {
-                                new_synth.process_midi_message(ch as i32, 0xB0, 0, bank_msb as i32);
-                            }
-                            if let Some(&bank_lsb) = self.channel_controllers[ch].get(&32) {
-                                new_synth.process_midi_message(ch as i32, 0xB0, 32, bank_lsb as i32);
-                            }
-
-                            // 2. Program Change
-                            let prog = self.channel_programs[ch];
-                            new_synth.process_midi_message(ch as i32, 0xC0, prog as i32, 0);
-
-                            // 3. Continuous Controllers (volume CC 7, pan CC 10, expression CC 11, sustain CC 64, etc.)
-                            for (&cc, &val) in &self.channel_controllers[ch] {
-                                if cc != 0 && cc != 32 {
-                                    new_synth.process_midi_message(ch as i32, 0xB0, cc as i32, val as i32);
-                                }
-                            }
-                        }
-                        self.synth = Some(new_synth);
+                AudioCommand::InstallSoundFont(prepared) => {
+                    if !prepared.is_current() {
+                        let _ = prepared.reply.send(Err("SoundFont change superseded".into()));
+                        let _ = self.reclaim_tx.send(prepared.stack);
+                    } else {
+                        self.replace_fonts(prepared.stack);
+                        let _ = prepared.reply.send(Ok(()));
                     }
                 }
                 AudioCommand::AllNotesOff => self.silence_all(),
                 AudioCommand::Reset => {
                     self.channel_programs = [0; 16];
-                    for map in &mut self.channel_controllers {
-                        map.clear();
-                    }
-                    if let Some(ref mut s) = self.synth {
-                        s.reset();
-                    }
+                    for map in &mut self.channel_controllers { map.clear(); }
+                    if let Some(ref mut s) = self.synth { s.reset(); }
+                    self.clear_retiring();
                 }
             }
         }
     }
+
+    fn replace_fonts(&mut self, mut new_synth: Box<FontStack>) {
+        self.restore_channels(&mut new_synth);
+        if let Some(old) = self.synth.replace(new_synth) {
+            self.retiring.push(RetiringStack { stack: old, quiet_samples: 0 });
+        }
+    }
+
+    fn restore_channels(&self, new_synth: &mut FontStack) {
+        // Re-apply cached channel state (Bank Selects, Program Changes, Continuous Controllers)
+        // so changing SoundFonts during playback doesn't reset all channels to Grand Piano (Program 0)
+        // or default volume/expression/pan.
+        for ch in 0..16 {
+            // 1. Bank Select MSB (CC 0) and LSB (CC 32)
+            if let Some(&bank_msb) = self.channel_controllers[ch].get(&0) {
+                new_synth.process_midi_message(ch as i32, 0xB0, 0, bank_msb as i32);
+            }
+            if let Some(&bank_lsb) = self.channel_controllers[ch].get(&32) {
+                new_synth.process_midi_message(ch as i32, 0xB0, 32, bank_lsb as i32);
+            }
+
+            // 2. Program Change
+            let prog = self.channel_programs[ch];
+            new_synth.process_midi_message(ch as i32, 0xC0, prog as i32, 0);
+
+            // 3. Continuous Controllers (volume CC 7, pan CC 10, expression CC 11, sustain CC 64, etc.)
+            for (&cc, &val) in &self.channel_controllers[ch] {
+                if cc != 0 && cc != 32 {
+                    new_synth.process_midi_message(ch as i32, 0xB0, cc as i32, val as i32);
+                }
+            }
+        }
+    }
+
 }
 
 /// Rodio source that pulls audio blocks from the shared [`SynthEngine`].
@@ -367,6 +406,7 @@ fn run_output_supervisor(
     control_rx: Receiver<OutputControl>,
 ) {
     loop {
+        if current.is_none() { lock_engine(&engine).process_pending_commands(); }
         let timeout = if current.is_some() { DEVICE_POLL_INTERVAL } else { DEVICE_RETRY_INTERVAL };
         let rebuild = match control_rx.recv_timeout(timeout) {
             Ok(OutputControl::Shutdown) | Err(RecvTimeoutError::Disconnected) => return,
@@ -442,7 +482,7 @@ impl AudioDevice {
 
         match init_rx.recv() {
             Ok(Ok(())) => Ok(Self {
-                synth: AudioSynth { cmd_tx },
+                synth: AudioSynth { loader: Arc::new(FontLoader::new(cmd_tx.clone(), SAMPLE_RATE)), cmd_tx },
                 control_tx,
                 supervisor: Some(supervisor),
             }),
@@ -474,6 +514,7 @@ impl Drop for AudioDevice {
 /// Send + Sync handle to send audio events from any playback thread without locking.
 #[derive(Clone)]
 pub struct AudioSynth {
+    loader: Arc<FontLoader>,
     cmd_tx: Sender<AudioCommand>,
 }
 
@@ -506,8 +547,17 @@ impl AudioSynth {
         let _ = self.cmd_tx.send(AudioCommand::SetTrackVolume { track_index, volume });
     }
 
-    pub fn load_soundfont(&self, soundfont: Arc<SoundFont>) {
-        let _ = self.cmd_tx.send(AudioCommand::LoadSoundFont(soundfont));
+    pub fn load_soundfont(&self, soundfont: Arc<SoundFont>) -> Result<(), String> {
+        self.load_soundfont_stack(vec![soundfont])
+    }
+
+    pub fn load_soundfont_stack(&self, fonts: Vec<Arc<SoundFont>>) -> Result<(), String> {
+        self.loader.load(FontInput::Fonts(fonts))
+    }
+
+    /// Disk IO and synth preparation run on the loader; success means handoff completed.
+    pub fn load_soundfont_paths(&self, paths: Vec<std::path::PathBuf>) -> Result<(), String> {
+        self.loader.load(FontInput::Paths(paths))
     }
 
     pub fn all_notes_off(&self) {
@@ -518,3 +568,7 @@ impl AudioSynth {
         let _ = self.cmd_tx.send(AudioCommand::Reset);
     }
 }
+
+#[cfg(test)]
+#[path = "switch_tests.rs"]
+mod switch_tests;
