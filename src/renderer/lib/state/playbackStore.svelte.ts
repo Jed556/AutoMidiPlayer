@@ -76,9 +76,17 @@ class PlaybackStore {
     return this.activeSong?.keyOffset ?? 0;
   }
 
+  get isAutoCorrectActive() {
+    if (!this.activeSong || this.transposeMode !== 'Smart') return false;
+    const threshold = settingsStore.settings.autoCorrectThreshold;
+    const instrument = gameStore.activeInstrument;
+    const keyCount = instrument?.keyCount ?? instrument?.notes?.length ?? 0;
+    // Only apply the detected base to instruments covered by auto-correction.
+    return threshold > 0 && keyCount > 0 && keyCount <= threshold;
+  }
+
   get keyOffsetBase() {
-    // A saved base key is Smart mode's zero point, independent of scale correction.
-    return this.activeSong && this.transposeMode === 'Smart' ? this.baseKeyOffset : 0;
+    return this.isAutoCorrectActive ? this.baseKeyOffset : 0;
   }
 
   get effectiveKeyOffset() {
@@ -98,8 +106,8 @@ class PlaybackStore {
   get activeKeyAdjustment() {
     const marker = this.activeKeyMarker;
     if (marker) return { marker, offset: marker.keyOffset };
-    // Smart mode stays visible even when the detected key needs no correction.
-    if (this.activeSong && this.transposeMode === 'Smart') {
+    // Show Smart's indicator only while the threshold allows auto-correction.
+    if (this.isAutoCorrectActive) {
       return { marker: null, offset: this.effectiveKeyOffset };
     }
     return null;

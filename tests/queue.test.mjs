@@ -312,18 +312,31 @@ test('manual key offsets stay relative to the detected base and save to the sele
   await player.flushPendingSongSettings();
 });
 
-test('Smart uses the saved base as zero regardless of scale-correction threshold or instrument size', async () => {
-  const { player, songs, gameStore, settingsStore } = await createPlayer();
+test('Smart applies the saved base only to instruments within the auto-correct threshold', async () => {
+  const { player, songs, gameStore, settingsStore, playbackCalls } = await createPlayer();
   player.loadSong({ ...songs[0], baseKey: -2, baseKeyOffset: -2, keyOffset: 1 });
-  assert.equal(player.keyOffsetBase, -2);
-  assert.equal(player.effectiveKeyOffset, -1);
-  gameStore.activeInstrument = { id: 'lyre', keyCount: 21 };
-  assert.equal(player.effectiveKeyOffset, -1);
-  settingsStore.settings.autoCorrectThreshold = 0;
-  assert.equal(player.effectiveKeyOffset, -1);
+  for (const [threshold, instrument, expectedBase] of [
+    [21, null, 0],
+    [0, { id: 'lyre', keyCount: 21 }, 0],
+    [15, { id: 'lyre', keyCount: 21 }, 0],
+    [21, { id: 'lyre', keyCount: 21 }, -2],
+    [32, { id: 'lyre', keyCount: 21 }, -2],
+    [21, { id: 'piano', keyCount: 88 }, 0],
+    [88, { id: 'piano', keyCount: 88 }, -2],
+    [21, { id: 'empty', keyCount: 0 }, 0],
+    [21, { id: 'custom', notes: [60, 62, 64] }, -2],
+  ]) {
+    settingsStore.settings.autoCorrectThreshold = threshold;
+    gameStore.activeInstrument = instrument;
+    assert.equal(player.keyOffsetBase, expectedBase, `threshold ${threshold}, instrument ${instrument?.id}`);
+    assert.equal(player.effectiveKeyOffset, 1 + expectedBase);
+    await player.syncKeyOffset();
+    assert.deepEqual(playbackCalls.at(-1), ['setKeyOffset', 1 + expectedBase]);
+    assert.equal(player.keyOffset, 1, 'The manual offset is preserved');
+    assert.equal(player.activeSong.baseKey, -2, 'The saved base is preserved');
+    assert.equal(player.baseKeyOffset, -2);
+  }
   settingsStore.settings.autoCorrectThreshold = 21;
-  gameStore.activeInstrument = { id: 'piano', keyCount: 88 };
-  assert.equal(player.keyOffsetBase, -2);
   gameStore.activeInstrument = { id: 'lyre', keyCount: 21 };
   for (const mode of ['Ignore', 'Up', 'Down']) {
     player.transposeMode = mode;
@@ -419,19 +432,20 @@ test('the key indicator follows the latest enabled marker across seeks and song 
   assert.equal(player.activeKeyMarker, null);
 });
 
-test('selecting Smart shows its indicator even at zero offset or without detected-key correction', async () => {
+test('Smart shows its indicator only when the auto-correct threshold includes the instrument', async () => {
   const { player, songs, gameStore, settingsStore } = await createPlayer();
   assert.equal(player.activeKeyAdjustment, null, 'No song has no key indicator');
   gameStore.activeInstrument = { id: 'lyre', keyCount: 21 };
   for (const [baseKey, threshold, keyCount, expected] of [
-    [0, 21, 21, 0], [5, 0, 21, 5], [5, 21, 88, 5], [5, 21, 21, 5],
+    [0, 21, 21, 0], [5, 0, 21, null], [5, 15, 21, null], [5, 21, 88, null],
+    [5, 21, 21, 5], [5, 32, 21, 5], [5, 21, 0, null],
   ]) {
     settingsStore.settings.autoCorrectThreshold = threshold;
     gameStore.activeInstrument.keyCount = keyCount;
     player.loadSong({ ...songs[0], baseKey, baseKeyOffset: baseKey, transposeMode: 'Ignore' });
     assert.equal(player.activeKeyAdjustment, null);
     player.setTransposeMode('Smart');
-    assert.deepEqual(player.activeKeyAdjustment, { marker: null, offset: expected });
+    assert.deepEqual(player.activeKeyAdjustment, expected === null ? null : { marker: null, offset: expected });
     for (const mode of ['Ignore', 'Up', 'Down']) {
       player.setTransposeMode(mode);
       assert.equal(player.activeKeyAdjustment, null);
@@ -441,14 +455,20 @@ test('selecting Smart shows its indicator even at zero offset or without detecte
 });
 
 test('marker indicators override Smart and disabling markers restores its check at zero', async () => {
-  const { player, songs } = await createPlayer();
+  const { player, songs, gameStore, settingsStore } = await createPlayer();
+  gameStore.activeInstrument = { id: 'lyre', keyCount: 21 };
   const marker = { id: 'marker', timeMs: 1000, keyOffset: 7 };
   player.loadSong({ ...songs[0], keyMarkers: [marker] });
   assert.deepEqual(player.activeKeyAdjustment, { marker: null, offset: 0 });
   player.currentTimeSeconds = 1;
   assert.equal(player.activeKeyAdjustment.marker.id, 'marker');
   assert.equal(player.activeKeyAdjustment.offset, 7);
+  settingsStore.settings.autoCorrectThreshold = 0;
+  assert.equal(player.activeKeyAdjustment.marker.id, 'marker', 'Markers remain visible with auto-correction off');
+  assert.equal(player.activeKeyAdjustment.offset, 7);
   player.enableKeyChangeMarkers = false;
+  assert.equal(player.activeKeyAdjustment, null);
+  settingsStore.settings.autoCorrectThreshold = 21;
   assert.deepEqual(player.activeKeyAdjustment, { marker: null, offset: 0 });
   player.enableKeyChangeMarkers = true;
   player.currentTimeSeconds = 0;
