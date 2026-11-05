@@ -485,6 +485,7 @@ dependencies = [
  "log",
  "objc2",
  "objc2-app-kit",
+ "regex",
  "reqwest",
  "sentry",
  "serde",

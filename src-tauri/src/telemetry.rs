@@ -67,7 +67,7 @@ impl TelemetryClient {
 
     fn capture_message(&self, message: &str, level: Level) -> sentry::types::Uuid {
         // Give each operation its own scope while sharing the live client/session.
-        Hub::new_from_top(&self.hub).capture_message(message, level)
+        Hub::new_from_top(&self.hub).capture_message(&crate::log_privacy::redact_paths(message), level)
     }
 }
 
@@ -414,6 +414,18 @@ mod tests {
             },
             transport,
         )
+    }
+
+    #[test]
+    fn diagnostic_messages_are_redacted_before_reaching_transport() {
+        let (state, transport) = test_state(false);
+        state.client.as_ref().unwrap().capture_message(
+            r"Could not read C:\Users\Jane Smith\Music\song.mid",
+            Level::Error,
+        );
+        let events = transport.events.lock().unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].message.as_deref(), Some(r"Could not read %USERPROFILE%\Music\song.mid"));
     }
 
     #[test]

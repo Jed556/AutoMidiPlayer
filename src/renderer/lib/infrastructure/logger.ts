@@ -1,3 +1,5 @@
+import { redactLogPaths } from './logPrivacy.ts';
+
 const isTauriEnv =
   typeof window !== 'undefined' &&
   ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
@@ -9,7 +11,7 @@ class Logger {
    * Logs a general info message to app.log and browser console
    */
   async info(message: string, caller?: string, file?: string, line?: number) {
-    console.log(`[INFO] ${caller ? `[${caller}] ` : ''}${message}`);
+    console.log(redactLogPaths(`[INFO] ${caller ? `[${caller}] ` : ''}${message}`));
     this.appendLocal(`[INFO] ${caller ? `[${caller}] ` : ''}${message}`);
 
     if (isTauriEnv) {
@@ -24,7 +26,7 @@ class Logger {
           line,
         });
       } catch (err) {
-        console.warn('[LoggerService] Failed to invoke log_message:', err);
+        console.warn('[LoggerService] Failed to invoke log_message:', redactLogPaths(String(err)));
       }
     }
   }
@@ -33,7 +35,7 @@ class Logger {
    * Logs a warning to app.log and browser console
    */
   async warn(message: string, caller?: string, file?: string, line?: number) {
-    console.warn(`[WARN] ${caller ? `[${caller}] ` : ''}${message}`);
+    console.warn(redactLogPaths(`[WARN] ${caller ? `[${caller}] ` : ''}${message}`));
     this.appendLocal(`[WARN] ${caller ? `[${caller}] ` : ''}${message}`);
 
     if (isTauriEnv) {
@@ -48,7 +50,7 @@ class Logger {
           line,
         });
       } catch (err) {
-        console.warn('[LoggerService] Failed to invoke log_message:', err);
+        console.warn('[LoggerService] Failed to invoke log_message:', redactLogPaths(String(err)));
       }
     }
   }
@@ -71,7 +73,7 @@ class Logger {
     }
 
     const fullMsg = stackStr ? `${message}\n${stackStr}` : message;
-    console.error(`[ERROR] ${caller ? `[${caller}] ` : ''}${fullMsg}`);
+    console.error(redactLogPaths(`[ERROR] ${caller ? `[${caller}] ` : ''}${fullMsg}`));
     this.appendLocal(`[ERROR] ${caller ? `[${caller}] ` : ''}${fullMsg}`);
 
     if (isTauriEnv) {
@@ -86,7 +88,7 @@ class Logger {
           line,
         });
       } catch (err) {
-        console.warn('[LoggerService] Failed to invoke log_message:', err);
+        console.warn('[LoggerService] Failed to invoke log_message:', redactLogPaths(String(err)));
       }
     }
   }
@@ -97,7 +99,7 @@ class Logger {
    */
   async step(stepName: string, details?: string) {
     const logStr = details ? `STEP: ${stepName} | ${details}` : `STEP: ${stepName}`;
-    console.debug(`[STEP] ${logStr}`);
+    console.debug(redactLogPaths(`[STEP] ${logStr}`));
     this.appendLocal(logStr);
 
     if (isTauriEnv) {
@@ -105,7 +107,7 @@ class Logger {
         const { invoke } = await import('@tauri-apps/api/core');
         await invoke('log_step', { step: stepName, details });
       } catch (err) {
-        console.warn('[LoggerService] Failed to invoke log_step:', err);
+        console.warn('[LoggerService] Failed to invoke log_step:', redactLogPaths(String(err)));
       }
     }
   }
@@ -115,7 +117,7 @@ class Logger {
    */
   async pageVisit(pageName: string, source?: string) {
     const detailStr = source ? `page=${pageName} | source=${source}` : `page=${pageName}`;
-    console.debug(`[PAGE_VISIT] ${detailStr}`);
+    console.debug(redactLogPaths(`[PAGE_VISIT] ${detailStr}`));
     this.appendLocal(`PAGE_VISIT: ${detailStr}`);
 
     if (isTauriEnv) {
@@ -123,7 +125,7 @@ class Logger {
         const { invoke } = await import('@tauri-apps/api/core');
         await invoke('log_page_visit', { pageName, source });
       } catch (err) {
-        console.warn('[LoggerService] Failed to invoke log_page_visit:', err);
+        console.warn('[LoggerService] Failed to invoke log_page_visit:', redactLogPaths(String(err)));
       }
     }
   }
@@ -139,7 +141,7 @@ class Logger {
         await invoke('clear_app_logs');
         return true;
       } catch (err) {
-        console.warn('[LoggerService] Failed to clear app logs:', err);
+        console.warn('[LoggerService] Failed to clear app logs:', redactLogPaths(String(err)));
         return false;
       }
     }
@@ -156,7 +158,7 @@ class Logger {
         await invoke('open_logs_folder');
         return true;
       } catch (err) {
-        console.warn('[LoggerService] Failed to open logs folder:', err);
+        console.warn('[LoggerService] Failed to open logs folder:', redactLogPaths(String(err)));
         return false;
       }
     }
@@ -170,9 +172,9 @@ class Logger {
     if (isTauriEnv) {
       try {
         const { invoke } = await import('@tauri-apps/api/core');
-        return await invoke<string>('read_log_tail', { channel, maxLines });
+        return redactLogPaths(await invoke<string>('read_log_tail', { channel, maxLines }));
       } catch (err) {
-        console.warn('[LoggerService] Failed to read log tail:', err);
+        console.warn('[LoggerService] Failed to read log tail:', redactLogPaths(String(err)));
         return '';
       }
     }
@@ -189,7 +191,7 @@ class Logger {
         await invoke('set_crash_log_verbosity', { verbosity });
         return true;
       } catch (err) {
-        console.warn('[LoggerService] Failed to set crash log verbosity:', err);
+        console.warn('[LoggerService] Failed to set crash log verbosity:', redactLogPaths(String(err)));
         return false;
       }
     }
@@ -206,7 +208,7 @@ class Logger {
         await invoke('set_debug_mode', { enabled });
         return true;
       } catch (err) {
-        console.warn('[LoggerService] Failed to set debug mode:', err);
+        console.warn('[LoggerService] Failed to set debug mode:', redactLogPaths(String(err)));
         return false;
       }
     }
@@ -215,7 +217,7 @@ class Logger {
 
   private appendLocal(msg: string) {
     const ts = new Date().toISOString().substring(11, 23);
-    this.localBuffer.push(`[${ts}] ${msg}`);
+    this.localBuffer.push(`[${ts}] ${redactLogPaths(msg)}`);
     if (this.localBuffer.length > 500) {
       this.localBuffer.shift();
     }
