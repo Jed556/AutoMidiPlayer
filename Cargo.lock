@@ -497,6 +497,7 @@ dependencies = [
  "tauri-plugin-global-shortcut",
  "tauri-plugin-updater",
  "trash",
+ "webview2-com",
  "windows-sys 0.61.2",
  "x11rb",
 ]

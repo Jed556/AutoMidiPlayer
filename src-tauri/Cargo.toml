@@ -37,6 +37,7 @@ sentry = "0.49.3"
 reqwest = { version = "0.13.5", default-features = false, features = ["native-tls"] }
 
 [target.'cfg(windows)'.dependencies]
+webview2-com = "0.39.1"
 windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging", "Win32_UI_Shell", "Win32_UI_Input_KeyboardAndMouse", "Win32_Foundation", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_LibraryLoader"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
