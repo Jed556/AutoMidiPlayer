@@ -27,6 +27,52 @@ fn render(engine: &mut SynthEngine) -> Vec<f32> {
 }
 
 #[test]
+fn rapid_track_muting_sends_note_off_only_after_the_last_shared_synth_owner() {
+    use crate::{KeyboardLayout, NoteKeyMapping, ParsedMidi, PlaybackEngine, PlayerEvent, TempoMap, TimedNoteEvent};
+    use std::sync::mpsc;
+
+    for mode in [SynthMode::Adapted, SynthMode::Raw] {
+        // Capture synth commands without opening an audio device or sending keys.
+        let (cmd_tx, cmd_rx) = unbounded();
+        let synth = AudioSynth { loader: Arc::new(FontLoader::new(cmd_tx.clone(), SAMPLE_RATE)), cmd_tx };
+        let event = |time_us, track_index, is_note_on| TimedNoteEvent {
+            time_us, track_index, channel: 0, note: 60, velocity: if is_note_on { 90 } else { 0 }, is_note_on,
+        };
+        let song = ParsedMidi {
+            title: "Muted synth owners".into(), duration_us: 5_000_000, bpm: 120.0, ppqn: 480, tracks: vec![],
+            events: vec![event(0, 0, true), event(0, 1, true), event(5_000_000, 0, false), event(5_000_000, 1, false)],
+            control_events: vec![], tempo_map: TempoMap::new(480, &[]), key_signatures: vec![],
+        };
+        let (tx, rx) = mpsc::channel();
+        let player = PlaybackEngine::new(Some(song), NoteKeyMapping::new(KeyboardLayout::Diatonic21),
+            false, Some(synth), move |event| { let _ = tx.send(event); });
+        player.set_listen_mode(true);
+        player.set_synth_mode(mode);
+        player.set_note_timing(true, 0);
+        let wait_for_tracks = |count| {
+            let deadline = Instant::now() + Duration::from_secs(1);
+            loop {
+                let event = rx.recv_timeout(deadline.saturating_duration_since(Instant::now())).expect("track notes");
+                if matches!(event, PlayerEvent::ActiveTrackNotes(notes) if notes.len() == count) { break; }
+            }
+        };
+        player.play();
+        wait_for_tracks(2);
+        assert_eq!(cmd_rx.try_iter().filter(|cmd| matches!(cmd, AudioCommand::NoteOn { channel: 0, note: 60, .. })).count(), 2);
+        for _ in 0..20 {
+            player.set_track_muted(0, true);
+            player.set_track_muted(0, false);
+        }
+        wait_for_tracks(1);
+        assert!(!cmd_rx.try_iter().any(|cmd| matches!(cmd, AudioCommand::NoteOff { .. })),
+            "muting one track must preserve another track's shared channel and pitch");
+        player.set_track_muted(1, true);
+        wait_for_tracks(0);
+        assert_eq!(cmd_rx.try_iter().filter(|cmd| matches!(cmd, AudioCommand::NoteOff { channel: 0, note: 60 })).count(), 1);
+    }
+}
+
+#[test]
 fn reused_output_buffer_contains_only_the_current_audio_block() {
     let (_tx, rx) = unbounded();
     let mut engine = SynthEngine::new(None, rx);
