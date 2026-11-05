@@ -13,6 +13,11 @@
   import type { RollNote, KeyChangeMarker } from '$shared/types/midi';
   import MarkerActionPopup from './MarkerActionPopup.svelte';
   import FluentIcon from '../Icons/FluentIcon.svelte';
+  import {
+    calculateFitKeyHeight,
+    calculateScrollYFromCenter,
+    interpolateZoomAndCenterScroll,
+  } from './studioDisplay';
 
   interface Props {
     renderTracks: StudioRenderTrack[];
@@ -47,6 +52,8 @@
 
   let canvasContainer: HTMLDivElement;
   let canvas: HTMLCanvasElement;
+  let overlayCanvas: HTMLCanvasElement;
+  let overlayCtx: CanvasRenderingContext2D | null = null;
   let effectsCanvas: HTMLCanvasElement;
   let strikeEffects: PianoStrikeEffects | null = null;
   let reducedMotion = $state(false);
@@ -65,13 +72,14 @@
     ...renderTracks.filter(track => track.index === highlightedTrackIndex),
   ]);
   let dirty = true;
+  let overlayDirty = true;
   let width = 0;
   let height = 0;
   let pixelRatio = 1;
   let sizeDirty = false;
   $effect(() => {
     uiStore.activeTab;
-    zoomX; zoomY; scrollX; scrollY; hoverTime; isLockedToPlayhead;
+    zoomX; zoomY; scrollX; scrollY; isLockedToPlayhead;
     renderTracks; themeStore.themeProgress; themeStore.accentColor;
     highlightedTrackIndex; animationStore.durationMs; reducedMotion; hoveredTarget;
     playbackStore.currentTimeSeconds; playbackStore.isPlaying;
@@ -79,6 +87,11 @@
     playbackStore.selectedMarkerId;
     JSON.stringify(playbackStore.activeSong?.keyMarkers);
     dirty = true;
+  });
+
+  $effect(() => {
+    hoverTime; hoveredMarker; isDraggingMarker; dragCurrentTimeMs;
+    overlayDirty = true;
   });
 
   // Hover state
@@ -186,7 +199,8 @@
   let zoomYAnimDuration = 0;
   let zoomYFrom = 0;
   let zoomYTo = 0;
-  let zoomYCenterFromTop = 0;
+  let zoomYCenterFromTopFrom = 0;
+  let zoomYCenterFromTopTo = 0;
 
   function easeOutCubic(t: number): number {
     return 1 - Math.pow(1 - t, 3);
@@ -203,10 +217,15 @@
     if (animZoomXId !== null) {
       cancelAnimationFrame(animZoomXId);
       animZoomXId = null;
+      targetZoomX = zoomX;
     }
     if (animZoomYId !== null) {
       cancelAnimationFrame(animZoomYId);
       animZoomYId = null;
+      targetZoomY = zoomY;
+      const ch = canvasContainer?.clientHeight || 400;
+      zoomYCenterFromTopTo = (scrollY + ch / 2) / (zoomY || 1);
+      zoomYCenterFromTopFrom = zoomYCenterFromTopTo;
     }
   }
 
@@ -283,11 +302,14 @@
     targetZoomY = clamped;
 
     const containerH = canvasContainer?.clientHeight || 400;
+    const currentCenter = (scrollY + containerH / 2) / (zoomY || 1);
 
     if (specificCenterFromTop !== undefined) {
-      zoomYCenterFromTop = specificCenterFromTop;
-    } else if (animZoomYId === null) {
-      zoomYCenterFromTop = (scrollY + containerH / 2) / (zoomY || 1);
+      zoomYCenterFromTopFrom = currentCenter;
+      zoomYCenterFromTopTo = specificCenterFromTop;
+    } else if (animZoomYId === null || zoomYCenterFromTopFrom !== zoomYCenterFromTopTo) {
+      zoomYCenterFromTopFrom = currentCenter;
+      zoomYCenterFromTopTo = currentCenter;
     }
 
     const duration = getAnimationDuration();
@@ -297,8 +319,24 @@
         animZoomYId = null;
       }
       zoomY = clamped;
-      const maxScrollY = Math.max(0, TOTAL_PITCHES * clamped - containerH);
-      scrollY = Math.max(0, Math.min(maxScrollY, zoomYCenterFromTop * clamped - containerH / 2));
+      targetZoomY = clamped;
+      zoomYCenterFromTopFrom = zoomYCenterFromTopTo;
+      scrollY = calculateScrollYFromCenter(zoomYCenterFromTopTo, clamped, containerH, TOTAL_PITCHES);
+      onScrollChange?.(scrollX, scrollY);
+      dirty = true;
+      return;
+    }
+
+    const targetScrollY = calculateScrollYFromCenter(zoomYCenterFromTopTo, clamped, containerH, TOTAL_PITCHES);
+    if (Math.abs(clamped - zoomY) < 0.001 && Math.abs(targetScrollY - scrollY) < 0.5) {
+      if (animZoomYId !== null) {
+        cancelAnimationFrame(animZoomYId);
+        animZoomYId = null;
+      }
+      zoomY = clamped;
+      targetZoomY = clamped;
+      zoomYCenterFromTopFrom = zoomYCenterFromTopTo;
+      scrollY = targetScrollY;
       onScrollChange?.(scrollX, scrollY);
       dirty = true;
       return;
@@ -311,15 +349,22 @@
 
     if (animZoomYId === null) {
       const stepZoomY = (now: number) => {
-        const elapsed = now - zoomYAnimStart;
+        const elapsed = Math.max(0, now - zoomYAnimStart);
         const progress = Math.min(1, elapsed / zoomYAnimDuration);
         const eased = easeOutCubic(progress);
-        const currentZoom = zoomYFrom + (zoomYTo - zoomYFrom) * eased;
-
-        zoomY = currentZoom;
         const currentContainerH = canvasContainer?.clientHeight || 400;
-        const maxScrollY = Math.max(0, TOTAL_PITCHES * currentZoom - currentContainerH);
-        scrollY = Math.max(0, Math.min(maxScrollY, zoomYCenterFromTop * currentZoom - currentContainerH / 2));
+
+        const next = interpolateZoomAndCenterScroll(
+          zoomYFrom,
+          zoomYTo,
+          zoomYCenterFromTopFrom,
+          zoomYCenterFromTopTo,
+          eased,
+          currentContainerH,
+          TOTAL_PITCHES,
+        );
+        zoomY = next.zoomY;
+        scrollY = next.scrollY;
         onScrollChange?.(scrollX, scrollY);
         dirty = true;
 
@@ -328,8 +373,9 @@
         } else {
           animZoomYId = null;
           zoomY = zoomYTo;
-          const finalMaxScrollY = Math.max(0, TOTAL_PITCHES * zoomYTo - currentContainerH);
-          scrollY = Math.max(0, Math.min(finalMaxScrollY, zoomYCenterFromTop * zoomYTo - currentContainerH / 2));
+          zoomYCenterFromTopFrom = zoomYCenterFromTopTo;
+          const finalContainerH = canvasContainer?.clientHeight || 400;
+          scrollY = calculateScrollYFromCenter(zoomYCenterFromTopTo, zoomYTo, finalContainerH, TOTAL_PITCHES);
           onScrollChange?.(scrollX, scrollY);
           dirty = true;
         }
@@ -364,15 +410,9 @@
         highest = Math.max(highest, pitch);
       }
     }
-    if (!Number.isFinite(lowest)) {
-      lowest = 48;
-      highest = 83;
-    }
-    const paddedLow = Math.max(MIN_PITCH, lowest - 3);
-    const paddedHigh = Math.min(MAX_PITCH, highest + 3);
-    const targetZoom = Math.max(2, Math.min(40, h / (paddedHigh - paddedLow + 1)));
-    const targetMiddlePitchFromTop = (MAX_PITCH - (lowest + highest) / 2 + 0.5);
-    zoomToY(targetZoom, targetMiddlePitchFromTop);
+    const range = Number.isFinite(lowest) ? { lowest, highest } : null;
+    const { targetZoom, targetCenterFromTop } = calculateFitKeyHeight(h, range, MIN_PITCH, MAX_PITCH);
+    zoomToY(targetZoom, targetCenterFromTop);
   }
 
   // Note scrub preview tracking
@@ -409,6 +449,9 @@
     if (canvas.width !== targetW) canvas.width = targetW;
     if (canvas.height !== targetH) canvas.height = targetH;
     ctx!.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    if (overlayCanvas.width !== targetW) overlayCanvas.width = targetW;
+    if (overlayCanvas.height !== targetH) overlayCanvas.height = targetH;
+    overlayCtx!.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
     strikeEffects?.resize(width, height, pixelRatio);
     sizeDirty = false;
   }
@@ -424,8 +467,8 @@
     };
   }
 
-  function drawNote(context: CanvasRenderingContext2D, note: RollNote, track: StudioRenderTrack, renderTime: number) {
-    const { x, y, w, h, radius } = noteBounds(note);
+  function drawNote(context: CanvasRenderingContext2D, note: RollNote, track: StudioRenderTrack, renderTime: number, bounds = noteBounds(note)) {
+    const { x, y, w, h, radius } = bounds;
     if (y + h < 0 || y > height) return;
     context.fillStyle = track.color;
     context.beginPath();
@@ -458,6 +501,7 @@
     }
     if (sizeDirty) applyCanvasSize();
     if (!dirty) {
+      if (overlayDirty) drawOverlay();
       strikeEffects?.draw(performance.now());
       return;
     }
@@ -597,18 +641,19 @@
     ctx.beginPath();
     ctx.rect(KEY_WIDTH, 0, viewportW, height);
     ctx.clip();
-    ctx.save();
     const hover = hoveredTarget;
+    let hoverMask: Path2D | null = null;
+    let hoverBounds: { x: number; y: number; w: number; h: number } | null = null;
     if (hover) {
       const progress = reducedMotion || animationStore.isOff ? 1
         : Math.min(1, (performance.now() - hoverStartedAt) / animationStore.durationMs);
       const gap = HOVER_GAP * (1 - Math.pow(1 - progress, 3));
       const { x, y, w, h, radius } = noteBounds(hover.note);
       // Cut only the other notes out of this space, preserving the lane/grid below.
-      const mask = new Path2D();
-      mask.rect(KEY_WIDTH, 0, viewportW, height);
-      mask.roundRect(x - gap, y - gap, w + gap * 2, h + gap * 2, radius + gap);
-      ctx.clip(mask, 'evenodd');
+      hoverBounds = { x: x - gap, y: y - gap, w: w + gap * 2, h: h + gap * 2 };
+      hoverMask = new Path2D();
+      hoverMask.rect(KEY_WIDTH, 0, viewportW, height);
+      hoverMask.roundRect(hoverBounds.x, hoverBounds.y, hoverBounds.w, hoverBounds.h, radius + gap);
       if (progress < 1) dirty = true;
     }
     for (const track of layeredTracks) {
@@ -624,10 +669,22 @@
       }
       for (const note of track.between(startSec - 4 / zoomX, endSec)) {
         if (hover?.track === track && hover.note === note) continue;
-        drawNote(ctx, note, track, renderTime);
+        const bounds = noteBounds(note);
+        // A complex clip on every note becomes expensive in a zoomed-out roll.
+        // Only notes touching the hover gap need it (including active-note glow).
+        const padding = renderTime >= noteStart(note) && renderTime < noteStart(note) + noteDuration(note) ? 16 : 0;
+        if (hoverBounds && hoverMask &&
+            bounds.x - padding <= hoverBounds.x + hoverBounds.w && bounds.x + bounds.w + padding >= hoverBounds.x &&
+            bounds.y - padding <= hoverBounds.y + hoverBounds.h && bounds.y + bounds.h + padding >= hoverBounds.y) {
+          ctx.save();
+          ctx.clip(hoverMask, 'evenodd');
+          drawNote(ctx, note, track, renderTime, bounds);
+          ctx.restore();
+        } else {
+          drawNote(ctx, note, track, renderTime, bounds);
+        }
       }
     }
-    ctx.restore();
     // Draw the hovered note last, including above overlaps within its own track.
     if (hover) drawNote(ctx, hover.note, hover.track, renderTime);
     ctx.restore();
@@ -731,6 +788,22 @@
       tp > 0.5,
     );
     strikeEffects?.draw(performance.now());
+
+    drawOverlay();
+  }
+
+  // Cursor movement must not repaint thousands of notes just to move a guide.
+  // Keep the playhead and marker badges here too, preserving their paint order.
+  function drawOverlay() {
+    const ctx = overlayCtx;
+    if (!ctx) return;
+    overlayDirty = false;
+    ctx.clearRect(0, 0, width, height);
+    const renderTime = playbackStore.getAnimatedTime();
+    const tp = themeStore.themeProgress;
+    const accentColor = themeStore.accentColor || '#1db954';
+    const keyMarkers = playbackStore.activeSong?.keyMarkers || [];
+    const selectedMarkerId = playbackStore.selectedMarkerId;
 
     // 5.5 Draw Hover Guide Line & Timestamp Pill (theme-dependent, linked with TimelineScrubber)
     const isDark = tp < 0.5;
@@ -1260,6 +1333,7 @@
 
   onMount(() => {
     ctx = canvas.getContext('2d');
+    overlayCtx = overlayCanvas.getContext('2d');
     strikeEffects = new PianoStrikeEffects(effectsCanvas);
     motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     handleMotionChange();
@@ -1287,6 +1361,8 @@
     scrollY = Math.max(0, (MAX_PITCH - initialCenterPitch) * zoomY - containerH / 2);
     targetZoomX = zoomX;
     targetZoomY = zoomY;
+    zoomYCenterFromTopTo = MAX_PITCH - initialCenterPitch + 0.5;
+    zoomYCenterFromTopFrom = zoomYCenterFromTopTo;
   });
 
   onDestroy(() => {
@@ -1334,12 +1410,13 @@
   aria-label="Piano Roll Interactive Editor"
 >
   <canvas bind:this={canvas} class="roll-canvas"></canvas>
+  <canvas bind:this={overlayCanvas} class="overlay-canvas" aria-hidden="true"></canvas>
   <canvas bind:this={effectsCanvas} class="strike-canvas" aria-hidden="true"></canvas>
 
   {#if hoveredNote}
     <div
       class="note-tooltip"
-      style="left: {tooltipPos.x}px; top: {tooltipPos.y}px;"
+      style="transform: translate3d({tooltipPos.x}px, {tooltipPos.y}px, 0);"
     >
       <div class="tip-pitch">{getNoteName(hoveredNote.pitch ?? hoveredNote.noteNumber)} (MIDI {hoveredNote.pitch ?? hoveredNote.noteNumber})</div>
       <div class="tip-detail tip-duration">
@@ -1417,7 +1494,7 @@
     height: 100% !important;
   }
 
-  .strike-canvas {
+  .strike-canvas, .overlay-canvas {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -1427,6 +1504,9 @@
 
   .note-tooltip {
     position: absolute;
+    left: 0;
+    top: 0;
+    will-change: transform;
     pointer-events: none;
     background: var(--bg-card, #27272a);
     border: none;
@@ -1453,7 +1533,7 @@
   .tip-duration { display: flex; align-items: center; gap: 3px; }
 
   @keyframes tip-in {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; translate: 0 4px; }
+    to { opacity: 1; translate: 0 0; }
   }
 </style>

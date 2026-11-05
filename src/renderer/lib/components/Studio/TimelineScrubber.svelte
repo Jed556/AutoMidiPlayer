@@ -682,10 +682,10 @@
           <FluentIcon name="ArrowBidirectionalLeftRight" size={13} />
         </span>
       </button>
-      <button class="tool-btn" onclick={zoomInX} title={t('studio.zoomIn') || 'Horizontal Zoom In (Ctrl+Wheel)'}>
+      <button class="tool-btn" onclick={zoomInX} title={t('studio.zoomIn') || 'Horizontal Zoom In (Ctrl++, Ctrl+Wheel)'}>
         <FluentIcon name="Add" size={13} />
       </button>
-      <button class="tool-btn" onclick={zoomOutX} title={t('studio.zoomOut') || 'Horizontal Zoom Out (Ctrl+Wheel)'}>
+      <button class="tool-btn" onclick={zoomOutX} title={t('studio.zoomOut') || 'Horizontal Zoom Out (Ctrl+-, Ctrl+Wheel)'}>
         <FluentIcon name="Subtract" size={13} />
       </button>
     </div>
@@ -699,10 +699,10 @@
           <FluentIcon name="ArrowBidirectionalLeftRight" size={13} />
         </span>
       </button>
-      <button class="tool-btn" onclick={zoomInY} title={t('studio.zoomInY') || 'Vertical Zoom In (Alt+Wheel)'}>
+      <button class="tool-btn" onclick={zoomInY} title={t('studio.zoomInY') || 'Increase key height (Alt++, Alt+Wheel)'}>
         <FluentIcon name="Add" size={13} />
       </button>
-      <button class="tool-btn" onclick={zoomOutY} title={t('studio.zoomOutY') || 'Vertical Zoom Out (Alt+Wheel)'}>
+      <button class="tool-btn" onclick={zoomOutY} title={t('studio.zoomOutY') || 'Decrease key height (Alt+-, Alt+Wheel)'}>
         <FluentIcon name="Subtract" size={13} />
       </button>
     </div>

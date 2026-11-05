@@ -107,3 +107,51 @@ export function createDisplayPitch(settings: DisplaySettings): (note: RollNote) 
     return pitch;
   };
 }
+
+/** Fit to height parameters: target zoom and vertical center in pitch units from top. */
+export function calculateFitKeyHeight(
+  containerH: number,
+  notesRange: { lowest: number; highest: number } | null,
+  minPitch = 21,
+  maxPitch = 108,
+) {
+  let lowest = notesRange?.lowest ?? 48;
+  let highest = notesRange?.highest ?? 83;
+  if (!Number.isFinite(lowest) || !Number.isFinite(highest)) {
+    lowest = 48;
+    highest = 83;
+  }
+  const paddedLow = Math.max(minPitch, lowest - 3);
+  const paddedHigh = Math.min(maxPitch, highest + 3);
+  const targetZoom = Math.max(2, Math.min(40, containerH / (paddedHigh - paddedLow + 1)));
+  const targetCenterFromTop = maxPitch - (lowest + highest) / 2 + 0.5;
+  return { targetZoom, targetCenterFromTop };
+}
+
+/** Calculate clamped scrollY for a given center in pitch units from the top. */
+export function calculateScrollYFromCenter(
+  centerFromTop: number,
+  zoomY: number,
+  containerH: number,
+  totalPitches = 88,
+): number {
+  const maxScrollY = Math.max(0, totalPitches * zoomY - containerH);
+  return Math.max(0, Math.min(maxScrollY, centerFromTop * zoomY - containerH / 2));
+}
+
+/** Smoothly interpolate both zoom level and viewport center position. */
+export function interpolateZoomAndCenterScroll(
+  zoomFrom: number,
+  zoomTo: number,
+  centerFrom: number,
+  centerTo: number,
+  easedProgress: number,
+  containerH: number,
+  totalPitches = 88,
+): { zoomY: number; scrollY: number } {
+  const currentZoom = zoomFrom + (zoomTo - zoomFrom) * easedProgress;
+  const currentCenter = centerFrom + (centerTo - centerFrom) * easedProgress;
+  const currentScrollY = calculateScrollYFromCenter(currentCenter, currentZoom, containerH, totalPitches);
+  return { zoomY: currentZoom, scrollY: currentScrollY };
+}
+
