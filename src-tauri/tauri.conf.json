@@ -28,10 +28,37 @@
       }
     ],
     "security": {
-      "csp": null,
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "style-src-elem": "'self' 'unsafe-inline'",
+        "style-src-attr": "'unsafe-inline'",
+        "img-src": "'self' data: asset: http://asset.localhost https://avatars.githubusercontent.com https://github.com",
+        "font-src": "'self' data:",
+        "connect-src": "'self' ipc: http://ipc.localhost https://api.github.com https://raw.githubusercontent.com",
+        "object-src": "'none'",
+        "frame-src": "'none'",
+        "base-uri": "'none'",
+        "form-action": "'none'"
+      },
+      "devCsp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "style-src-elem": "'self' 'unsafe-inline'",
+        "style-src-attr": "'unsafe-inline'",
+        "img-src": "'self' data: asset: http://asset.localhost https://avatars.githubusercontent.com https://github.com",
+        "font-src": "'self' data:",
+        "connect-src": "'self' ipc: http://ipc.localhost https://api.github.com https://raw.githubusercontent.com ws:",
+        "object-src": "'none'",
+        "frame-src": "'none'",
+        "base-uri": "'none'",
+        "form-action": "'none'"
+      },
       "assetProtocol": {
         "enable": true,
-        "scope": ["**"]
+        "scope": ["$LOCALDATA/Jed556/AutoMIDIPlayer/Games/**/*"]
       }
     }
   },
