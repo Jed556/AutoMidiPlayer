@@ -12,6 +12,57 @@ import {
   interpolateZoomAndCenterScroll,
 } from '../src/renderer/lib/components/Studio/studioDisplay.ts';
 import { projectNoteTiming } from '../src/renderer/lib/utils/noteTiming.ts';
+import { StudioZoom } from '../src/renderer/lib/components/Studio/studioZoom.ts';
+
+test('zoom never reverses or extrapolates when a frame predates the latest input', () => {
+  const zoom = new StudioZoom();
+  zoom.start(20, 400, 110, 200);
+  assert.deepEqual(zoom.advance(100), { value: 20, easedProgress: 0 });
+  assert.equal(zoom.advance(210).value, 352.5);
+  assert.equal(zoom.advance(310).value, 400);
+  assert.equal(zoom.active, false);
+  assert.equal(zoom.advance(400), null);
+});
+
+test('repeated zoom requests at a limit finish instead of perpetually restarting', () => {
+  const zoom = new StudioZoom();
+  zoom.start(100, 400, 0, 200);
+  for (let now = 10; now < 200; now += 10) {
+    const current = zoom.advance(now).value;
+    zoom.start(current, 400, now, 200);
+  }
+  assert.equal(zoom.advance(200).value, 400);
+  assert.equal(zoom.active, false);
+});
+
+test('rapid zoom reversals settle at the latest target and cancellation discards it', () => {
+  const zoom = new StudioZoom();
+  let current = 100;
+  for (let now = 0; now < 1000; now += 5) {
+    const target = now % 100 < 50 ? 400 : 20;
+    zoom.start(current, target, now, 200);
+    const previous = current;
+    current = zoom.advance(now + 5).value;
+    assert.ok(current >= Math.min(previous, target) && current <= Math.max(previous, target));
+    assert.equal(zoom.target(current), target);
+  }
+  assert.equal(zoom.advance(1200).value, 20);
+  zoom.start(20, 100, 1300, 200);
+  zoom.cancel();
+  assert.equal(zoom.advance(1600), null);
+  assert.equal(zoom.target(35), 35, 'A canceled target must not accumulate into the next wheel step');
+  zoom.start(35, 50, 1700, 0);
+  assert.equal(zoom.advance(1700).value, 50);
+});
+
+test('fit can animate the vertical center without changing the zoom value', () => {
+  const zoom = new StudioZoom();
+  zoom.start(12, 12, 100, 200);
+  const mid = zoom.advance(200);
+  assert.equal(mid.value, 12);
+  assert.ok(mid.easedProgress > 0 && mid.easedProgress < 1);
+  assert.equal(zoom.advance(300).easedProgress, 1);
+});
 
 test('Studio projects threshold taps while retaining original duration for the tooltip', () => {
   const settings = { holdNotes: true, thresholdMs: 100, tapMs: 20, speed: 1 };

@@ -10,13 +10,13 @@
   import { noteStart, noteDuration } from '../../utils/noteIndex';
   import { getNoteTextColor } from '../../utils/noteAppearance';
   import { PianoStrikeEffects, type PianoStrike } from './pianoStrikeEffects';
+  import { StudioZoom } from './studioZoom';
   import type { RollNote, KeyChangeMarker } from '$shared/types/midi';
   import MarkerActionPopup from './MarkerActionPopup.svelte';
   import FluentIcon from '../Icons/FluentIcon.svelte';
   import {
     calculateFitKeyHeight,
     calculateScrollYFromCenter,
-    interpolateZoomAndCenterScroll,
   } from './studioDisplay';
 
   interface Props {
@@ -185,26 +185,12 @@
   });
 
   // Smooth Zoom Animation State
-  let animZoomXId: number | null = null;
-  let targetZoomX = DEFAULT_UI_PREFERENCES.studio.zoomX;
-  let zoomXAnimStart = 0;
-  let zoomXAnimDuration = 0;
-  let zoomXFrom = 0;
-  let zoomXTo = 0;
+  const zoomAnimationX = new StudioZoom();
   let zoomXAnchorTimeSec = 0;
 
-  let animZoomYId: number | null = null;
-  let targetZoomY = DEFAULT_UI_PREFERENCES.studio.zoomY;
-  let zoomYAnimStart = 0;
-  let zoomYAnimDuration = 0;
-  let zoomYFrom = 0;
-  let zoomYTo = 0;
+  const zoomAnimationY = new StudioZoom();
   let zoomYCenterFromTopFrom = 0;
   let zoomYCenterFromTopTo = 0;
-
-  function easeOutCubic(t: number): number {
-    return 1 - Math.pow(1 - t, 3);
-  }
 
   function getAnimationDuration(): number {
     if (reducedMotion || animationStore.isOff || animationStore.durationMs <= 0) {
@@ -214,15 +200,9 @@
   }
 
   export function cancelZoomAnimations() {
-    if (animZoomXId !== null) {
-      cancelAnimationFrame(animZoomXId);
-      animZoomXId = null;
-      targetZoomX = zoomX;
-    }
-    if (animZoomYId !== null) {
-      cancelAnimationFrame(animZoomYId);
-      animZoomYId = null;
-      targetZoomY = zoomY;
+    zoomAnimationX.cancel();
+    if (zoomAnimationY.active) {
+      zoomAnimationY.cancel();
       const ch = canvasContainer?.clientHeight || 400;
       zoomYCenterFromTopTo = (scrollY + ch / 2) / (zoomY || 1);
       zoomYCenterFromTopFrom = zoomYCenterFromTopTo;
@@ -231,9 +211,9 @@
 
   export function zoomToX(target: number) {
     const clamped = Math.min(400, Math.max(20, target));
-    targetZoomX = clamped;
+    if (!zoomAnimationX.active && zoomX === clamped) return;
 
-    if (animZoomXId === null) {
+    if (!zoomAnimationX.active) {
       zoomXAnchorTimeSec = isLockedToPlayhead
         ? playbackStore.currentTimeSeconds
         : Math.max(0, scrollX / (zoomX || 1));
@@ -241,10 +221,7 @@
 
     const duration = getAnimationDuration();
     if (duration <= 0) {
-      if (animZoomXId !== null) {
-        cancelAnimationFrame(animZoomXId);
-        animZoomXId = null;
-      }
+      zoomAnimationX.cancel();
       zoomX = clamped;
       scrollX = Math.max(0, zoomXAnchorTimeSec * clamped);
       onScrollChange?.(scrollX, scrollY);
@@ -252,44 +229,16 @@
       return;
     }
 
-    zoomXFrom = zoomX;
-    zoomXTo = clamped;
-    zoomXAnimStart = performance.now();
-    zoomXAnimDuration = duration;
-
-    if (animZoomXId === null) {
-      const stepZoomX = (now: number) => {
-        const elapsed = now - zoomXAnimStart;
-        const progress = Math.min(1, elapsed / zoomXAnimDuration);
-        const eased = easeOutCubic(progress);
-        const currentZoom = zoomXFrom + (zoomXTo - zoomXFrom) * eased;
-
-        zoomX = currentZoom;
-        scrollX = Math.max(0, zoomXAnchorTimeSec * currentZoom);
-        onScrollChange?.(scrollX, scrollY);
-        dirty = true;
-
-        if (progress < 1) {
-          animZoomXId = requestAnimationFrame(stepZoomX);
-        } else {
-          animZoomXId = null;
-          zoomX = zoomXTo;
-          scrollX = Math.max(0, zoomXAnchorTimeSec * zoomXTo);
-          onScrollChange?.(scrollX, scrollY);
-          dirty = true;
-        }
-      };
-      animZoomXId = requestAnimationFrame(stepZoomX);
-    }
+    zoomAnimationX.start(zoomX, clamped, performance.now(), duration);
   }
 
   export function zoomInX() {
-    const base = animZoomXId !== null ? targetZoomX : zoomX;
+    const base = zoomAnimationX.target(zoomX);
     zoomToX(base * 1.25);
   }
 
   export function zoomOutX() {
-    const base = animZoomXId !== null ? targetZoomX : zoomX;
+    const base = zoomAnimationX.target(zoomX);
     zoomToX(base * 0.8);
   }
 
@@ -299,7 +248,8 @@
 
   export function zoomToY(target: number, specificCenterFromTop?: number) {
     const clamped = Math.min(40, Math.max(2, target));
-    targetZoomY = clamped;
+    if (specificCenterFromTop === undefined && zoomAnimationY.active &&
+        zoomAnimationY.target(zoomY) === clamped && zoomYCenterFromTopFrom === zoomYCenterFromTopTo) return;
 
     const containerH = canvasContainer?.clientHeight || 400;
     const currentCenter = (scrollY + containerH / 2) / (zoomY || 1);
@@ -307,19 +257,15 @@
     if (specificCenterFromTop !== undefined) {
       zoomYCenterFromTopFrom = currentCenter;
       zoomYCenterFromTopTo = specificCenterFromTop;
-    } else if (animZoomYId === null || zoomYCenterFromTopFrom !== zoomYCenterFromTopTo) {
+    } else if (!zoomAnimationY.active || zoomYCenterFromTopFrom !== zoomYCenterFromTopTo) {
       zoomYCenterFromTopFrom = currentCenter;
       zoomYCenterFromTopTo = currentCenter;
     }
 
     const duration = getAnimationDuration();
     if (duration <= 0) {
-      if (animZoomYId !== null) {
-        cancelAnimationFrame(animZoomYId);
-        animZoomYId = null;
-      }
+      zoomAnimationY.cancel();
       zoomY = clamped;
-      targetZoomY = clamped;
       zoomYCenterFromTopFrom = zoomYCenterFromTopTo;
       scrollY = calculateScrollYFromCenter(zoomYCenterFromTopTo, clamped, containerH, TOTAL_PITCHES);
       onScrollChange?.(scrollX, scrollY);
@@ -329,12 +275,8 @@
 
     const targetScrollY = calculateScrollYFromCenter(zoomYCenterFromTopTo, clamped, containerH, TOTAL_PITCHES);
     if (Math.abs(clamped - zoomY) < 0.001 && Math.abs(targetScrollY - scrollY) < 0.5) {
-      if (animZoomYId !== null) {
-        cancelAnimationFrame(animZoomYId);
-        animZoomYId = null;
-      }
+      zoomAnimationY.cancel();
       zoomY = clamped;
-      targetZoomY = clamped;
       zoomYCenterFromTopFrom = zoomYCenterFromTopTo;
       scrollY = targetScrollY;
       onScrollChange?.(scrollX, scrollY);
@@ -342,56 +284,39 @@
       return;
     }
 
-    zoomYFrom = zoomY;
-    zoomYTo = clamped;
-    zoomYAnimStart = performance.now();
-    zoomYAnimDuration = duration;
-
-    if (animZoomYId === null) {
-      const stepZoomY = (now: number) => {
-        const elapsed = Math.max(0, now - zoomYAnimStart);
-        const progress = Math.min(1, elapsed / zoomYAnimDuration);
-        const eased = easeOutCubic(progress);
-        const currentContainerH = canvasContainer?.clientHeight || 400;
-
-        const next = interpolateZoomAndCenterScroll(
-          zoomYFrom,
-          zoomYTo,
-          zoomYCenterFromTopFrom,
-          zoomYCenterFromTopTo,
-          eased,
-          currentContainerH,
-          TOTAL_PITCHES,
-        );
-        zoomY = next.zoomY;
-        scrollY = next.scrollY;
-        onScrollChange?.(scrollX, scrollY);
-        dirty = true;
-
-        if (progress < 1) {
-          animZoomYId = requestAnimationFrame(stepZoomY);
-        } else {
-          animZoomYId = null;
-          zoomY = zoomYTo;
-          zoomYCenterFromTopFrom = zoomYCenterFromTopTo;
-          const finalContainerH = canvasContainer?.clientHeight || 400;
-          scrollY = calculateScrollYFromCenter(zoomYCenterFromTopTo, zoomYTo, finalContainerH, TOTAL_PITCHES);
-          onScrollChange?.(scrollX, scrollY);
-          dirty = true;
-        }
-      };
-      animZoomYId = requestAnimationFrame(stepZoomY);
-    }
+    // A fit request can change the center while retaining the same key height.
+    zoomAnimationY.cancel();
+    zoomAnimationY.start(zoomY, clamped, performance.now(), duration);
   }
 
   export function zoomInY() {
-    const base = animZoomYId !== null ? targetZoomY : zoomY;
+    const base = zoomAnimationY.target(zoomY);
     zoomToY(base + 2);
   }
 
   export function zoomOutY() {
-    const base = animZoomYId !== null ? targetZoomY : zoomY;
+    const base = zoomAnimationY.target(zoomY);
     zoomToY(base - 2);
+  }
+
+  function advanceZoomAnimations(now: number) {
+    const nextX = zoomAnimationX.advance(now);
+    const nextY = zoomAnimationY.advance(now);
+    if (nextX) {
+      zoomX = nextX.value;
+      scrollX = Math.max(0, zoomXAnchorTimeSec * zoomX);
+    }
+    if (nextY) {
+      zoomY = nextY.value;
+      const center = zoomYCenterFromTopFrom +
+        (zoomYCenterFromTopTo - zoomYCenterFromTopFrom) * nextY.easedProgress;
+      scrollY = calculateScrollYFromCenter(center, zoomY, height, TOTAL_PITCHES);
+      if (!zoomAnimationY.active) zoomYCenterFromTopFrom = zoomYCenterFromTopTo;
+    }
+    if (nextX || nextY) {
+      onScrollChange?.(scrollX, scrollY);
+      dirty = true;
+    }
   }
 
   export function fitKeyHeight() {
@@ -499,6 +424,9 @@
       strikeEffects?.clear();
       return;
     }
+    // Advance and paint in one callback, using the current time rather than an
+    // RAF timestamp that may predate a wheel event or another frame callback.
+    advanceZoomAnimations(performance.now());
     if (sizeDirty) applyCanvasSize();
     if (!dirty) {
       if (overlayDirty) drawOverlay();
@@ -958,12 +886,12 @@
     if (e.ctrlKey && !e.shiftKey) {
       // Horizontal Zoom X (Left anchored)
       const factor = e.deltaY < 0 ? 1.18 : 0.82;
-      const base = animZoomXId !== null ? targetZoomX : zoomX;
+      const base = zoomAnimationX.target(zoomX);
       zoomToX(base * factor);
     } else if (e.altKey || (e.shiftKey && e.ctrlKey)) {
       // Vertical Zoom Y (Middle anchored)
       const delta = e.deltaY < 0 ? 2 : -2;
-      const base = animZoomYId !== null ? targetZoomY : zoomY;
+      const base = zoomAnimationY.target(zoomY);
       zoomToY(base + delta);
     } else if (e.shiftKey) {
       // Horizontal Scroll X
@@ -1359,8 +1287,6 @@
     const initialCenterPitch = 60;
     const containerH = canvasContainer.clientHeight || 400;
     scrollY = Math.max(0, (MAX_PITCH - initialCenterPitch) * zoomY - containerH / 2);
-    targetZoomX = zoomX;
-    targetZoomY = zoomY;
     zoomYCenterFromTopTo = MAX_PITCH - initialCenterPitch + 0.5;
     zoomYCenterFromTopFrom = zoomYCenterFromTopTo;
   });
