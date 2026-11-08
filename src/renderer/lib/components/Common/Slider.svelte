@@ -527,7 +527,7 @@
       const start = alignLabels !== 'center' && i === 0 ? position
         : alignLabels !== 'center' && i === normalizedSteps.length - 1 ? position - size
         : position - size / 2;
-      const moveOpposite = start < previousEnd + 4 && !previousOpposite;
+      const moveOpposite: boolean = start < previousEnd + 4 && !previousOpposite;
       if (moveOpposite) opposite.add(i);
       previousOpposite = moveOpposite;
       previousEnd = start + size;

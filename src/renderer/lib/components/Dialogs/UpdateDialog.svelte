@@ -73,7 +73,7 @@
 
   {#snippet footer()}
     <div class="footer-actions">
-      <Button variant="subtle" onclick={openReleaseNotes}>
+      <Button variant="ghost" onclick={openReleaseNotes}>
         <FluentIcon name="Open" size={13} />
         <span>{t('dialogs.viewReleaseNotes')}</span>
       </Button>

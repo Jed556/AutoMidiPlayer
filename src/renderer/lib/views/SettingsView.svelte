@@ -30,7 +30,7 @@
   import type { MouseStopClickOption, ThemeMode } from '$shared/types/settings';
   import type { TransposeMode } from '$shared/types/midi';
 
-  let rightContainerRef: HTMLDivElement | null = $state(null);
+  let rightContainerRef = $state<HTMLDivElement>();
   let themeControlRef: HTMLDivElement;
   let activeSectionId = $state('section-player');
   let pageWidth = $state(0);

@@ -95,7 +95,7 @@
   });
 
   // Hover state
-  let hoveredTarget: { note: RollNote; track: StudioRenderTrack } | null = $state.raw(null);
+  let hoveredTarget = $state.raw<{ note: RollNote; track: StudioRenderTrack } | null>(null);
   const hoveredNote = $derived(hoveredTarget?.note ?? null);
   let hoverStartedAt = 0;
   const HOVER_GAP = 4;
@@ -138,7 +138,7 @@
   let dragStartMouseX = 0;
   let dragStartTimeMs = 0;
   let dragCurrentTimeMs = $state<number | null>(null);
-  let activePopupMarker: KeyChangeMarker | null = $state(null);
+  let activePopupMarker = $state<KeyChangeMarker | null>(null);
   let isPopupHovered = false;
   let markerHideTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -1311,6 +1311,8 @@
   });
 </script>
 
+<!-- Pointer handlers hit-test the canvas; keyboard shortcuts are registered on window. -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
   class="canvas-container"
   class:is-panning={isMiddlePanning}

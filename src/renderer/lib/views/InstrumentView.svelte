@@ -43,6 +43,11 @@
     }
   });
 
+  let selectedInstrumentId = $state<string>(gameStore.activeInstrument?.id ?? '');
+  let selectedInstrument = $derived(
+    gameStore.activeGame?.instruments?.find(i => i.id === selectedInstrumentId) || null
+  );
+
   let compactStage = $state(false);
   let pianoAvailableWidth = $state(720);
   let pianoAvailableHeight = $state(Infinity);
@@ -164,7 +169,6 @@
   // ==========================================
   // Instrument & Keyboard Layout Selection
   // ==========================================
-  let selectedInstrumentId = $state<string>(gameStore.activeInstrument?.id ?? '');
   let selectedLayoutId = $state<string>('');
   let activeGameImageError = $state(false);
 
@@ -219,10 +223,6 @@
   $effect(() => {
     selectedLayoutId = gameStore.activeLayout?.id ?? '';
   });
-
-  let selectedInstrument = $derived(
-    gameStore.activeGame?.instruments?.find(i => i.id === selectedInstrumentId) || null
-  );
 
   let supportsChords = $derived(
     selectedInstrument ? selectedInstrument.supportsChords : false
@@ -412,7 +412,6 @@
   const layoutStyle = $derived(instrumentLayoutStyle(selectedInstrument));
   const mappedRows = $derived(instrumentKeyRows(selectedInstrument, selectedGameLayout));
   const mappedKeys = $derived(mappedRows.flat().filter(key => key !== null));
-  const litPitches = $derived(new Set([...activePitches, ...manuallyActivePitches]));
 
   // ==========================================
   // Piano strip follows the selected instrument's playable notes.
@@ -428,6 +427,7 @@
   const gameBindings = $derived(new Map(mappedKeys.map(key => [key.pitch, key.label])));
 
   let manuallyActivePitches = $state(new Set<number>());
+  const litPitches = $derived(new Set([...activePitches, ...manuallyActivePitches]));
   const previewTimers = new Map<number, ReturnType<typeof setTimeout>>();
 
   // Clear held input when navigation, an overlay, or the displayed mapping changes.

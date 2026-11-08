@@ -598,6 +598,7 @@
   }
 
   function applyCanvasSize() {
+    if (!scrubberCanvas || !ctx) return;
     // Resize and repaint together so layout changes cannot expose a blank bitmap.
     const targetW = Math.round(width * pixelRatio);
     const targetH = Math.round(height * pixelRatio);
@@ -606,13 +607,14 @@
     if (noteLayer.width !== targetW) noteLayer.width = targetW;
     if (noteLayer.height !== targetH) noteLayer.height = targetH;
     noteLayer.getContext('2d')!.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-    ctx!.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
     sizeDirty = false;
   }
 
   let resizeObserver: ResizeObserver | null = null;
 
   onMount(() => {
+    if (!scrubberCanvas) return;
     noteLayer = document.createElement('canvas');
     ctx = scrubberCanvas.getContext('2d');
     resize();

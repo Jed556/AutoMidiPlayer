@@ -107,9 +107,9 @@
   }
 
   let pages = $derived(allPages.filter(p => !isPageSkipped(p)));
-  let canSkip = $derived(canSkipOnboarding(effectiveStep, pages.length, legacyCheckPending));
   let page = $derived(pages[step] ?? pages[0]);
   let effectiveStep = $derived(animating ? targetStep : step);
+  let canSkip = $derived(canSkipOnboarding(effectiveStep, pages.length, legacyCheckPending));
 
   $effect(() => {
     if (step >= pages.length) {
@@ -569,7 +569,10 @@
             </div>
           {:else if page === 'player'}
             <div class="setting-row"><ToggleSwitch label={t('settings.autoListenMode')} description={t('settings.autoListenModeTooltip')} checked={draft.autoEnableListenMode} onchange={value => draft.autoEnableListenMode = value} /></div>
-            <div class="overlap-setting"><OverlapBehaviorPicker value={draft.overlapBehavior} onchange={value => draft.overlapBehavior = value} /></div>
+            <div class="overlap-setting">
+              <OverlapBehaviorPicker value={draft.overlapBehavior} onchange={value => draft.overlapBehavior = value}
+                repressGapMs={draft.repressGapMs} onrepressgapchange={value => draft.repressGapMs = value} />
+            </div>
             <div class="setting-row"><HoldNotesControl checked={draft.defaultHoldNotes} thresholdMs={draft.defaultTapThresholdMs} onchange={value => draft.defaultHoldNotes = value} onthresholdchange={value => draft.defaultTapThresholdMs = value} /></div>
             <div class="setting-row merge-row">
               <ToggleSwitch label={t('settings.mergeNotes')} checked={draft.defaultMergeNotes} onchange={value => draft.defaultMergeNotes = value} />
