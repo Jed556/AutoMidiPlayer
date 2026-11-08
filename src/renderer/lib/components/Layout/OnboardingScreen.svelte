@@ -34,7 +34,10 @@
   let removeLegacy = $state(false);
   let legacyCheckPending = $state(true);
   let migrationChoice = $state<'migrate' | 'fresh'>('migrate');
+  let useMigratedSongSettings = $state(false);
+  let useMigratedNoteSettings = $state(false);
   let isLegacyDetected = $derived(legacyStatus.detected);
+  let isMigrating = $derived(isLegacyDetected && migrationChoice === 'migrate');
   let step = $state(0);
   let targetStep = $state(0);
   let isSkipping = $state(false);
@@ -135,8 +138,12 @@
     });
   });
 
-  async function navigate(next: number) {
+  async function navigate(next: number, useMigrated = false) {
     if (animating || next === step || (legacyCheckPending && next > step)) return;
+    if (next > step && isMigrating) {
+      if (page === 'defaults') useMigratedSongSettings = useMigrated;
+      if (page === 'player') useMigratedNoteSettings = useMigrated;
+    }
     error = '';
     const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : animationStore.durationMs;
     const isSkip = Math.abs(next - step) > 1;
@@ -218,7 +225,10 @@
         await settingsStore.finishOnboarding(draft, {
           locale: i18n.currentLocale,
           animationTiming: animationStore.timing,
-        });
+        }, isMigrating ? {
+          songSettings: !useMigratedSongSettings,
+          noteSettings: !useMigratedNoteSettings,
+        } : undefined);
       });
     } catch (cause) {
       error = String(cause);
@@ -541,6 +551,7 @@
             <div class="setting-row"><ToggleSwitch label={t('onboarding.watchFolder')} checked={draft.autoScanMidiFolder} onchange={value => draft.autoScanMidiFolder = value} /></div>
             <p class="note"><FluentIcon name="Info" size={16} />{t('onboarding.deferredScan')}</p>
           {:else if page === 'defaults'}
+            {#if isMigrating}<p class="note">{t('onboarding.migratedSongDefaultsHelp')}</p>{/if}
             <div class="fields-grid">
               <label>{t('settings.baseKeyOffset')}<input type="number" min="-12" max="12" value={draft.defaultBaseKeyOffset} oninput={event => { if (event.currentTarget.validity.valid && Number.isInteger(event.currentTarget.valueAsNumber)) draft.defaultBaseKeyOffset = event.currentTarget.valueAsNumber; }} onblur={event => event.currentTarget.value = String(draft.defaultBaseKeyOffset)} /></label>
               <label>{t('settings.keyOffset')}<input type="number" min="-24" max="24" value={draft.defaultKeyOffset} oninput={event => { if (event.currentTarget.validity.valid && Number.isInteger(event.currentTarget.valueAsNumber)) draft.defaultKeyOffset = event.currentTarget.valueAsNumber; }} onblur={event => event.currentTarget.value = String(draft.defaultKeyOffset)} /></label>
@@ -551,6 +562,7 @@
               <div class="field"><span>{t('settings.defaultSpeed')}</span><Dropdown portalMenu ariaLabel={t('settings.defaultSpeed')} value={draft.defaultSpeed} options={[0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(speed => ({value: speed, label: `${speed}×`}))} onchange={value => draft.defaultSpeed = value} /></div>
             </div>
           {:else if page === 'player'}
+            {#if isMigrating}<p class="note">{t('onboarding.migratedNoteDefaultsHelp')}</p>{/if}
             <div class="setting-row"><ToggleSwitch label={t('settings.autoListenMode')} description={t('settings.autoListenModeTooltip')} checked={draft.autoEnableListenMode} onchange={value => draft.autoEnableListenMode = value} /></div>
             <div class="overlap-setting">
               <OverlapBehaviorPicker value={draft.overlapBehavior} onchange={value => draft.overlapBehavior = value}
@@ -592,6 +604,10 @@
               <div><dt>{t('settings.midiFolder')}</dt><dd class="folder-summary">{draft.midiFolder || t('onboarding.noFolder')}</dd></div>
               <div><dt>{t('onboarding.telemetryTitle')}</dt><dd>{t(draft.telemetryOptIn ? 'settings.optedIn' : 'settings.optedOut')}</dd></div>
               <div><dt>{t('settings.defaultTranspose')}</dt><dd>{t(`settings.transpose${draft.defaultTranspose}Desc`)} · {draft.defaultSpeed}×</dd></div>
+              {#if isMigrating}
+                <div><dt>{t('onboarding.migratedSongSettings')}</dt><dd>{t(useMigratedSongSettings ? 'onboarding.keepMigrated' : 'onboarding.applyDefaults')}</dd></div>
+                <div><dt>{t('onboarding.migratedNoteSettings')}</dt><dd>{t(useMigratedNoteSettings ? 'onboarding.keepMigrated' : 'onboarding.applyDefaults')}</dd></div>
+              {/if}
               <div><dt>{t('settings.updates')}</dt><dd>{t(draft.autoCheckUpdates ? 'onboarding.automaticUpdates' : 'onboarding.manualUpdates')}</dd></div>
               <div><dt>{t('settings.language')}</dt><dd>{AVAILABLE_LOCALES.find(locale => locale.code === i18n.currentLocale)?.name}</dd></div>
               <div><dt>{t('settings.theme')}</dt><dd>{t(`settings.theme${draft.theme}`)}</dd></div>
@@ -635,6 +651,11 @@
             {t(busy ? 'onboarding.finishing' : 'onboarding.finish')}
           </Button>
         {:else}
+          {#if isMigrating && (page === 'defaults' || page === 'player')}
+            <Button variant="secondary" disabled={busy || browsing || animating} onclick={() => navigate(step + 1, true)}>
+              {t('onboarding.useMigrated')}
+            </Button>
+          {/if}
           <Button variant="accent" disabled={legacyCheckPending || browsing || animating} onclick={() => navigate(step + 1)}>
             {t('onboarding.next')}
             <FluentIcon name="ChevronRight" size={16} />
@@ -1140,6 +1161,7 @@
     margin-left: auto;
     display: flex;
     align-items: center;
+    gap: 10px;
   }
   /* Remove thin lines / strokes on navigation and modal buttons */
   :global(.onboarding-screen .fluent-btn) {
@@ -1200,6 +1222,7 @@
     .top-progress-inner { padding: 0 20px; }
     .setup-layout { padding: 0 20px; }
     .bottom-actions-inner { padding: 0 20px; }
+    .bottom-actions-inner { flex-wrap: wrap; }
     .fields-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
     .folder-choice { flex-wrap: wrap; gap: 12px; }
     .folder-text { min-width: 0; }

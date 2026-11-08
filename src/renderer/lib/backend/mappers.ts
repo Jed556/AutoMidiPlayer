@@ -189,6 +189,7 @@ export function loadedMidiToMidiFile(raw: RawLoadedMidiFile | MidiFile): MidiFil
       pitch: Number(note.pitch ?? noteNumber),
       rawNoteNumber: Number(note.rawNoteNumber ?? noteNumber),
       startMs,
+      startBeat: typeof note.startBeat === 'number' && Number.isFinite(note.startBeat) ? note.startBeat : undefined,
       startTime: Number(note.startTime ?? startMs / 1000),
       lengthMs,
       // lengthMs is the canonical native timeline value. Re-derive the

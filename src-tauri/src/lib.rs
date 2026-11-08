@@ -162,6 +162,7 @@ pub struct RollNotePayload {
     pub pitch: u8,
     pub start_ms: f64,
     pub start_time: f64,
+    pub start_beat: f64,
     pub length_ms: f64,
     pub duration: f64,
     pub track_index: usize,
@@ -378,6 +379,8 @@ fn read_midi_payload(
                 pitch: ev.note,
                 start_ms,
                 start_time: start_ms / 1000.0,
+                start_beat: parsed.tempo_map.us_to_tick(ev.time_us) as f64
+                    / parsed.ppqn.max(1) as f64,
                 length_ms,
                 duration: length_ms / 1000.0,
                 track_index: ev.track_index,
@@ -720,10 +723,22 @@ fn get_song_settings(id: String, context: Option<SongSettingsContext>, state: St
 #[tauri::command]
 fn update_song_defaults(
     defaults: SongDefaults,
+    apply_to_existing: Option<OnboardingSongDefaultsApplication>,
     state: State<AppState>,
 ) -> Result<bool, String> {
+    if let Some(application) = apply_to_existing {
+        state.db.apply_onboarding_song_defaults(&defaults, application.song_settings, application.note_settings)
+            .map_err(|error| format!("Unable to apply onboarding song defaults: {error}"))?;
+    }
     *state.song_defaults.write().unwrap() = defaults;
     Ok(true)
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OnboardingSongDefaultsApplication {
+    pub song_settings: bool,
+    pub note_settings: bool,
 }
 
 #[derive(serde::Serialize, Clone, Debug)]
