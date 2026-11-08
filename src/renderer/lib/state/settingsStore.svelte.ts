@@ -86,22 +86,26 @@ class SettingsStore {
         this.settings = { ...createDefaultSettings(), ...remote };
         this.settings.repressGapMs = normalizeRepressGapMs(remote.repressGapMs);
       }
-      await this.refreshAutoCorrectLayouts(remote?.autoCorrectThreshold);
-
       if (this.settings.accentColor) {
         themeStore.setAccentColor(this.settings.accentColor);
       }
       if (this.settings.theme) {
         themeStore.setTheme(this.settings.theme);
       }
-      if (!this.settings.onboardingCompleted) this.suspendHotkeys();
+      // Setup only needs preferences and appearance. All backend-dependent work
+      // waits until Finish starts the runtime behind the loading screen.
+      if (!this.settings.onboardingCompleted) {
+        this._isHotkeysSuspended = true;
+        return;
+      }
+      await this.refreshAutoCorrectLayouts(remote?.autoCorrectThreshold);
       this.syncHotkeys();
       await this.syncSongDefaults();
-      if (this.settings.onboardingCompleted) updateStore.configureTimer(this.settings, false);
-      await telemetry.setEnabled(this.settings.onboardingCompleted && this.settings.telemetryOptIn);
+      updateStore.configureTimer(this.settings, false);
+      await telemetry.setEnabled(this.settings.telemetryOptIn);
       logger.setVerbosity(this.settings.crashLogVerbosity);
       logger.setDebugMode(this.settings.debugModeEnabled);
-      if (this.settings.onboardingCompleted) await this.syncMidiFolder();
+      await this.syncMidiFolder();
     } catch (err) {
       console.warn('[SettingsStore] Failed to load persisted settings:', err);
     }
@@ -161,6 +165,8 @@ class SettingsStore {
     }
     this.settings.onboardingCompleted = true;
     this.settings.telemetryOptIn = telemetryOptIn;
+    logger.setVerbosity(this.settings.crashLogVerbosity);
+    logger.setDebugMode(this.settings.debugModeEnabled);
     await telemetry.setEnabled(telemetryOptIn);
     this.onAutoEnableListenModeChanged?.(this.settings.autoEnableListenMode);
     updateStore.configureTimer(this.settings, false);

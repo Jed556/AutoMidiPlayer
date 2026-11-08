@@ -4,6 +4,58 @@ import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import { compile } from 'svelte/compiler';
 
+function setupHarness({ failCommit = false } = {}) {
+  const app = readFileSync(new URL('../src/renderer/App.svelte', import.meta.url), 'utf8');
+  const start = app.indexOf('  async function finishSetup(');
+  const end = app.indexOf('  // Native media sessions', start);
+  const finish = stripTypeScriptTypes(app.slice(start, end));
+  const calls = [];
+  let readyNative;
+  const native = new Promise(resolve => { readyNative = resolve; });
+  const settingsStore = {
+    settings: {},
+    suspendHotkeys: () => calls.push('suspend'),
+    refreshAutoCorrectLayouts: async () => calls.push('layouts'),
+    resumeHotkeys: () => calls.push('resume'),
+  };
+  const controller = new Function('startRuntime', 'settingsStore', 'startupProgress', 'initializeRuntime', `
+    let finishingSetup = false, startingNativeRuntime = false, showStartup = false;
+    let showOnboarding = true, onboardingReady = true, startupStatus, splashEntered;
+    const nativeStartupProgress = {}, libraryStore = {}, uiStore = {};
+    ${finish}
+    return { finishSetup, enter: () => splashEntered(),
+      state: () => ({ finishingSetup, showStartup, showOnboarding, onboardingReady }) };
+  `)(async () => { calls.push('native'); await native; }, settingsStore,
+    { beginStartup: () => calls.push('reset'), advanceStartup: () => {} },
+    async () => calls.push('player'));
+  return { ...controller, calls, readyNative,
+    commit: async () => { calls.push('commit'); if (failCommit) throw new Error('Scan failed'); } };
+}
+
+test('Finish waits for splash entry and native readiness before committing setup and loading the player', async () => {
+  const h = setupHarness();
+  const finishing = h.finishSetup(h.commit);
+  assert.deepEqual(h.calls, ['reset']);
+  assert.equal(h.state().showStartup, true);
+  h.enter();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(h.calls, ['reset', 'native']);
+  h.readyNative();
+  await finishing;
+  assert.deepEqual(h.calls, ['reset', 'native', 'suspend', 'layouts', 'commit', 'player', 'resume']);
+  assert.equal(h.state().showOnboarding, false);
+});
+
+test('a failed setup commit returns to onboarding without loading the player', async () => {
+  const h = setupHarness({ failCommit: true });
+  const finishing = h.finishSetup(h.commit);
+  h.enter();
+  h.readyNative();
+  await assert.rejects(finishing, /Scan failed/);
+  assert.equal(h.calls.includes('player'), false);
+  assert.deepEqual(h.state(), { finishingSetup: false, showStartup: false, showOnboarding: true, onboardingReady: true });
+});
+
 const source = stripTypeScriptTypes(readFileSync(new URL('../src/renderer/lib/backend/startupProgress.ts', import.meta.url), 'utf8'));
 const { createStartupProgress } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 

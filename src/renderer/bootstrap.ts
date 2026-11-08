@@ -2,10 +2,8 @@ import { mount, tick } from 'svelte';
 import './app.css';
 import App from './App.svelte';
 import { logger } from './lib/infrastructure/logger';
-import { telemetry } from './lib/infrastructure/telemetry';
 
 export async function mountApplication() {
-  telemetry.init();
   logger.info('Auto MIDI Player frontend initialized', 'main');
 
   const app = mount(App, {

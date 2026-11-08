@@ -67,6 +67,18 @@ test('installation waits for the splash fade and saves state before downloading'
   assert.equal(store.updateDownloaded, true);
 });
 
+test('default update checks run on launch without a recurring timer', async (t) => {
+  const { store } = await harness();
+  let checks = 0;
+  store.checkForUpdates = async () => { checks++; };
+  t.mock.method(globalThis, 'setInterval', () => assert.fail('The default must not create a recurring timer'));
+  assert.equal(sharedDefaults.createDefaultSettings().updateCheckFrequency, 'launch');
+  store.configureTimer();
+  assert.equal(checks, 1);
+  store.configureTimer(undefined, false);
+  assert.equal(checks, 1, 'Startup owns its initial check');
+});
+
 test('migrated weekly and on-launch update preferences retain their schedules', async (t) => {
   const { store } = await harness();
   const intervals = [];

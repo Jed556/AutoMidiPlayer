@@ -1,5 +1,8 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
+  import { telemetry } from './lib/infrastructure/telemetry';
+  import { startRuntime } from './lib/backend/startupGate';
+  import { startupProgress, nativeStartupProgress } from './lib/backend/startupProgress';
   import { libraryStore } from './lib/state/libraryStore.svelte';
   import { playbackStore } from './lib/state/playbackStore.svelte';
   import { uiStore } from './lib/state/uiStore.svelte';
@@ -32,6 +35,59 @@
   let startupReady = $state(false);
   let showStartup = $state(true);
   let showOnboarding = $state(false);
+  let onboardingReady = $state(false);
+  let finishingSetup = $state(false);
+  let startingNativeRuntime = $state(false);
+  let splashEntered: (() => void) | undefined;
+
+  async function initializeRuntime() {
+    telemetry.init();
+    const updateCheck = settingsStore.settings.autoCheckUpdates
+      ? updateStore.checkForUpdates(false) : Promise.resolve();
+    await playbackStore.initialize(status => { startupStatus = status; });
+    startupStatus = 'startup.view';
+    if (currentTab !== 'discover' && currentTab !== 'new-playlist') await loadView(currentTab);
+    if (updateStore.isCheckingUpdate) startupStatus = 'startup.updates';
+    await updateCheck;
+    await api.updates.complete().catch(error => console.warn('Could not clear update resume state:', error));
+    startupReady = true;
+  }
+
+  async function finishSetup(setup: () => Promise<void>) {
+    finishingSetup = true;
+    startingNativeRuntime = true;
+    startupStatus = 'startup.settings';
+    startupProgress.beginStartup();
+    const entered = new Promise<void>(resolve => { splashEntered = resolve; });
+    showStartup = true;
+    try {
+      await entered;
+      await startRuntime(stage => {
+        startupProgress.advanceStartup(nativeStartupProgress[stage] ?? 2);
+        startupStatus = 'startup.player';
+      });
+      startingNativeRuntime = false;
+      startupStatus = 'startup.settings';
+      settingsStore.suspendHotkeys();
+      await settingsStore.refreshAutoCorrectLayouts(settingsStore.settings.autoCorrectThreshold);
+      await setup();
+      await initializeRuntime();
+      libraryStore.selectedPlaylistId = 'songs';
+      uiStore.activeTab = 'songs';
+      uiStore.tabHistory = ['songs'];
+      uiStore.tabHistoryIndex = 0;
+      showOnboarding = false;
+      onboardingReady = false;
+      settingsStore.resumeHotkeys();
+    } catch (error) {
+      showStartup = false;
+      throw error;
+    } finally {
+      finishingSetup = false;
+      startingNativeRuntime = false;
+      splashEntered = undefined;
+    }
+  }
 
   // Native media sessions work even when the window is minimized or unfocused.
   // Publish progress once per second instead of on every engine/UI frame.
@@ -150,23 +206,11 @@
       await Promise.all([animationStore.init(), settingsStore.init()]);
       if (disposed) return;
       showOnboarding = !settingsStore.settings.onboardingCompleted;
-
-      // Check concurrently with library/player loading, but settle before reveal.
-      const updateCheck = !showOnboarding && settingsStore.settings.autoCheckUpdates
-        ? updateStore.checkForUpdates(false)
-        : Promise.resolve();
-
-      await playbackStore.initialize((status) => {
-        if (!disposed) startupStatus = status;
-      });
-      if (disposed) return;
-      startupStatus = 'startup.view';
-      if (currentTab !== 'discover' && currentTab !== 'new-playlist') await loadView(currentTab);
-      if (disposed) return;
-      if (updateStore.isCheckingUpdate) startupStatus = 'startup.updates';
-      await updateCheck;
-      await api.updates.complete().catch(error => console.warn('Could not clear update resume state:', error));
-      if (!disposed) startupReady = true;
+      if (showOnboarding) {
+        onboardingReady = true;
+        return;
+      }
+      await initializeRuntime();
     }
 
     // Paint the loading screen before beginning initialization.
@@ -347,26 +391,16 @@
 {#if showStartup}
   <StartupScreen
     status={updateStore.isApplyingUpdate ? `startup.${updateStore.progress.phase}Update` : startupStatus}
-    progress={updateStore.isApplyingUpdate ? updateStore.progress.progress : undefined}
-    entering={updateStore.isApplyingUpdate}
-    finished={startupReady && !updateStore.isApplyingUpdate}
-    onentered={() => updateStore.onSplashEntered()}
+    progress={updateStore.isApplyingUpdate ? updateStore.progress.progress : startingNativeRuntime ? 0 : undefined}
+    entering={updateStore.isApplyingUpdate || finishingSetup}
+    finished={(startupReady || (onboardingReady && !finishingSetup)) && !updateStore.isApplyingUpdate}
+    onentered={() => { if (finishingSetup) splashEntered?.(); else updateStore.onSplashEntered(); }}
     onfinished={() => { if (!updateStore.isApplyingUpdate) showStartup = false; }}
   />
 {/if}
 
-{#if startupReady && showOnboarding && !updateStore.isApplyingUpdate}
-  <OnboardingScreen onfinished={async () => {
-    await libraryStore.reload();
-    libraryStore.selectedPlaylistId = 'songs';
-    uiStore.activeTab = 'songs';
-    uiStore.tabHistory = ['songs'];
-    uiStore.tabHistoryIndex = 0;
-    await loadView('songs');
-    uiStore.persistPreferences('songs');
-    showOnboarding = false;
-    settingsStore.resumeHotkeys();
-  }} />
+{#if onboardingReady && showOnboarding && !updateStore.isApplyingUpdate}
+  <OnboardingScreen onfinished={finishSetup} />
 {/if}
 
 {#if startupReady}

@@ -111,7 +111,7 @@
   "defaultMergeNotes": false,
   "defaultMergeToleranceMs": 25,
   "autoCheckUpdates": true,
-  "updateCheckFrequency": "hourly",
+  "updateCheckFrequency": "launch",
   "autoDownloadUpdates": false,
   "includeBetaUpdates": false,
   "telemetryOptIn": false,
