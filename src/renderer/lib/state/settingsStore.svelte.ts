@@ -1,4 +1,4 @@
-import type { StorageUsage } from '$shared/types/ipc';
+import type { OnboardingSongDefaultsApplication, StorageUsage } from '$shared/types/ipc';
 import type { AppSettings, HotkeyBinding, MouseStopClickOption, ThemeMode, UiPreferences } from '$shared/types/settings';
 import type { TransposeMode } from '$shared/types/midi';
 import { DEFAULT_APP_SETTINGS, createDefaultSettings } from '$shared/defaults/settings';
@@ -111,7 +111,7 @@ class SettingsStore {
     }
   }
 
-  syncSongDefaults(strict = false) {
+  syncSongDefaults(strict = false, applyToExisting?: OnboardingSongDefaultsApplication) {
     return api.settings.updateSongDefaults({
       defaultBaseKeyOffset: this.settings.defaultBaseKeyOffset ?? DEFAULT_APP_SETTINGS.defaultBaseKeyOffset,
       defaultKeyOffset: this.settings.defaultKeyOffset ?? DEFAULT_APP_SETTINGS.defaultKeyOffset,
@@ -125,7 +125,7 @@ class SettingsStore {
       defaultAutoChord: this.settings.defaultAutoChord ?? DEFAULT_APP_SETTINGS.defaultAutoChord,
       defaultChordDetectionMilliseconds: this.settings.defaultChordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds,
       defaultEnableKeyChangeMarkers: this.settings.defaultEnableKeyChangeMarkers ?? DEFAULT_APP_SETTINGS.defaultEnableKeyChangeMarkers,
-    }).then(result => {
+    }, applyToExisting).then(result => {
       if (strict && !result) throw new Error('Unable to save song defaults.');
       return result;
     }).catch(error => {
@@ -135,14 +135,18 @@ class SettingsStore {
   }
 
   /** Commit the draft before anything can import a song with old defaults. */
-  async finishOnboarding(draft: Partial<AppSettings>, preferences: Pick<UiPreferences, 'locale' | 'animationTiming'> = {}) {
+  async finishOnboarding(
+    draft: Partial<AppSettings>,
+    preferences: Pick<UiPreferences, 'locale' | 'animationTiming'> = {},
+    applyToExisting?: OnboardingSongDefaultsApplication,
+  ) {
     const telemetryOptIn = draft.telemetryOptIn ?? this.settings.telemetryOptIn;
     await this.folderSync;
     await api.songs.watchFolder(null);
     this.settings = { ...this.settings, ...draft, telemetryOptIn: false, onboardingCompleted: false };
     const { ui, activeGameId, selectedInstrumentIds, selectedLayoutIds, ...settings } = this.settings;
     if (!await api.settings.updateSettings(settings)) throw new Error('Unable to save setup preferences.');
-    await this.syncSongDefaults(true);
+    await this.syncSongDefaults(true, applyToExisting);
     const folder = this.settings.midiFolder.trim();
     let count = 0;
     try {

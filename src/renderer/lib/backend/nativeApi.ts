@@ -334,8 +334,8 @@ export function createAppApi(): AppWindowApi {
       getAppVersion: () => invokeTauri<string>('Version', 'get_app_version', undefined),
       updateGlobalHotkeys: (enabled, bindings) =>
         invokeTauri<boolean>('Hotkeys', 'update_global_hotkeys', { enabled, bindings }),
-      updateSongDefaults: (defaults) =>
-        invokeTauri<boolean>('Settings', 'update_song_defaults', { defaults }),
+      updateSongDefaults: (defaults, applyToExisting) =>
+        invokeTauri<boolean>('Settings', 'update_song_defaults', { defaults, applyToExisting }),
     },
 
     onlineMidi: {

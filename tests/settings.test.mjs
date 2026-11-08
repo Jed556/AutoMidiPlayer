@@ -507,6 +507,26 @@ test('Finish imports once with monitoring disabled, and supports setup without a
   assert.equal(empty.saved().onboardingCompleted, true, 'Ordinary settings reset does not restart onboarding');
 });
 
+test('Finish applies each migration choice before scanning, while ordinary default updates leave songs alone', async () => {
+  for (const songSettings of [false, true]) {
+    for (const noteSettings of [false, true]) {
+      const h = await harness({ onboardingCompleted: false });
+      await h.store.init();
+      const calls = [];
+      h.api.settings.updateSongDefaults = async (defaults, application) => {
+        calls.push(['defaults', defaults.defaultHoldNotes, application]);
+        return true;
+      };
+      h.api.songs.scanFolder = async () => { calls.push(['scan']); return []; };
+      await h.store.finishOnboarding({ defaultHoldNotes: true, midiFolder: 'C:/Music' }, {}, { songSettings, noteSettings });
+      assert.deepEqual(calls, [['defaults', true, { songSettings, noteSettings }], ['scan']]);
+      calls.length = 0;
+      await h.store.syncSongDefaults();
+      assert.deepEqual(calls, [['defaults', true, undefined]]);
+    }
+  }
+});
+
 test('failed preference/default saves cannot scan; failed imports can be retried without completing setup', async () => {
   for (const failure of ['preferences', 'defaults', 'scan', 'watch', 'completion']) {
     const h = await harness({ onboardingCompleted: false });
