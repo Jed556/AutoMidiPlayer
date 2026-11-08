@@ -31,7 +31,7 @@ tauri-plugin-dialog = "2"
 tauri-plugin-updater = "2"
 souvlaki = { version = "0.9.3", default-features = false, features = ["use_zbus"] }
 amp-core = { path = "../crates/amp-core" }
-sysinfo = "0.39"
+sysinfo = "0.40"
 trash = "5.2.9"
 include_dir = "0.7"
 sentry = "0.49.3"
