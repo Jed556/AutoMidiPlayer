@@ -5,7 +5,7 @@ use serde_json::Value;
 use uuid::Uuid;
 use chrono::Utc;
 use crate::library::models::{AlbumRecord, PlaylistRecord, SongDetailsUpdate, SongMetadataUpdate, SongRecord, SongSettingsUpdate};
-use crate::library::models::{SongSettingsContext, SongSettingsScope};
+use crate::library::models::{SongDefaults, SongSettingsContext, SongSettingsScope};
 
 // One source for schema validation and additive upgrades, including early WPF libraries.
 const SONG_COLUMNS: &[(&str, &str)] = &[
@@ -424,6 +424,47 @@ impl LibraryDatabase {
             params![LEGACY_SONG_SETTINGS_MIGRATION, Utc::now().to_rfc3339()])?;
         transaction.commit()?;
         Ok(count)
+    }
+
+    /// Apply only the fields offered in onboarding. Keep metadata, markers,
+    /// track selections and all other per-song settings, including scoped ones.
+    pub fn apply_onboarding_song_defaults(
+        &self,
+        defaults: &SongDefaults,
+        song_settings: bool,
+        note_settings: bool,
+    ) -> Result<(), rusqlite::Error> {
+        if !song_settings && !note_settings { return Ok(()); }
+        let mut patches = Vec::new();
+        for song in self.get_all_songs()? {
+            let mut patch = serde_json::json!({});
+            if song_settings {
+                let detected = if defaults.auto_detect_base_key {
+                    std::fs::read(&song.path).ok()
+                        .and_then(|bytes| crate::midi::parser::parse_midi_bytes(&bytes).ok())
+                        .and_then(|parsed| crate::midi::detect::detect_key_changes(&parsed).first().map(|marker| marker.key_offset as i32))
+                } else { None };
+                patch["baseKey"] = Value::from(detected.unwrap_or(defaults.default_base_key_offset));
+                patch["key"] = Value::from(if detected.is_some() { 0 } else { defaults.default_key_offset });
+                patch["transpose"] = Value::from(defaults.transpose_mode_int());
+                patch["speed"] = Value::from(defaults.default_speed);
+            }
+            if note_settings {
+                patch["holdNotes"] = Value::from(defaults.default_hold_notes);
+                patch["tapThresholdMs"] = Value::from(defaults.default_tap_threshold_ms);
+                patch["mergeNotes"] = Value::from(defaults.default_merge_notes);
+                patch["mergeMilliseconds"] = Value::from(defaults.default_merge_tolerance_ms);
+            }
+            patches.push((song.id, patch));
+        }
+        let mut conn = self.conn.lock().unwrap();
+        let transaction = conn.transaction()?;
+        for (id, patch) in patches {
+            // Clear only these overridden fields at every scope, otherwise a
+            // migrated instrument's Hold Notes would mask the new default.
+            Self::write_song_settings_patch(&transaction, &id, &SongSettingsScope::Global, &patch)?;
+        }
+        transaction.commit()
     }
 
     /// Resolve global defaults, then game settings, then instrument settings.

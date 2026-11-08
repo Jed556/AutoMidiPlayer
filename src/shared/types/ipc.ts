@@ -60,6 +60,11 @@ export interface PlaybackApi {
   panicStop: () => Promise<boolean>;
 }
 
+export interface OnboardingSongDefaultsApplication {
+  songSettings: boolean;
+  noteSettings: boolean;
+}
+
 export interface SongDetailsUpdate {
   title: string;
   artist: string;
@@ -209,7 +214,7 @@ export interface SettingsApi {
   openUrl: (url: string) => Promise<boolean>;
   getAppVersion: () => Promise<string>;
   updateGlobalHotkeys: (enabled: boolean, bindings: any[]) => Promise<boolean>;
-  updateSongDefaults: (defaults: any) => Promise<boolean>;
+  updateSongDefaults: (defaults: any, applyToExisting?: OnboardingSongDefaultsApplication) => Promise<boolean>;
   browseGameExecutable: () => Promise<string | null>;
   browseSoundFont: () => Promise<string | null>;
 }

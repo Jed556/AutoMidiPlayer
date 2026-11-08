@@ -1221,8 +1221,7 @@
   @media (max-width: 500px) {
     .top-progress-inner { padding: 0 20px; }
     .setup-layout { padding: 0 20px; }
-    .bottom-actions-inner { padding: 0 20px; }
-    .bottom-actions-inner { flex-wrap: wrap; }
+    .bottom-actions-inner { padding: 0 20px; flex-wrap: wrap; }
     .fields-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
     .folder-choice { flex-wrap: wrap; gap: 12px; }
     .folder-text { min-width: 0; }
