@@ -11,6 +11,16 @@ const source = stripTypeScriptTypes(readFileSync(new URL('../src/renderer/lib/ba
   .replace('../utils/musicConstants.js', new URL('../src/renderer/lib/utils/musicConstants.ts', import.meta.url).href);
 const { songRecordToMidiFile, loadedMidiToMidiFile } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
+test('native note beat positions survive normalization for sheet rhythm', () => {
+  const song = loadedMidiToMidiFile({ id: 'tempo-change', notes: [
+    { noteNumber: 60, startMs: 500, startBeat: 1 },
+    { noteNumber: 62, startMs: 1500, startBeat: 2 },
+    { noteNumber: 64, startMs: 2500 },
+  ] });
+  assert.deepEqual(song.notes.map(note => note.startBeat), [1, 2, undefined]);
+  assert.deepEqual(song.tracks, []);
+});
+
 test('legacy marker labels render the numeric offset once and retain the saved metadata', () => {
   for (const [offset, label, note, signed] of [
     [-26, 'A♯0 (-26)', 'A♯0', '-26'],

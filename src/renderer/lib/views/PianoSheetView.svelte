@@ -1,15 +1,20 @@
 <script lang="ts">
   import { playbackStore } from '../state/playbackStore.svelte';
   import { gameStore } from '../state/gameStore.svelte';
+  import { settingsStore } from '../state/settingsStore.svelte';
   import { notificationCenter } from '../ui/notificationCenter.svelte';
   import { t } from '../i18n';
   import { instrumentKeyPairs } from '../../../shared/utils/instrumentLayout';
+  import { createDisplayPitch } from '../components/Studio/studioDisplay';
+  import { DEFAULT_SHEET_DELIMITER, generatePianoSheetParts, createSheetPlaybackIndex } from '../utils/pianoSheet';
+  import PianoSheetOutput from '../components/Sheet/PianoSheetOutput.svelte';
+  import { SheetStrikeTracker } from '../utils/sheetGlow';
   import FluentIcon from '../components/Icons/FluentIcon.svelte';
   import Button from '../components/Common/Button.svelte';
   import Dropdown from '../components/Common/Dropdown.svelte';
   import NumberBox from '../components/Common/NumberBox.svelte';
 
-  let delimiter = $state(' ');
+  let delimiter = $state(DEFAULT_SHEET_DELIMITER);
   let bars = $state(4);
   let beats = $state(4);
   let shorten = $state(1);
@@ -21,51 +26,44 @@
   const layoutPlaceholder = $derived(gameStore.isLayoutMissing ? 'Missing Layout' : 'No Layouts');
   const pitchToKey = $derived(new Map(instrumentKeyPairs(gameStore.activeInstrument, gameStore.activeLayout)));
 
-  function getNoteKey(pitch: number): string {
-    return pitchToKey.get(pitch) ?? '·';
-  }
-
-  let generatedSheet = $derived.by(() => {
-    const song = playbackStore.activeSong;
-    if (!song) return '';
-
-    const dur = song.durationSeconds ?? (song.durationMs ? song.durationMs / 1000 : 0);
-    const lines: string[] = [];
-    lines.push(`// ${song.title} - ${song.artist}`);
-    lines.push(`// BPM: ${song.bpm || 120} | Time: ${Math.floor(dur / 60)}:${Math.floor(dur % 60).toString().padStart(2, '0')}`);
-    lines.push(`// Layout: ${gameStore.activeLayout?.name ?? layoutPlaceholder}`);
-    lines.push('');
-
-    // Generate bar patterns
-    const activeTracks = (song.tracks || []).filter(t => !(t.muted ?? t.isMuted));
-    const chords: string[] = [];
-
-    if (activeTracks.length > 0) {
-      activeTracks.forEach(t => {
-        (t.notes || []).forEach(n => {
-          chords.push(getNoteKey(n.pitch ?? n.noteNumber ?? 60));
-        });
-      });
-    } else if (song.notes && song.notes.length > 0) {
-      song.notes.forEach((n: any) => {
-        chords.push(getNoteKey(n.pitch ?? n.noteNumber ?? 60));
-      });
-    }
-
-    if (chords.length === 0) {
-      // Sample sheet notes for demonstration
-      chords.push('A', 'S', 'D', 'F', 'G', 'H', 'J', '[AQ]', '[SW]', '[DE]', '[FR]', 'G', 'H', 'J', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U');
-    }
-
-    const perLine = Math.max(1, Math.trunc(bars || 1)) * Math.max(1, Math.trunc(beats || 1));
-    for (let i = 0; i < chords.length; i += perLine) {
-      const slice = chords.slice(i, i + perLine);
-      lines.push(slice.join(delimiter));
-    }
-
-    return lines.join('\n');
+  const displayPitch = $derived(createDisplayPitch({
+    mode: 'Auto',
+    keyOffset: playbackStore.effectiveKeyOffset,
+    transpose: playbackStore.transposeMode,
+    markersEnabled: playbackStore.enableKeyChangeMarkers,
+    markers: playbackStore.activeSong?.keyMarkers ?? [],
+    playableNotes: [...pitchToKey.keys()],
+  }));
+  const rawPlayback = $derived(playbackStore.isListenMode && playbackStore.synthMode === 'raw');
+  const sheetParts = $derived(generatePianoSheetParts(playbackStore.activeSong, {
+    delimiter, bars, beats, shorten, pitchToKey, displayPitch,
+    layoutName: gameStore.activeLayout?.name ?? layoutPlaceholder,
+    rawPlayback,
+    timing: rawPlayback ? undefined : {
+      holdNotes: playbackStore.holdNotes,
+      thresholdMs: playbackStore.tapThresholdMs,
+      tapMs: settingsStore.settings.keyPressDelayMs,
+      speed: playbackStore.enginePlaybackSpeed,
+    },
+  }));
+  const generatedSheet = $derived(sheetParts.map(part => part.text).join(''));
+  const playbackIndex = $derived(createSheetPlaybackIndex(sheetParts));
+  const playing = $derived(playbackStore.isPlaying && !playbackStore.isScrubbing);
+  const activeParts = $derived(playbackIndex.activeParts(
+    playbackStore.currentTimeSeconds * 1000,
+    playbackStore.activeNotes,
+    playing,
+  ));
+  const strikeTracker = new SheetStrikeTracker();
+  let strikeParts = $state.raw(new Set<number>());
+  let glowResetKey = $state.raw({});
+  $effect(() => {
+    const strikes = strikeTracker.update(playbackIndex, playbackStore.currentTimeSeconds * 1000,
+      playing, playbackStore.enginePlaybackSpeed);
+    if (!strikes) return;
+    strikeParts = strikes.parts;
+    if (strikes.reset) glowResetKey = {};
   });
-
   async function copySheet() {
     if (!generatedSheet) return;
     try {
@@ -82,7 +80,7 @@
 
   function resetDefaults() {
     isResetting = true;
-    delimiter = ' ';
+    delimiter = DEFAULT_SHEET_DELIMITER;
     bars = 4;
     beats = 4;
     shorten = 1;
@@ -129,7 +127,7 @@
 
     <div class="vertical-divider" aria-hidden="true"></div>
 
-    <div class="split-size-group" role="group" aria-label={t('sheet.splitSize')}>
+    <div class="split-size-group" role="group" aria-label={t('sheet.splitSize')} title={t('sheet.splitSizeTooltip')}>
       <span class="split-size-label" aria-hidden="true">{t('sheet.splitSize')}</span>
       <div class="split-size-inputs">
         <div class="control-field number-field">
@@ -177,12 +175,15 @@
         </Button>
       </div>
 
-      <textarea
-        readonly
-        class="sheet-textarea"
-        value={generatedSheet}
-        spellcheck="false"
-      ></textarea>
+      <PianoSheetOutput
+        parts={sheetParts}
+        {activeParts}
+        {strikeParts}
+        {playing}
+        resetKey={glowResetKey}
+        speed={playbackStore.enginePlaybackSpeed}
+        label={t('sheet.sheetTitle', { title: playbackStore.activeSong.title })}
+      />
     {:else}
       <div class="no-song-container">
         <FluentIcon name="Document" size={48} class="empty-icon" />
@@ -274,7 +275,7 @@
     border-radius: 6px;
     background: var(--control-fill);
     border: none;
-    color: var(--text-primary);
+    color: var(--text-secondary);
     font-size: 13px;
     text-align: center;
     outline: none;
@@ -392,21 +393,6 @@
     padding: 4px 10px;
     height: auto;
     font-size: 12px;
-  }
-
-  .sheet-textarea {
-    flex: 1;
-    width: 100%;
-    background: transparent;
-    border: none;
-    padding: 14px;
-    color: var(--text-primary);
-    font-family: 'Consolas', 'Courier New', monospace;
-    font-size: 13px;
-    line-height: 1.6;
-    resize: none;
-    outline: none;
-    overflow-y: auto;
   }
 
   .no-song-container {

@@ -8,6 +8,8 @@ export interface RollNote {
   pitch?: number; // alias for noteNumber
   rawNoteNumber?: number;
   startMs: number;
+  /** Quarter-note position in the original MIDI tempo map. */
+  startBeat?: number;
   startTime?: number; // startMs / 1000
   lengthMs: number;
   duration?: number; // lengthMs / 1000
