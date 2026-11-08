@@ -59,7 +59,7 @@ impl ConfigManager {
 
     /// Reloads all keyboard layouts and game definitions from disk
     pub fn reload(&mut self) {
-        info!("[ConfigManager] Reloading configs from {:?}", self.base_dir);
+        info!("[ConfigManager] Reloading configs from \"{}\"", self.base_dir.display());
         let (layouts, mut issues) = scan_layouts_checked(&self.layouts_dir);
         let (games, game_issues) = scan_games_checked(&self.games_dir);
         issues.extend(game_issues);
@@ -173,7 +173,7 @@ fn extract_dir_recursive(embedded_dir: &Dir, target_root: &Path) {
                 let _ = fs::create_dir_all(parent);
             }
             if let Err(e) = fs::write(&target_file_path, file.contents()) {
-                warn!("[ConfigManager] Failed to extract {:?}: {}", target_file_path, e);
+                warn!("[ConfigManager] Failed to extract \"{}\": {}", target_file_path.display(), e);
             }
         }
     }

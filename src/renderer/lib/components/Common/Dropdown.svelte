@@ -145,6 +145,45 @@
   let updateFlyoutPosition = () => {};
   let submenuAnchor: HTMLElement | null = null;
   let submenuCloseTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Pre-effects can run during setup, so initialize their derived dependencies first.
+  // Raw array from either options or items prop
+  let rawList = $derived(options ?? items ?? []);
+
+  // Normalize options into a uniform array of DropdownOption (including submenus)
+  let normalizedOptions = $derived<DropdownOption[]>(
+    rawList.map(opt => {
+      if (opt !== null && typeof opt === 'object') {
+        if ('isSubmenu' in opt && opt.isSubmenu) {
+          const subItems = ((opt as any).items || []).map((sub: any) => {
+            const subVal = sub.value !== undefined ? sub.value : sub.id;
+            const subLbl = sub.label !== undefined ? sub.label : (sub.name !== undefined ? sub.name : String(subVal ?? ''));
+            return {
+              ...sub,
+              value: subVal,
+              label: subLbl
+            };
+          });
+          return {
+            ...opt,
+            value: (opt as any).label,
+            label: (opt as any).label,
+            isSubmenu: true,
+            items: subItems
+          };
+        }
+        const val = opt.value !== undefined ? opt.value : (opt as any).id;
+        const lbl = opt.label !== undefined ? opt.label : ((opt as any).name !== undefined ? (opt as any).name : String(val ?? ''));
+        return {
+          ...opt,
+          value: val,
+          label: lbl
+        };
+      }
+      return { value: opt, label: String(opt) };
+    })
+  );
+
   let activeSubmenu = $derived(hoveredSubmenu === null ? null : normalizedOptions[hoveredSubmenu]);
 
   function cancelFlyoutMorph() {
@@ -298,43 +337,6 @@
       }
     };
   }
-
-  // Raw array from either options or items prop
-  let rawList = $derived(options ?? items ?? []);
-
-  // Normalize options into a uniform array of DropdownOption (including submenus)
-  let normalizedOptions = $derived<DropdownOption[]>(
-    rawList.map(opt => {
-      if (opt !== null && typeof opt === 'object') {
-        if ('isSubmenu' in opt && opt.isSubmenu) {
-          const subItems = ((opt as any).items || []).map((sub: any) => {
-            const subVal = sub.value !== undefined ? sub.value : sub.id;
-            const subLbl = sub.label !== undefined ? sub.label : (sub.name !== undefined ? sub.name : String(subVal ?? ''));
-            return {
-              ...sub,
-              value: subVal,
-              label: subLbl
-            };
-          });
-          return {
-            ...opt,
-            value: (opt as any).label,
-            label: (opt as any).label,
-            isSubmenu: true,
-            items: subItems
-          };
-        }
-        const val = opt.value !== undefined ? opt.value : (opt as any).id;
-        const lbl = opt.label !== undefined ? opt.label : ((opt as any).name !== undefined ? (opt as any).name : String(val ?? ''));
-        return {
-          ...opt,
-          value: val,
-          label: lbl
-        };
-      }
-      return { value: opt, label: String(opt) };
-    })
-  );
 
   function findOptionRecursively(list: DropdownOption[], targetVal: any): DropdownOption | null {
     for (const item of list) {

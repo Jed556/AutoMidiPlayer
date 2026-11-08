@@ -52,7 +52,7 @@
   // Root container ref
   let containerEl = $state<HTMLElement | null>(null);
   let tableBodyEl = $state<HTMLElement | null>(null);
-  let internalScrollEl = $state<HTMLElement | null>(null);
+  let internalScrollEl = $state<HTMLDivElement>();
 
   // Active scroll element (either external when embedded or internal)
   let activeScrollEl = $derived(embedInScroll ? scrollContainer : internalScrollEl);

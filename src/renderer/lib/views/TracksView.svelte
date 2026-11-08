@@ -47,7 +47,7 @@
     expandedTrackIds = next;
   }
 
-  let scrollHostEl = $state<HTMLElement | null>(null);
+  let scrollHostEl = $state<HTMLDivElement>();
   let cardWidth = $state(typeof window !== 'undefined' ? window.innerWidth : 1000);
 
   onMount(() => {
@@ -234,7 +234,7 @@
           active={showEmptyTracks}
           onclick={() => showEmptyTracks = !showEmptyTracks}
           title={t('tracks.showEmptyTracks')}
-          aria-label={t('tracks.showEmptyTracks')}
+          ariaLabel={t('tracks.showEmptyTracks')}
         >
           <FluentIcon name="Eye" size={18} />
         </Button>
@@ -245,7 +245,7 @@
           size="icon"
           onclick={toggleAllExpanded}
           title={t('tracks.expandAll')}
-          aria-label={t('tracks.expandAll')}
+          ariaLabel={t('tracks.expandAll')}
         >
           <span class="chevron-rotator" class:rotated={isAnyExpanded}>
             <FluentIcon name="ChevronDown" size={16} />
@@ -380,7 +380,7 @@
                 <GradientSweep visible={showSummaryDuration} direction="horizontal" collapseMargin="left" marginAmount="16px">
                   <div class="track-stat stat-duration" title={t('tracks.avgDurationTooltip')}>
                     <span class="stat-label">{t('tracks.avgDuration')}</span>
-                    <span class="stat-num">{Math.round(track.averageDurationMs || track.avgDurationMs || track.avgDuration || 0)}ms</span>
+                    <span class="stat-num">{Math.round(track.avgDurationMs ?? track.avgDuration ?? 0)}ms</span>
                   </div>
                 </GradientSweep>
 
@@ -401,7 +401,7 @@
                   toggleTrackExpand(trackId);
                 }}
                 title={t('tracks.toggleDetails')}
-                aria-label={t('tracks.toggleDetails')}
+                ariaLabel={t('tracks.toggleDetails')}
               >
                 <span class="chevron-rotator" class:rotated={isExpanded}>
                   <FluentIcon name="ChevronDown" size={14} />
@@ -498,7 +498,7 @@
                       <GradientSweep visible={showOverflowDuration} direction="horizontal" collapseMargin="left" marginAmount="16px">
                         <div class="track-stat stat-duration" title={t('tracks.avgDurationTooltip')}>
                           <span class="stat-label">{t('tracks.avgDuration')}</span>
-                          <span class="stat-num">{Math.round(track.averageDurationMs || track.avgDurationMs || track.avgDuration || 0)}ms</span>
+                          <span class="stat-num">{Math.round(track.avgDurationMs ?? track.avgDuration ?? 0)}ms</span>
                         </div>
                       </GradientSweep>
 
@@ -1124,7 +1124,7 @@
     gap: 8px;
   }
 
-  .empty-icon {
+  .no-song-panel :global(.empty-icon) {
     opacity: 0.3;
   }
 

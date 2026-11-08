@@ -36,10 +36,6 @@
     return Math.round(animationStore.timing * 3.0 * 100) / 100;
   });
 
-  let activeBannerColor = $derived(
-    currentPlaylist?.bannerColor || 'rgba(29, 185, 84, 0.45)'
-  );
-
   let searchQuery = $state('');
   let selectedSongId = $state<string | null>(null);
   let selectedSongIds = $state<string[]>([]);
@@ -52,7 +48,7 @@
     { value: 'artist', label: t('songs.sortArtist') },
     { value: 'duration', label: t('songs.sortDuration') },
     { value: 'dateAdded', label: t('songs.sortDateAdded') }
-  ]);
+  ] as const);
 
   let currentSortLabel = $derived(
     sortOptions.find(o => o.value === uiStore.songsSortMode)?.label ?? t('songs.sortTitle')
@@ -60,6 +56,10 @@
 
   let currentPlaylist = $derived(
     libraryStore.playlists.find(p => p.id === libraryStore.selectedPlaylistId) || libraryStore.playlists[0]
+  );
+
+  let activeBannerColor = $derived(
+    currentPlaylist?.bannerColor || 'rgba(29, 185, 84, 0.45)'
   );
 
   let playlistSongs = $derived.by(() => {
@@ -73,14 +73,11 @@
 
   const timestampCache = new WeakMap<object, number>();
   function getTimestamp(song: MidiFile): number {
-    if (song && typeof song === 'object') {
-      const cached = timestampCache.get(song);
-      if (cached !== undefined) return cached;
-      const t = new Date(song.dateAdded || 0).getTime();
-      timestampCache.set(song, t);
-      return t;
-    }
-    return new Date(song?.dateAdded || 0).getTime();
+    const cached = timestampCache.get(song);
+    if (cached !== undefined) return cached;
+    const timestamp = new Date(song.dateAdded || 0).getTime();
+    timestampCache.set(song, timestamp);
+    return timestamp;
   }
 
   let filteredSongs = $derived(
@@ -93,7 +90,9 @@
       .sort((a, b) => {
         if (uiStore.songsSortMode === 'title') return a.title.localeCompare(b.title);
         if (uiStore.songsSortMode === 'artist') return a.artist.localeCompare(b.artist);
-        if (uiStore.songsSortMode === 'duration') return b.durationSeconds - a.durationSeconds;
+        if (uiStore.songsSortMode === 'duration') {
+          return (b.durationSeconds ?? b.durationMs / 1000) - (a.durationSeconds ?? a.durationMs / 1000);
+        }
         if (uiStore.songsSortMode === 'dateAdded') {
           return getTimestamp(b) - getTimestamp(a);
         }

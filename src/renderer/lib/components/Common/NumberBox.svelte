@@ -152,6 +152,7 @@
     font-size: 12.5px;
     font-family: inherit;
     -moz-appearance: textfield;
+    appearance: textfield;
   }
 
   .num-input::-webkit-outer-spin-button,

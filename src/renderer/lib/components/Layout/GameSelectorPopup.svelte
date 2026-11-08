@@ -65,7 +65,7 @@
     const game = gameStore.games.find(g => g.id === gameId);
     if (game) {
       notificationCenter.info(
-        t('gameSelector.gameSetToastTitle', { name: game.displayName || game.name }),
+        t('gameSelector.gameSetToastTitle', { name: game.displayName || game.name || game.id }),
         t('gameSelector.layoutToastMsg', { layout: gameStore.getGameLayout(game)?.name || 'No Layouts' })
       );
     }
