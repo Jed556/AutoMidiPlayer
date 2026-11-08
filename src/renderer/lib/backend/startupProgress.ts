@@ -35,6 +35,10 @@ export function createStartupProgress(clock = {
 
   return {
     get current() { return current; },
+    beginStartup() {
+      startupFloor = 0;
+      reset(0);
+    },
     beginUpdate() {
       startupFloor = 75;
       reset(0);

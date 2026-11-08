@@ -14,7 +14,7 @@ use process_monitor::{
     ProcessMonitor,
 };
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::str::FromStr;
 
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -831,8 +831,27 @@ async fn migrate_legacy_data(state: State<'_, AppState>, import_data: bool, remo
 }
 
 #[tauri::command]
-fn get_app_settings(state: State<AppState>) -> Result<serde_json::Value, String> {
-    state.settings.get().map_err(|e| e.to_string())
+fn get_app_settings(app: AppHandle) -> Result<serde_json::Value, String> {
+    if let Some(state) = app.try_state::<AppState>() {
+        return state.settings.get().map_err(|e| e.to_string());
+    }
+    read_launch_settings()
+}
+
+// Onboarding needs preferences, but must not open the library, migrate songs,
+// create an audio device, or start background services just to show setup.
+fn read_launch_settings() -> Result<serde_json::Value, String> {
+    let mut settings = SettingsStore::defaults();
+    match std::fs::read(SettingsStore::default_path()) {
+        Ok(bytes) => {
+            let saved: serde_json::Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+            let saved = saved.as_object().ok_or("settings.json must contain an object")?;
+            settings.as_object_mut().unwrap().extend(saved.clone());
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {},
+        Err(error) => return Err(error.to_string()),
+    }
+    Ok(settings)
 }
 
 #[tauri::command]
@@ -1619,6 +1638,22 @@ struct StartupStatus {
 }
 
 type StartupState = Arc<Mutex<StartupStatus>>;
+type RuntimeGate = Arc<(Mutex<bool>, Condvar)>;
+
+#[tauri::command]
+fn start_runtime(app: AppHandle, gate: State<RuntimeGate>) -> Result<(), String> {
+    let (lock, wake) = gate.inner().as_ref();
+    let mut started = lock.lock().map_err(|e| e.to_string())?;
+    if !*started {
+        let state = app.state::<StartupState>();
+        let mut status = state.lock().map_err(|e| e.to_string())?;
+        status.ready = false;
+        status.stage = "Initializing application\u{2026}".into();
+        *started = true;
+        wake.notify_one();
+    }
+    Ok(())
+}
 
 #[tauri::command]
 fn get_startup_status(state: State<StartupState>) -> Result<StartupStatus, String> {
@@ -1644,9 +1679,8 @@ pub fn run() {
 
     tauri::Builder::default()
         .setup(|app| {
-            // Initialize logging system, panic hook, and sentry telemetry
+            // Local logging is available even before setup; diagnostics wait.
             let _ = logging::init_logger(logging::ALL_STEPS_VERBOSITY, cfg!(debug_assertions));
-            telemetry::register_panic_hook();
             logging::log_startup(
                 "Auto MIDI Player",
                 env!("CARGO_PKG_VERSION"),
@@ -1672,9 +1706,31 @@ pub fn run() {
                 update_resume: updates::load_resume(env!("CARGO_PKG_VERSION")),
             }));
             app.manage(startup.clone());
+            let runtime_gate: RuntimeGate = Arc::new((Mutex::new(false), Condvar::new()));
+            app.manage(runtime_gate.clone());
             let app = app.handle().clone();
             tauri::async_runtime::spawn_blocking(move || {
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let launch_settings = read_launch_settings().expect("Failed to read launch settings");
+                    let completed = launch_settings.get("onboardingCompleted")
+                        .and_then(serde_json::Value::as_bool).unwrap_or(false);
+                    let (lock, wake) = &*runtime_gate;
+                    let mut started = lock.lock().unwrap();
+                    if !completed {
+                        {
+                            let mut status = startup.lock().unwrap();
+                            status.ready = true; // Preferences and window commands are available.
+                            status.stage = "Waiting for setup\u{2026}".into();
+                        }
+                        while !*started {
+                            started = wake.wait(started).unwrap();
+                        }
+                    } else {
+                        *started = true;
+                    }
+                    drop(started);
+                    telemetry::register_panic_hook();
+
                     // Initialize Audio Device and load default SoundFont
                     set_startup_stage(&app, "Initializing audio\u{2026}");
                     let default_sf_path = find_default_soundfont(&app);
@@ -1742,7 +1798,7 @@ pub fn run() {
 
                     // Register default global hotkeys matching the original WPF app (Ctrl+Alt bindings):
                     let default_bindings = default_hotkey_bindings();
-                    let _ = apply_hotkeys_config(&app.clone(), &engine, defaults::value("/hotkeysEnabled"), &default_bindings);
+                    let _ = apply_hotkeys_config(&app.clone(), &engine, completed && defaults::value("/hotkeysEnabled"), &default_bindings);
 
                     set_startup_stage(&app, "Loading library database\u{2026}");
                     // Initialize SQLite library database at %LocalAppData%\Jed556\AutoMIDIPlayer\AutoMidiPlayer.db
@@ -1911,6 +1967,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             media_controls::sync_media_controls,
             get_startup_status,
+            start_runtime,
             updates::prepare_update,
             updates::download_update,
             updates::install_update,

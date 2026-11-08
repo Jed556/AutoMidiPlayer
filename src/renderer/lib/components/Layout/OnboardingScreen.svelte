@@ -17,12 +17,14 @@
   import PathText from '../Common/PathText.svelte';
   import HoldNotesControl from '../Common/HoldNotesControl.svelte';
   import OverlapBehaviorPicker from '../Settings/OverlapBehaviorPicker.svelte';
+  import { getUpdateCheckFrequencyOptions } from '../Settings/settingsOptions';
   import ContentDialog from '../Dialogs/ContentDialog.svelte';
   import CustomScrollViewer from '../Common/CustomScrollViewer.svelte';
 
-  let { onfinished }: { onfinished: () => Promise<void> } = $props();
+  let { onfinished }: { onfinished: (setup: () => Promise<void>) => Promise<void> } = $props();
   // Playback defaults and folder imports stay deferred; language and appearance preview live.
-  let draft = $state<AppSettings>(untrack(() => ({ ...settingsStore.settings, telemetryOptIn: true })));
+  let draft = $state<AppSettings>(untrack(() => ({ ...settingsStore.settings })));
+  let updateCheckFrequencyOptions = $derived(getUpdateCheckFrequencyOptions(t));
   let legacyStatus = $state<LegacyDataStatus>({
     detected: false,
     songCount: 0,
@@ -40,15 +42,12 @@
   let mounted = $state(false);
   let busy = $state(false);
   let browsing = $state(false);
-  let completed = $state(false);
-  let foundSongs = $state(0);
   let error = $state('');
   let heading: HTMLHeadingElement;
   let overlay: HTMLDivElement;
   let stepViewport: HTMLDivElement;
   let scrollContainer = $state<HTMLDivElement>();
   let animating = $state(false);
-  let isExiting = $state(false);
   let stepAnimations: Animation[] = [];
   let destroyed = false;
   let isMaximized = $state(false);
@@ -129,7 +128,7 @@
   });
 
   $effect(() => {
-    step; completed;
+    step;
     void tick().then(() => {
       heading?.focus({ preventScroll: true });
       scrollContainer?.scrollTo({ top: 0, behavior: 'instant' });
@@ -214,31 +213,17 @@
     busy = true;
     error = '';
     try {
-      await api.settings.migrateLegacyData?.(isLegacyDetected && migrationChoice === 'migrate', isLegacyDetected && removeLegacy);
-      foundSongs = await settingsStore.finishOnboarding(draft, {
-        locale: i18n.currentLocale,
-        animationTiming: animationStore.timing,
+      await onfinished(async () => {
+        await api.settings.migrateLegacyData?.(isLegacyDetected && migrationChoice === 'migrate', isLegacyDetected && removeLegacy);
+        await settingsStore.finishOnboarding(draft, {
+          locale: i18n.currentLocale,
+          animationTiming: animationStore.timing,
+        });
       });
-      completed = true;
     } catch (cause) {
       error = String(cause);
     } finally {
       busy = false;
-    }
-  }
-
-  async function openLibrary() {
-    if (busy || isExiting) return;
-    isExiting = true;
-    const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 320;
-    try {
-      await Promise.all([
-        new Promise(resolve => setTimeout(resolve, duration)),
-        onfinished()
-      ]);
-    } catch (cause) {
-      isExiting = false;
-      error = String(cause);
     }
   }
 
@@ -254,7 +239,7 @@
   }
 
   function handleMouseUp(event: MouseEvent) {
-    if (showSkipConfirm || busy || browsing || animating || completed) return;
+    if (showSkipConfirm || busy || browsing || animating) return;
     if (event.button === 3) {
       // Mouse Back button (XButton1)
       if (step > 0) {
@@ -286,7 +271,7 @@
       showSkipConfirm = false;
       return;
     }
-    if (!showSkipConfirm && !busy && !browsing && !animating && !completed) {
+    if (!showSkipConfirm && !busy && !browsing && !animating) {
       if (event.altKey && event.key === 'ArrowLeft') {
         if (step > 0) {
           event.preventDefault();
@@ -329,7 +314,6 @@
 
 <div
   class="onboarding-screen"
-  class:finished={isExiting}
   bind:this={overlay}
   role="dialog"
   aria-modal="true"
@@ -455,8 +439,8 @@
       >
         <div class="page-heading">
           <div class="page-icon"><FluentIcon name={PAGE_ICONS[page] || 'Settings'} size={26} /></div>
-          <h1 id="onboarding-title" tabindex="-1" bind:this={heading}>{t(completed ? 'onboarding.completeTitle' : `onboarding.${pages[step]}Title`)}</h1>
-          <p>{t(completed ? 'onboarding.completeDescription' : `onboarding.${pages[step]}Description`)}</p>
+          <h1 id="onboarding-title" tabindex="-1" bind:this={heading}>{t(`onboarding.${pages[step]}Title`)}</h1>
+          <p>{t(`onboarding.${pages[step]}Description`)}</p>
         </div>
 
         <CustomScrollViewer
@@ -548,7 +532,6 @@
             <p class="note">{t('onboarding.changeLater')}</p>
           {:else if page === 'folder'}
             <div class="folder-choice">
-              <FluentIcon name="Folder" size={24} />
               <div class="folder-text"><span>{t('settings.midiFolder')}</span><strong>{draft.midiFolder || t('settings.noFolderSelected')}</strong></div>
               <div class="folder-actions">
                 <Button variant="secondary" disabled={browsing} onclick={browse}>{t('onboarding.browse')}</Button>
@@ -580,7 +563,7 @@
             </div>
           {:else if page === 'updates'}
             <div class="setting-row"><ToggleSwitch label={t('settings.autoCheckUpdatesToggle')} checked={draft.autoCheckUpdates} onchange={value => draft.autoCheckUpdates = value} /></div>
-            <div class="frequency-field field"><span>{t('settings.updateFrequency')}</span><Dropdown portalMenu ariaLabel={t('settings.updateFrequency')} disabled={!draft.autoCheckUpdates} value={draft.updateCheckFrequency} options={[{value: '10min', label: t('settings.freq10Min')}, {value: 'hourly', label: t('settings.freqHourly')}, {value: 'daily', label: t('settings.freqDaily')}]} onchange={value => draft.updateCheckFrequency = value} /></div>
+            <div class="frequency-field field"><span>{t('settings.updateFrequency')}</span><Dropdown portalMenu ariaLabel={t('settings.updateFrequency')} disabled={!draft.autoCheckUpdates} value={draft.updateCheckFrequency} options={updateCheckFrequencyOptions} onchange={value => draft.updateCheckFrequency = value} /></div>
             <div class="setting-row"><ToggleSwitch label={t('settings.autoDownloadUpdatesToggle')} description={t('settings.autoDownloadUpdatesSubtext')} checked={draft.autoDownloadUpdates} onchange={value => draft.autoDownloadUpdates = value} /></div>
             <div class="setting-row"><ToggleSwitch label={t('settings.betaUpdatesToggle')} checked={draft.includeBetaUpdates} onchange={value => draft.includeBetaUpdates = value} /></div>
           {:else if page === 'appearance'}
@@ -607,14 +590,13 @@
                 </div>
               {/if}
               <div><dt>{t('settings.midiFolder')}</dt><dd class="folder-summary">{draft.midiFolder || t('onboarding.noFolder')}</dd></div>
-              {#if completed && draft.midiFolder}<div><dt>{t('onboarding.library')}</dt><dd class="song-count">{t('onboarding.foundSongs', { count: foundSongs })}</dd></div>{/if}
               <div><dt>{t('onboarding.telemetryTitle')}</dt><dd>{t(draft.telemetryOptIn ? 'settings.optedIn' : 'settings.optedOut')}</dd></div>
               <div><dt>{t('settings.defaultTranspose')}</dt><dd>{t(`settings.transpose${draft.defaultTranspose}Desc`)} · {draft.defaultSpeed}×</dd></div>
               <div><dt>{t('settings.updates')}</dt><dd>{t(draft.autoCheckUpdates ? 'onboarding.automaticUpdates' : 'onboarding.manualUpdates')}</dd></div>
               <div><dt>{t('settings.language')}</dt><dd>{AVAILABLE_LOCALES.find(locale => locale.code === i18n.currentLocale)?.name}</dd></div>
               <div><dt>{t('settings.theme')}</dt><dd>{t(`settings.theme${draft.theme}`)}</dd></div>
             </dl>
-            <p class="note">{t(completed ? 'onboarding.nextDestination' : draft.midiFolder ? 'onboarding.finishScan' : 'onboarding.addFolderLater')}</p>
+            <p class="note">{t(draft.midiFolder ? 'onboarding.finishScan' : 'onboarding.addFolderLater')}</p>
           {/if}
         </CustomScrollViewer>
       </div>
@@ -626,35 +608,28 @@
   <footer class="bottom-actions-area">
     <div class="bottom-actions-inner">
       <div class="actions-left">
-        {#if !completed}
+        <Button
+          variant="secondary"
+          disabled={step === 0 || busy || browsing || animating}
+          onclick={() => navigate(step - 1)}
+        >
+          <FluentIcon name="ChevronLeft" size={16} />
+          {t('onboarding.previous')}
+        </Button>
+        <div class="skip-availability" class:available={canSkip} inert={!canSkip} aria-hidden={!canSkip}>
           <Button
             variant="secondary"
-            disabled={step === 0 || busy || browsing || animating}
-            onclick={() => navigate(step - 1)}
+            class="skip-btn"
+            disabled={!canSkip || busy || browsing || animating}
+            onclick={promptSkip}
           >
-            <FluentIcon name="ChevronLeft" size={16} />
-            {t('onboarding.previous')}
+            {t('onboarding.skip')}
           </Button>
-          <div class="skip-availability" class:available={canSkip} inert={!canSkip} aria-hidden={!canSkip}>
-            <Button
-              variant="secondary"
-              class="skip-btn"
-              disabled={!canSkip || busy || browsing || animating}
-              onclick={promptSkip}
-            >
-              {t('onboarding.skip')}
-            </Button>
-          </div>
-        {/if}
+        </div>
       </div>
 
       <div class="actions-right">
-        {#if completed}
-          <Button variant="accent" disabled={busy} onclick={openLibrary}>
-            {t('onboarding.openLibrary')}
-            <FluentIcon name="ArrowRight" size={16} />
-          </Button>
-        {:else if step === pages.length - 1}
+        {#if step === pages.length - 1}
           <Button variant="accent" disabled={busy || animating} onclick={finish}>
             <FluentIcon name="Checkmark" loading={busy} size={16} />
             {t(busy ? 'onboarding.finishing' : 'onboarding.finish')}
@@ -716,17 +691,6 @@
     flex-direction: column;
     background: var(--card-bg, #1f1f1f);
     color: var(--text-primary);
-  }
-
-  .onboarding-screen.finished {
-    animation: onboarding-out 320ms ease-in-out forwards;
-    animation-duration: 320ms !important;
-    pointer-events: none;
-  }
-
-  @keyframes onboarding-out {
-    from { opacity: 1; }
-    to { opacity: 0; }
   }
 
   /* Window TitleBar Header */
@@ -1145,7 +1109,6 @@
   dt { color: var(--text-secondary); flex-shrink: 0; }
   dd { min-width: 0; margin: 0; text-align: right; overflow-wrap: anywhere; }
   .folder-summary { overflow-wrap: anywhere; }
-  .song-count { color: var(--accent); font-weight: 600; }
   .setup-error { color: var(--danger, #ff7777); font-size: 12px; line-height: 1.5; margin: 8px 0 0; overflow-wrap: anywhere; }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
@@ -1245,7 +1208,6 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .skip-availability { transition: none; }
-    .onboarding-screen.finished { animation: none !important; opacity: 0; }
     .linear-bar-fill { transition: none !important; }
     .linear-bar-fill::after { display: none !important; }
   }

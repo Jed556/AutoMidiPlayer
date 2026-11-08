@@ -429,15 +429,17 @@ test('cache cleanup prevents double clicks, refreshes usage, and recovers from r
   assert.equal(h.store.storageLoading, false);
 });
 
-test('unfinished onboarding defers folder monitoring and scans, even with a saved folder', async () => {
+test('unfinished onboarding defers runtime work, even with a saved folder', async () => {
   const h = await harness({ onboardingCompleted: false, midiFolder: 'C:/Music', autoScanMidiFolder: true });
   const hotkeys = [];
   h.api.settings.updateGlobalHotkeys = async enabled => { hotkeys.push(enabled); return true; };
+  h.api.games.getKeyboardLayouts = async () => assert.fail('Game configurations are deferred until Finish');
+  h.api.settings.updateSongDefaults = async () => assert.fail('The player is deferred until Finish');
   await h.store.init();
   assert.deepEqual(h.folderCalls, []);
-  assert.ok(hotkeys.length > 0 && hotkeys.every(enabled => !enabled));
-  h.store.resetAllDefaults();
-  await settle();
+  assert.deepEqual(hotkeys, [], 'The player does not exist yet during setup');
+  assert.deepEqual(h.telemetryCalls, [], 'No Sentry initialization during setup');
+  assert.equal(h.saved().autoCorrectThreshold, undefined, 'Do not write or migrate runtime settings during setup');
   assert.equal(h.saved().onboardingCompleted, false);
 });
 
@@ -536,18 +538,18 @@ test('telemetry stays off throughout unfinished setup and commits the draft choi
   for (const optedIn of [true, false]) {
     const h = await harness({ onboardingCompleted: false, telemetryOptIn: true });
     await h.store.init();
-    assert.deepEqual(h.telemetryCalls, [false], 'Even an interrupted saved opt-in cannot enable telemetry');
+    assert.deepEqual(h.telemetryCalls, [], 'Setup must not initialize telemetry, even with an interrupted saved opt-in');
     let finishScan;
     h.api.songs.scanFolder = () => new Promise(resolve => { finishScan = resolve; });
     const finishing = h.store.finishOnboarding({ midiFolder: 'C:/Music', telemetryOptIn: optedIn });
     await settle();
     assert.equal(h.saved().telemetryOptIn, false);
-    assert.deepEqual(h.telemetryCalls, [false]);
+    assert.deepEqual(h.telemetryCalls, []);
     finishScan([]);
     await finishing;
     assert.equal(h.saved().telemetryOptIn, optedIn);
     assert.equal(h.saved().onboardingCompleted, true);
-    assert.deepEqual(h.telemetryCalls, [false, optedIn]);
+    assert.deepEqual(h.telemetryCalls, [optedIn]);
   }
 });
 
@@ -556,7 +558,7 @@ test('a failed onboarding scan never activates the selected telemetry opt-in', a
   await h.store.init();
   h.api.songs.scanFolder = async () => { throw new Error('Folder unavailable'); };
   await assert.rejects(h.store.finishOnboarding({ midiFolder: 'C:/Music', telemetryOptIn: true }));
-  assert.deepEqual(h.telemetryCalls, [false]);
+  assert.deepEqual(h.telemetryCalls, []);
   assert.equal(h.saved().telemetryOptIn, false);
   assert.equal(h.saved().onboardingCompleted, false);
 });

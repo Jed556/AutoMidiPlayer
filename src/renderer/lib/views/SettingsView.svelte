@@ -20,6 +20,7 @@
   import SoundFontStack from '../components/Settings/SoundFontStack.svelte';
   import StorageUsageChart from '../components/Settings/StorageUsageChart.svelte';
   import OverlapBehaviorPicker from '../components/Settings/OverlapBehaviorPicker.svelte';
+  import { getUpdateCheckFrequencyOptions } from '../components/Settings/settingsOptions';
   import RefreshIcon from '../components/Icons/RefreshIcon.svelte';
   import { playbackStore } from '../state/playbackStore.svelte';
   import { api } from '../backend/index';
@@ -178,13 +179,7 @@
     { value: 'Down', label: t('settings.transposeDownDesc') }
   ]);
 
-  let updateCheckFrequencyOptions = $derived([
-    { value: '10min', label: t('settings.freq10Min') },
-    { value: 'hourly', label: t('settings.freqHourly') },
-    { value: 'daily', label: t('settings.freqDaily') },
-    { value: 'weekly', label: t('settings.freqWeekly') },
-    { value: 'launch', label: t('settings.freqLaunch') }
-  ]);
+  let updateCheckFrequencyOptions = $derived(getUpdateCheckFrequencyOptions(t));
 
   let isProgrammaticScroll = false;
   let scrollReleaseTimer: ReturnType<typeof setTimeout> | null = null;
