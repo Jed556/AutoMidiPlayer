@@ -1,6 +1,6 @@
 [package]
 name = "auto-midi-player"
-version = "8.4.1"
+version = "8.4.2"
 description = "MIDI auto player for games"
 authors = ["Jed556 <jguiriba11@gmail.com>"]
 license = "GPL-3.0-or-later"
