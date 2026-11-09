@@ -11,6 +11,7 @@
   import { notificationCenter } from '../../ui/notificationCenter.svelte';
   import { api } from '../../backend/index';
   import { getKeyNoteName, formatSignedOffset } from '../../utils/musicConstants';
+  import { PLAYBACK_SPEEDS } from '../../utils/playbackSpeeds';
   import Button from '../Common/Button.svelte';
   import SplitButton from '../Common/SplitButton.svelte';
   import Picker from '../Common/Picker.svelte';
@@ -63,7 +64,7 @@
   let titleInput: HTMLInputElement;
 
   const offsets = Array.from({ length: 55 }, (_, index) => index - 27);
-  const speeds = [...Array.from({ length: 20 }, (_, i) => (i + 1) / 10), 2.5, 3, 3.5, 4];
+  const speeds = PLAYBACK_SPEEDS;
   const transposeValues: TransposeMode[] = ['Up', 'Smart', 'Ignore', 'Down'];
   const baseKeyOptions = [
     { value: null as number | null, label: 'Legacy (None)' },

@@ -528,7 +528,7 @@ export const zhCN: TranslationSchema = {
     enableKeyUpTooltip: '开启后，按键模拟将会在按下之后发送抬起事件，保证游戏内弹奏指令完整。',
     keypressDelay: '按键抬起延迟 (毫秒)',
     keypressDelayTooltip: '按键按下与抬起之间的持续延时。',
-    keypressDelayDefault: '默认: 15ms',
+    keypressDelayReset: '将按键延迟恢复为默认值（{value} 毫秒）',
     pitchBendMethod: '滑音弯音处理方式',
     pitchBendSemitone: '半音阶梯跳进 (Semitone Step)',
     pitchBendContinuous: '连续量化平滑 (Continuous Quantize)',

@@ -18,6 +18,7 @@
   import HoldNotesControl from '../Common/HoldNotesControl.svelte';
   import OverlapBehaviorPicker from '../Settings/OverlapBehaviorPicker.svelte';
   import { getUpdateCheckFrequencyOptions } from '../Settings/settingsOptions';
+  import { PLAYBACK_SPEED_OPTIONS } from '../../utils/playbackSpeeds';
   import ContentDialog from '../Dialogs/ContentDialog.svelte';
   import CustomScrollViewer from '../Common/CustomScrollViewer.svelte';
 
@@ -559,7 +560,7 @@
             <div class="setting-row"><ToggleSwitch label={t('settings.autoDetectBaseKey')} checked={draft.autoDetectBaseKey} onchange={value => draft.autoDetectBaseKey = value} /></div>
             <div class="fields-grid">
               <div class="field"><span>{t('settings.defaultTranspose')}</span><Dropdown portalMenu ariaLabel={t('settings.defaultTranspose')} value={draft.defaultTranspose} options={['Smart', 'Ignore', 'Up', 'Down'].map(mode => ({value: mode, label: t(`settings.transpose${mode}Desc`)}))} onchange={value => draft.defaultTranspose = value} /></div>
-              <div class="field"><span>{t('settings.defaultSpeed')}</span><Dropdown portalMenu ariaLabel={t('settings.defaultSpeed')} value={draft.defaultSpeed} options={[0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(speed => ({value: speed, label: `${speed}×`}))} onchange={value => draft.defaultSpeed = value} /></div>
+              <div class="field"><span>{t('settings.defaultSpeed')}</span><Dropdown portalMenu ariaLabel={t('settings.defaultSpeed')} value={draft.defaultSpeed} options={PLAYBACK_SPEED_OPTIONS} onchange={value => draft.defaultSpeed = value} /></div>
             </div>
           {:else if page === 'player'}
             {#if isMigrating}<p class="note">{t('onboarding.migratedNoteDefaultsHelp')}</p>{/if}
