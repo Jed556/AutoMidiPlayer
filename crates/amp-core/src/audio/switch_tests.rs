@@ -27,6 +27,89 @@ fn render(engine: &mut SynthEngine) -> Vec<f32> {
 }
 
 #[test]
+fn preview_taps_stay_short_when_midi_sustain_arrives_after_playback_starts() {
+    use crate::{KeyboardLayout, NoteKeyMapping, ParsedMidi, PlaybackEngine, PlayerEvent, TempoMap, TimedNoteEvent};
+    use crate::midi::{ControlEventKind, TimedControlEvent};
+    use std::sync::mpsc;
+
+    let sf = font("TimGM6mb.sf2");
+    for (mode, follow_timing) in [(SynthMode::Adapted, true), (SynthMode::Adapted, false), (SynthMode::Raw, true)] {
+        let (mut audio, cmd_tx) = engine(sf.clone());
+        let synth = AudioSynth { loader: Arc::new(FontLoader::new(cmd_tx.clone(), SAMPLE_RATE)), cmd_tx };
+        let event = |time_us, note, is_note_on| TimedNoteEvent {
+            time_us, note, is_note_on, channel: 0, track_index: 0,
+            velocity: if is_note_on { 90 } else { 0 },
+        };
+        let song = ParsedMidi {
+            title: "Sustain after preview taps".into(), duration_us: 2_000_000,
+            bpm: 120.0, ppqn: 480, tracks: vec![],
+            events: vec![event(0, 60, true), event(100_000, 60, false),
+                event(200_000, 64, true), event(600_000, 64, false)],
+            control_events: vec![
+                TimedControlEvent { time_us: 150_000, channel: 0,
+                    kind: ControlEventKind::ControlChange { controller: 64, value: 127 } },
+                TimedControlEvent { time_us: 2_000_000, channel: 0,
+                    kind: ControlEventKind::ControlChange { controller: 64, value: 0 } },
+            ],
+            tempo_map: TempoMap::new(480, &[]), key_signatures: vec![],
+        };
+        let (tx, rx) = mpsc::channel();
+        let player = PlaybackEngine::new(Some(song), NoteKeyMapping::new(KeyboardLayout::Diatonic21),
+            false, Some(synth), move |event| {
+                if matches!(event, PlayerEvent::NoteHit { note: 64, is_on: false }) { let _ = tx.send(()); }
+            });
+        player.set_listen_mode(true);
+        player.set_synth_mode(mode);
+        player.set_game_preview_follow_note_timing(follow_timing);
+        player.set_note_timing(false, 0);
+        player.set_hold_delay_ms(50);
+        player.play();
+        rx.recv_timeout(Duration::from_secs(2)).expect("second note release");
+        render(&mut audio);
+        assert_eq!(audio.synth.as_ref().unwrap().has_pending_notes(),
+            mode == SynthMode::Raw || !follow_timing,
+            "MIDI sustain must not extend game-preview taps, but must still work for MIDI timing");
+    }
+}
+
+#[test]
+fn game_durations_clear_sustain_and_preserve_midi_pedals_across_font_changes() {
+    let sf = font("TimGM6mb.sf2");
+    let (mut audio, tx) = engine(sf.clone());
+    tx.send(AudioCommand::ControlChange { channel: 0, controller: 64, value: 127 }).unwrap();
+    tx.send(AudioCommand::ControlChange { channel: 0, controller: 66, value: 127 }).unwrap();
+    tx.send(AudioCommand::NoteOn { channel: 0, note: 60, velocity: 90 }).unwrap();
+    tx.send(AudioCommand::NoteOff { channel: 0, note: 60 }).unwrap();
+    render(&mut audio);
+    assert!(audio.synth.as_ref().unwrap().has_pending_notes());
+
+    tx.send(AudioCommand::SetEnforceNoteDurations(true)).unwrap();
+    render(&mut audio);
+    assert!(!audio.synth.as_ref().unwrap().has_pending_notes(), "enabling must clear an already latched pedal");
+    assert_eq!(audio.channel_controllers[0].get(&64), Some(&127));
+    assert_eq!(audio.effective_controller_value(66, 127), 0);
+    assert_eq!(audio.effective_controller_value(7, 80), 80, "volume and other controllers remain intact");
+
+    audio.replace_fonts(stack(sf));
+    tx.send(AudioCommand::NoteOn { channel: 0, note: 64, velocity: 90 }).unwrap();
+    tx.send(AudioCommand::NoteOff { channel: 0, note: 64 }).unwrap();
+    render(&mut audio);
+    assert!(!audio.synth.as_ref().unwrap().has_pending_notes(), "font replacement must retain duration enforcement");
+    assert!(audio.retiring.iter().all(|tail| !tail.stack.has_pending_notes()));
+
+    tx.send(AudioCommand::SetEnforceNoteDurations(false)).unwrap();
+    tx.send(AudioCommand::NoteOn { channel: 0, note: 67, velocity: 90 }).unwrap();
+    tx.send(AudioCommand::NoteOff { channel: 0, note: 67 }).unwrap();
+    render(&mut audio);
+    assert!(audio.synth.as_ref().unwrap().has_pending_notes(), "disabling must restore cached MIDI sustain");
+    assert_eq!(audio.effective_controller_value(66, 127), 127);
+
+    tx.send(AudioCommand::ControlChange { channel: 0, controller: 64, value: 0 }).unwrap();
+    render(&mut audio);
+    assert!(!audio.synth.as_ref().unwrap().has_pending_notes());
+}
+
+#[test]
 fn rapid_track_muting_sends_note_off_only_after_the_last_shared_synth_owner() {
     use crate::{KeyboardLayout, NoteKeyMapping, ParsedMidi, PlaybackEngine, PlayerEvent, TempoMap, TimedNoteEvent};
     use std::sync::mpsc;

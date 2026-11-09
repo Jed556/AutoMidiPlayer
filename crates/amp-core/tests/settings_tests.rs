@@ -14,6 +14,7 @@ fn settings_merge_persist_and_reset() {
         db.update(&json!({
             "theme": "Dark",
             "overlapBehavior": "retrigger",
+            "gamePreviewFollowNoteTiming": true,
             "activeGameId": "game",
             "ui": { "locale": "zh-CN", "songColumnWidths": null }
         })).unwrap();
@@ -29,6 +30,7 @@ fn settings_merge_persist_and_reset() {
         let mut expected = SettingsStore::defaults();
         expected["theme"] = json!("Dark");
         expected["overlapBehavior"] = json!("retrigger");
+        expected["gamePreviewFollowNoteTiming"] = json!(true);
         expected["activeGameId"] = json!("game");
         expected["ui"]["locale"] = json!("zh-CN");
         expected["ui"]["libraryWidth"] = json!(340);

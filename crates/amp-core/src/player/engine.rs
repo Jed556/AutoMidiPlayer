@@ -150,6 +150,7 @@ enum Command {
     SetOverlapBehavior(OverlapBehavior),
     SetRepressGapMs(u64),
     SetNoteTiming { hold_notes: bool, tap_threshold_ms: u64 },
+    SetGamePreviewFollowNoteTiming(bool),
     SetPedalsEnabled(bool),
     SetSendInput(bool),
     LoadSong(ParsedMidi),
@@ -278,6 +279,10 @@ impl PlaybackEngine {
         let _ = self.cmd_tx.send(Command::SetNoteTiming { hold_notes, tap_threshold_ms });
     }
 
+    pub fn set_game_preview_follow_note_timing(&self, enabled: bool) {
+        let _ = self.cmd_tx.send(Command::SetGamePreviewFollowNoteTiming(enabled));
+    }
+
     pub fn set_pedals_enabled(&self, enabled: bool) {
         let _ = self.cmd_tx.send(Command::SetPedalsEnabled(enabled));
     }
@@ -390,6 +395,7 @@ fn run_playback_loop(
     let mut hold_notes = crate::settings::defaults::value("/defaultHoldNotes");
     let mut tap_threshold_ms = crate::settings::defaults::value("/defaultTapThresholdMs");
     let mut tap_duration_ms = crate::settings::defaults::value("/keyPressDelayMs");
+    let mut game_preview_follow_note_timing = crate::settings::defaults::value("/gamePreviewFollowNoteTiming");
     let mut overlap_behavior = OverlapBehavior::default();
     let mut key_releases = KeyReleases::default();
     let mut event_idx = 0usize;
@@ -596,6 +602,25 @@ fn run_playback_loop(
                     hold_notes = enabled;
                     tap_threshold_ms = threshold.min(10_000);
                 }
+                Command::SetGamePreviewFollowNoteTiming(enabled) => {
+                    game_preview_follow_note_timing = enabled;
+                    if let Some(ref synth) = audio_synth {
+                        synth.set_enforce_note_durations(listen_mode && synth_mode == SynthMode::Adapted && enabled);
+                    }
+                    if listen_mode && synth_mode == SynthMode::Adapted {
+                        for (&owner, note) in &mut live_notes {
+                            note.adapted_timing = enabled;
+                            if !enabled {
+                                // Taps may outlive their source NoteOff. Finish those
+                                // now; notes still held return to their MIDI release.
+                                let source_ended = current_song.as_ref().is_some_and(|song|
+                                    note.duration_us.is_some_and(|duration|
+                                        song.events[owner].time_us.saturating_add(duration) <= current_us));
+                                note.deadline = source_ended.then(Instant::now);
+                            }
+                        }
+                    }
+                }
                 Command::SetPedalsEnabled(enabled) => {
                     pedals_enabled = enabled;
                 }
@@ -664,6 +689,9 @@ fn run_playback_loop(
                 }
                 Command::SetListenMode(enabled) => {
                     listen_mode = enabled;
+                    if let Some(ref synth) = audio_synth {
+                        synth.set_enforce_note_durations(listen_mode && synth_mode == SynthMode::Adapted && game_preview_follow_note_timing);
+                    }
                     active_held_notes.clear();
                     live_notes.clear();
                     publish_live_notes(&live_notes, &mut active_notes, &mut active_track_notes, &callback);
@@ -689,6 +717,9 @@ fn run_playback_loop(
                 }
                 Command::SetSynthMode(mode) => {
                     synth_mode = mode;
+                    if let Some(ref synth) = audio_synth {
+                        synth.set_enforce_note_durations(listen_mode && synth_mode == SynthMode::Adapted && game_preview_follow_note_timing);
+                    }
                 }
                 Command::SetMasterVolume(vol) => {
                     if let Some(ref synth) = audio_synth {
@@ -703,6 +734,9 @@ fn run_playback_loop(
                 }
                 Command::SetAudioSynth(s) => {
                     audio_synth = s;
+                    if let Some(ref synth) = audio_synth {
+                        synth.set_enforce_note_durations(listen_mode && synth_mode == SynthMode::Adapted && game_preview_follow_note_timing);
+                    }
                 }
                 Command::SetMapping(new_mapping) => {
                     key_sim.release_all(&all_keys);
@@ -927,7 +961,8 @@ fn run_playback_loop(
                 let active_transpose_mode = active_marker.and_then(|m| m.transpose).unwrap_or(transpose_mode);
 
                 if !muted_tracks.contains(&ev.track_index) && effective_vel > 0 {
-                    let adapted_timing = !listen_mode || synth_mode == SynthMode::Adapted;
+                    let adapted_timing = !listen_mode
+                        || (synth_mode == SynthMode::Adapted && game_preview_follow_note_timing);
                     if restoring && (durations[owner_index].is_some_and(|duration|
                         ev.time_us.saturating_add(duration) <= current_us)
                         || (adapted_timing && is_tap(hold_notes, tap_threshold_ms, durations[owner_index], speed))) {

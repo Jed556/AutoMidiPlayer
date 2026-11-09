@@ -569,10 +569,16 @@
               <OverlapBehaviorPicker value={draft.overlapBehavior} onchange={value => draft.overlapBehavior = value}
                 repressGapMs={draft.repressGapMs} onrepressgapchange={value => draft.repressGapMs = value} />
             </div>
-            <div class="setting-row"><HoldNotesControl checked={draft.defaultHoldNotes} thresholdMs={draft.defaultTapThresholdMs} onchange={value => draft.defaultHoldNotes = value} onthresholdchange={value => draft.defaultTapThresholdMs = value} /></div>
-            <div class="setting-row merge-row">
-              <ToggleSwitch label={t('settings.mergeNotes')} checked={draft.defaultMergeNotes} onchange={value => draft.defaultMergeNotes = value} />
-              <label class="inline-field">{t('settings.toleranceMs')}<input type="number" min="1" max="1000" disabled={!draft.defaultMergeNotes} value={draft.defaultMergeToleranceMs} oninput={event => { if (event.currentTarget.validity.valid && Number.isInteger(event.currentTarget.valueAsNumber)) draft.defaultMergeToleranceMs = event.currentTarget.valueAsNumber; }} onblur={event => event.currentTarget.value = String(draft.defaultMergeToleranceMs)} /></label>
+            <div class="setting-row note-settings-grid">
+              <HoldNotesControl checked={draft.defaultHoldNotes} thresholdMs={draft.defaultTapThresholdMs} onchange={value => draft.defaultHoldNotes = value} onthresholdchange={value => draft.defaultTapThresholdMs = value} />
+              <div class="merge-control">
+                <ToggleSwitch label={t('settings.mergeNotes')} checked={draft.defaultMergeNotes} onchange={value => draft.defaultMergeNotes = value} />
+                <label class="inline-field">{t('settings.toleranceMs')}<input type="number" min="1" max="1000" disabled={!draft.defaultMergeNotes} value={draft.defaultMergeToleranceMs} oninput={event => { if (event.currentTarget.validity.valid && Number.isInteger(event.currentTarget.valueAsNumber)) draft.defaultMergeToleranceMs = event.currentTarget.valueAsNumber; }} onblur={event => event.currentTarget.value = String(draft.defaultMergeToleranceMs)} /></label>
+              </div>
+            </div>
+            <div class="setting-row">
+              <ToggleSwitch label={t('settings.gamePreviewFollowNoteTiming')} description={t('settings.gamePreviewFollowNoteTimingDesc')}
+                checked={draft.gamePreviewFollowNoteTiming} onchange={value => draft.gamePreviewFollowNoteTiming = value} />
             </div>
           {:else if page === 'updates'}
             <div class="setting-row"><ToggleSwitch label={t('settings.autoCheckUpdatesToggle')} checked={draft.autoCheckUpdates} onchange={value => draft.autoCheckUpdates = value} /></div>
@@ -996,9 +1002,10 @@
   .folder-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   .note { display: flex; align-items: flex-start; gap: 8px; margin: 16px 0 0; font-size: 12px; line-height: 1.6; color: var(--text-tertiary); }
   .overlap-setting { margin-top: 16px; }
-  .merge-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-  .inline-field { flex-direction: row; align-items: center; gap: 10px; }
-  .inline-field input { width: 82px; }
+  .note-settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); align-items: start; gap: 18px 28px; }
+  .merge-control { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
+  .inline-field { flex-direction: row; align-items: center; gap: 8px; font-size: 10.5px; line-height: 1; }
+  .inline-field input { width: 76px; height: 28px; padding: 6px 10px; border: none; border-radius: var(--radius-sm); text-align: center; font-variant-numeric: tabular-nums; }
   .frequency-field { max-width: 240px; margin: 12px 0; }
   .language-field { max-width: 320px; }
   .accent-field { display: flex; flex-direction: column; gap: 14px; padding: 16px 0; font-size: 12px; color: var(--text-secondary); }

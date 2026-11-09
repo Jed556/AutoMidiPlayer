@@ -76,6 +76,7 @@ export interface AppSettings {
   keypressMethod?: KeypressMethod;
   enableKeyUp: boolean;
   keyPressDelayMs: number;
+  gamePreviewFollowNoteTiming: boolean;
   overlapBehavior: OverlapBehavior;
   repressGapMs: number;
   autoCorrectThreshold: number;
