@@ -45,6 +45,7 @@ pub enum AudioCommand {
     NoteOff { channel: u8, note: u8 },
     ControlChange { channel: u8, controller: u8, value: u8 },
     ProgramChange { channel: u8, program: u8 },
+    SetEnforceNoteDurations(bool),
     SetMasterVolume(f32),
     SetTrackMuted { track_index: usize, muted: bool },
     SetTrackVolume { track_index: usize, volume: f32 },
@@ -74,6 +75,7 @@ struct SynthEngine {
     muted_tracks: HashSet<usize>,
     channel_programs: [u8; 16],
     channel_controllers: [HashMap<u8, u8>; 16],
+    enforce_note_durations: bool,
     left_buf: Vec<f32>,
     right_buf: Vec<f32>,
 }
@@ -100,6 +102,7 @@ impl SynthEngine {
             muted_tracks: HashSet::new(),
             channel_programs: [0; 16],
             channel_controllers: std::array::from_fn(|_| HashMap::new()),
+            enforce_note_durations: false,
             left_buf: vec![0.0f32; BLOCK_SIZE],
             right_buf: vec![0.0f32; BLOCK_SIZE],
         }
@@ -177,10 +180,20 @@ impl SynthEngine {
                             self.channel_controllers[ch].insert(controller, value);
                         }
                     }
-                    if let Some(ref mut s) = self.synth {
-                        s.process_midi_message(channel as i32, 0xB0, controller as i32, value as i32);
+                    self.send_control_change(channel, controller, value);
+                }
+                AudioCommand::SetEnforceNoteDurations(enabled) => {
+                    if self.enforce_note_durations != enabled {
+                        self.enforce_note_durations = enabled;
+                        // Clear an already-held pedal immediately, or restore the
+                        // MIDI pedal state when returning to source durations.
+                        for channel in 0..16 {
+                            for controller in [64, 66] {
+                                let value = self.channel_controllers[channel].get(&controller).copied().unwrap_or(0);
+                                self.send_control_change(channel as u8, controller, value);
+                            }
+                        }
                     }
-                    for tail in &mut self.retiring { tail.stack.process_midi_message(channel as i32, 0xB0, controller as i32, value as i32); }
                 }
                 AudioCommand::ProgramChange { channel, program } => {
                     let ch = channel as usize;
@@ -232,6 +245,21 @@ impl SynthEngine {
         }
     }
 
+    fn effective_controller_value(&self, controller: u8, value: u8) -> u8 {
+        // Sustain/sostenuto must not extend explicitly scheduled preview releases.
+        if self.enforce_note_durations && matches!(controller, 64 | 66) { 0 } else { value }
+    }
+
+    fn send_control_change(&mut self, channel: u8, controller: u8, value: u8) {
+        let value = self.effective_controller_value(controller, value);
+        if let Some(ref mut s) = self.synth {
+            s.process_midi_message(channel as i32, 0xB0, controller as i32, value as i32);
+        }
+        for tail in &mut self.retiring {
+            tail.stack.process_midi_message(channel as i32, 0xB0, controller as i32, value as i32);
+        }
+    }
+
     fn restore_channels(&self, new_synth: &mut FontStack) {
         // Re-apply cached channel state (Bank Selects, Program Changes, Continuous Controllers)
         // so changing SoundFonts during playback doesn't reset all channels to Grand Piano (Program 0)
@@ -252,7 +280,8 @@ impl SynthEngine {
             // 3. Continuous Controllers (volume CC 7, pan CC 10, expression CC 11, sustain CC 64, etc.)
             for (&cc, &val) in &self.channel_controllers[ch] {
                 if cc != 0 && cc != 32 {
-                    new_synth.process_midi_message(ch as i32, 0xB0, cc as i32, val as i32);
+                    new_synth.process_midi_message(ch as i32, 0xB0, cc as i32,
+                        self.effective_controller_value(cc, val) as i32);
                 }
             }
         }
@@ -533,6 +562,10 @@ impl AudioSynth {
 
     pub fn program_change(&self, channel: u8, program: u8) {
         let _ = self.cmd_tx.send(AudioCommand::ProgramChange { channel, program });
+    }
+
+    pub fn set_enforce_note_durations(&self, enabled: bool) {
+        let _ = self.cmd_tx.send(AudioCommand::SetEnforceNoteDurations(enabled));
     }
 
     pub fn set_master_volume(&self, volume: f32) {

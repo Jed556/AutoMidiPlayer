@@ -39,6 +39,7 @@
   "keypressMethod": "SendInput",
   "enableKeyUp": true,
   "keyPressDelayMs": 50,
+  "gamePreviewFollowNoteTiming": false,
   "overlapBehavior": "retrigger",
   "repressGapMs": 20,
   "autoCorrectThreshold": 0,

@@ -562,6 +562,8 @@ export const zhCN: TranslationSchema = {
     synthMode: '合成模式',
     synthModeGamePreview: '游戏预览 (适配)',
     synthModeGamePreviewDesc: '根据调性与移调设置，将音符自适应映射至 21 键全音阶音域。',
+    gamePreviewFollowNoteTiming: '按游戏时值播放',
+    gamePreviewFollowNoteTimingDesc: '遵循长音保持、短按阈值和按键延迟设置。关闭后保留 MIDI 音符时值。',
     synthModeFullChromatic: '全音阶 (原始 MIDI)',
     synthModeFullChromaticDesc: '直接播放完整的 88 键原始 MIDI 音符，不受音域限制。',
     masterVolume: '主音量',

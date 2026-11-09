@@ -922,6 +922,9 @@ async fn update_app_settings(
         if let Some(ms) = settings.get("keyPressDelayMs").and_then(serde_json::Value::as_u64) {
             engine.set_hold_delay_ms(ms.min(1000));
         }
+        if let Some(enabled) = settings.get("gamePreviewFollowNoteTiming").and_then(serde_json::Value::as_bool) {
+            engine.set_game_preview_follow_note_timing(enabled);
+        }
         if let Some(enabled) = settings.get("ui").and_then(|ui| ui.get("pedalsEnabled")).and_then(serde_json::Value::as_bool) {
             engine.set_pedals_enabled(enabled);
         }
@@ -938,6 +941,7 @@ fn reset_app_settings(state: State<AppState>) -> Result<bool, String> {
     state.settings.reset().map_err(|e| e.to_string())?;
     *state.song_defaults.write().map_err(|e| e.to_string())? = SongDefaults::default();
     state.engine.set_hold_delay_ms(defaults::value("/keyPressDelayMs"));
+    state.engine.set_game_preview_follow_note_timing(defaults::value("/gamePreviewFollowNoteTiming"));
     state.engine.set_overlap_behavior(OverlapBehavior::default());
     state.engine.set_repress_gap_ms(defaults::value("/repressGapMs"));
     state.engine.set_pedals_enabled(defaults::value("/ui/pedalsEnabled"));
@@ -1836,6 +1840,8 @@ pub fn run() {
                     }
                     engine.set_hold_delay_ms(settings.get("keyPressDelayMs")
                         .and_then(serde_json::Value::as_u64).unwrap_or_else(|| defaults::value("/keyPressDelayMs")).min(1000));
+                    engine.set_game_preview_follow_note_timing(settings.get("gamePreviewFollowNoteTiming")
+                        .and_then(serde_json::Value::as_bool).unwrap_or_else(|| defaults::value("/gamePreviewFollowNoteTiming")));
                     engine.set_overlap_behavior(settings.get("overlapBehavior")
                         .and_then(|value| serde_json::from_value(value.clone()).ok()).unwrap_or_default());
                     engine.set_repress_gap_ms(settings.get("repressGapMs")

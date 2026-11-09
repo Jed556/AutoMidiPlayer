@@ -560,6 +560,8 @@ export const enUS = {
     synthMode: 'Synthesis Mode',
     synthModeGamePreview: 'Game Preview (Adapted)',
     synthModeGamePreviewDesc: 'Adapts and snaps notes to the 21-key diatonic range with key offset & transpositions.',
+    gamePreviewFollowNoteTiming: 'Play In-Game Durations',
+    gamePreviewFollowNoteTimingDesc: 'Follow Hold Notes, Tap Threshold, and Key Press Delay. Turn off to keep MIDI note durations.',
     synthModeFullChromatic: 'Full Chromatic (Raw)',
     synthModeFullChromaticDesc: 'Renders the complete 88-key raw MIDI notes without range limitations.',
     masterVolume: 'Master Volume',

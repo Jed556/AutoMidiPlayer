@@ -522,6 +522,16 @@
                 options={synthModeOptions}
                 onchange={(v) => playbackStore.setSynthMode(v as 'adapted' | 'raw')}
               />
+              {#if playbackStore.synthMode === 'adapted'}
+                <div class="game-preview-timing">
+                  <ToggleSwitch
+                    label={t('settings.gamePreviewFollowNoteTiming')}
+                    checked={settingsStore.settings.gamePreviewFollowNoteTiming}
+                    onchange={(value) => settingsStore.update('gamePreviewFollowNoteTiming', value)}
+                  />
+                  <p class="setting-description">{t('settings.gamePreviewFollowNoteTimingDesc')}</p>
+                </div>
+              {/if}
             </div>
 
             <!-- Master Volume Group -->
@@ -2291,6 +2301,7 @@
   }
 
   .audio-controls-column { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+  .game-preview-timing { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 
   .setting-label.is-overshoot {
     color: var(--warning-color, #F59E0B);
