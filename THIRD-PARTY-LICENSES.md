@@ -1331,14 +1331,14 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [21a2121221d2a35df2d8](#notice-21a2121221d2a35df2d8)
 
-<!-- amp-license: {"name":"GeneralUser GS SoundFont","version":"2.0.3","licenseName":"GeneralUser GS License v2.0","url":"https://github.com/mrbumpy409/GeneralUser-GS","kind":"resource","notice":"By S. Christian Collins. Bundled as resources/GeneralUser-GS.sf2.","textId":"e932c008125ce840e507"} -->
+<!-- amp-license: {"name":"GeneralUser GS SoundFont","version":"2.0.3","licenseName":"GeneralUser GS License v2.0","url":"https://github.com/mrbumpy409/GeneralUser-GS","kind":"resource","notice":"By S. Christian Collins. Bundled as resources/soundfonts/GeneralUser-GS.sf2.","textId":"e932c008125ce840e507"} -->
 ### GeneralUser GS SoundFont 2.0.3
 
 - License: GeneralUser GS License v2.0
 - Repository/source: [https://github.com/mrbumpy409/GeneralUser-GS](https://github.com/mrbumpy409/GeneralUser-GS)
 - Category: resource
 - Full notice: [e932c008125ce840e507](#notice-e932c008125ce840e507)
-- By S. Christian Collins. Bundled as resources/GeneralUser-GS.sf2.
+- By S. Christian Collins. Bundled as resources/soundfonts/GeneralUser-GS.sf2.
 
 <!-- amp-license: {"name":"generic-array","version":"0.14.7","licenseName":"MIT","url":"https://github.com/fizyk20/generic-array","kind":"rust","textId":"ad4fcfaf8d5b12b97409"} -->
 ### generic-array 0.14.7
@@ -3462,14 +3462,14 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [7fdbca77dec6709aaa7c](#notice-7fdbca77dec6709aaa7c)
 
-<!-- amp-license: {"name":"TimGM6mb soundfont","version":"","licenseName":"GPL-2.0-only","url":"https://github.com/musescore/musescore-old/commit/90c33ef9d87b3f5ff92efd3b07d89eb455fb1fef","kind":"resource","notice":"Bundled as resources/TimGM6mb.sf2 (INFO name TimGM6mb1.sf2). Copyright 2004 Tim Brechbill; 2010 David Bolton. Attribution follows https://sources.debian.org/copyright/license/timgm6mb-soundfont/1.3-5/.","textId":"f973475686c3343f82f1"} -->
+<!-- amp-license: {"name":"TimGM6mb soundfont","version":"","licenseName":"GPL-2.0-only","url":"https://github.com/musescore/musescore-old/commit/90c33ef9d87b3f5ff92efd3b07d89eb455fb1fef","kind":"resource","notice":"Bundled as resources/soundfonts/TimGM6mb.sf2 (INFO name TimGM6mb1.sf2). Copyright 2004 Tim Brechbill; 2010 David Bolton. Attribution follows https://sources.debian.org/copyright/license/timgm6mb-soundfont/1.3-5/.","textId":"f973475686c3343f82f1"} -->
 ### TimGM6mb soundfont
 
 - License: GPL-2.0-only
 - Repository/source: [https://github.com/musescore/musescore-old/commit/90c33ef9d87b3f5ff92efd3b07d89eb455fb1fef](https://github.com/musescore/musescore-old/commit/90c33ef9d87b3f5ff92efd3b07d89eb455fb1fef)
 - Category: resource
 - Full notice: [f973475686c3343f82f1](#notice-f973475686c3343f82f1)
-- Bundled as resources/TimGM6mb.sf2 (INFO name TimGM6mb1.sf2). Copyright 2004 Tim Brechbill; 2010 David Bolton. Attribution follows https://sources.debian.org/copyright/license/timgm6mb-soundfont/1.3-5/.
+- Bundled as resources/soundfonts/TimGM6mb.sf2 (INFO name TimGM6mb1.sf2). Copyright 2004 Tim Brechbill; 2010 David Bolton. Attribution follows https://sources.debian.org/copyright/license/timgm6mb-soundfont/1.3-5/.
 
 <!-- amp-license: {"name":"tinyglobby","version":"0.2.17","licenseName":"MIT","url":"https://github.com/SuperchupuDev/tinyglobby","kind":"javascript","textId":"4918b99deb04bad7ac6e"} -->
 ### tinyglobby 0.2.17

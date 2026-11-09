@@ -676,7 +676,7 @@ fn find_preset_soundfont(app: &AppHandle, name: &str) -> Option<PathBuf> {
         "generaluser" => "GeneralUser-GS.sf2",
         _ => "TimGM6mb.sf2",
     };
-    let rel_resource = format!("resources/{}", filename);
+    let rel_resource = format!("resources/soundfonts/{}", filename);
     if let Ok(path) = app.path().resolve(&rel_resource, tauri::path::BaseDirectory::Resource) {
         if path.exists() {
             return Some(path);
