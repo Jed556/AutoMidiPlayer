@@ -73,6 +73,8 @@
   ]);
   let dirty = true;
   let overlayDirty = true;
+  let renderedTime = NaN;
+  let renderedTracks: StudioRenderTrack[] | undefined;
   let width = 0;
   let height = 0;
   let pixelRatio = 1;
@@ -424,6 +426,10 @@
       strikeEffects?.clear();
       return;
     }
+    // Sample the clock before the idle guard. Returning to Studio must not
+    // leave its bitmap at an old position if a reactive invalidation was missed.
+    const renderTime = playbackStore.getAnimatedTime();
+    if (renderTime !== renderedTime || layeredTracks !== renderedTracks) dirty = true;
     // Advance and paint in one callback, using the current time rather than an
     // RAF timestamp that may predate a wheel event or another frame callback.
     advanceZoomAnimations(performance.now());
@@ -434,7 +440,8 @@
       return;
     }
     dirty = false;
-    const renderTime = playbackStore.getAnimatedTime();
+    renderedTime = renderTime;
+    renderedTracks = layeredTracks;
     // Manual panning unlocks follow; locked scrubbing also uses the keyboard edge.
     if (isLockedToPlayhead && !isMiddlePanning && !isDraggingMarker) {
       // The keyboard edge is the strike line, including at the end of a song.
