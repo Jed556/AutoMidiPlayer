@@ -526,7 +526,7 @@ export const enUS = {
     enableKeyUpTooltip: 'When enabled, key-up is sent after key-down for press actions across all keypress methods.',
     keypressDelay: 'Keypress Delay (ms)',
     keypressDelayTooltip: 'Delay between key-down and key-up for press actions.',
-    keypressDelayDefault: 'Default: 15ms',
+    keypressDelayReset: 'Reset keypress delay to default ({value} ms)',
     pitchBendMethod: 'Pitch Bend Method',
     pitchBendSemitone: 'Semitone Step',
     pitchBendContinuous: 'Continuous Quantize',

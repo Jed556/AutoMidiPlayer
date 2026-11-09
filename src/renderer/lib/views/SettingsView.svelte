@@ -21,6 +21,8 @@
   import StorageUsageChart from '../components/Settings/StorageUsageChart.svelte';
   import OverlapBehaviorPicker from '../components/Settings/OverlapBehaviorPicker.svelte';
   import { getUpdateCheckFrequencyOptions } from '../components/Settings/settingsOptions';
+  import { PLAYBACK_SPEED_OPTIONS } from '../utils/playbackSpeeds';
+  import { DEFAULT_APP_SETTINGS } from '$shared/defaults/settings';
   import RefreshIcon from '../components/Icons/RefreshIcon.svelte';
   import { playbackStore } from '../state/playbackStore.svelte';
   import { api } from '../backend/index';
@@ -163,14 +165,9 @@
     }))
   );
 
-  let defaultSpeedOptions = $derived([
-    { value: 0.5, label: '0.5x' },
-    { value: 0.75, label: '0.75x' },
-    { value: 1.0, label: t('settings.speedStandard') },
-    { value: 1.25, label: '1.25x' },
-    { value: 1.5, label: '1.5x' },
-    { value: 2.0, label: '2.0x' }
-  ]);
+  let defaultSpeedOptions = $derived(PLAYBACK_SPEED_OPTIONS.map(option =>
+    option.value === 1 ? { ...option, label: t('settings.speedStandard') } : option
+  ));
 
   let defaultTransposeOptions = $derived([
     { value: 'Smart', label: t('settings.transposeSmartDesc') },
@@ -408,16 +405,24 @@
 
               <div class="stepper-row">
                 <span class="stepper-label">{t('settings.keypressDelay')}</span>
-                <input
-                  type="number"
-                  min="0"
-                  max="1000"
-                  value={settingsStore.settings.keyPressDelayMs}
-                  oninput={(e) => settingsStore.update('keyPressDelayMs', parseInt((e.target as HTMLInputElement).value) || 0)}
-                  class="fluent-num-input"
-                  title={t('settings.keypressDelayTooltip')}
-                />
-                <span class="input-hint">{t('settings.keypressDelayDefault')}</span>
+                <div class="keypress-delay-controls">
+                  <input
+                    type="number"
+                    min="0"
+                    max="1000"
+                    value={settingsStore.settings.keyPressDelayMs}
+                    oninput={(e) => settingsStore.update('keyPressDelayMs', parseInt((e.target as HTMLInputElement).value) || 0)}
+                    class="fluent-num-input"
+                    title={t('settings.keypressDelayTooltip')}
+                  />
+                  <Button variant="ghost" size="icon" colorMode="danger"
+                    title={t('settings.keypressDelayReset', { value: DEFAULT_APP_SETTINGS.keyPressDelayMs })}
+                    ariaLabel={t('settings.keypressDelayReset', { value: DEFAULT_APP_SETTINGS.keyPressDelayMs })}
+                    disabled={settingsStore.settings.keyPressDelayMs === DEFAULT_APP_SETTINGS.keyPressDelayMs}
+                    onclick={() => settingsStore.update('keyPressDelayMs', DEFAULT_APP_SETTINGS.keyPressDelayMs)}>
+                    <RefreshIcon size={15} />
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -1780,6 +1785,12 @@
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+  }
+
+  .keypress-delay-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
   .tolerance-stepper {

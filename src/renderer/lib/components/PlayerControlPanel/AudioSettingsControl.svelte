@@ -8,6 +8,7 @@
   import { createDropdownState } from '../../ui/dropdownState.svelte';
   import { t } from '../../i18n';
   import { generateKeyOptions, getKeyNoteNameWithOctave } from '../../utils/musicConstants';
+  import { PLAYBACK_SPEEDS } from '../../utils/playbackSpeeds';
   import FluentIcon from '../Icons/FluentIcon.svelte';
   import Slider from '../Common/Slider.svelte';
   import GradientSweep from '../Common/GradientSweep.svelte';
@@ -74,9 +75,7 @@
       item.value + playbackStore.keyOffsetBase),
     })));
 
-  const speedOptions = [
-    0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0
-  ];
+  const speedOptions = PLAYBACK_SPEEDS;
 
   const transposeModes: { id: TransposeMode; icon: string }[] = [
     { id: 'Smart', icon: 'TransposeSmart' },
