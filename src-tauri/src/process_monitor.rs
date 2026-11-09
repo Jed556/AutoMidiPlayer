@@ -75,7 +75,7 @@ pub struct ProcessMonitor {
 impl ProcessMonitor {
     pub fn new(targets: Vec<GameProcessTarget>) -> Self {
         Self {
-            system: System::new(),
+            system: System::new().expect("Failed to initialize process monitor"),
             targets,
             locations: HashMap::new(),
         }
