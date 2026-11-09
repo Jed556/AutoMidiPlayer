@@ -5,7 +5,7 @@ fn font(name: &str) -> Arc<SoundFont> {
     Arc::new(
         SoundFont::new(
             &mut File::open(format!(
-                "{}/../../src-tauri/resources/{name}",
+                "{}/../../src-tauri/resources/soundfonts/{name}",
                 env!("CARGO_MANIFEST_DIR")
             ))
             .unwrap(),

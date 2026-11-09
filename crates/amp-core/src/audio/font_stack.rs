@@ -22,7 +22,7 @@ mod tests {
 
     fn font(name: &str) -> Arc<SoundFont> {
         let path = format!(
-            "{}/../../src-tauri/resources/{name}",
+            "{}/../../src-tauri/resources/soundfonts/{name}",
             env!("CARGO_MANIFEST_DIR")
         );
         Arc::new(SoundFont::new(&mut File::open(path).unwrap()).unwrap())

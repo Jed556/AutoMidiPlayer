@@ -14,6 +14,7 @@ fn test_library_schema_and_crud() {
     // 1. Initial songs count should be 0
     let songs = db.get_all_songs().expect("Failed to get songs");
     assert_eq!(songs.len(), 0);
+    assert_eq!(LibraryDatabase::inspect_db_counts(db.path()).unwrap(), (0, 1));
 
     // 2. Insert test song
     let test_song = SongRecord {
@@ -137,6 +138,7 @@ fn test_library_schema_and_crud() {
     let playlists = db.get_playlists().expect("Get playlists failed");
     let found_pl = playlists.iter().find(|p| p.id == pl.id).expect("Playlist not found in list");
     assert_eq!(found_pl.song_count, 1);
+    assert_eq!(LibraryDatabase::inspect_db_counts(db.path()).unwrap(), (1, 2));
 
     db.remove_from_playlist(&pl.id, "test-song-1").expect("Remove failed");
     let empty_pl_songs = db.get_playlist_songs(&pl.id).unwrap();
