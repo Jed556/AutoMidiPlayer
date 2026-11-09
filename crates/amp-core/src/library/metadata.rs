@@ -26,7 +26,7 @@ pub fn compute_file_hash(path: &Path) -> Result<String, std::io::Error> {
         }
         hasher.update(&buffer[..count]);
     }
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(hasher.finalize().iter().map(|byte| format!("{byte:02x}")).collect())
 }
 
 /// Strips common noise tags from a song title or artist string
@@ -96,6 +96,19 @@ pub fn extract_metadata(path: &Path) -> Result<ExtractedMetadata, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_compute_file_hash_known_vectors() {
+        let path = std::env::temp_dir().join(format!("amp_hash_{}", uuid::Uuid::new_v4()));
+        for (contents, expected) in [
+            ("", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
+            ("abc", "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"),
+        ] {
+            std::fs::write(&path, contents).unwrap();
+            assert_eq!(compute_file_hash(&path).unwrap(), expected);
+        }
+        std::fs::remove_file(path).unwrap();
+    }
 
     #[test]
     fn test_sanitize_tag() {

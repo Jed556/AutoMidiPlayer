@@ -133,13 +133,16 @@ impl LibraryDatabase {
     /// Read song and playlist counts from an external SQLite database without locking it.
     pub fn inspect_db_counts(path: &Path) -> Result<(usize, usize), rusqlite::Error> {
         let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
-        let song_count: usize = conn
+        let song_count: i64 = conn
             .query_row("SELECT COUNT(*) FROM Songs", [], |row| row.get(0))
             .unwrap_or(0);
-        let playlist_count: usize = conn
+        let playlist_count: i64 = conn
             .query_row("SELECT COUNT(*) FROM Playlists", [], |row| row.get(0))
             .unwrap_or(0);
-        Ok((song_count, playlist_count))
+        Ok((
+            usize::try_from(song_count).unwrap_or(0),
+            usize::try_from(playlist_count).unwrap_or(0),
+        ))
     }
 
     /// Replaces the current database file with a legacy database file, upgrades schema in-place,
