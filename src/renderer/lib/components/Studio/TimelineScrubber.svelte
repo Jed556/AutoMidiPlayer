@@ -107,6 +107,7 @@
   });
 
   let dirty = true;
+  let renderedTime = NaN;
   let notesDirty = true;
   let noteLayer: HTMLCanvasElement;
   let cachedTracks: StudioRenderTrack[] | undefined;
@@ -137,6 +138,8 @@
     if (!ctx || !scrubberCanvas || !canvasWrap) return;
 
     animId = requestAnimationFrame(renderMiniMap);
+    const renderTime = playbackStore.getAnimatedTime(isDraggingScrubber);
+    if (renderTime !== renderedTime) dirty = true;
     // Timing projections replace the index even when the source MIDI is unchanged.
     // Check the cache identity before the dirty guard so threshold edits repaint it.
     if (cachedTracks !== renderTracks || cachedDuration !== getTotalDuration()) {
@@ -146,6 +149,7 @@
     if (uiStore.activeTab !== 'studio' || !dirty || width <= 0 || height <= 0 || document.hidden) return;
     if (sizeDirty) applyCanvasSize();
     dirty = false;
+    renderedTime = renderTime;
     const w = width;
     const h = height;
 
@@ -269,7 +273,6 @@
       }
 
       // 6. Playhead vertical line & head
-      const renderTime = playbackStore.getAnimatedTime(isDraggingScrubber);
       const px = (renderTime / totalDur) * w;
       ctx.strokeStyle = playheadColor;
       ctx.lineWidth = 2;
