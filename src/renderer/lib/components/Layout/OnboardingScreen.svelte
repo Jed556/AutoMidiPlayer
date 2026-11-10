@@ -1204,14 +1204,14 @@
   }
   .dialog-box {
     background: var(--bg-dialog, var(--card-bg, #27272A));
-    border: 1px solid var(--border-medium);
+    border: none;
     border-radius: var(--radius-lg, 8px);
     box-shadow: var(--shadow-xl, 0 20px 25px -5px rgba(0, 0, 0, 0.45));
     overflow: hidden;
     display: flex;
     flex-direction: column;
     max-width: calc(100vw - 32px);
-    max-height: calc(100vh - 64px);
+    max-height: calc(100dvh - 32px);
     transform-origin: center center;
     will-change: transform, opacity;
   }

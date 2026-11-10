@@ -758,7 +758,7 @@
 
         <button
           type="button"
-          class="pedal-reset-icon-btn"
+          class="pedal-reset-icon-btn theme-ghost-button"
           disabled={!supportsPedals}
           onclick={resetPedals}
           use:tooltip={t('instrument.resetPedals')}
@@ -788,7 +788,7 @@
 
         <button
           type="button"
-          class="midi-refresh-btn"
+          class="midi-refresh-btn theme-ghost-button"
           onclick={refreshMidiDevices}
           use:tooltip={t('instrument.refreshDevices')}
         >
@@ -1425,27 +1425,7 @@
     justify-content: center;
     width: 24px;
     height: 24px;
-    background: transparent;
-    border: none;
     padding: 0;
-    color: var(--text-secondary);
-    opacity: 0.65;
-    cursor: pointer;
-    transition: opacity var(--transition-fast, 0.15s ease), color var(--transition-fast, 0.15s ease), transform var(--transition-fast, 0.15s ease);
-  }
-
-  .pedal-reset-icon-btn:hover:not(:disabled),
-  .midi-refresh-btn:hover {
-    background: transparent;
-    color: var(--text-primary);
-    opacity: 1;
-    transform: scale(1.08);
-  }
-
-  .pedal-reset-icon-btn:disabled {
-    opacity: 0.25;
-    cursor: not-allowed;
-    transform: none;
   }
 
   /* MIDI Input Group */

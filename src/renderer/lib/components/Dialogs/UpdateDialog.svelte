@@ -95,8 +95,7 @@
   }
 
   .version-banner {
-    background: rgba(16, 185, 129, 0.08);
-    border: 1px solid rgba(16, 185, 129, 0.22);
+    background: var(--control-fill);
     border-radius: var(--radius-sm);
     padding: 10px 14px;
     display: flex;
@@ -122,7 +121,6 @@
     text-transform: uppercase;
     background: rgba(245, 158, 11, 0.15);
     color: #f59e0b;
-    border: 1px solid rgba(245, 158, 11, 0.3);
     padding: 1px 6px;
     border-radius: 10px;
     letter-spacing: 0.3px;
@@ -154,8 +152,6 @@
     background: var(--bg-tertiary);
     border-radius: var(--radius-sm);
     padding: 12px 14px;
-    max-height: 220px;
-    overflow-y: auto;
   }
 
   .cl-title {
@@ -182,10 +178,14 @@
     align-items: center;
     justify-content: space-between;
     width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .footer-right {
     display: flex;
     gap: 8px;
+    flex-wrap: wrap;
+    margin-left: auto;
   }
 </style>

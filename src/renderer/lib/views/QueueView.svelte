@@ -90,7 +90,7 @@
     <div class="actions-group">
       <!-- Remove selected items -->
       <button
-        class="action-btn"
+        class="action-btn theme-ghost-button"
         onclick={removeSelected}
         disabled={!selectedSongId && selectedSongIds.length === 0}
         title={t('queue.removeSelectedTooltip')}
@@ -100,7 +100,7 @@
 
       <!-- Clear queue button -->
       <button
-        class="action-btn danger-btn"
+        class="action-btn theme-ghost-button color-danger"
         onclick={clearQueue}
         disabled={playbackStore.queue.length === 0}
         title={t('queue.clearQueueTooltip')}
@@ -173,40 +173,9 @@
     width: 32px;
     height: 32px;
     border-radius: 4px;
-    background: transparent;
-    border: none;
-    color: var(--text-primary);
-    opacity: 0.4;
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
     padding: 0;
-    transition: opacity var(--transition-normal, 0.22s cubic-bezier(0, 0, 0.2, 1));
-  }
-
-  .action-btn:hover:not(:disabled) {
-    background: transparent;
-    opacity: 1;
-  }
-
-  .action-btn:active:not(:disabled) {
-    opacity: 0.75;
-  }
-
-  .action-btn:disabled {
-    opacity: 0.2;
-    cursor: not-allowed;
-  }
-
-  .danger-btn {
-    color: #C42B1C;
-    opacity: 0.8;
-  }
-
-  .danger-btn:hover:not(:disabled) {
-    background: transparent;
-    opacity: 1;
-    color: #C42B1C;
   }
 </style>

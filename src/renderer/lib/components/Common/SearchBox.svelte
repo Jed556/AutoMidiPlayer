@@ -58,7 +58,7 @@
   {#if value}
     <button
       type="button"
-      class="clear-search-btn"
+      class="clear-search-btn theme-ghost-button"
       onclick={clearSearch}
       tabindex="-1"
       aria-label="Clear"
@@ -132,10 +132,6 @@
     right: 5px;
     top: 50%;
     transform: translateY(-50%);
-    background: transparent;
-    border: none;
-    color: var(--text-tertiary);
-    cursor: pointer;
     width: 20px;
     height: 20px;
     border-radius: 50%;
@@ -144,11 +140,5 @@
     justify-content: center;
     z-index: 2;
     padding: 0;
-    transition: color var(--transition-fast, 0.12s ease), background var(--transition-fast, 0.12s ease);
-  }
-
-  .clear-search-btn:hover {
-    color: var(--text-primary);
-    background: var(--bg-hover);
   }
 </style>

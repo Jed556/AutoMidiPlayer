@@ -70,7 +70,7 @@
     <!-- Update Download Icon Button -->
     {#if settingsStore.updateAvailable}
       <button
-        class="action-btn icon-btn update-btn"
+        class="action-btn icon-btn update-btn theme-ghost-button color-accent"
         onclick={openUpdate}
         title={t('titleBar.updateTooltip', { version: settingsStore.latestVersion })}
         aria-label={t('titleBar.updateAvailable')}
@@ -82,7 +82,7 @@
     {#if libraryStore.hasFileIssues}
       <button
         type="button"
-        class="action-btn icon-btn file-issues-btn"
+        class="action-btn icon-btn file-issues-btn theme-ghost-button color-warning"
         onclick={() => uiStore.openDialog('fileIssues')}
         title={t('fileIssues.warningTooltip', { count: libraryStore.fileIssues.length })}
         aria-label={t('fileIssues.warningTooltip', { count: libraryStore.fileIssues.length })}
@@ -93,7 +93,7 @@
 
     <!-- Theme Toggle -->
     <button
-      class="action-btn icon-btn"
+      class="action-btn icon-btn theme-ghost-button"
       onclick={toggleTheme}
       title={themeStore.isDark ? t('titleBar.toggleLightMode') : t('titleBar.toggleDarkMode')}
       aria-label={themeStore.isDark ? t('titleBar.toggleLightMode') : t('titleBar.toggleDarkMode')}
@@ -103,7 +103,7 @@
 
     <!-- About -->
     <button
-      class="action-btn icon-btn"
+      class="action-btn icon-btn theme-ghost-button"
       onclick={openAbout}
       title={t('titleBar.aboutAndLicenses')}
     >
@@ -208,22 +208,12 @@
   }
 
   .action-btn {
-    background: transparent;
-    border: none;
     height: 100%;
     padding: 0 10px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--text-secondary);
-    cursor: pointer;
     font-size: 12px;
-    transition: background var(--transition-fast), color var(--transition-fast);
-  }
-
-  .action-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
   }
 
   .action-btn.icon-btn,
@@ -231,30 +221,6 @@
     width: 44px;
     flex-shrink: 0;
     padding: 0;
-  }
-
-  .action-btn.icon-btn {
-    color: var(--text-primary);
-    opacity: 0.4;
-    transition: opacity var(--transition-normal, 0.22s cubic-bezier(0, 0, 0.2, 1));
-  }
-
-  .action-btn.icon-btn.file-issues-btn {
-    color: var(--warning-color);
-    opacity: 0.8;
-  }
-
-  .action-btn.icon-btn:hover {
-    background: transparent;
-    opacity: 1;
-  }
-
-  .action-btn.icon-btn:active {
-    opacity: 0.75;
-  }
-
-  .action-btn.icon-btn.update-btn {
-    color: #1DB954;
   }
 
   .window-buttons {

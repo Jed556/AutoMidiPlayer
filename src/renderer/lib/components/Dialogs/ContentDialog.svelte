@@ -2,7 +2,9 @@
   import type { Snippet } from 'svelte';
   import FluentIcon from '../Icons/FluentIcon.svelte';
   import CustomScrollViewer from '../Common/CustomScrollViewer.svelte';
+  import Button from '../Common/Button.svelte';
   import { uiStore } from '../../state/uiStore.svelte';
+  import { t } from '../../i18n';
 
   interface Props {
     title?: string;
@@ -14,7 +16,6 @@
     onClose?: () => void;
     onBack?: () => void;
     hideFooter?: boolean;
-    dividers?: boolean;
     size?: 'normal' | 'large';
     class?: string;
     bodyClass?: string;
@@ -36,7 +37,6 @@
     onClose = () => uiStore.closeDialog(),
     onBack,
     hideFooter = false,
-    dividers = true,
     size = 'normal',
     class: className = '',
     bodyClass = '',
@@ -49,16 +49,14 @@
   }: Props = $props();
 </script>
 
-<div class="content-dialog {className}" class:large-dialog={size === 'large'} class:dividers>
+<div class="content-dialog {className}" class:large-dialog={size === 'large'}>
   <div class="dialog-header">
     {#if header}
       {@render header()}
     {:else}
       <div class="title-wrap">
         {#if showBackButton && onBack}
-          <button type="button" class="back-btn" onclick={onBack} aria-label="Back">
-            <FluentIcon name="ChevronLeft" size={16} />
-          </button>
+          <Button variant="ghost" size="icon" icon="ChevronLeft" iconSize={16} onclick={onBack} ariaLabel={t('dialogs.back')} />
         {/if}
         {#if icon}
           <div class="icon-wrap" style={iconColor ? `color: ${iconColor}` : undefined}>
@@ -81,9 +79,8 @@
         {@render topRight()}
       {/if}
       {#if showCloseButton}
-        <button type="button" class="close-btn" onclick={onClose} aria-label="Close">
-          <FluentIcon name="Dismiss" size={size === 'large' ? 16 : 14} />
-        </button>
+        <Button variant="ghost" size="icon" icon="WindowClose" iconSize={size === 'large' ? 16 : 14}
+          onclick={onClose} ariaLabel={t('dialogs.close')} />
       {/if}
     </div>
   </div>
@@ -96,7 +93,7 @@
     bind:scrollContainer
     class="dialog-body-viewer"
     contentClass="dialog-body {bodyClass}"
-    padding={size === 'large' ? '20px 24px' : '18px'}
+    padding={size === 'large' ? '0 24px 20px' : '0 18px 18px'}
     fadeHeight={28}
   >
     {#if children}
@@ -116,7 +113,7 @@
     display: flex;
     flex-direction: column;
     width: 100%;
-    height: 100%;
+    max-height: inherit;
     min-height: 0;
     flex: 1;
     overflow: hidden;
@@ -129,10 +126,6 @@
     padding: 14px 18px;
     flex-shrink: 0;
     gap: 12px;
-  }
-
-  .dividers .dialog-header {
-    border-bottom: 1px solid var(--border-subtle);
   }
 
   .dialog-toolbar {
@@ -202,52 +195,10 @@
     flex-shrink: 0;
   }
 
-  .back-btn {
-    background: transparent;
+  /* Dialog controls share Edit's borderless theme. Footer layout must not
+     override the shared Button's text metrics or size. */
+  .content-dialog :global(.fluent-btn) {
     border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-    border-radius: var(--radius-sm);
-    transition: all var(--transition-fast);
-  }
-
-  .large-dialog .back-btn {
-    width: 32px;
-    height: 32px;
-  }
-
-  .back-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
-  }
-
-  .close-btn {
-    background: transparent;
-    border: none;
-    color: var(--text-tertiary);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    border-radius: var(--radius-sm);
-    transition: all var(--transition-fast);
-  }
-
-  .large-dialog .close-btn {
-    width: 32px;
-    height: 32px;
-  }
-
-  .close-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
   }
 
   :global(.dialog-body-viewer) {
@@ -259,13 +210,10 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 8px;
     padding: 12px 18px;
     flex-shrink: 0;
-  }
-
-  .dividers .dialog-footer {
-    border-top: 1px solid var(--border-subtle);
   }
 
   .large-dialog .dialog-footer {
@@ -279,12 +227,5 @@
 
   .dialog-footer :global(.fluent-btn) {
     min-width: 80px;
-    height: 32px;
-    font-size: 13px;
-  }
-
-  .large-dialog .dialog-footer :global(.fluent-btn) {
-    min-width: 90px;
-    height: 34px;
   }
 </style>

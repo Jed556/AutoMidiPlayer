@@ -168,7 +168,7 @@
     {#if isEditing}
       <button
         type="button"
-        class="icon-action-btn cancel-btn"
+        class="icon-action-btn cancel-btn theme-ghost-button"
         onclick={stopEditing}
         title={t('settings.cancelEditHotkey')}
       >
@@ -177,7 +177,7 @@
     {:else}
       <button
         type="button"
-        class="icon-action-btn edit-btn"
+        class="icon-action-btn edit-btn theme-ghost-button"
         onclick={startEditing}
         title={t('settings.editHotkey')}
       >
@@ -187,7 +187,7 @@
       {#if hasBinding}
         <button
           type="button"
-          class="icon-action-btn delete-btn"
+          class="icon-action-btn delete-btn theme-ghost-button color-danger"
           onclick={onclear}
           title={t('settings.clearHotkey')}
         >
@@ -307,41 +307,9 @@
     width: 28px;
     height: 28px;
     border-radius: 4px;
-    background: transparent;
-    border: none;
-    color: var(--text-secondary);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
-    opacity: 0.75;
-    transition: color var(--transition-fast, 0.16s), transform var(--transition-fast, 0.16s), opacity var(--transition-fast, 0.16s);
   }
 
-  .icon-action-btn:hover {
-    background: transparent;
-    color: var(--text-primary);
-    opacity: 1;
-    transform: scale(1.1);
-  }
-
-  .icon-action-btn:active {
-    background: transparent;
-    transform: scale(0.92);
-    opacity: 0.7;
-  }
-
-  .icon-action-btn.delete-btn:hover {
-    background: transparent;
-    color: var(--danger-color, #ef4444);
-    opacity: 1;
-    transform: scale(1.1);
-  }
-
-  .icon-action-btn.cancel-btn:hover {
-    background: transparent;
-    color: var(--text-primary);
-    opacity: 1;
-    transform: scale(1.1);
-  }
 </style>

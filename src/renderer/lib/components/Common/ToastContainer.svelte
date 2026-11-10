@@ -207,7 +207,7 @@
 
           <!-- Close Button -->
           <button
-            class="close-btn"
+            class="close-btn theme-ghost-button"
             onclick={(e) => {
               e.stopPropagation();
               notificationCenter.dismiss(toast.id);
@@ -405,10 +405,6 @@
     min-width: 24px;
     min-height: 24px;
     border-radius: 4px;
-    background: transparent;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -416,12 +412,6 @@
     align-self: flex-start;
     margin-top: -2px;
     margin-right: -4px;
-    transition: background var(--transition-fast, 0.12s ease), color var(--transition-fast, 0.12s ease);
-  }
-
-  .close-btn:hover {
-    background: var(--bg-hover, rgba(128, 128, 128, 0.15));
-    color: var(--text-primary);
   }
 
   /* 3px Bottom Progress Bar */

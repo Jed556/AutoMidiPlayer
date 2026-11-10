@@ -1,0 +1,74 @@
+/* Shared ghost control behavior. Components own geometry; the theme owns every
+   visual state. Keep surfaces transparent even beside local control/hover rules. */
+.theme-ghost-button {
+  --_ghost-idle: var(--ghost-opacity);
+  --_ghost-hover: var(--ghost-hover-opacity);
+  --_ghost-pressed: var(--ghost-pressed-opacity);
+  --_ghost-color: var(--text-primary);
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: var(--_ghost-color) !important;
+  opacity: var(--_ghost-idle) !important;
+  cursor: pointer;
+  transition: opacity var(--transition-normal), color var(--transition-fast) !important;
+}
+
+.theme-ghost-button.ghost-dimmed {
+  --_ghost-idle: var(--ghost-dimmed-opacity);
+  --_ghost-hover: var(--ghost-dimmed-hover-opacity);
+  --_ghost-pressed: var(--ghost-dimmed-pressed-opacity);
+}
+
+.theme-ghost-button.color-accent {
+  --_ghost-color: var(--accent-color);
+  --_ghost-idle: var(--ghost-color-opacity);
+}
+
+.theme-ghost-button.color-danger {
+  --_ghost-color: var(--danger-color);
+  --_ghost-idle: var(--ghost-color-opacity);
+}
+
+.theme-ghost-button.color-warning {
+  --_ghost-color: var(--warning-color);
+  --_ghost-idle: var(--ghost-color-opacity);
+}
+
+.theme-ghost-button:is(.is-active, [aria-pressed='true'], [aria-expanded='true']) {
+  --_ghost-idle: var(--ghost-active-opacity);
+  --_ghost-hover: var(--ghost-hover-opacity);
+}
+
+.theme-ghost-button:is(.is-active, [aria-pressed='true'], [aria-expanded='true']):not(.color-accent, .color-danger, .color-warning) {
+  --_ghost-color: var(--accent-color);
+}
+
+.theme-ghost-button:is(:hover, :focus-visible):not(:disabled, [aria-disabled='true']) {
+  opacity: var(--_ghost-hover) !important;
+}
+
+.theme-ghost-button:active:not(:disabled, [aria-disabled='true']) {
+  opacity: var(--_ghost-pressed) !important;
+}
+
+.theme-ghost-button:focus-visible {
+  outline: 2px solid var(--accent-color) !important;
+  outline-offset: 2px;
+}
+
+.theme-ghost-button:is(:disabled, [aria-disabled='true']) {
+  opacity: var(--ghost-disabled-opacity) !important;
+  cursor: not-allowed;
+}
+
+/* Ghost controls fade instead of inheriting filled-button scale/brightness. */
+.theme-ghost-button,
+.theme-ghost-button:is(:hover, :active, :focus-visible) {
+  filter: none !important;
+  scale: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-ghost-button { transition: none !important; }
+}

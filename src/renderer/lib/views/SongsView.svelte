@@ -281,12 +281,12 @@
     <!-- Right: Ghost Import, Ghost Refresh, Ghost Search, Ghost Filter -->
     <div class="action-right" class:expand-right={animationStore.searchExpansionDirection === 'right'}>
       <!-- Import MIDI ghost button -->
-      <button class="ghost-icon-btn" onclick={importMidi} title={t('songs.importMidiTooltip')}>
+      <button class="ghost-icon-btn theme-ghost-button" onclick={importMidi} title={t('songs.importMidiTooltip')}>
         <FluentIcon name="Add" size={16} />
       </button>
 
       <!-- Refresh / Scan folder ghost button -->
-      <button class="ghost-icon-btn" onclick={scanFolder} title={t('songs.scanFolderTooltip')}>
+      <button class="ghost-icon-btn theme-ghost-button" onclick={scanFolder} title={t('songs.scanFolderTooltip')}>
         <FluentIcon name="ArrowClockwise" loading={isScanning} size={15} />
       </button>
 
@@ -295,7 +295,7 @@
       <!-- Filter / Sort ghost button -->
       <div class="filter-wrap">
         <button
-          class="ghost-filter-btn"
+          class="ghost-filter-btn theme-ghost-button"
           class:is-active={sortMenuOpen}
           onclick={(e) => { e.stopPropagation(); sortMenuOpen = !sortMenuOpen; }}
           title={t('songs.sort')}
@@ -534,25 +534,10 @@
     width: 32px;
     height: 32px;
     border-radius: 4px;
-    background: transparent;
-    border: none;
-    color: var(--text-primary);
-    opacity: 0.65;
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
     padding: 0;
-    transition: opacity 0.18s ease, color 0.18s ease;
-  }
-
-  .ghost-icon-btn:hover {
-    opacity: 1;
-    color: var(--text-primary);
-  }
-
-  .ghost-icon-btn:active {
-    opacity: 0.75;
   }
 
   /* Ghost Filter / Sort button */
@@ -566,27 +551,11 @@
     gap: 8px;
     height: 32px;
     padding: 0 8px;
-    background: transparent;
-    border: none;
-    color: var(--text-primary);
-    opacity: 0.6;
-    cursor: pointer;
     border-radius: 4px;
     font-size: 12.5px;
     font-weight: 500;
     font-family: inherit;
-    transition: opacity 0.18s ease, color 0.18s ease;
     user-select: none;
-  }
-
-  .ghost-filter-btn:hover {
-    opacity: 1;
-    color: var(--text-primary);
-  }
-
-  .ghost-filter-btn.is-active {
-    opacity: 1;
-    color: var(--accent-color, var(--accent, #1DB954));
   }
 
   .filter-label {

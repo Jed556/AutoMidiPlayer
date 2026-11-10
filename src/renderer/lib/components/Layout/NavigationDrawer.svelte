@@ -230,7 +230,7 @@
       <div class="header-controls">
         <!-- Collapse Arrow Button (NO 2-col/3-col chips as requested) -->
         <button
-          class="collapse-icon-btn"
+          class="collapse-icon-btn theme-ghost-button"
           onclick={() => uiStore.setLibraryMode('compressed')}
           title="Collapse to compact sidebar"
           aria-label="Collapse"
@@ -784,19 +784,9 @@
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    background: transparent;
-    border: none;
-    color: var(--text-secondary);
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
-    transition: background var(--transition-fast), color var(--transition-fast);
-  }
-
-  .collapse-icon-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
   }
 
   /* Page Navigation Section */
