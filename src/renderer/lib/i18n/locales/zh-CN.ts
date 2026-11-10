@@ -684,6 +684,7 @@ export const zhCN: TranslationSchema = {
     holdNotesEnable: '启用长音',
     tapThreshold: '点按阈值',
     tapThresholdTooltip: '不超过此时长的音符点按，较长音符保持。',
+    tapThresholdSuggestion: '可以先尝试将阈值设为 400-460 毫秒。这个时长范围的音符通常听起来像点按。',
     mergeNotes: '音符合并消抖 (Merge Notes)',
     mergeNotesEnable: '启用合并',
     toleranceMs: '容差时间 (毫秒)',

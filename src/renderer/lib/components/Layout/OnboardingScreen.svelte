@@ -570,7 +570,10 @@
                 repressGapMs={draft.repressGapMs} onrepressgapchange={value => draft.repressGapMs = value} />
             </div>
             <div class="setting-row note-settings-grid">
-              <HoldNotesControl checked={draft.defaultHoldNotes} thresholdMs={draft.defaultTapThresholdMs} onchange={value => draft.defaultHoldNotes = value} onthresholdchange={value => draft.defaultTapThresholdMs = value} />
+              <div class="hold-control">
+                <HoldNotesControl checked={draft.defaultHoldNotes} thresholdMs={draft.defaultTapThresholdMs} onchange={value => draft.defaultHoldNotes = value} onthresholdchange={value => draft.defaultTapThresholdMs = value} />
+                <p class="tap-threshold-note">{t('settings.tapThresholdSuggestion')}</p>
+              </div>
               <div class="merge-control">
                 <ToggleSwitch label={t('settings.mergeNotes')} checked={draft.defaultMergeNotes} onchange={value => draft.defaultMergeNotes = value} />
                 <label class="inline-field">{t('settings.toleranceMs')}<input type="number" min="1" max="1000" disabled={!draft.defaultMergeNotes} value={draft.defaultMergeToleranceMs} oninput={event => { if (event.currentTarget.validity.valid && Number.isInteger(event.currentTarget.valueAsNumber)) draft.defaultMergeToleranceMs = event.currentTarget.valueAsNumber; }} onblur={event => event.currentTarget.value = String(draft.defaultMergeToleranceMs)} /></label>
@@ -1003,6 +1006,8 @@
   .note { display: flex; align-items: flex-start; gap: 8px; margin: 16px 0 0; font-size: 12px; line-height: 1.6; color: var(--text-tertiary); }
   .overlap-setting { margin-top: 16px; }
   .note-settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); align-items: start; gap: 18px 28px; }
+  .hold-control { min-width: 0; }
+  .tap-threshold-note { margin: 8px 0 0; color: var(--text-secondary); font-size: 11px; line-height: 1.6; }
   .merge-control { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
   .inline-field { flex-direction: row; align-items: center; gap: 8px; font-size: 10.5px; line-height: 1; }
   .inline-field input { width: 76px; height: 28px; padding: 6px 10px; border: none; border-radius: var(--radius-sm); text-align: center; font-variant-numeric: tabular-nums; }

@@ -1,5 +1,6 @@
 <script lang="ts">
   import ToggleSwitch from './ToggleSwitch.svelte';
+  import FluentIcon from '../Icons/FluentIcon.svelte';
   import { tooltip } from '../../actions/tooltip';
   import { t } from '../../i18n';
 
@@ -19,8 +20,8 @@
 
 <div class="hold-notes-control">
   <ToggleSwitch label={showLabel ? t('settings.holdNotes') : ''} {checked} {onchange} />
-  <div class="threshold-field" class:disabled={disableThresholdWhenUnchecked && !checked} use:tooltip={t('settings.tapThresholdTooltip')}>
-    <label for={inputId}>{t('settings.tapThreshold')}</label>
+  <div class="threshold-field" class:disabled={disableThresholdWhenUnchecked && !checked}>
+    <label for={inputId} use:tooltip={t('settings.tapThresholdTooltip')}>{t('settings.tapThreshold')}</label>
     <div class="threshold-input">
       <input
         id={inputId}
@@ -36,8 +37,17 @@
         }}
         onblur={(event) => { event.currentTarget.value = String(thresholdMs); }}
         aria-describedby={`${inputId}-help`}
+        use:tooltip={t('settings.tapThresholdTooltip')}
       />
-      <span>ms</span>
+      <span class="threshold-unit">ms</span>
+      <span
+        class="threshold-help"
+        role="img"
+        aria-label={t('settings.tapThresholdSuggestion')}
+        use:tooltip={{ text: t('settings.tapThresholdSuggestion'), position: 'top', followCursor: false, maxWidth: '280px' }}
+      >
+        <FluentIcon name="QuestionCircle" size={14} />
+      </span>
     </div>
     <span id={`${inputId}-help`} class="sr-only">{t('settings.tapThresholdTooltip')}</span>
   </div>
@@ -53,6 +63,8 @@
   input:hover:enabled { background: var(--bg-hover); }
   input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   input:disabled { cursor: not-allowed; }
-  .threshold-input > span { color: var(--text-tertiary); font-size: 11px; }
+  .threshold-unit { color: var(--text-tertiary); font-size: 11px; }
+  .threshold-help { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 20px; height: 20px; color: var(--text-secondary); opacity: 0.55; cursor: help; transition: opacity var(--anim-fast, 150ms) ease; }
+  .threshold-help:hover { opacity: 1; }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 </style>

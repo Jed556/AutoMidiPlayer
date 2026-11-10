@@ -81,6 +81,24 @@ test('Studio projects threshold taps while retaining original duration for the t
   assert.equal([...createNoteIndex([converted]).between(0.1, 0.2)].length, 0);
 });
 
+test('Studio thresholds round to nearest millisecond after applying playback speed', () => {
+  const settings = { holdNotes: true, thresholdMs: 460, tapMs: 20, speed: 1 };
+  for (const [lengthMs, speed, isTap] of [
+    [460, 1, true], [460.4, 1, true], [460.499, 1, true],
+    [460.5, 1, false], [461, 1, false],
+    [920.998, 2, true], [921, 2, false],
+    [230.2, 0.5, true], [230.25, 0.5, false],
+  ]) {
+    const source = note('rounded', 0, lengthMs);
+    const projected = projectNoteTiming(source, { ...settings, speed });
+    assert.equal(projected.tapDurationMs === 20, isTap, `${lengthMs}ms at ${speed}x`);
+    if (isTap) assert.equal(projected.rawDuration, lengthMs / 1000);
+    else assert.equal(projected, source);
+  }
+  const source = note('boundary', 0, 460.5);
+  assert.equal(projectNoteTiming(source, { ...settings, thresholdMs: 461 }).tapDurationMs, 20);
+});
+
 test('Studio tap widths preserve wall-clock delay at changed speed and in raw display', () => {
   const source = note('source', 0, 330);
   const settings = { holdNotes: true, thresholdMs: 100, tapMs: 35, speed: 4 };
