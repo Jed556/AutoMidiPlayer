@@ -21,6 +21,7 @@ test('default uses the largest layout strictly below the configurable cutoff', (
   assert.equal(getDefaultAutoCorrectThreshold(ticks, 36, 15), 15);
   assert.equal(getDefaultAutoCorrectThreshold(ticks, 36, 25), 32);
   assert.equal(getDefaultAutoCorrectThreshold([0, 37]), 0);
+  assert.equal(DEFAULT_APP_SETTINGS.autoCorrectThreshold, 24);
 });
 
 test('missing and legacy values migrate while Off and saved layout choices survive revisits', () => {

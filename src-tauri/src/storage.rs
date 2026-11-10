@@ -225,6 +225,31 @@ pub fn clear_cache() -> Result<u64, String> {
     )
 }
 
+/// Only these application-owned payloads are cleared. Preserve live WebView
+/// files, logs, installed SoundFonts, updater files, and legacy archives.
+pub fn clear_data_files() -> Result<(), String> {
+    let _lock = STORAGE_LOCK.lock().map_err(|e| e.to_string())?;
+    clear_data_files_with(&amp_core::paths::app_data_dir(), |paths| {
+        trash::delete_all(paths).map_err(|e| format!("Unable to recycle app data: {e}"))
+    })
+}
+
+fn clear_data_files_with(root: &Path, recycle: impl FnOnce(&[PathBuf]) -> Result<(), String>) -> Result<(), String> {
+    for path in [root.to_path_buf(), root.join("cache"), root.join("OnlineMidi"), root.join("cache/discover")] {
+        match fs::symlink_metadata(&path) {
+            Ok(meta) if is_link(&meta) => return Err(format!("Cannot clear linked app storage: {}", path.display())),
+            Ok(_) => {},
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {},
+            Err(error) => return Err(error.to_string()),
+        }
+    }
+    let paths = ["OnlineMidi", "cache/discover", "cache/.discover-last-clean"].map(|name| root.join(name));
+    let paths: Vec<_> = paths.into_iter().filter(|path| path.exists()).collect();
+    // Recycle only fixed application-owned paths, never targets from settings.
+    if !paths.is_empty() { recycle(&paths)?; }
+    Ok(())
+}
+
 pub fn maintain(settings: &serde_json::Value) -> Result<(), String> {
     let _lock = STORAGE_LOCK.lock().map_err(|e| e.to_string())?;
     clean(&amp_core::paths::app_data_dir(), settings, false).map(|_| ())
@@ -234,6 +259,34 @@ pub fn maintain(settings: &serde_json::Value) -> Result<(), String> {
 mod tests {
     use super::*;
     use std::time::Duration;
+
+    #[test]
+    fn clear_data_only_recycles_downloads_and_discover_cache() {
+        let root = std::env::temp_dir().join(format!("amp-clear-{}-{}", std::process::id(),
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
+        for path in ["OnlineMidi/song.mid", "cache/discover/preview.mid", "cache/.discover-last-clean",
+            "cache/update/installer.exe", "SoundFonts/custom.sf2", "EBWebView/Default/data",
+            "logs/app.log", "Legacy/old.db", "AutoMidiPlayer.db", "settings.json"] {
+            let file = root.join(path);
+            fs::create_dir_all(file.parent().unwrap()).unwrap();
+            fs::write(file, b"kept").unwrap();
+        }
+        clear_data_files_with(&root, |paths| {
+            assert_eq!(paths, [root.join("OnlineMidi"), root.join("cache/discover"), root.join("cache/.discover-last-clean")]);
+            for path in paths {
+                if path.is_dir() { fs::remove_dir_all(path).unwrap(); }
+                else { fs::remove_file(path).unwrap(); }
+            }
+            Ok(())
+        }).unwrap();
+        assert!(!root.join("OnlineMidi").exists());
+        assert!(!root.join("cache/discover").exists());
+        for path in ["cache/update/installer.exe", "SoundFonts/custom.sf2", "EBWebView/Default/data",
+            "logs/app.log", "Legacy/old.db", "AutoMidiPlayer.db", "settings.json"] {
+            assert_eq!(fs::read(root.join(path)).unwrap(), b"kept");
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn categories_are_disjoint_and_missing_root_is_empty() {

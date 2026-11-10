@@ -197,6 +197,12 @@ pub fn set_telemetry_enabled(enabled: bool) {
     }
 }
 
+/// Return to first-run setup without sending an opt-out refresh ping.
+pub fn suspend_for_setup() {
+    let client = STATE.lock().unwrap_or_else(|e| e.into_inner()).client.take();
+    drop(client);
+}
+
 /// Starts Sentry SDK with full session stability tracking and diagnostic extras
 fn start_sentry() {
     let mut state = STATE.lock().unwrap_or_else(|e| e.into_inner());

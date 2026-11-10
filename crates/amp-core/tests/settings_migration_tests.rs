@@ -279,6 +279,33 @@ fn archived_game_and_layout_selections_can_resolve_after_preferences_were_alread
 }
 
 #[test]
+fn explicit_legacy_settings_import_works_after_clear_data_without_automatic_reimport() {
+    let f = Fixture::new();
+    let db = f.db();
+    let store = f.open(&db).unwrap();
+    store.clear_data().unwrap();
+    let original = f.config(&[
+        ("MidiFolder", r"C:\Legacy MIDIs"),
+        ("KeyboardPressDelayMs", "65"),
+        ("DefaultSongSpeed", "1.5"),
+    ]);
+    drop(store);
+
+    // Clear Data retains import markers; opening the app cannot restore old preferences.
+    let store = f.open(&db).unwrap();
+    assert_eq!(store.get().unwrap(), SettingsStore::defaults());
+    // The explicit migration command can still map and import the retained file.
+    let raw = amp_core::settings::legacy::read(&f.root.join("user.config")).unwrap();
+    let imported = amp_core::settings::legacy::map(&raw, &[], &HashMap::new(), &db).unwrap();
+    store.update(&imported).unwrap();
+    assert_eq!(store.get().unwrap()["midiFolder"], r"C:\Legacy MIDIs");
+    assert_eq!(store.get().unwrap()["keyPressDelayMs"], 65);
+    assert_eq!(store.get().unwrap()["defaultSpeed"], 1.5);
+    assert_eq!(fs::read_to_string(f.root.join("user.config")).unwrap(), original);
+    assert!(store.get().unwrap().get("_migrations").is_none());
+}
+
+#[test]
 fn missing_legacy_settings_use_app_defaults_and_are_written_to_json() {
     let f = Fixture::new();
     let db = f.db();

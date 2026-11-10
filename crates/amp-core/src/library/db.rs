@@ -130,6 +130,35 @@ impl LibraryDatabase {
         &self.db_path
     }
 
+    /// Clear user library data in one transaction while keeping the live SQLite
+    /// connection, schema, and migration history. Never touch source MIDI files.
+    pub fn clear_data(&self) -> Result<(), rusqlite::Error> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        tx.execute_batch("DELETE FROM Queue;
+            DELETE FROM PlaylistSongs;
+            DELETE FROM SongSettings;
+            DELETE FROM LibraryFileIssues;
+            DELETE FROM Songs;
+            DELETE FROM Albums;
+            DELETE FROM Playlists;")?;
+        Self::seed_playlists(&tx)?;
+        tx.commit()?;
+        // Reclaim the cleared records' pages rather than leaving a full-sized DB.
+        conn.execute_batch("VACUUM;")
+    }
+
+    fn seed_playlists(conn: &Connection) -> Result<(), rusqlite::Error> {
+        conn.execute(
+            "INSERT INTO Playlists (Id, Title, Subtitle, Icon, Gradient, BannerColor, DateCreated)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params!["liked-songs", "Liked Songs", "Favorite songs", "Heart",
+                "linear-gradient(135deg, #450af5 0%, #8e8ee5 100%)",
+                "rgba(69, 10, 245, 0.45)", Utc::now().to_rfc3339()],
+        )?;
+        Ok(())
+    }
+
     /// Read song and playlist counts from an external SQLite database without locking it.
     pub fn inspect_db_counts(path: &Path) -> Result<(usize, usize), rusqlite::Error> {
         let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
@@ -288,20 +317,7 @@ impl LibraryDatabase {
         // 6. Seed default playlists if table is empty
         let playlist_count: i64 = conn.query_row("SELECT COUNT(*) FROM Playlists", [], |r| r.get(0))?;
         if playlist_count == 0 {
-            let now = Utc::now().to_rfc3339();
-            let _ = conn.execute(
-                "INSERT INTO Playlists (Id, Title, Subtitle, Icon, Gradient, BannerColor, DateCreated)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                params![
-                    "liked-songs",
-                    "Liked Songs",
-                    "Favorite songs",
-                    "Heart",
-                    "linear-gradient(135deg, #450af5 0%, #8e8ee5 100%)",
-                    "rgba(69, 10, 245, 0.45)",
-                    now
-                ],
-            );
+            Self::seed_playlists(conn)?;
         }
 
         // 7. Create Queue table

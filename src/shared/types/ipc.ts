@@ -209,6 +209,7 @@ export interface SettingsApi {
   getSettings: () => Promise<Partial<AppSettings>>;
   updateSettings: (partial: Partial<AppSettings>) => Promise<boolean>;
   resetSettings: () => Promise<boolean>;
+  clearAppData: () => Promise<void>;
   browseFolder: (title?: string) => Promise<string | null>;
   openFolderInExplorer: (path?: string) => Promise<boolean>;
   openUrl: (url: string) => Promise<boolean>;
