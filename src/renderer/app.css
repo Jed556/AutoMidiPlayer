@@ -1,3 +1,5 @@
+@import './lib/styles/ghostButtons.css';
+
 @property --header-gradient-color {
   syntax: '<color>';
   inherits: true;
@@ -52,6 +54,15 @@
   --accent-subtle: rgba(29, 185, 84, 0.12);
   --danger-color: #EF4444;
   --warning-color: #F59E0B;
+  --ghost-opacity: 0.4;
+  --ghost-hover-opacity: 1;
+  --ghost-pressed-opacity: 0.75;
+  --ghost-disabled-opacity: 0.2;
+  --ghost-active-opacity: 0.8;
+  --ghost-color-opacity: 0.8;
+  --ghost-dimmed-opacity: 0.25;
+  --ghost-dimmed-hover-opacity: 0.75;
+  --ghost-dimmed-pressed-opacity: 0.5;
   --font-family: 'Segoe UI Variable Text', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
 
   /* Default Dark Mode (Spotify Aesthetic) */

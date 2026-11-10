@@ -182,7 +182,9 @@
       type="button"
       class="dropdown-trigger"
       class:ghost={variant === 'ghost'}
+      class:theme-ghost-button={variant === 'ghost'}
       class:is-open={isOpen}
+      aria-expanded={isOpen}
       {disabled}
       {title}
       onclick={toggle}
@@ -278,17 +280,6 @@
     transition: background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
     box-sizing: border-box;
     text-align: left;
-  }
-
-  .dropdown-trigger.ghost {
-    background: transparent;
-    border-color: transparent;
-  }
-
-  .dropdown-trigger.ghost:hover:not(:disabled),
-  .dropdown-trigger.ghost.is-open {
-    background: var(--bg-hover);
-    border-color: transparent;
   }
 
   .dropdown-trigger:hover:not(:disabled) {

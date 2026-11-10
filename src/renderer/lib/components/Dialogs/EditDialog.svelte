@@ -189,7 +189,7 @@
   }
 </script>
 
-<ContentDialog title={t('dialogs.editTitle')} icon="Edit" class="edit-song-dialog" dividers={false} onClose={() => uiStore.closeDialog()}>
+<ContentDialog title={t('dialogs.editTitle')} icon="Edit" class="edit-song-dialog" onClose={() => uiStore.closeDialog()}>
   <div class="edit-fields" class:no-motion={animationStore.isOff}>
     <section class="edit-section" aria-labelledby="edit-song-details" style="--section-index: 0">
       <div class="section-header">
@@ -300,7 +300,6 @@
 </ContentDialog>
 
 <style>
-  :global(.edit-song-dialog .dialog-body) { padding-top: 0 !important; }
   .edit-fields { display: flex; flex-direction: column; gap: 12px; }
   .save-context { margin: 0 0 4px; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
   .edit-section { display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: var(--radius-md, 8px); background: var(--control-fill); animation: section-enter var(--anim-normal, 0.2s) cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: calc(var(--anim-normal, 0.2s) * var(--section-index) * 0.15); }
@@ -334,7 +333,6 @@
   .form-error { margin: 0; color: var(--danger, #f87171); font-size: 12px; }
   .edit-footer { display: flex; align-items: center; gap: 8px; width: 100%; }
   .footer-spacer { flex: 1; }
-  :global(.edit-song-dialog .fluent-btn) { border: none; }
   :global(.edit-song-dialog .switch-pill) { border: none; }
   :global(.edit-song-dialog .switch-thumb) { top: 3px; left: 3px; }
   @keyframes section-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }

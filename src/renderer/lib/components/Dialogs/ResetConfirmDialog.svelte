@@ -1,13 +1,17 @@
 <script lang="ts">
   import { uiStore } from '../../state/uiStore.svelte';
-  import { notificationCenter } from '../../ui/notificationCenter.svelte';
   import Button from '../Common/Button.svelte';
   import ContentDialog from './ContentDialog.svelte';
   import { t } from '../../i18n';
 
-  function confirmReset() {
-    notificationCenter.success(t('dialogs.resetComplete'), t('dialogs.resetCompleteMsg'));
+  let { onreset }: { onreset: () => Promise<void> } = $props();
+  let resetting = $state(false);
+
+  async function confirmReset() {
+    if (resetting) return;
+    resetting = true;
     uiStore.closeDialog();
+    await onreset();
   }
 </script>
 
@@ -23,7 +27,7 @@
 
   {#snippet footer()}
     <Button variant="secondary" onclick={() => uiStore.closeDialog()}>{t('dialogs.cancel')}</Button>
-    <Button variant="danger" onclick={confirmReset}>{t('dialogs.resetConfirm')}</Button>
+    <Button variant="danger" disabled={resetting} onclick={confirmReset}>{t('dialogs.resetConfirm')}</Button>
   {/snippet}
 </ContentDialog>
 

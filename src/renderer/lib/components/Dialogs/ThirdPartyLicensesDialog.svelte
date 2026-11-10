@@ -111,7 +111,7 @@
     white-space: pre-wrap;
     word-break: break-word;
     background: var(--control-fill);
-    border: 1px solid var(--border-subtle);
+    border: none;
     border-radius: var(--radius-md);
     padding: 18px 22px;
     user-select: text;
@@ -120,13 +120,13 @@
 
   .licenses-list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
     gap: 12px;
   }
 
   .license-item-btn {
     background: var(--control-fill);
-    border: 1px solid var(--border-subtle);
+    border: none;
     border-radius: var(--radius-md);
     padding: 12px 16px;
     display: flex;
@@ -139,7 +139,6 @@
 
   .license-item-btn:hover {
     background: var(--bg-hover);
-    border-color: var(--accent);
   }
 
   .license-row {

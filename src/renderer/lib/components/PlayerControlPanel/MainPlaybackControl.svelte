@@ -56,12 +56,17 @@
       <!-- Pedal Status Button -->
       <div
         class="pedal-anchor"
-        use:tooltip={{
-          contentType: 'pedals',
-          position: 'top',
-          text: t('player.pedals') || 'Pedals',
-          arrow: false
-        }}
+        use:tooltip={playbackStore.supportsPedals
+          ? {
+              contentType: 'pedals',
+              position: 'top',
+              text: t('player.pedals') || 'Pedals',
+              arrow: false
+            }
+          : {
+              position: 'top',
+              text: t('instrument.noPedalSupport') || 'Selected instrument does not support pedals.'
+            }}
       >
         <button
           type="button"
@@ -69,7 +74,7 @@
           class:pedals-on={playbackStore.pedals.enabled}
           class:pedals-off={!playbackStore.pedals.enabled}
           onclick={handlePedalClick}
-          aria-label={t('player.pedalsTooltip')}
+          aria-label={playbackStore.supportsPedals ? t('player.pedalsTooltip') : (t('instrument.noPedalSupport') || 'Selected instrument does not support pedals.')}
           aria-pressed={playbackStore.pedals.enabled}
           disabled={!playbackStore.supportsPedals}
         >
@@ -220,7 +225,7 @@
     padding: 0;
   }
 
-  .ctrl-btn:hover {
+  .ctrl-btn:is(:hover, :focus-visible):not(:disabled) {
     background: transparent;
     opacity: 1;
     color: var(--text-primary);
@@ -231,9 +236,15 @@
     opacity: 0.85;
   }
 
-  .ctrl-btn.active:hover {
+  .ctrl-btn.active:is(:hover, :focus-visible):not(:disabled) {
     color: var(--accent-color, var(--accent, #1DB954));
     opacity: 1;
+  }
+
+  .ctrl-btn:disabled,
+  .ctrl-btn:disabled:hover {
+    opacity: 0.22;
+    cursor: not-allowed;
   }
 
   .pedal-btn {
@@ -241,30 +252,31 @@
     opacity: 0.35;
   }
 
-  .pedal-btn:hover {
+  .pedal-btn:is(:hover, :focus-visible):not(:disabled) {
     background: transparent;
     opacity: 1;
     color: var(--text-primary);
   }
 
-  .pedal-btn.pedals-on {
+  .pedal-btn.pedals-on:not(:disabled) {
     opacity: 0.4;
   }
 
-  .pedal-btn.pedals-on:hover {
+  .pedal-btn.pedals-on:is(:hover, :focus-visible):not(:disabled) {
     opacity: 1;
   }
 
-  .pedal-btn.pedals-off {
-    opacity: 0.5;
+  .pedal-btn.pedals-off:not(:disabled) {
+    opacity: 0.38;
   }
 
-  .pedal-btn.pedals-off:hover {
+  .pedal-btn.pedals-off:is(:hover, :focus-visible):not(:disabled) {
     opacity: 0.85;
   }
 
-  .pedal-btn:disabled {
-    opacity: 0.15;
+  .pedal-btn:disabled,
+  .pedal-btn:disabled:hover {
+    opacity: 0.22;
     cursor: not-allowed;
   }
 
@@ -273,7 +285,7 @@
     opacity: 0.85;
   }
 
-  .listen-btn.active:hover {
+  .listen-btn.active:is(:hover, :focus-visible):not(:disabled) {
     color: var(--accent-color, var(--accent, #1DB954));
     opacity: 1;
   }
@@ -294,13 +306,18 @@
     transition: transform var(--transition-fast, 0.14s ease), background var(--transition-fast, 0.14s ease);
   }
 
-  .play-main-btn:hover {
+  .play-main-btn:is(:hover, :focus-visible):not(:disabled) {
     transform: scale(1.06);
     background: #ffffff;
   }
 
-  .play-main-btn:active {
+  .play-main-btn:active:not(:disabled) {
     transform: scale(0.96);
+  }
+
+  .play-main-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
   }
 
   .seekbar-row {

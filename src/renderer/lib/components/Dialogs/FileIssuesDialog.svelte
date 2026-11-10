@@ -65,7 +65,7 @@
 </script>
 
 <ContentDialog title={t('fileIssues.title')} icon="Warning" iconColor="var(--warning-color)"
-  showCloseButton={false} dividers={false} bind:scrollContainer onClose={() => uiStore.closeDialog()}>
+  bind:scrollContainer onClose={() => uiStore.closeDialog()}>
   {#snippet topRight()}
     <Button variant="ghost" size="icon" title={t('fileIssues.refresh')} ariaLabel={t('fileIssues.refresh')}
       disabled={busy !== null || refreshing} onclick={refresh}>

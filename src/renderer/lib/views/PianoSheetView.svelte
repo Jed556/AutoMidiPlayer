@@ -359,12 +359,6 @@
     font-size: 12px;
   }
 
-  .top-controls-wrap :global(.fluent-btn:focus-visible) {
-    outline: none;
-    background: var(--control-fill-hover);
-    color: var(--text-primary);
-  }
-
   .sheet-editor-box {
     flex: 1;
     min-height: 0;

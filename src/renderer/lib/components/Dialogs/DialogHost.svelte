@@ -9,6 +9,8 @@
   import ThirdPartyLicensesDialog from './ThirdPartyLicensesDialog.svelte';
   import ActionDialog from './ActionDialog.svelte';
 
+  let { onreset }: { onreset: () => Promise<void> } = $props();
+
   function handleBackdrop(e: MouseEvent) {
     if (e.target === e.currentTarget) {
       uiStore.closeDialog();
@@ -47,7 +49,7 @@
       {:else if uiStore.activeDialog === 'fileIssues'}
         <FileIssuesDialog />
       {:else if uiStore.activeDialog === 'resetConfirm'}
-        <ResetConfirmDialog />
+        <ResetConfirmDialog {onreset} />
       {:else if uiStore.activeDialog === 'licenses'}
         <ThirdPartyLicensesDialog />
       {:else if uiStore.activeDialog === 'action'}
@@ -72,21 +74,21 @@
   .dialog-box {
     grid-area: dialog;
     background: var(--bg-dialog, var(--card-bg, #27272A));
-    border: 1px solid var(--border-medium);
+    border: none;
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-xl);
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    min-height: 0;
     max-width: calc(100vw - 32px);
-    max-height: calc(100vh - 64px);
+    max-height: calc(100dvh - 32px);
     transform-origin: center center;
     will-change: transform, opacity;
   }
 
   .dialog-box.dialog-edit {
     width: 620px;
-    border: none;
   }
 
   .dialog-box.dialog-update {
@@ -95,7 +97,6 @@
 
   .dialog-box.dialog-fileIssues {
     width: 640px;
-    border: none;
   }
 
   .dialog-box.dialog-resetConfirm {

@@ -65,7 +65,7 @@
 
   <button
     type="button"
-    class="search-trigger"
+    class="search-trigger theme-ghost-button"
     bind:this={trigger}
     onclick={openSearch}
     title={placeholder}
@@ -99,7 +99,7 @@
     {#if value}
       <button
         type="button"
-        class="clear-search"
+        class="clear-search theme-ghost-button"
         onclick={clearSearch}
         aria-label={t('common.clearSearch')}
         title={t('common.clearSearch')}
@@ -193,18 +193,9 @@
     place-items: center;
     width: 32px;
     padding: 0;
-    border: none;
     border-radius: 50%;
-    background: transparent;
-    color: var(--text-primary);
-    opacity: 0.65;
-    cursor: pointer;
     z-index: 1;
-    transition: opacity var(--transition-fast);
   }
-
-  .search-trigger:hover { opacity: 1; }
-  .search-trigger:active { opacity: 0.75; }
 
   .search-trigger:focus-visible {
     outline: 2px solid var(--accent-color);
@@ -252,16 +243,7 @@
     place-items: center;
     width: 20px;
     padding: 0;
-    border: none;
     border-radius: 50%;
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-  }
-
-  .clear-search:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
   }
 
   .clear-search:focus-visible {

@@ -54,6 +54,8 @@
   }: Props = $props();
 
   let effectiveSize = $derived(compact ? 'sm' : size);
+  let hovered = $state(false);
+  let keyboardFocused = $state(false);
 </script>
 
 <button
@@ -69,11 +71,17 @@
   aria-activedescendant={ariaActiveDescendant}
   aria-pressed={pressed}
   class="fluent-btn variant-{variant} color-{colorMode} size-{effectiveSize} {active ? 'is-active' : ''} {customClass}"
+  class:theme-ghost-button={variant === 'ghost' || variant === 'ghost-dimmed'}
+  class:ghost-dimmed={variant === 'ghost-dimmed'}
   {onclick}
   {onkeydown}
+  onpointerenter={() => hovered = true}
+  onpointerleave={() => hovered = false}
+  onfocus={event => keyboardFocused = event.currentTarget.matches(':focus-visible')}
+  onblur={() => keyboardFocused = false}
 >
   {#if icon}
-    <FluentIcon name={icon} size={iconSize ?? (effectiveSize === 'sm' ? 12 : 14)} filled={iconFilled} />
+    <FluentIcon name={icon} size={iconSize ?? (effectiveSize === 'sm' ? 12 : 14)} filled={iconFilled} hovered={!disabled && (hovered || keyboardFocused)} />
   {/if}
   {#if children}
     {@render children()}
@@ -90,6 +98,7 @@
     font-family: inherit;
     font-size: 12.5px;
     font-weight: 500;
+    line-height: 1;
     cursor: pointer;
     transition: background var(--transition-fast, 0.16s cubic-bezier(0, 0, 0.2, 1)),
                 border-color var(--transition-fast, 0.16s cubic-bezier(0, 0, 0.2, 1)),
@@ -110,7 +119,7 @@
     outline-offset: 1px;
   }
 
-  .fluent-btn:active:not(:disabled) {
+  .fluent-btn:active:not(:disabled, .theme-ghost-button) {
     opacity: 0.85;
     transform: scale(0.985);
   }
@@ -263,88 +272,6 @@
 
   .variant-warning:hover:not(:disabled) {
     background: #FFE0A500;
-  }
-
-  /* Ghost Button (Matches WPF ButtonGhost.xaml: NO background, opacity changes to 1 on hover) */
-  .variant-ghost {
-    background: transparent !important;
-    border-color: transparent !important;
-    box-shadow: none !important;
-    color: var(--text-primary);
-    opacity: 0.4;
-    transition: opacity var(--transition-normal, 0.22s cubic-bezier(0, 0, 0.2, 1)),
-                color var(--transition-fast, 0.16s ease);
-  }
-
-  .variant-ghost.color-accent {
-    color: var(--accent-color);
-    opacity: 0.4;
-  }
-
-  .variant-ghost.color-danger {
-    color: #C42B1C;
-    opacity: 0.4;
-  }
-
-  .variant-ghost.color-warning {
-    color: #FFB900;
-    opacity: 0.4;
-  }
-
-  .variant-ghost:hover:not(:disabled) {
-    background: transparent !important;
-    opacity: 1 !important;
-  }
-
-  .variant-ghost:active:not(:disabled) {
-    background: transparent !important;
-    opacity: 0.75 !important;
-    transform: none;
-  }
-
-  .variant-ghost.is-active {
-    color: var(--accent-color);
-    opacity: 0.8;
-  }
-
-  .variant-ghost.is-active:hover:not(:disabled) {
-    opacity: 1 !important;
-  }
-
-  /* Ghost Dimmed Button (Matches WPF ButtonGhostDimmed.xaml: opacity 0.25 -> 0.75 on hover) */
-  .variant-ghost-dimmed {
-    background: transparent !important;
-    border-color: transparent !important;
-    box-shadow: none !important;
-    color: var(--text-primary);
-    opacity: 0.25;
-    transition: opacity var(--transition-normal, 0.22s cubic-bezier(0, 0, 0.2, 1)),
-                color var(--transition-fast, 0.16s ease);
-  }
-
-  .variant-ghost-dimmed.color-accent {
-    color: var(--accent-color);
-    opacity: 0.8;
-  }
-
-  .variant-ghost-dimmed:hover:not(:disabled) {
-    background: transparent !important;
-    opacity: 0.75 !important;
-  }
-
-  .variant-ghost-dimmed:active:not(:disabled) {
-    background: transparent !important;
-    opacity: 0.5 !important;
-    transform: none;
-  }
-
-  .variant-ghost-dimmed.is-active {
-    color: var(--accent-color);
-    opacity: 0.8;
-  }
-
-  .variant-ghost-dimmed.is-active:hover:not(:disabled) {
-    opacity: 1 !important;
   }
 
   @media (prefers-reduced-motion: reduce) {
