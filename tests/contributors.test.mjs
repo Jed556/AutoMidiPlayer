@@ -32,6 +32,7 @@ test('co-authors resolve ordinary emails, renamed account IDs and co-author-only
       'Co-authored-by: Old Name <7+OldLogin@users.noreply.github.com>\r\n' +
       'Co-authored-by: Tester <8+OnlyCoauthor@users.noreply.github.com>\r\n' +
       'Co-authored-by: automation[bot] <automation@users.noreply.github.com>\r\n' +
+      'Co-authored-by: Copilot Autofix powered by AI <62310815+github-advanced-security[bot]@users.noreply.github.com>\r\n' +
       'Co-authored-by: Copilot <copilot@github.com>' }),
     commit(user('Helper', 6), { email: 'helper@example.test' }),
     commit(user('RenamedLogin', 7)),
@@ -39,6 +40,38 @@ test('co-authors resolve ordinary emails, renamed account IDs and co-author-only
   ]);
   assert.deepEqual(result.map(person => person.name), ['Maintainer', 'Helper', 'RenamedLogin', 'OnlyCoauthor']);
   assert.equal(result.at(-1).avatarUrl, 'https://avatars.githubusercontent.com/u/8');
+});
+
+test('copilot variants and cached bots are filtered from contributors list and local storage', async () => {
+  const result = contributorsFromCommits([
+    commit(user('copilot', 101)),
+    commit(user('copilot-swe-agent[bot]', 102)),
+    commit(user('HumanAuthor', 103), {
+      message: 'Improve player\n\n' +
+        'Co-authored-by: Copilot Autofix powered by AI <62310815+github-advanced-security[bot]@users.noreply.github.com>\n' +
+        'Co-authored-by: GitHub Copilot <copilot@github.com>\n' +
+        'Co-authored-by: AI Bot <assistant[bot]@users.noreply.github.com>'
+    })
+  ]);
+  assert.deepEqual(result.map(person => person.name), ['HumanAuthor']);
+
+  const cache = storage();
+  cache.setItem('amp:contributors:v1', JSON.stringify({
+    updatedAt: 1000,
+    people: [
+      { name: 'HumanAuthor', profileUrl: 'https://github.com/HumanAuthor', avatarUrl: 'https://example.com/a.png' },
+      { name: 'Copilot Autofix powered by AI', profileUrl: 'https://github.com/example/repo/commit/abc', avatarUrl: '' },
+      { name: 'dependabot[bot]', profileUrl: 'https://github.com/dependabot', avatarUrl: '' }
+    ]
+  }));
+
+  const loader = createContributorLoader(async () => assert.fail('should use cached data'), cache, () => 1500);
+  assert.deepEqual(loader.readCached().map(person => person.name), ['HumanAuthor']);
+  const loaded = await loader.load();
+  assert.deepEqual(loaded.map(person => person.name), ['HumanAuthor']);
+
+  const stored = JSON.parse(cache.getItem('amp:contributors:v1'));
+  assert.deepEqual(stored.people.map(person => person.name), ['HumanAuthor']);
 });
 
 test('unlinked authors and co-authors keep their recorded names with source commit links', () => {

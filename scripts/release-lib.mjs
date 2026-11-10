@@ -64,7 +64,7 @@ export function renderNotes(release, version, repo, previous) {
   }
   const contributors = new Map();
   for (const person of (release.github?.contributors ?? [])) {
-    if (person.is_first_time && person.username && !/\[bot\]$/.test(person.username)) contributors.set(person.username, person);
+    if (person.is_first_time && person.username && !/\[bot\]$|copilot/i.test(person.username)) contributors.set(person.username, person);
   }
   if (contributors.size) {
     lines.push('## New Contributors', '');

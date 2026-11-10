@@ -71,15 +71,45 @@ class UiStore {
   studioSidebarCollapsed = $state<boolean>(DEFAULT_UI_PREFERENCES.studioSidebarCollapsed);
   studio = $state(normalizeStudio());
   songsSortMode = $state<NonNullable<UiPreferences['songsSortMode']>>(DEFAULT_UI_PREFERENCES.songsSortMode);
+
+  // Instrument View Stage State
+  instrumentStage = $state<'game' | 'piano'>('game');
+  instrumentGameSelected = $state<boolean>(true);
+  instrumentPianoSelected = $state<boolean>(true);
+  instrumentCompactStage = $state<boolean>(
+    typeof window !== 'undefined' ? window.innerHeight < 800 : false
+  );
+
+  setInstrumentStage(stage: 'game' | 'piano', isUserAction = true) {
+    this.instrumentStage = stage;
+    if (isUserAction) {
+      saveUiPreferences({ instrumentStage: stage });
+    }
+  }
+
+  setInstrumentToggles(game: boolean, piano: boolean, isUserAction = true) {
+    this.instrumentGameSelected = game;
+    this.instrumentPianoSelected = piano;
+    if (isUserAction) {
+      saveUiPreferences({
+        instrumentGameSelected: game,
+        instrumentPianoSelected: piano,
+      });
+    }
+  }
+
   private lastPreferencesSnapshot = '';
 
   persistPreferences(selectedPlaylistId: string) {
-    const preferences = {
+    const preferences: UiPreferences = {
       lastViewedPage: normalizePage(this.activeTab),
       selectedPlaylistId,
       songsSortMode: this.songsSortMode,
       studioSidebarCollapsed: this.studioSidebarCollapsed,
       studio: { ...this.studio },
+      instrumentStage: this.instrumentStage,
+      instrumentGameSelected: this.instrumentGameSelected,
+      instrumentPianoSelected: this.instrumentPianoSelected,
     };
     const snapshot = JSON.stringify(preferences);
     if (snapshot === this.lastPreferencesSnapshot) return;
@@ -343,6 +373,15 @@ class UiStore {
       this._activeTab = tab;
       this.tabHistory = [tab];
       this.tabHistoryIndex = 0;
+      if (preferences.instrumentStage === 'game' || preferences.instrumentStage === 'piano') {
+        this.instrumentStage = preferences.instrumentStage;
+      }
+      if (typeof preferences.instrumentGameSelected === 'boolean') {
+        this.instrumentGameSelected = preferences.instrumentGameSelected;
+      }
+      if (typeof preferences.instrumentPianoSelected === 'boolean') {
+        this.instrumentPianoSelected = preferences.instrumentPianoSelected;
+      }
     } catch (error) {
       console.warn('[UiStore] Could not load preferences:', error);
     }

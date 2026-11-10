@@ -10,15 +10,23 @@
     binding: HotkeyBinding;
     onchange: (updated: HotkeyBinding) => void;
     onclear: () => void;
+    onmeasurechips?: (width: number) => void;
   }
 
-  let { label, binding, onchange, onclear }: Props = $props();
+  let { label, binding, onchange, onclear, onmeasurechips }: Props = $props();
 
   let isEditing = $state(false);
   let tempKey = $state('');
   let tempCtrl = $state(false);
   let tempAlt = $state(false);
   let tempShift = $state(false);
+  let chipsWidth = $state(0);
+
+  $effect(() => {
+    if (chipsWidth > 0 && onmeasurechips) {
+      onmeasurechips(chipsWidth);
+    }
+  });
 
   function formatKeyDisplay(k: string): string {
     if (!k) return '';
@@ -144,7 +152,7 @@
         <span class="recording-prompt">{t('settings.pressKeysPrompt')}</span>
       </div>
     {:else if hasBinding}
-      <div class="chips-list">
+      <div class="chips-list" bind:clientWidth={chipsWidth}>
         {#if binding.ctrl}
           <span class="key-chip modifier">Ctrl</span>
           <span class="chip-separator">+</span>
@@ -201,7 +209,7 @@
 <style>
   .key-edit-row {
     display: grid;
-    grid-template-columns: minmax(0, 130px) minmax(max-content, 1fr) auto;
+    grid-template-columns: minmax(0, var(--hotkey-label-width, 130px)) minmax(max-content, 1fr) auto;
     min-width: 0;
     align-items: center;
     justify-content: space-between;
@@ -237,6 +245,7 @@
   .key-chips-wrapper {
     display: flex;
     align-items: center;
+    justify-content: flex-start;
     min-width: 0;
     min-height: 26px;
   }

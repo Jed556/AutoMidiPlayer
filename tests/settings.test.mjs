@@ -583,3 +583,35 @@ test('a failed onboarding scan never activates the selected telemetry opt-in', a
   assert.equal(h.saved().telemetryOptIn, false);
   assert.equal(h.saved().onboardingCompleted, false);
 });
+
+test('hotkey rows synchronize label width to leftmost hotkey chips position when space is constrained', () => {
+  const settingsSource = readFileSync(new URL('../src/renderer/lib/views/SettingsView.svelte', import.meta.url), 'utf8');
+  assert.match(settingsSource, /--hotkey-label-width:\s*\{hotkeyLabelWidth\}px/);
+  assert.match(settingsSource, /bind:clientWidth=\{hotkeysListWidth\}/);
+  assert.match(settingsSource, /onmeasurechips=/);
+
+  const controlSource = readFileSync(new URL('../src/renderer/lib/components/Settings/KeyEditControl.svelte', import.meta.url), 'utf8');
+  assert.match(controlSource, /grid-template-columns:\s*minmax\(0,\s*var\(--hotkey-label-width,\s*130px\)\)\s*minmax\(max-content,\s*1fr\)\s*auto/);
+  assert.match(controlSource, /\.key-chips-wrapper\s*\{[^}]*justify-content:\s*flex-start/);
+  assert.match(controlSource, /bind:clientWidth=\{chipsWidth\}/);
+
+  // Sizing formula test:
+  function computeHotkeyLabelWidth(hotkeysListWidth, maxChipsWidth = 158) {
+    if (hotkeysListWidth <= 0) return 130;
+    const gap = 16;
+    const columns = Math.max(1, Math.floor((hotkeysListWidth + gap) / (440 + gap)));
+    const itemWidth = (hotkeysListWidth - (columns - 1) * gap) / columns;
+    const overhead = 106;
+    const availableForLabel = itemWidth - overhead - maxChipsWidth;
+    return Math.max(0, Math.min(130, Math.floor(availableForLabel)));
+  }
+
+  // Wide window: stays capped at 130px
+  assert.equal(computeHotkeyLabelWidth(500, 158), 130);
+  assert.equal(computeHotkeyLabelWidth(400, 158), 130);
+  // Narrow space: shrinks to match the widest chips (leftmost hotkey)
+  assert.equal(computeHotkeyLabelWidth(365, 158), 101);
+  assert.equal(computeHotkeyLabelWidth(340, 158), 76);
+  assert.equal(computeHotkeyLabelWidth(200, 158), 0);
+});
+

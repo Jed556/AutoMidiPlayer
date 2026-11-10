@@ -4,6 +4,9 @@
   import FluentIcon from '../Icons/FluentIcon.svelte';
 
   import OverflowText from '../Common/OverflowText.svelte';
+
+  let currentTitle = $derived(playbackStore.activeSong?.title || t('player.noSongPlaying'));
+  let currentArtist = $derived(playbackStore.activeSong?.artist || t('player.unknownArtist'));
 </script>
 
 <div class="song-info-control">
@@ -22,18 +25,28 @@
   </div>
 
   <div class="info-stack">
-    <div class="title-text">
+    <div
+      class="title-text"
+      title={currentTitle}
+      data-tooltip-follow="false"
+    >
       <OverflowText
-        text={playbackStore.activeSong?.title || t('player.noSongPlaying')}
+        text={currentTitle}
         hoverBehavior="loop"
         hoverTarget=".song-info-control"
+        showTooltip={false}
       />
     </div>
-    <div class="artist-text">
+    <div
+      class="artist-text"
+      title={currentArtist}
+      data-tooltip-follow="false"
+    >
       <OverflowText
-        text={playbackStore.activeSong?.artist || t('player.unknownArtist')}
+        text={currentArtist}
         hoverBehavior="loop"
         hoverTarget=".song-info-control"
+        showTooltip={false}
       />
     </div>
   </div>
@@ -89,6 +102,17 @@
     overflow: hidden;
     position: relative;
     padding-right: 2px;
+  }
+
+  /* Anchor song info tooltips to the visible text, not the container */
+  .title-text,
+  .artist-text {
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .info-stack :global(.overflow-text) {
+    width: fit-content;
   }
 
   .title-text {

@@ -178,6 +178,30 @@
 
   let updateCheckFrequencyOptions = $derived(getUpdateCheckFrequencyOptions(t));
 
+  let hotkeysListWidth = $state(0);
+  let hotkeyChipsWidths = $state<Record<string, number>>({});
+
+  function handleMeasureChips(action: string, width: number) {
+    if (hotkeyChipsWidths[action] !== width) {
+      hotkeyChipsWidths[action] = width;
+    }
+  }
+
+  let maxChipsWidth = $derived.by(() => {
+    const values = Object.values(hotkeyChipsWidths);
+    return values.length > 0 ? Math.max(158, ...values) : 158;
+  });
+
+  let hotkeyLabelWidth = $derived.by(() => {
+    if (hotkeysListWidth <= 0) return 130;
+    const gap = 16;
+    const columns = Math.max(1, Math.floor((hotkeysListWidth + gap) / (440 + gap)));
+    const itemWidth = (hotkeysListWidth - (columns - 1) * gap) / columns;
+    const overhead = 106;
+    const availableForLabel = itemWidth - overhead - maxChipsWidth;
+    return Math.max(0, Math.min(130, Math.floor(availableForLabel)));
+  });
+
   let isProgrammaticScroll = false;
   let scrollReleaseTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -623,13 +647,21 @@
                 </div>
 
                 <!-- Hotkeys Binding List -->
-                <div class="hotkeys-list">
+                <div
+                  class="hotkeys-list"
+                  bind:clientWidth={hotkeysListWidth}
+                  style="--hotkey-label-width: {hotkeyLabelWidth}px;"
+                >
                   {#each settingsStore.settings.hotkeys as hotkey}
                     <KeyEditControl
                       label={hotkey.label}
                       binding={hotkey}
                       onchange={(updated) => settingsStore.updateHotkey(hotkey.action, updated)}
-                      onclear={() => settingsStore.clearHotkey(hotkey.action)}
+                      onclear={() => {
+                        delete hotkeyChipsWidths[hotkey.action];
+                        settingsStore.clearHotkey(hotkey.action);
+                      }}
+                      onmeasurechips={(w) => handleMeasureChips(hotkey.action, w)}
                     />
                   {/each}
                 </div>
