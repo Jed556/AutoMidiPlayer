@@ -10,7 +10,7 @@
   import { libraryStore } from '../../state/libraryStore.svelte';
   import { notificationCenter } from '../../ui/notificationCenter.svelte';
   import { api } from '../../backend/index';
-  import { getKeyNoteName, formatSignedOffset } from '../../utils/musicConstants';
+  import { getKeyNoteName, formatSignedOffset, formatBpm } from '../../utils/musicConstants';
   import { PLAYBACK_SPEEDS } from '../../utils/playbackSpeeds';
   import Button from '../Common/Button.svelte';
   import SplitButton from '../Common/SplitButton.svelte';
@@ -247,7 +247,7 @@
       <div class="field-pair">
         <div class="form-field">
           <label for="edit-song-bpm">BPM</label>
-          <input id="edit-song-bpm" type="number" min="0.1" max="999" step="0.1" bind:value={bpm} placeholder={nativeBpm.toFixed(1)} />
+          <input id="edit-song-bpm" type="number" min="0.1" max="999" step="0.01" bind:value={() => bpm === undefined ? undefined : Number(formatBpm(bpm)), value => bpm = value} placeholder={formatBpm(nativeBpm)} />
         </div>
         <div class="form-field">
           <label for="edit-song-speed">Speed</label>

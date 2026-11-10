@@ -3,7 +3,7 @@
   import { uiStore } from '../../state/uiStore.svelte';
   import { gameStore } from '../../state/gameStore.svelte';
   import { t } from '../../i18n';
-  import { getTrackColor, generateKeyOptions, getKeyNoteName, formatSignedOffset } from '../../utils/musicConstants';
+  import { getTrackColor, generateKeyOptions, getKeyNoteName, formatSignedOffset, formatBpm } from '../../utils/musicConstants';
   import { PLAYBACK_SPEED_OPTIONS } from '../../utils/playbackSpeeds';
   import FluentIcon from '../Icons/FluentIcon.svelte';
   import ToggleSwitch from '../Common/ToggleSwitch.svelte';
@@ -261,9 +261,9 @@
                       type="number"
                       min="0.1"
                       max="999"
-                      step="0.1"
-                      value={playbackStore.activeSong.bpmOverride ?? ''}
-                      placeholder={(playbackStore.activeSong.nativeBpm ?? playbackStore.activeSong.bpm).toFixed(1)}
+                      step="0.01"
+                      value={playbackStore.activeSong.bpmOverride == null ? '' : formatBpm(playbackStore.activeSong.bpmOverride)}
+                      placeholder={formatBpm(playbackStore.activeSong.nativeBpm ?? playbackStore.activeSong.bpm)}
                       onchange={(event) => {
                         const value = Number((event.currentTarget as HTMLInputElement).value);
                         playbackStore.setBpmOverride(Number.isFinite(value) && value > 0 ? value : null);
