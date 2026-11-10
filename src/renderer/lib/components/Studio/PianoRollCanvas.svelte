@@ -1355,7 +1355,7 @@
     >
       <div class="tip-pitch">{getNoteName(hoveredNote.pitch ?? hoveredNote.noteNumber)} (MIDI {hoveredNote.pitch ?? hoveredNote.noteNumber})</div>
       <div class="tip-detail tip-duration">
-        <span>Start: {noteStart(hoveredNote).toFixed(2)}s | Dur: {(hoveredNote.rawDuration ?? noteDuration(hoveredNote)).toFixed(2)}s</span>
+        <span>Start: {noteStart(hoveredNote).toFixed(3)}s | Dur: {(hoveredNote.rawDuration ?? noteDuration(hoveredNote)).toFixed(3)}s</span>
         {#if hoveredNote.tapDurationMs !== undefined}
           <FluentIcon name="ChevronRight" size={10} />
           <span>{hoveredNote.tapDurationMs}ms</span>

@@ -39,7 +39,9 @@ pub(super) fn pending_note_owners(events: &[TimedNoteEvent], end_index: usize) -
 
 pub(super) fn is_tap(hold_notes: bool, threshold_ms: u64, duration_us: Option<u64>, speed: f64) -> bool {
     // Use the same 200ms fallback as Studio for an unpaired MIDI NoteOn.
-    !hold_notes || duration_us.unwrap_or(200_000) as f64 / speed <= threshold_ms as f64 * 1000.0
+    // Classify using whole milliseconds after applying playback speed.
+    let duration_ms = (duration_us.unwrap_or(200_000) as f64 / 1000.0 / speed).round();
+    !hold_notes || duration_ms <= threshold_ms as f64
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -430,11 +432,25 @@ mod tests {
     fn threshold_includes_boundary_and_uses_playback_speed() {
         assert!(is_tap(false, 0, Some(5_000_000), 1.0));
         assert!(is_tap(true, 100, Some(100_000), 1.0));
-        assert!(!is_tap(true, 100, Some(100_001), 1.0));
+        assert!(is_tap(true, 100, Some(100_001), 1.0));
         assert!(is_tap(true, 100, Some(200_000), 2.0));
-        assert!(!is_tap(true, 0, Some(1), 1.0));
+        assert!(is_tap(true, 0, Some(1), 1.0));
+        assert!(!is_tap(true, 0, Some(500), 1.0));
         assert!(!is_tap(true, 100, None, 1.0));
         assert!(is_tap(true, 200, None, 1.0));
+    }
+
+    #[test]
+    fn threshold_rounds_to_nearest_millisecond_after_applying_speed() {
+        assert!(is_tap(true, 460, Some(460_000), 1.0));
+        assert!(is_tap(true, 460, Some(460_400), 1.0));
+        assert!(is_tap(true, 460, Some(460_499), 1.0));
+        assert!(!is_tap(true, 460, Some(460_500), 1.0));
+        assert!(is_tap(true, 461, Some(460_500), 1.0));
+        assert!(is_tap(true, 460, Some(920_998), 2.0));
+        assert!(!is_tap(true, 460, Some(921_000), 2.0));
+        assert!(is_tap(true, 460, Some(230_200), 0.5));
+        assert!(!is_tap(true, 460, Some(230_250), 0.5));
     }
 
     #[test]

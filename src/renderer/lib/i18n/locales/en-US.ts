@@ -682,6 +682,7 @@ export const enUS = {
     holdNotesEnable: 'Enable',
     tapThreshold: 'Tap threshold',
     tapThresholdTooltip: 'Tap notes at or below this length; hold longer notes.',
+    tapThresholdSuggestion: 'Try 400-460 ms as a starting point. Notes in this range often sound like taps.',
     mergeNotes: 'Merge Notes',
     mergeNotesEnable: 'Enable',
     toleranceMs: 'Tolerance (ms)',
