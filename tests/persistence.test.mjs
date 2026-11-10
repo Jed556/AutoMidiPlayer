@@ -127,3 +127,15 @@ test('failed writes retain changes and a retry keeps the newest preference', asy
   await prefs.flushUiPreferences();
   assert.deepEqual(writes.at(-1).ui.playback, { positionSeconds: 10, isListenMode: true });
 });
+
+test('instrument stage preferences survive store recreation', async () => {
+  const { ui, saved } = await createUi();
+  ui.setInstrumentStage('piano');
+  ui.setInstrumentToggles(false, true);
+  ui.persistPreferences('songs');
+  assert.equal(saved.length, 3);
+  const restored = (await createUi(saved.at(-1))).ui;
+  assert.equal(restored.instrumentStage, 'piano');
+  assert.equal(restored.instrumentGameSelected, false);
+  assert.equal(restored.instrumentPianoSelected, true);
+});

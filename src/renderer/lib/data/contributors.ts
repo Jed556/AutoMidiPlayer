@@ -10,7 +10,7 @@ function record(value: unknown): Record<string, unknown> {
 }
 
 function isBot(name: string, type?: unknown): boolean {
-  return type === 'Bot' || /\[bot\]|^copilot$/i.test(name);
+  return type === 'Bot' || /\[bot\]|copilot/i.test(name);
 }
 
 function account(value: unknown): ContributorInfo | undefined {
@@ -26,7 +26,9 @@ export function contributorsFromCommits(commits: unknown[]): ContributorInfo[] {
   const byEmail = new Map<string, ContributorInfo>();
   const byId = new Map<string, ContributorInfo>();
   const botEmails = new Set<string>();
-  const add = (person: ContributorInfo) => people.set(person.name.toLowerCase(), person);
+  const add = (person: ContributorInfo) => {
+    if (!isBot(person.name)) people.set(person.name.toLowerCase(), person);
+  };
 
   // Index every author first so trailers can resolve ordinary emails and renamed logins.
   for (const value of commits) {
@@ -39,7 +41,7 @@ export function contributorsFromCommits(commits: unknown[]): ContributorInfo[] {
       add(person);
       if (email) byEmail.set(email, person);
       if (typeof user.id === 'number') byId.set(String(user.id), person);
-    } else if (isBot(String(user.login ?? author.name ?? ''), user.type)) {
+    } else if (isBot(String(user.login ?? author.name ?? ''), user.type) || isBot(email)) {
       botEmails.add(email);
     }
   }
@@ -47,7 +49,7 @@ export function contributorsFromCommits(commits: unknown[]): ContributorInfo[] {
   function addIdentity(name: string, email: string, commitUrl: string) {
     const noreply = /^(?:(\d+)\+)?([a-z\d-]+)@users\.noreply\.github\.com$/i.exec(email);
     email = email.toLowerCase();
-    if (!name.trim() || isBot(name) || botEmails.has(email)) return;
+    if (!name.trim() || isBot(name) || isBot(email) || botEmails.has(email)) return;
     const known = byEmail.get(email) || (noreply?.[1] ? byId.get(noreply[1]) : undefined) ||
       (noreply ? people.get(noreply[2].toLowerCase()) : undefined);
     if (known) {
@@ -101,7 +103,11 @@ export function createContributorLoader(
         value.people.every((person: ContributorInfo) => person &&
           typeof person.name === 'string' && typeof person.profileUrl === 'string' &&
           person.profileUrl.startsWith('https://github.com/') && typeof person.avatarUrl === 'string')) {
-      cached = value;
+      const sanitized = value.people.filter((person: ContributorInfo) => !isBot(person.name));
+      cached = { updatedAt: value.updatedAt, people: sanitized };
+      if (sanitized.length !== value.people.length) {
+        try { storage?.setItem(CACHE_KEY, JSON.stringify(cached)); } catch { /* Keep the in-memory cache. */ }
+      }
     }
   } catch { /* Storage may be unavailable or contain an incomplete write. */ }
 
@@ -134,13 +140,13 @@ export function createContributorLoader(
     // Keep a complete earlier result through offline, deleted-branch or rate-limit errors.
     console.warn('[Contributors] Could not refresh both histories',
       results.filter(result => result.status === 'rejected').map(result => result.reason));
-    const merged = new Map(cached?.people.map(person => [person.name.toLowerCase(), person]));
-    for (const person of people) merged.set(person.name.toLowerCase(), person);
+    const merged = new Map((cached?.people ?? []).filter(person => !isBot(person.name)).map(person => [person.name.toLowerCase(), person]));
+    for (const person of people) if (!isBot(person.name)) merged.set(person.name.toLowerCase(), person);
     return [...merged.values()];
   }
 
   return {
-    readCached: () => cached?.people ?? [],
+    readCached: () => cached?.people.filter(person => !isBot(person.name)) ?? [],
     load(): Promise<ContributorInfo[]> {
       if (cached && now() - cached.updatedAt < CACHE_TTL) return Promise.resolve(cached.people);
       if (!pending) pending = refresh().finally(() => { pending = undefined; });

@@ -125,8 +125,6 @@
 
   .expanded {
     grid-template-columns: minmax(32px, 1fr);
-    transition-duration: calc(var(--search-beat) * 1.75);
-    transition-delay: calc(var(--search-beat) * 1.25);
   }
 
   .search-size {
@@ -169,13 +167,13 @@
     stroke-width: 1;
     opacity: 0;
     pointer-events: none;
-    transition: opacity calc(var(--search-beat) * 1.5) ease;
+    transition: opacity calc(var(--search-beat) * 1.25) ease;
   }
 
   .search-outline rect {
     stroke-dasharray: 1;
     stroke-dashoffset: 1;
-    transition: stroke-dashoffset calc(var(--search-beat) * 1.25) cubic-bezier(0.4, 0, 0.2, 1);
+    transition: stroke-dashoffset calc(var(--search-beat) * 1.25) var(--search-ease);
   }
 
   .expanded .search-outline { opacity: 0.55; }

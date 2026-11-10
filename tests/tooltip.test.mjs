@@ -278,3 +278,12 @@ test('global attribute tooltips respond to follow and position changes while hov
   h.manager.setDefaultPosition('right');
   assert.equal(h.manager.coords.actualPosition, 'right');
 });
+
+test('lower left song info control anchors title and artist tooltips to visible text', () => {
+  const source = readFileSync(new URL('../src/renderer/lib/components/PlayerControlPanel/SongInfoControl.svelte', import.meta.url), 'utf8');
+  assert.match(source, /class="title-text"[^>]*data-tooltip-follow="false"/);
+  assert.match(source, /class="artist-text"[^>]*data-tooltip-follow="false"/);
+  assert.match(source, /\.title-text,\s*\.artist-text\s*\{[^}]*width:\s*fit-content/);
+  assert.match(source, /\.info-stack\s*:global\(\.overflow-text\)\s*\{[^}]*width:\s*fit-content/);
+});
+

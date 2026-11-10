@@ -48,27 +48,32 @@
     gameStore.activeGame?.instruments?.find(i => i.id === selectedInstrumentId) || null
   );
 
-  let compactStage = $state(false);
-  let pianoAvailableWidth = $state(720);
-  let pianoAvailableHeight = $state(Infinity);
-  let pianoStageWidth = $state(720);
-  let selectedStage = $state<'game' | 'piano'>('game');
-  let gameSelected = $state(true);
-  let pianoSelected = $state(true);
+  let compactStage = $state(uiStore.instrumentCompactStage);
+  const initialWidth = typeof window !== 'undefined' ? Math.max(720, Math.min(1600, window.innerWidth - 88)) : 720;
+  const initialHeight = typeof window !== 'undefined' ? Math.max(300, window.innerHeight - 100) : 500;
+  let pianoAvailableWidth = $state(initialWidth);
+  let pianoAvailableHeight = $state(initialHeight);
+  let pianoStageWidth = $state(initialWidth);
+  let selectedStage = $derived(uiStore.instrumentStage);
+  let gameSelected = $derived(uiStore.instrumentGameSelected);
+  let pianoSelected = $derived(uiStore.instrumentPianoSelected);
   const hasInGameLayout = $derived(hasInGameInstrumentLayout(selectedInstrument));
   const showGame = $derived(hasInGameLayout && (compactStage ? selectedStage === 'game' : gameSelected));
   const showPiano = $derived(!hasInGameLayout || (compactStage ? selectedStage === 'piano' : pianoSelected));
 
   function selectStage(view: 'game' | 'piano') {
-    selectedStage = view;
+    uiStore.setInstrumentStage(view);
     if (compactStage) return;
+    let nextGame = uiStore.instrumentGameSelected;
+    let nextPiano = uiStore.instrumentPianoSelected;
     if (view === 'game') {
-      gameSelected = !gameSelected;
-      if (!gameSelected) pianoSelected = true;
+      nextGame = !nextGame;
+      if (!nextGame) nextPiano = true;
     } else {
-      pianoSelected = !pianoSelected;
-      if (!pianoSelected) gameSelected = true;
+      nextPiano = !nextPiano;
+      if (!nextPiano) nextGame = true;
     }
+    uiStore.setInstrumentToggles(nextGame, nextPiano);
   }
 
   function fitInstrumentStage(
@@ -85,6 +90,15 @@
     let current: number[] | null = null;
     let target: number[] = [];
     let frame: number | null = null;
+    let isSettled = false;
+    let settleFrame: number | null = null;
+
+    settleFrame = requestAnimationFrame(() => {
+      settleFrame = requestAnimationFrame(() => {
+        isSettled = true;
+        settleFrame = null;
+      });
+    });
 
     function draw(values: number[]) {
       current = values;
@@ -122,11 +136,12 @@
       content.style.width = previousWidth;
       const widthScale = Math.min(1, width / naturalWidth);
       compactStage = options.hasGame && height < (naturalGameHeight + naturalPianoHeight + 24) * widthScale * 0.85;
+      uiStore.instrumentCompactStage = compactStage;
       // Read the derived selection after updating the compact layout mode.
       const next = [naturalWidth, showGame ? naturalGameHeight : 0,
         showPiano ? naturalPianoHeight : 0, showGame && showPiano ? 24 : 0, width, height,
         naturalGameHeight, naturalPianoHeight];
-      const duration = reducedMotion.matches ? 0 : options.duration;
+      const duration = (!isSettled || reducedMotion.matches) ? 0 : options.duration;
       if (current && duration > 0 && next.every((value, index) => Math.abs(value - target[index]) < 0.01)) return;
       target = next;
       if (frame !== null) cancelAnimationFrame(frame);
@@ -162,6 +177,7 @@
         resize.disconnect();
         reducedMotion.removeEventListener('change', measure);
         if (frame !== null) cancelAnimationFrame(frame);
+        if (settleFrame !== null) cancelAnimationFrame(settleFrame);
       },
     };
   }

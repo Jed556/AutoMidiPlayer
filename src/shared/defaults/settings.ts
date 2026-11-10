@@ -3,7 +3,7 @@ import defaults from '../../../crates/amp-core/src/settings/defaults.json' with 
 
 /** Shared with native settings migration so newly introduced options use app defaults. */
 export const DEFAULT_APP_SETTINGS: AppSettings = defaults as AppSettings;
-export const DEFAULT_UI_PREFERENCES = defaults.ui as Required<Omit<UiPreferences, 'songColumnWidths'>>
+export const DEFAULT_UI_PREFERENCES = defaults.ui as Required<Omit<UiPreferences, 'songColumnWidths' | 'instrumentStage' | 'instrumentGameSelected' | 'instrumentPianoSelected'>>
   & { studio: StudioPreferences; playback: PlaybackPreferences };
 
 /** Each reset/store gets its own nested objects instead of mutating the defaults. */

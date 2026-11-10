@@ -50,6 +50,9 @@ export interface UiPreferences {
     transpose: number;
     date: number;
   }>;
+  instrumentStage?: 'game' | 'piano';
+  instrumentGameSelected?: boolean;
+  instrumentPianoSelected?: boolean;
 }
 
 export interface HotkeyBinding {

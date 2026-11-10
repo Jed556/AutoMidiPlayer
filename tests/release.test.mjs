@@ -299,12 +299,14 @@ test('notes omit empty groups and maintenance, retain breaking changes and dedup
     { username: 'new-user', is_first_time: true, pr_number: 42 },
     { username: 'existing', is_first_time: false },
     { username: 'dependabot[bot]', is_first_time: true },
+    { username: 'Copilot', is_first_time: true },
+    { username: 'copilot-swe-agent[bot]', is_first_time: true },
   ] } }, '8.1.0', 'Jed556/AutoMidiPlayer', 'v8.0.0');
   assert.match(notes, /## What's New\?/);
   assert.match(notes, /\*\*Breaking:\*\* \*\*games:\*\*/);
   assert.match(notes, /pull\/42/);
   assert.equal(notes.match(/@new-user/g).length, 1);
-  assert.doesNotMatch(notes, /## Changes|Update documentation|@existing|dependabot/);
+  assert.doesNotMatch(notes, /## Changes|Update documentation|@existing|dependabot|Copilot/i);
   assert.match(notes, /compare\/v8.0.0\.\.\.v8.1.0/);
   const first = renderNotes({}, '8.0.0', 'Jed556/AutoMidiPlayer');
   assert.doesNotMatch(first, /## /);
