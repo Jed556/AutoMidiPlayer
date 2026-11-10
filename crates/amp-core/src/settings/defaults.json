@@ -42,7 +42,7 @@
   "gamePreviewFollowNoteTiming": false,
   "overlapBehavior": "retrigger",
   "repressGapMs": 20,
-  "autoCorrectThreshold": 0,
+  "autoCorrectThreshold": 24,
   "autoCorrectDefault": {
     "belowKeyCount": 36,
     "preferredKeyCount": null

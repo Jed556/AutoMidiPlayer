@@ -15,6 +15,7 @@ use process_monitor::{
 };
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex, RwLock};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::str::FromStr;
 
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -214,6 +215,7 @@ pub struct AppState {
     pub db: Arc<LibraryDatabase>,
     pub settings: Arc<SettingsStore>,
     pub watcher: Arc<Mutex<Option<DirectoryWatcher>>>,
+    pub watcher_epoch: Arc<AtomicU64>,
     pub library_updates: Arc<Mutex<()>>,
     pub process_monitor: Arc<Mutex<ProcessMonitor>>,
     pub config_manager: Arc<Mutex<ConfigManager>>,
@@ -797,9 +799,8 @@ fn check_legacy_data() -> Result<LegacyDataStatus, String> {
 
 #[tauri::command]
 async fn migrate_legacy_data(state: State<'_, AppState>, import_data: bool, remove_legacy: bool) -> Result<LegacyMigrationResult, String> {
-    if amp_core::legacy_migration::is_complete() {
-        return Ok(LegacyMigrationResult { success: true, song_count: 0, playlist_count: 0, error: None });
-    }
+    // This command applies the user's onboarding choice. Completion markers
+    // suppress automatic imports, but must not block an explicit migration.
     let legacy_db = import_data.then(amp_core::paths::find_legacy_db_path).flatten();
     let legacy_config = import_data.then(amp_core::paths::find_legacy_config_path).flatten();
 
@@ -856,17 +857,7 @@ fn get_app_settings(app: AppHandle) -> Result<serde_json::Value, String> {
 // Onboarding needs preferences, but must not open the library, migrate songs,
 // create an audio device, or start background services just to show setup.
 fn read_launch_settings() -> Result<serde_json::Value, String> {
-    let mut settings = SettingsStore::defaults();
-    match std::fs::read(SettingsStore::default_path()) {
-        Ok(bytes) => {
-            let saved: serde_json::Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
-            let saved = saved.as_object().ok_or("settings.json must contain an object")?;
-            settings.as_object_mut().unwrap().extend(saved.clone());
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {},
-        Err(error) => return Err(error.to_string()),
-    }
-    Ok(settings)
+    SettingsStore::read_for_launch(&SettingsStore::default_path())
 }
 
 #[tauri::command]
@@ -947,6 +938,52 @@ fn reset_app_settings(state: State<AppState>) -> Result<bool, String> {
     state.engine.set_pedals_enabled(defaults::value("/ui/pedalsEnabled"));
     state.process_monitor.lock().map_err(|e| e.to_string())?.set_locations(defaults::document());
     Ok(true)
+}
+
+#[tauri::command]
+async fn clear_app_data(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    // Reuse the process and audio device. File and database work runs off the UI
+    // thread so the loading screen and window controls remain responsive.
+    let engine = Arc::clone(&state.engine);
+    let db = Arc::clone(&state.db);
+    let settings = Arc::clone(&state.settings);
+    let watcher = Arc::clone(&state.watcher);
+    let watcher_epoch = Arc::clone(&state.watcher_epoch);
+    let updates = Arc::clone(&state.library_updates);
+    let configs = Arc::clone(&state.config_manager);
+    let monitor = Arc::clone(&state.process_monitor);
+    let song = Arc::clone(&state.current_song);
+    let song_defaults = Arc::clone(&state.song_defaults);
+    app.global_shortcut().unregister_all().map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        engine.stop();
+        engine.set_config_available(false);
+        telemetry::suspend_for_setup();
+        // Cancel scans already waiting on the library lock as well as new events.
+        watcher_epoch.fetch_add(1, Ordering::SeqCst);
+        *watcher.lock().map_err(|e| e.to_string())? = None;
+        let _update = updates.lock().map_err(|e| e.to_string())?;
+        amp_core::legacy_migration::prevent_reimport().map_err(|e| e.to_string())?;
+        storage::clear_data_files()?;
+        configs.lock().map_err(|e| e.to_string())?.reset()?;
+        // Refresh process targets without broadcasting events to stale stores.
+        let targets = configs.lock().map_err(|e| e.to_string())?.games
+            .iter().map(GameProcessTarget::from).collect();
+        let mut pm = monitor.lock().map_err(|e| e.to_string())?;
+        pm.set_targets(targets);
+        pm.set_locations(defaults::document());
+        drop(pm);
+        db.clear_data().map_err(|e| e.to_string())?;
+        *song.lock().map_err(|e| e.to_string())? = None;
+        *song_defaults.write().map_err(|e| e.to_string())? = SongDefaults::default();
+        settings.clear_data()?;
+        engine.set_hold_delay_ms(defaults::value("/keyPressDelayMs"));
+        engine.set_game_preview_follow_note_timing(defaults::value("/gamePreviewFollowNoteTiming"));
+        engine.set_overlap_behavior(OverlapBehavior::default());
+        engine.set_repress_gap_ms(defaults::value("/repressGapMs"));
+        engine.set_pedals_enabled(defaults::value("/ui/pedalsEnabled"));
+        Ok(())
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -1207,6 +1244,7 @@ fn watch_library_folder(
 ) -> Result<bool, String> {
     // Drop the previous watcher when disabled, cleared, or switched to another folder.
     let mut active_watcher = state.watcher.lock().unwrap();
+    let epoch = state.watcher_epoch.fetch_add(1, Ordering::SeqCst) + 1;
     *active_watcher = None;
     let Some(folder_path) = folder_path.filter(|path| !path.trim().is_empty()) else {
         return Ok(true);
@@ -1217,9 +1255,11 @@ fn watch_library_folder(
     let folder_clone = folder.clone();
     let defaults_clone = Arc::clone(&state.song_defaults);
     let updates = Arc::clone(&state.library_updates);
+    let watcher_epoch = Arc::clone(&state.watcher_epoch);
 
     let watcher = DirectoryWatcher::watch(&folder, move || {
         let _update = updates.lock().unwrap();
+        if watcher_epoch.load(Ordering::SeqCst) != epoch { return; }
         log::info!("Folder change detected in {}, re-scanning...", folder_clone.display());
         let def = defaults_clone.read().unwrap().clone();
         match scan_folder(&db_clone, &folder_clone, Some(&def)) {
@@ -1962,6 +2002,7 @@ pub fn run() {
                         db,
                         settings: preferences,
                         watcher: Arc::new(Mutex::new(None)),
+                        watcher_epoch: Arc::new(AtomicU64::new(0)),
                         library_updates: Arc::new(Mutex::new(())),
                         process_monitor,
                         config_manager,
@@ -2044,6 +2085,7 @@ pub fn run() {
             clear_discover_cache,
             update_app_settings,
             reset_app_settings,
+            clear_app_data,
             save_song_settings,
             save_song_metadata,
             save_song_details,

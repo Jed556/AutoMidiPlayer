@@ -17,7 +17,7 @@ import {
   type RawLoadedMidiFile,
   type RawSongRecord,
 } from './mappers.js';
-import { invokeTauri, isTauriEnvironment, listenTauri, runTauriCommand } from './runtime.js';
+import { clearTauriAppData, invokeTauri, isTauriEnvironment, listenTauri, runTauriCommand } from './runtime.js';
 
 function serializeSongSettings(song: MidiFile) {
   const transpose = song.transposeMode === 'Ignore'
@@ -305,6 +305,7 @@ export function createAppApi(): AppWindowApi {
       getSettings,
       updateSettings,
       resetSettings: () => enqueueSettingsWrite(() => invokeTauri<boolean>('Settings', 'reset_app_settings', undefined)),
+      clearAppData: async () => { await settingsWrites; await clearTauriAppData(); },
       browseFolder: async (title) => {
         if (!isTauriEnvironment) return null;
         const { open } = await import('@tauri-apps/plugin-dialog');

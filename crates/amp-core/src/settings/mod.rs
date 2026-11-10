@@ -7,7 +7,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     fs,
     io::Write,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Mutex,
 };
 
@@ -30,6 +30,14 @@ pub(crate) fn merge(target: &mut Value, patch: &Value) {
     }
 }
 
+fn public_settings(mut document: Value) -> Value {
+    document
+        .as_object_mut()
+        .unwrap()
+        .retain(|key, _| !key.starts_with('_'));
+    document
+}
+
 impl SettingsStore {
     pub fn defaults() -> Value {
         defaults::document().clone()
@@ -37,6 +45,24 @@ impl SettingsStore {
 
     pub fn default_path() -> PathBuf {
         crate::paths::app_data_dir().join("settings.json")
+    }
+
+    /// Read preferences for setup without opening the library or running migrations.
+    /// Match `get`: internal metadata must never be echoed back in settings updates.
+    pub fn read_for_launch(path: &Path) -> Result<Value, String> {
+        let mut settings = Self::defaults();
+        match fs::read(path) {
+            Ok(bytes) => {
+                let saved: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+                if !saved.is_object() {
+                    return Err("settings.json must contain an object".into());
+                }
+                merge(&mut settings, &saved);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.to_string()),
+        }
+        Ok(public_settings(settings))
     }
 
     pub fn open(
@@ -133,12 +159,8 @@ impl SettingsStore {
     }
 
     pub fn get(&self) -> Result<Value, String> {
-        let mut settings = self.document.lock().map_err(|e| e.to_string())?.clone();
-        settings
-            .as_object_mut()
-            .unwrap()
-            .retain(|key, _| !key.starts_with('_'));
-        Ok(settings)
+        let settings = self.document.lock().map_err(|e| e.to_string())?.clone();
+        Ok(public_settings(settings))
     }
 
     pub fn update(&self, patch: &Value) -> Result<(), String> {
@@ -167,6 +189,19 @@ impl SettingsStore {
                 next[key] = value.clone();
             }
         }
+        self.persist(&next)?;
+        *current = next;
+        Ok(())
+    }
+
+    /// Unlike resetting preferences, clearing data also discards archived legacy
+    /// settings. Retain migration markers so old files cannot silently return.
+    pub fn clear_data(&self) -> Result<(), String> {
+        let mut current = self.document.lock().map_err(|e| e.to_string())?;
+        let mut next = Self::defaults();
+        next["_migrations"] = current.get("_migrations").cloned().unwrap_or_else(|| json!({}));
+        next["_migrations"]["userConfig"] = json!(true);
+        next["_migrations"]["userConfigSelections"] = json!(true);
         self.persist(&next)?;
         *current = next;
         Ok(())

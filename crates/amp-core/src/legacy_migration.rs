@@ -1,11 +1,18 @@
-//! One-time onboarding ownership of legacy files. Startup must never move them.
+//! Explicit onboarding ownership of legacy files. Startup must never move them.
 use std::{fs, io, path::Path};
 
 const COMPLETED: &str = "legacy-migration-completed";
 
-/// Inspect only current app data; never probe the legacy directory after setup.
+/// Inspect only current app data to decide whether automatic imports are complete.
 pub fn is_complete() -> bool {
     is_complete_at(&crate::paths::app_data_dir())
+}
+
+/// Clearing current data must not automatically reimport an old installation.
+pub fn prevent_reimport() -> io::Result<()> {
+    let root = crate::paths::app_data_dir();
+    fs::create_dir_all(&root)?;
+    fs::write(root.join(COMPLETED), b"complete")
 }
 
 fn is_complete_at(root: &Path) -> bool {
@@ -21,7 +28,7 @@ fn is_complete_at(root: &Path) -> bool {
             == Some(true)
 }
 
-/// Archive only by explicit opt-in, then permanently stop legacy discovery.
+/// Archive only by explicit opt-in, then suppress automatic legacy imports.
 pub fn finish(remove_legacy: bool) -> io::Result<()> {
     finish_at(
         &crate::paths::legacy_data_dir(),
@@ -31,9 +38,6 @@ pub fn finish(remove_legacy: bool) -> io::Result<()> {
 }
 
 fn finish_at(source: &Path, current: &Path, remove_legacy: bool) -> io::Result<()> {
-    if is_complete_at(current) {
-        return Ok(());
-    }
     fs::create_dir_all(current)?;
     if remove_legacy {
         match fs::symlink_metadata(source) {
@@ -66,7 +70,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn completed_onboarding_prevents_legacy_cleanup_without_a_marker() {
+    fn completed_onboarding_still_allows_explicit_archiving() {
         let root = std::env::temp_dir().join(format!("amp-legacy-{}", uuid::Uuid::new_v4()));
         let old = root.join("old");
         let current = root.join("current");
@@ -79,8 +83,9 @@ mod tests {
         .unwrap();
         fs::write(old.join("user.config"), b"original").unwrap();
         finish_at(&old, &current, true).unwrap();
-        assert!(old.join("user.config").is_file());
-        assert!(!current.join("Legacy").exists());
+        assert!(!old.exists());
+        assert_eq!(fs::read(current.join("Legacy/user.config")).unwrap(), b"original");
+        assert!(is_complete_at(&current));
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -99,7 +104,7 @@ mod tests {
     }
 
     #[test]
-    fn opt_in_archives_without_overwriting_active_data_and_never_repeats() {
+    fn repeated_explicit_opt_in_archives_without_overwriting_active_or_archived_data() {
         let root = std::env::temp_dir().join(format!("amp-legacy-{}", uuid::Uuid::new_v4()));
         let old = root.join("old");
         let current = root.join("current");
@@ -119,12 +124,18 @@ mod tests {
         );
         fs::create_dir_all(&old).unwrap();
         fs::write(old.join("user.config"), b"another").unwrap();
+        // Starting fresh without cleanup still leaves a recreated legacy folder intact.
+        finish_at(&old, &current, false).unwrap();
+        assert!(old.join("user.config").is_file());
         finish_at(&old, &current, true).unwrap();
-        assert!(
-            old.join("user.config").is_file(),
-            "completed migration must not touch a recreated legacy folder"
-        );
-        assert_eq!(fs::read_dir(current.join("Legacy")).unwrap().count(), 1);
+        assert!(!old.exists());
+        let archive = fs::read_dir(current.join("Legacy")).unwrap()
+            .map(|entry| entry.unwrap().path()).find(|path| path.is_dir()).unwrap();
+        assert_eq!(fs::read(archive.join("user.config")).unwrap(), b"another");
+        assert_eq!(fs::read(current.join("Legacy/AutoMidiPlayer.db")).unwrap(), b"legacy");
+        assert_eq!(fs::read(current.join("AutoMidiPlayer.db")).unwrap(), b"active");
+        finish_at(&old, &current, true).unwrap();
+        assert_eq!(fs::read_dir(current.join("Legacy")).unwrap().count(), 2);
         fs::remove_dir_all(root).unwrap();
     }
 }

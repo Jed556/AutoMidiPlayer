@@ -8,11 +8,35 @@ export const isTauriEnvironment =
   typeof window !== 'undefined' &&
   ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
 
-export async function invokeTauri<T>(
+let clearingData = false;
+const activeCommands = new Set<Promise<unknown>>();
+
+/** Freeze the old interface and drain native work before clearing persisted data.
+ * The caller must reload the renderer on success or failure to discard old stores.
+ */
+export async function clearTauriAppData(): Promise<void> {
+  clearingData = true;
+  await Promise.allSettled([...activeCommands]);
+  await waitForBackendReady();
+  const { invoke } = await import('@tauri-apps/api/core');
+  await invoke('clear_app_data');
+}
+
+export function invokeTauri<T>(
   scope: string,
   command: string,
   args: Record<string, unknown> | undefined,
 ): Promise<T> {
+  // Keep window controls usable. Other old-store requests wait for the renderer
+  // to be discarded instead of repopulating the freshly cleared database.
+  if (clearingData && scope !== 'Window') return new Promise<T>(() => {});
+  const request = invokeCommand<T>(scope, command, args);
+  activeCommands.add(request);
+  void request.finally(() => activeCommands.delete(request)).catch(() => {});
+  return request;
+}
+
+async function invokeCommand<T>(scope: string, command: string, args: Record<string, unknown> | undefined): Promise<T> {
   if (!isTauriEnvironment) {
     throw new Error(`[Tauri ${scope}] ${command} requires the desktop application.`);
   }
@@ -61,7 +85,7 @@ export function listenTauri<T>(
   let unlisten: (() => void) | undefined;
 
   void import('@tauri-apps/api/event')
-    .then(({ listen }) => listen<T>(eventName, (event) => callback(event.payload)))
+    .then(({ listen }) => listen<T>(eventName, (event) => { if (!clearingData) callback(event.payload); }))
     .then((stopListening) => {
       if (disposed) {
         stopListening();

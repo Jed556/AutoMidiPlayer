@@ -46,19 +46,22 @@ pub fn legacy_data_dir() -> PathBuf {
     data_base_dir().join("AutoMidiPlayer")
 }
 
-/// Locate legacy SQLite database if one exists.
+/// Locate legacy SQLite data for an explicit migration, even after earlier setup.
 pub fn find_legacy_db_path() -> Option<PathBuf> {
-    if crate::legacy_migration::is_complete() { return None; }
-    let legacy_db = legacy_data_dir().join("AutoMidiPlayer.db");
+    find_legacy_db_path_at(&legacy_data_dir(), &app_data_dir())
+}
+
+fn find_legacy_db_path_at(legacy: &Path, current: &Path) -> Option<PathBuf> {
+    let legacy_db = legacy.join("AutoMidiPlayer.db");
     if legacy_db.is_file() {
         return Some(legacy_db);
     }
-    let backup_db = app_data_dir().join("AutoMidiPlayer.db.legacy.bak");
+    let backup_db = current.join("AutoMidiPlayer.db.legacy.bak");
     if backup_db.is_file() {
         return Some(backup_db);
     }
     for i in 1..=100 {
-        let candidate = app_data_dir().join(format!("AutoMidiPlayer.db.legacy.{i}.bak"));
+        let candidate = current.join(format!("AutoMidiPlayer.db.legacy.{i}.bak"));
         if candidate.is_file() {
             return Some(candidate);
         }
@@ -66,18 +69,21 @@ pub fn find_legacy_db_path() -> Option<PathBuf> {
     None
 }
 
-/// Locate legacy user.config if one exists.
+/// Locate legacy settings for an explicit migration, even after earlier setup.
 pub fn find_legacy_config_path() -> Option<PathBuf> {
-    if crate::legacy_migration::is_complete() { return None; }
-    let legacy_config = legacy_data_dir().join("user.config");
+    find_legacy_config_path_at(&legacy_data_dir(), &app_data_dir())
+}
+
+fn find_legacy_config_path_at(legacy: &Path, current: &Path) -> Option<PathBuf> {
+    let legacy_config = legacy.join("user.config");
     if legacy_config.is_file() {
         return Some(legacy_config);
     }
-    let backup_config = app_data_dir().join("user.config.legacy.bak");
+    let backup_config = current.join("user.config.legacy.bak");
     if backup_config.is_file() {
         return Some(backup_config);
     }
-    let in_app_data = app_data_dir().join("user.config");
+    let in_app_data = current.join("user.config");
     if in_app_data.is_file() {
         return Some(in_app_data);
     }
@@ -229,6 +235,46 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[test]
+    fn explicit_discovery_finds_legacy_files_after_setup_or_clear_data() {
+        let fixture = Fixture::new();
+        fs::create_dir_all(fixture.old()).unwrap();
+        fs::create_dir_all(fixture.new_path()).unwrap();
+        fs::write(fixture.old().join("user.config"), b"legacy preferences").unwrap();
+        fs::write(fixture.old().join("AutoMidiPlayer.db"), b"legacy library").unwrap();
+        fs::write(fixture.new_path().join("legacy-migration-completed"), b"complete").unwrap();
+        for completed in [true, false] {
+            fs::write(
+                fixture.new_path().join("settings.json"),
+                serde_json::json!({"onboardingCompleted": completed}).to_string(),
+            ).unwrap();
+            assert_eq!(
+                find_legacy_config_path_at(&fixture.old(), &fixture.new_path()),
+                Some(fixture.old().join("user.config"))
+            );
+            assert_eq!(
+                find_legacy_db_path_at(&fixture.old(), &fixture.new_path()),
+                Some(fixture.old().join("AutoMidiPlayer.db"))
+            );
+        }
+        assert_eq!(fs::read(fixture.old().join("user.config")).unwrap(), b"legacy preferences");
+        assert_eq!(fs::read(fixture.old().join("AutoMidiPlayer.db")).unwrap(), b"legacy library");
+    }
+
+    #[test]
+    fn explicit_discovery_finds_retained_backups_after_a_reset() {
+        let fixture = Fixture::new();
+        fs::create_dir_all(fixture.new_path()).unwrap();
+        fs::write(fixture.new_path().join("legacy-migration-completed"), b"complete").unwrap();
+        let config = fixture.new_path().join("user.config.legacy.bak");
+        let db = fixture.new_path().join("AutoMidiPlayer.db.legacy.2.bak");
+        fs::write(&config, b"legacy preferences").unwrap();
+        fs::write(&db, b"legacy library").unwrap();
+        assert_eq!(find_legacy_config_path_at(&fixture.old(), &fixture.new_path()), Some(config));
+        assert_eq!(find_legacy_db_path_at(&fixture.old(), &fixture.new_path()), Some(db));
+        assert!(!fixture.old().exists());
     }
 
     #[test]

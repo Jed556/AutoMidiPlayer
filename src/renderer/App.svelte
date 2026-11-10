@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, untrack } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import { telemetry } from './lib/infrastructure/telemetry';
   import { startRuntime } from './lib/backend/startupGate';
   import { startupProgress, nativeStartupProgress } from './lib/backend/startupProgress';
@@ -38,6 +38,7 @@
   let onboardingReady = $state(false);
   let finishingSetup = $state(false);
   let startingNativeRuntime = $state(false);
+  let clearingAppData = $state(false);
   let splashEntered: (() => void) | undefined;
 
   async function initializeRuntime() {
@@ -89,11 +90,38 @@
     }
   }
 
+  async function clearAppData() {
+    if (clearingAppData || updateStore.isApplyingUpdate) return;
+    clearingAppData = true;
+    startupStatus = 'startup.clearingData';
+    startupProgress.beginStartup();
+    const entered = new Promise<void>(resolve => { splashEntered = resolve; });
+    showStartup = true;
+    try {
+      await entered;
+      // Stop persistence effects and unmount views before draining their writes.
+      startupReady = false;
+      await tick();
+      settingsStore.suspendHotkeys();
+      updateStore.configureTimer({ ...settingsStore.settings, autoCheckUpdates: false });
+      await playbackStore.stop();
+      await playbackStore.flushPersistence().catch(error => console.warn('Unable to flush data before clearing:', error));
+      await api.settings.clearAppData();
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (error) {
+      // A partial reset still needs fresh stores. Surface the failure after reload.
+      sessionStorage.setItem('appDataResetError', String(error));
+    } finally {
+      window.location.reload();
+    }
+  }
+
   // Native media sessions work even when the window is minimized or unfocused.
   // Publish progress once per second instead of on every engine/UI frame.
   const mediaPositionSeconds = $derived(Math.floor(playbackStore.currentTimeSeconds));
   $effect(() => {
-    if (!isTauri || !startupReady || showOnboarding || updateStore.isApplyingUpdate) return;
+    if (!isTauri || !startupReady || showOnboarding || clearingAppData || updateStore.isApplyingUpdate) return;
     const song = playbackStore.activeSong;
     void api.playback.syncMediaControls({
       title: song?.title ?? '',
@@ -107,7 +135,7 @@
   });
 
   $effect(() => {
-    if (!isTauri || !startupReady || showOnboarding || updateStore.isApplyingUpdate) return;
+    if (!isTauri || !startupReady || showOnboarding || clearingAppData || updateStore.isApplyingUpdate) return;
     return connectMediaControls(api.playback,
       command => playbackStore.handleMediaControl(command),
       error => console.error('Unable to handle system media control:', error));
@@ -123,12 +151,12 @@
   });
 
   $effect(() => {
-    if (!startupReady || updateStore.isApplyingUpdate) return;
+    if (!startupReady || clearingAppData || updateStore.isApplyingUpdate) return;
     uiStore.persistPreferences(libraryStore.selectedPlaylistId);
   });
 
   $effect(() => {
-    if (!startupReady || updateStore.isApplyingUpdate) return;
+    if (!startupReady || clearingAppData || updateStore.isApplyingUpdate) return;
     playbackStore.status;
     playbackStore.persistSession(untrack(() => playbackStore.currentTimeSeconds));
   });
@@ -144,7 +172,7 @@
   });
 
   async function flushSession() {
-    if (!startupReady || updateStore.isApplyingUpdate) return;
+    if (!startupReady || clearingAppData || updateStore.isApplyingUpdate) return;
     uiStore.persistPreferences(libraryStore.selectedPlaylistId);
     await playbackStore.flushPersistence();
   }
@@ -194,7 +222,7 @@
 
     // Checkpoint the playhead without writing to SQLite on every animation frame.
     const checkpoint = setInterval(() => {
-      if (startupReady && !updateStore.isApplyingUpdate) playbackStore.persistSession(playbackStore.currentTimeSeconds);
+      if (startupReady && !clearingAppData && !updateStore.isApplyingUpdate) playbackStore.persistSession(playbackStore.currentTimeSeconds);
     }, 5000);
     const saveOnHide = () => {
       if (document.hidden) void flushSession().catch(console.error);
@@ -205,6 +233,9 @@
       themeStore.init();
       await Promise.all([animationStore.init(), settingsStore.init()]);
       if (disposed) return;
+      const resetError = sessionStorage.getItem('appDataResetError');
+      sessionStorage.removeItem('appDataResetError');
+      if (resetError) notificationCenter.error(t('dialogs.resetFailed'), resetError);
       showOnboarding = !settingsStore.settings.onboardingCompleted;
       if (showOnboarding) {
         onboardingReady = true;
@@ -392,9 +423,9 @@
   <StartupScreen
     status={updateStore.isApplyingUpdate ? `startup.${updateStore.progress.phase}Update` : startupStatus}
     progress={updateStore.isApplyingUpdate ? updateStore.progress.progress : startingNativeRuntime ? 0 : undefined}
-    entering={updateStore.isApplyingUpdate || finishingSetup}
-    finished={(startupReady || (onboardingReady && !finishingSetup)) && !updateStore.isApplyingUpdate}
-    onentered={() => { if (finishingSetup) splashEntered?.(); else updateStore.onSplashEntered(); }}
+    entering={updateStore.isApplyingUpdate || finishingSetup || clearingAppData}
+    finished={(startupReady || (onboardingReady && !finishingSetup)) && !clearingAppData && !updateStore.isApplyingUpdate}
+    onentered={() => { if (finishingSetup || clearingAppData) splashEntered?.(); else updateStore.onSplashEntered(); }}
     onfinished={() => { if (!updateStore.isApplyingUpdate) showStartup = false; }}
   />
 {/if}
@@ -472,10 +503,13 @@
   <PlayerControlPanel />
 
   <!-- Global Modals & Notifications -->
-  <DialogHost />
-  <ToastContainer />
+  <DialogHost onreset={clearAppData} />
   <TooltipHost />
 </div>
+{/if}
+
+{#if !showStartup}
+  <ToastContainer />
 {/if}
 
 <style>
