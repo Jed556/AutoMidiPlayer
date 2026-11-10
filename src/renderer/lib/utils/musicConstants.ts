@@ -21,6 +21,11 @@ export function formatSignedOffset(offset: number): string {
   return `${offset}`;
 }
 
+/** Keep MIDI tempo conversion precision in the model, not in the UI. */
+export function formatBpm(bpm: number): string {
+  return String(Number(bpm.toFixed(2)));
+}
+
 /** Legacy labels already include the offset that marker badges render separately. */
 export function getMarkerNoteDisplay(offset: number, label?: string): string {
   let note = label?.trim() || getKeyNoteName(offset);

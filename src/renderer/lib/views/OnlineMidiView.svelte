@@ -3,6 +3,7 @@
   import { api } from '../backend/index.js';
   import { notificationCenter } from '../ui/notificationCenter.svelte';
   import { t } from '../i18n';
+  import { formatBpm } from '../utils/musicConstants';
   import type { OnlineMidiItem } from '$shared/types/onlineMidi';
   import FluentIcon from '../components/Icons/FluentIcon.svelte';
   import Button from '../components/Common/Button.svelte';
@@ -201,7 +202,7 @@
 
               {#if item.bpm}
                 <span class="meta-item" title="BPM">
-                  <span>{item.bpm} BPM</span>
+                  <span>{formatBpm(item.bpm)} BPM</span>
                 </span>
               {/if}
             </div>
