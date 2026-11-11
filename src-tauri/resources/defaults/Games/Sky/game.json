@@ -5,5 +5,5 @@
   "processNames": ["Sky"],
   "icon": "icon.png",
   "defaultInstrument": "Harp",
-  "defaultLayout": "Sky_QWERTY_15"
+  "defaultLayout": "QWERTY_15Keys"
 }

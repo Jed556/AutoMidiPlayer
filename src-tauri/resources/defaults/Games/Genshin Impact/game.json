@@ -5,5 +5,5 @@
   "processNames": ["GenshinImpact", "YuanShen"],
   "icon": "icon.png",
   "defaultInstrument": "Windsong Lyre",
-  "defaultLayout": "Genshin_QWERTY"
+  "defaultLayout": "QWERTY_21Keys"
 }

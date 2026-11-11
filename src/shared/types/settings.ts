@@ -55,13 +55,22 @@ export interface UiPreferences {
   instrumentPianoSelected?: boolean;
 }
 
-export interface HotkeyBinding {
-  action: 'PlayPause' | 'Next' | 'Previous' | 'SpeedUp' | 'SpeedDown' | 'Panic';
-  label: string;
+export interface KeyBinding {
   key: string;
   ctrl: boolean;
   alt: boolean;
   shift: boolean;
+}
+
+export interface HotkeyBinding extends KeyBinding {
+  action: 'PlayPause' | 'Next' | 'Previous' | 'SpeedUp' | 'SpeedDown' | 'Panic';
+  label: string;
+}
+
+export interface PedalBindings {
+  sustainKey: string | null;
+  sostenutoKey: string | null;
+  unaCordaKey: string | null;
 }
 
 export interface AppSettings {

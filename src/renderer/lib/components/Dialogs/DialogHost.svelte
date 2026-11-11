@@ -8,6 +8,7 @@
   import ResetConfirmDialog from './ResetConfirmDialog.svelte';
   import ThirdPartyLicensesDialog from './ThirdPartyLicensesDialog.svelte';
   import ActionDialog from './ActionDialog.svelte';
+  import PedalSettingsDialog from './PedalSettingsDialog.svelte';
 
   let { onreset }: { onreset: () => Promise<void> } = $props();
 
@@ -54,6 +55,8 @@
         <ThirdPartyLicensesDialog />
       {:else if uiStore.activeDialog === 'action'}
         <ActionDialog />
+      {:else if uiStore.activeDialog === 'pedalSettings'}
+        <PedalSettingsDialog />
       {/if}
     </div>
   </div>
@@ -103,7 +106,8 @@
     width: 420px;
   }
 
-  .dialog-box.dialog-action {
+  .dialog-box.dialog-action,
+  .dialog-box.dialog-pedalSettings {
     width: 480px;
   }
 

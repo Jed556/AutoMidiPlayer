@@ -61,14 +61,14 @@ fn roblox_mapping(instrument: &str, layout: &str) -> NoteKeyMapping {
 fn piano61() -> NoteKeyMapping {
     roblox_mapping(
         include_str!("../../../src-tauri/resources/defaults/Games/Roblox/Instruments/Pianos/Piano61Key.json"),
-        include_str!("../../../src-tauri/resources/defaults/KeyboardLayouts/Roblox_QWERTY_61Key.json"),
+        include_str!("../../../src-tauri/resources/defaults/KeyboardLayouts/QWERTY_61Keys.json"),
     )
 }
 
 fn piano88() -> NoteKeyMapping {
     roblox_mapping(
         include_str!("../../../src-tauri/resources/defaults/Games/Roblox/Instruments/Pianos/Piano88Key.json"),
-        include_str!("../../../src-tauri/resources/defaults/KeyboardLayouts/Roblox_QWERTY_88Key.json"),
+        include_str!("../../../src-tauri/resources/defaults/KeyboardLayouts/QWERTY_88Keys.json"),
     )
 }
 
@@ -122,6 +122,35 @@ fn both_roblox_pianos_use_space_for_sustain_and_release_it_during_cleanup() {
     for mapping in [piano61(), piano88()] {
         assert_eq!(mapping.pedal_bindings(), &[Some(KeyStroke::plain(Key::Space)), None, None]);
         assert!(mapping.all_keys().contains(&Key::Space));
+    }
+}
+
+#[test]
+fn edited_layout_pedal_fields_replace_and_clear_native_bindings() {
+    let mut layout: KeyboardLayoutJson = serde_json::from_str(
+        include_str!("../../../src-tauri/resources/defaults/KeyboardLayouts/QWERTY_61Keys.json")
+    ).unwrap();
+    layout.sustain_key = None;
+    layout.sostenuto_key = Some("Shift".into());
+    layout.una_corda_key = Some("q".into());
+    let mapping = piano61().with_pedal_bindings(&layout);
+    assert_eq!(mapping.pedal_bindings(), &[
+        None, Some(KeyStroke::plain(Key::Shift)), Some(KeyStroke::plain(Key::Q))
+    ]);
+    assert!(!mapping.all_keys().contains(&Key::Space));
+    assert!(mapping.all_keys().contains(&Key::Shift));
+}
+
+#[test]
+fn pedal_recording_named_keys_resolve_to_native_keys() {
+    for (binding, key) in [
+        ("Control", Key::Control), ("Shift", Key::Shift), ("Alt", Key::Alt),
+        ("ArrowUp", Key::UpArrow), ("ArrowDown", Key::DownArrow),
+        ("Delete", Key::Delete), ("PageDown", Key::PageDown),
+        ("Numpad0", Key::Numpad0), ("NumpadAdd", Key::Add),
+        ("F1", Key::F1), ("F12", Key::F12),
+    ] {
+        assert_eq!(parse_key_stroke(binding), Some(KeyStroke::plain(key)), "{binding}");
     }
 }
 

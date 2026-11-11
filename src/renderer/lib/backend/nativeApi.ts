@@ -4,7 +4,7 @@ import type { GameStatus, GameConfigState, ConfigIssue, KeyboardLayoutConfig } f
 import type { MidiFile } from '$shared/types/midi.js';
 import type { OnlineMidiItem } from '$shared/types/onlineMidi.js';
 import type { PlaybackStatus } from '$shared/types/playback.js';
-import type { AppSettings } from '$shared/types/settings.js';
+import type { AppSettings, PedalBindings } from '$shared/types/settings.js';
 import type { UpdateProgress, PreparedUpdate } from '$shared/types/update.js';
 import { logger } from '../infrastructure/logger.js';
 import { telemetry } from '../infrastructure/telemetry.js';
@@ -284,6 +284,10 @@ export function createAppApi(): AppWindowApi {
         invokeTauri<boolean>('Games', 'set_game_instrument_mapping', { layout, keyPairs, configPaths }),
       getKeyboardLayouts: () =>
         invokeTauri<Record<string, KeyboardLayoutConfig>>('Games', 'get_keyboard_layouts', undefined),
+      getLayoutPedalDefaults: (layoutId) =>
+        invokeTauri<PedalBindings>('Games', 'get_layout_pedal_defaults', { layoutId }),
+      saveLayoutPedalBindings: (layoutId, bindings) =>
+        invokeTauri<boolean>('Games', 'save_layout_pedal_bindings', { layoutId, bindings }),
       reloadConfigs: () => getConfigs(true),
       resetConfigs: () => getConfigs('reset'),
       openGamesFolder: () => runTauriCommand('Games', 'open_games_folder'),

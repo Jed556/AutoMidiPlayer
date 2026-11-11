@@ -1,22 +1,28 @@
-<script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+<script module lang="ts">
+  let cancelActiveEdit: (() => void) | undefined;
+</script>
+
+<script lang="ts" generics="T extends KeyBinding">
+  import { onDestroy } from 'svelte';
   import FluentIcon from '../Icons/FluentIcon.svelte';
-  import type { HotkeyBinding } from '$shared/types/settings';
+  import type { KeyBinding } from '$shared/types/settings';
+  import { pedalKeyFromEvent } from '$shared/utils/pedalBindings';
   import { settingsStore } from '../../state/settingsStore.svelte';
   import { t } from '../../i18n';
 
   interface Props {
     label: string;
-    binding: HotkeyBinding;
-    onchange: (updated: HotkeyBinding) => void;
+    binding: T;
+    onchange: (updated: T) => void;
     onclear: () => void;
     onmeasurechips?: (width: number) => void;
+    singleKey?: boolean;
+    disabled?: boolean;
   }
 
-  let { label, binding, onchange, onclear, onmeasurechips }: Props = $props();
+  let { label, binding, onchange, onclear, onmeasurechips, singleKey = false, disabled = false }: Props = $props();
 
   let isEditing = $state(false);
-  let tempKey = $state('');
   let tempCtrl = $state(false);
   let tempAlt = $state(false);
   let tempShift = $state(false);
@@ -45,14 +51,20 @@
       'Home': 'Home',
       'End': 'End',
       'PageUp': 'PgUp',
-      'PageDown': 'PgDn'
+      'PageDown': 'PgDn',
+      'Control': 'Ctrl',
+      'Shift': 'Shift',
+      'Alt': 'Alt',
+      'Meta': 'Win'
     };
     return map[k] || k.toUpperCase();
   }
 
   function startEditing() {
+    if (disabled) return;
+    cancelActiveEdit?.();
+    cancelActiveEdit = stopEditing;
     isEditing = true;
-    tempKey = '';
     tempCtrl = false;
     tempAlt = false;
     tempShift = false;
@@ -64,6 +76,7 @@
   function stopEditing() {
     if (!isEditing) return;
     isEditing = false;
+    if (cancelActiveEdit === stopEditing) cancelActiveEdit = undefined;
     settingsStore.resumeHotkeys();
     window.removeEventListener('keydown', handleKeyDown, true);
     window.removeEventListener('keyup', handleKeyUp, true);
@@ -72,10 +85,19 @@
   function handleKeyDown(e: KeyboardEvent) {
     if (!isEditing) return;
     e.preventDefault();
-    e.stopPropagation();
+    e.stopImmediatePropagation();
 
     if (e.key === 'Escape') {
       stopEditing();
+      return;
+    }
+
+    if (singleKey) {
+      const key = pedalKeyFromEvent(e);
+      if (key) {
+        stopEditing();
+        onchange({ ...binding, key, ctrl: false, alt: false, shift: false });
+      }
       return;
     }
 
@@ -120,13 +142,8 @@
     tempShift = e.shiftKey;
   }
 
-  onDestroy(() => {
-    if (isEditing) {
-      settingsStore.resumeHotkeys();
-      window.removeEventListener('keydown', handleKeyDown, true);
-      window.removeEventListener('keyup', handleKeyUp, true);
-    }
-  });
+  $effect(() => { if (disabled) stopEditing(); });
+  onDestroy(stopEditing);
 
   let hasBinding = $derived(Boolean(binding.key));
 </script>
@@ -178,6 +195,7 @@
         type="button"
         class="icon-action-btn cancel-btn theme-ghost-button"
         onclick={stopEditing}
+        aria-label={`${t('settings.cancelEditHotkey')}: ${label}`}
         title={t('settings.cancelEditHotkey')}
       >
         <FluentIcon name="Dismiss" size={14} />
@@ -187,6 +205,8 @@
         type="button"
         class="icon-action-btn edit-btn theme-ghost-button"
         onclick={startEditing}
+        {disabled}
+        aria-label={`${t('settings.editHotkey')}: ${label}`}
         title={t('settings.editHotkey')}
       >
         <FluentIcon name="Edit" size={14} />
@@ -197,6 +217,8 @@
           type="button"
           class="icon-action-btn delete-btn theme-ghost-button color-danger"
           onclick={onclear}
+          {disabled}
+          aria-label={`${t('settings.clearHotkey')}: ${label}`}
           title={t('settings.clearHotkey')}
         >
           <FluentIcon name="Delete" size={14} />

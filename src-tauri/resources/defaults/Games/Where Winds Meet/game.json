@@ -5,5 +5,5 @@
   "processNames": ["WhereWindsMeet", "Where Winds Meet", "yysls", "yysls_client", "wwm"],
   "icon": "icon.png",
   "defaultInstrument": "Guqin",
-  "defaultLayout": "WWM_QWERTY"
+  "defaultLayout": "QWERTY_36Keys"
 }

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { DEFAULT_UI_PREFERENCES } from '../../../shared/defaults/settings';
   import { onMount, onDestroy } from 'svelte';
   import { playbackStore } from '../state/playbackStore.svelte';
   import { gameStore } from '../state/gameStore.svelte';
@@ -314,14 +313,6 @@
   // ==========================================
   // Chords and Pedals (Lower Left)
   // ==========================================
-
-  function resetPedals() {
-    playbackStore.pedals.enabled = DEFAULT_UI_PREFERENCES.pedalsEnabled;
-    playbackStore.pedals.sustain = false;
-    playbackStore.pedals.sostenuto = false;
-    playbackStore.pedals.unaCorda = false;
-    notificationCenter.info(t('instrument.pedalBindings'), t('instrument.pedalsResetSuccess'));
-  }
 
   // ==========================================
   // Physical MIDI Input (Lower Right)
@@ -731,7 +722,7 @@
         {/if}
       </div>
 
-      <!-- Pedals Icon & Reset -->
+      <!-- Pedals toggle and bindings -->
       <div class="control-unit" class:disabled={!supportsPedals}>
         <button
           type="button"
@@ -756,12 +747,13 @@
 
         <button
           type="button"
-          class="pedal-reset-icon-btn theme-ghost-button"
-          disabled={!supportsPedals}
-          onclick={resetPedals}
-          use:tooltip={t('instrument.resetPedals')}
+          class="pedal-settings-icon-btn theme-ghost-button"
+          disabled={!supportsPedals || !gameStore.activeLayout}
+          onclick={() => uiStore.openDialog('pedalSettings')}
+          aria-label={t('instrument.pedalSettings')}
+          use:tooltip={t('instrument.pedalSettings')}
         >
-          <FluentIcon name="ArrowClockwise" size={13} />
+          <FluentIcon name="Settings" size={13} />
         </button>
       </div>
     </div>
@@ -1401,7 +1393,7 @@
     font-size: 11.5px;
   }
 
-  .pedal-reset-icon-btn,
+  .pedal-settings-icon-btn,
   .midi-refresh-btn {
     display: inline-flex;
     align-items: center;

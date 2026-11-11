@@ -331,6 +331,8 @@ export const zhCN: TranslationSchema = {
     gameInstrument: '游戏乐器',
     keyboardLayout: '键盘布局',
     pedalBindings: '踏板按键映射',
+    pedalSettings: '踏板设置',
+    pedalBindingsDescription: '为每个踏板选择发送到游戏的按键。点击编辑，然后按下一个按键。更改将保存到应用数据中的当前键盘布局 JSON 文件。按 Esc 取消编辑。',
     pedals: '踏板',
     resetPedals: '恢复踏板按键默认值',
     pedalsResetSuccess: '踏板按键映射已恢复默认。',

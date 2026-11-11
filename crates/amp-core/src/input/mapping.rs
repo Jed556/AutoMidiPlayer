@@ -321,6 +321,58 @@ pub fn parse_key_str(s: &str) -> Option<Key> {
         "control" | "ctrl" => Some(Key::Control),
         "alt" => Some(Key::Alt),
         "capslock" | "caps_lock" => Some(Key::CapsLock),
+        "meta" => Some(Key::Meta),
+        "arrowup" | "up" => Some(Key::UpArrow),
+        "arrowdown" | "down" => Some(Key::DownArrow),
+        "arrowleft" | "left" => Some(Key::LeftArrow),
+        "arrowright" | "right" => Some(Key::RightArrow),
+        "delete" => Some(Key::Delete),
+        "home" => Some(Key::Home),
+        "end" => Some(Key::End),
+        "pageup" => Some(Key::PageUp),
+        "pagedown" => Some(Key::PageDown),
+        "numpad0" => Some(Key::Numpad0),
+        "numpad1" => Some(Key::Numpad1),
+        "numpad2" => Some(Key::Numpad2),
+        "numpad3" => Some(Key::Numpad3),
+        "numpad4" => Some(Key::Numpad4),
+        "numpad5" => Some(Key::Numpad5),
+        "numpad6" => Some(Key::Numpad6),
+        "numpad7" => Some(Key::Numpad7),
+        "numpad8" => Some(Key::Numpad8),
+        "numpad9" => Some(Key::Numpad9),
+        "numpadadd" => Some(Key::Add),
+        "numpadsubtract" => Some(Key::Subtract),
+        "numpadmultiply" => Some(Key::Multiply),
+        "numpaddivide" => Some(Key::Divide),
+        "numpaddecimal" => Some(Key::Decimal),
+        #[cfg(any(target_os = "windows", all(unix, not(target_os = "macos"))))]
+        "insert" => Some(Key::Insert),
+        #[cfg(any(target_os = "windows", all(unix, not(target_os = "macos"))))]
+        "numlock" => Some(Key::Numlock),
+        #[cfg(target_os = "windows")]
+        "scrolllock" => Some(Key::Scroll),
+        #[cfg(all(unix, not(target_os = "macos")))]
+        "scrolllock" => Some(Key::ScrollLock),
+        #[cfg(any(target_os = "windows", all(unix, not(target_os = "macos"))))]
+        "pause" => Some(Key::Pause),
+        #[cfg(any(target_os = "windows", all(unix, not(target_os = "macos"))))]
+        "printscreen" => Some(Key::PrintScr),
+        "f1" => Some(Key::F1), "f2" => Some(Key::F2), "f3" => Some(Key::F3),
+        "f4" => Some(Key::F4), "f5" => Some(Key::F5), "f6" => Some(Key::F6),
+        "f7" => Some(Key::F7), "f8" => Some(Key::F8), "f9" => Some(Key::F9),
+        "f10" => Some(Key::F10), "f11" => Some(Key::F11), "f12" => Some(Key::F12),
+        "f13" => Some(Key::F13), "f14" => Some(Key::F14), "f15" => Some(Key::F15),
+        "f16" => Some(Key::F16), "f17" => Some(Key::F17), "f18" => Some(Key::F18),
+        "f19" => Some(Key::F19), "f20" => Some(Key::F20),
+        #[cfg(any(target_os = "windows", all(unix, not(target_os = "macos"))))]
+        "f21" => Some(Key::F21),
+        #[cfg(any(target_os = "windows", all(unix, not(target_os = "macos"))))]
+        "f22" => Some(Key::F22),
+        #[cfg(any(target_os = "windows", all(unix, not(target_os = "macos"))))]
+        "f23" => Some(Key::F23),
+        #[cfg(any(target_os = "windows", all(unix, not(target_os = "macos"))))]
+        "f24" => Some(Key::F24),
         _ => {
             if trimmed.chars().count() == 1 {
                 let c = trimmed.chars().next().unwrap();

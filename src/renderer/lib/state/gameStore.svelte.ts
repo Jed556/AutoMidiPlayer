@@ -1,5 +1,6 @@
 import type { GameInfo, GameStatus, GameConfigState, InstrumentConfig } from '../../../shared/types/games.js';
 import type { SongSettingsContext } from '../../../shared/types/ipc.js';
+import type { PedalBindings } from '../../../shared/types/settings.js';
 import { instrumentKeyPairs } from '../../../shared/utils/instrumentLayout.js';
 import { api } from '../backend/index.js';
 import { notificationCenter } from '../ui/notificationCenter.svelte';
@@ -268,6 +269,13 @@ class GameStore {
 
   async openLayoutsFolder(): Promise<boolean> {
     return await api.games.openLayoutsFolder();
+  }
+
+  async saveLayoutPedalBindings(layoutId: string, bindings: Partial<PedalBindings> | null) {
+    if (!await api.games.saveLayoutPedalBindings(layoutId, bindings)) {
+      throw new Error('Unable to save pedal bindings.');
+    }
+    await this.refreshConfigs();
   }
 
   syncActiveInstrumentMapping(instrumentId?: string, layoutId?: string) {
