@@ -276,6 +276,7 @@
 
     return () => {
       disposed = true;
+      playbackStore.stopSoundFontMonitoring();
       cancelAnimationFrame(startupFrame);
       clearInterval(checkpoint);
       document.removeEventListener('visibilitychange', saveOnHide);

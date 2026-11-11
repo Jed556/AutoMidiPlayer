@@ -8,11 +8,6 @@ pub fn app_data_dir() -> PathBuf {
     data_base_dir().join("Jed556").join("AutoMIDIPlayer")
 }
 
-/// Directory for user-installed custom soundfonts (%LocalAppData%\Jed556\AutoMIDIPlayer\SoundFonts).
-pub fn soundfonts_dir() -> PathBuf {
-    app_data_dir().join("SoundFonts")
-}
-
 fn data_base_dir() -> PathBuf {
     #[cfg(windows)]
     {

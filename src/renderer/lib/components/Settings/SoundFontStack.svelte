@@ -35,7 +35,19 @@
   let gapFilling = $state(playbackStore.soundFontGapFilling);
   $effect(() => { gapFilling = playbackStore.soundFontGapFilling; });
   $effect(() => { if (!dragging && !dropping && !busy) order = [...playbackStore.soundFontOrder]; });
-  let options = $derived(playbackStore.soundFontOrder.map(id => ({ value: id, label: playbackStore.soundFontLabel(id), description: id === 'default' ? t('settings.soundFontDefaultDescription') : undefined, ...(!['default', 'generaluser', 'legacy'].includes(id) ? { actionIcon: 'Delete', actionTitle: t('settings.deleteSoundFont'), onaction: () => run(() => playbackStore.deleteSoundFont(id)) } : {}) })));
+  $effect(() => {
+    if (order.some(id => !playbackStore.installedSoundFonts.includes(id))) {
+      clearTimeout(dropTimer);
+      pending = null; dragging = null; dropping = false;
+      order = [...playbackStore.soundFontOrder];
+    }
+  });
+  let options = $derived(playbackStore.soundFontOrder.map(id => ({ value: id, label: playbackStore.soundFontLabel(id), description: fontDescription(id) || undefined, ...(!['default', 'legacy'].includes(id) ? { actionIcon: 'Delete', actionTitle: t('settings.deleteSoundFont'), onaction: () => run(() => playbackStore.deleteSoundFont(id)) } : {}) })));
+
+  function fontDescription(id: string) {
+    return id === 'default' ? t('settings.soundFontDefaultDescription')
+      : id === 'legacy' ? t('settings.soundFontLegacyDescription') : '';
+  }
 
   async function run(action: () => Promise<unknown>) {
     if (busy) return;
@@ -168,9 +180,9 @@
           </div>
           </div>
           <span class="font-info">
-            <span class="font-name">{playbackStore.soundFontLabel(id)}{#if id === 'default'}<span class="font-description">{' '}({t('settings.soundFontDefaultDescription')})</span>{/if}</span>
+            <span class="font-name">{playbackStore.soundFontLabel(id)}{#if fontDescription(id)}<span class="font-description">{' '}({fontDescription(id)})</span>{/if}</span>
           </span>
-          {#if playbackStore.soundFontGapFilling && !['default', 'generaluser', 'legacy'].includes(id)}
+          {#if playbackStore.soundFontGapFilling && !['default', 'legacy'].includes(id)}
             <Button variant="ghost" size="icon" icon="Delete" disabled={busy || !!dragging || dropping} title={t('settings.deleteSoundFont')}
               onclick={() => run(() => playbackStore.deleteSoundFont(id))} />
           {/if}
@@ -194,7 +206,7 @@
               <circle cx="5" cy="9" r="1.4" /><circle cx="12" cy="9" r="1.4" /><circle cx="19" cy="9" r="1.4" />
               <circle cx="5" cy="15" r="1.4" /><circle cx="12" cy="15" r="1.4" /><circle cx="19" cy="15" r="1.4" />
             </svg></span><span class="rank">{String(targetSlot + 1).padStart(2, '0')}</span></span>
-        <span class="font-info"><span class="font-name">{playbackStore.soundFontLabel(dragging)}{#if dragging === 'default'}<span class="font-description">{' '}({t('settings.soundFontDefaultDescription')})</span>{/if}</span></span>
+        <span class="font-info"><span class="font-name">{playbackStore.soundFontLabel(dragging)}{#if fontDescription(dragging)}<span class="font-description">{' '}({fontDescription(dragging)})</span>{/if}</span></span>
       </div>
     {/if}
   </div>

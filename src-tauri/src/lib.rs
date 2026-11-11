@@ -220,6 +220,7 @@ pub struct AppState {
     pub process_monitor: Arc<Mutex<ProcessMonitor>>,
     pub config_manager: Arc<Mutex<ConfigManager>>,
     pub config_watcher: Mutex<Option<DirectoryWatcher>>,
+    pub soundfont_watchers: Mutex<Vec<DirectoryWatcher>>,
     pub config_sources: Arc<Mutex<Vec<PathBuf>>>,
     pub song_defaults: Arc<RwLock<SongDefaults>>,
 }
@@ -569,74 +570,50 @@ async fn load_custom_soundfont(path: String, state: State<'_, AppState>) -> Resu
 }
 
 #[tauri::command]
-fn list_soundfonts() -> Result<Vec<String>, String> {
-    let dir = amp_core::paths::soundfonts_dir();
-    if !dir.exists() {
-        let _ = std::fs::create_dir_all(&dir);
-        return Ok(Vec::new());
-    }
-    let entries = std::fs::read_dir(&dir).map_err(|e| e.to_string())?;
-    let mut fonts = Vec::new();
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_file() {
-            if let Some(ext) = path.extension() {
-                if ext.to_string_lossy().eq_ignore_ascii_case("sf2") {
-                    if let Some(name) = path.file_name() {
-                        fonts.push(name.to_string_lossy().into_owned());
-                    }
-                }
-            }
-        }
-    }
-    fonts.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
-    Ok(fonts)
+fn list_preset_soundfonts(app: AppHandle) -> Vec<String> {
+    ["default", "legacy"].into_iter()
+        .filter(|name| find_preset_soundfont(&app, name).is_some())
+        .map(str::to_owned)
+        .collect()
 }
 
 #[tauri::command]
-fn add_soundfont(path: String) -> Result<String, String> {
-    let path_buf = PathBuf::from(&path);
-    if !path_buf.is_file() {
-        return Err(format!("SoundFont file not found: {}", path));
-    }
+fn list_soundfonts(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    Ok(amp_core::settings::soundfonts::paths(&state.settings)?.into_iter()
+        .filter(|path| Path::new(path).is_file()).collect())
+}
 
-    let mut file = std::fs::File::open(&path_buf)
-        .map_err(|e| format!("Failed to open SoundFont file: {}", e))?;
-    let _sf = SoundFont::new(&mut file)
-        .map_err(|e| format!("Failed to parse SoundFont: {:?}", e))?;
-
-    let file_name = path_buf
-        .file_name()
-        .ok_or_else(|| "Invalid file name".to_string())?
-        .to_string_lossy()
-        .into_owned();
-
-    let target_dir = amp_core::paths::soundfonts_dir();
-    std::fs::create_dir_all(&target_dir).map_err(|e| e.to_string())?;
-    let target_path = target_dir.join(&file_name);
-
-    if path_buf != target_path {
-        std::fs::copy(&path_buf, &target_path)
-            .map_err(|e| format!("Failed to copy SoundFont to SoundFonts folder: {}", e))?;
-    }
-
-    Ok(file_name)
+#[tauri::command]
+fn add_soundfont(path: String, state: State<'_, AppState>, app: AppHandle) -> Result<String, String> {
+    let path = amp_core::settings::soundfonts::add(&state.settings, Path::new(&path))?;
+    *state.soundfont_watchers.lock().unwrap() = watch_soundfonts(&app, &state.settings);
+    Ok(path)
 }
 
 #[tauri::command]
 async fn configure_soundfont_stack(names: Vec<String>, state: State<'_, AppState>, app: AppHandle) -> Result<bool, String> {
-    if names.is_empty() || names.len() > 32 { return Err("Choose between 1 and 32 SoundFonts".into()); }
+    if names.len() > 32 { return Err("Choose at most 32 SoundFonts".into()); }
     let mut paths = Vec::with_capacity(names.len());
     for name in names {
-        let path = if matches!(name.as_str(), "default" | "generaluser" | "legacy") {
-            find_preset_soundfont(&app, &name).ok_or_else(|| format!("SoundFont not found: {name}"))?
+        let path = if matches!(name.as_str(), "default" | "legacy") {
+            let Some(path) = find_preset_soundfont(&app, &name) else { continue; };
+            path
         } else {
-            if Path::new(&name).file_name().and_then(|n| n.to_str()) != Some(name.as_str()) {
-                return Err("Invalid SoundFont name".into());
+            if !Path::new(&name).is_absolute()
+                || !amp_core::settings::soundfonts::paths(&state.settings)?.contains(&name) {
+                return Err("Unknown custom SoundFont path".into());
             }
-            amp_core::paths::soundfonts_dir().join(&name)
+            PathBuf::from(&name)
         };
-        paths.push(path);
+        if path.is_file() { paths.push(path); }
+    }
+    // Missing files must not prevent startup or discard the remaining usable fonts.
+    // An empty installation can still run key playback and accept a custom font later.
+    if paths.is_empty() {
+        if let Some(synth) = state.audio_synth.lock().unwrap().as_ref() {
+            synth.clear_soundfonts();
+        }
+        return Ok(true);
     }
     activate_soundfont_paths(paths, state).await
 }
@@ -647,23 +624,15 @@ async fn load_soundfont(name: String, state: State<'_, AppState>, app: AppHandle
 }
 
 #[tauri::command]
-fn delete_soundfont(name: String, _state: State<AppState>, _app: AppHandle) -> Result<bool, String> {
-    let sanitized_name = Path::new(&name)
-        .file_name()
-        .ok_or_else(|| "Invalid soundfont name".to_string())?;
-    let sf_path = amp_core::paths::soundfonts_dir().join(sanitized_name);
-    if sf_path.is_file() {
-        std::fs::remove_file(&sf_path)
-            .map_err(|e| format!("Failed to delete SoundFont file: {}", e))?;
-        Ok(true)
-    } else {
-        Err(format!("SoundFont file not found: {}", name))
-    }
+fn delete_soundfont(name: String, state: State<'_, AppState>, app: AppHandle) -> Result<bool, String> {
+    amp_core::settings::soundfonts::remove(&state.settings, &name)?;
+    *state.soundfont_watchers.lock().unwrap() = watch_soundfonts(&app, &state.settings);
+    Ok(true)
 }
 
 #[tauri::command]
 async fn load_preset_soundfont(name: String, state: State<'_, AppState>, app: AppHandle) -> Result<bool, String> {
-    if !matches!(name.as_str(), "default" | "generaluser" | "legacy") { return Err("Unknown preset SoundFont".into()); }
+    if !matches!(name.as_str(), "default" | "legacy") { return Err("Unknown preset SoundFont".into()); }
     configure_soundfont_stack(vec![name], state, app).await
 }
 
@@ -674,13 +643,12 @@ async fn reset_soundfont(state: State<'_, AppState>, app: AppHandle) -> Result<b
 
 fn find_preset_soundfont(app: &AppHandle, name: &str) -> Option<PathBuf> {
     let filename = match name {
-        "legacy" => "legacy.sf2",
-        "generaluser" => "GeneralUser-GS.sf2",
-        _ => "TimGM6mb.sf2",
+        "legacy" => "Roland GM.sf2",
+        _ => "GeneralUser GS.sf2",
     };
     let rel_resource = format!("resources/soundfonts/{}", filename);
     if let Ok(path) = app.path().resolve(&rel_resource, tauri::path::BaseDirectory::Resource) {
-        if path.exists() {
+        if path.is_file() {
             return Some(path);
         }
     }
@@ -690,7 +658,7 @@ fn find_preset_soundfont(app: &AppHandle, name: &str) -> Option<PathBuf> {
         PathBuf::from(format!("../src-tauri/{}", rel_resource)),
     ];
     for c in candidates {
-        if c.exists() {
+        if c.is_file() {
             return Some(c);
         }
     }
@@ -699,6 +667,41 @@ fn find_preset_soundfont(app: &AppHandle, name: &str) -> Option<PathBuf> {
 
 fn find_default_soundfont(app: &AppHandle) -> Option<PathBuf> {
     find_preset_soundfont(app, "default")
+}
+
+fn watch_soundfonts(app: &AppHandle, settings: &SettingsStore) -> Vec<DirectoryWatcher> {
+    let mut roots = vec![
+        PathBuf::from("resources/soundfonts"),
+        PathBuf::from("src-tauri/resources/soundfonts"),
+        PathBuf::from("../src-tauri/resources/soundfonts"),
+    ];
+    if let Ok(root) = app.path().resolve("resources/soundfonts", tauri::path::BaseDirectory::Resource) {
+        roots.push(root);
+    }
+    let mut watched = std::collections::HashSet::new();
+    let mut watchers: Vec<_> = roots.into_iter().filter_map(|root| {
+        // Only watch existing resource parents, never a whole checkout for a nonexistent dev candidate.
+        let parent = root.parent()?.canonicalize().ok()?;
+        let root = parent.join(root.file_name()?);
+        if !watched.insert(root.clone()) { return None; }
+        let handle = app.clone();
+        match DirectoryWatcher::watch_soundfonts(&root, move || {
+            let _ = handle.emit("soundfonts:changed", ());
+        }) {
+            Ok(watcher) => Some(watcher),
+            Err(error) => { log::warn!("SoundFont watcher failed: {error}"); None }
+        }
+    }).collect();
+    for path in amp_core::settings::soundfonts::paths(settings).unwrap_or_default() {
+        let handle = app.clone();
+        match DirectoryWatcher::watch_soundfont_file(Path::new(&path), move || {
+            let _ = handle.emit("soundfonts:changed", ());
+        }) {
+            Ok(watcher) => watchers.push(watcher),
+            Err(error) => log::warn!("Custom SoundFont watcher failed: {error}"),
+        }
+    }
+    watchers
 }
 
 fn md5_hash(input: &str) -> u64 {
@@ -883,12 +886,14 @@ async fn clear_discover_cache() -> Result<u64, String> {
 
 #[tauri::command]
 async fn update_app_settings(
-    settings: serde_json::Value,
+    mut settings: serde_json::Value,
     state: State<'_, AppState>,
 ) -> Result<bool, String> {
     if !settings.is_object() {
         return Err("Application settings must be a JSON object".to_string());
     }
+    // The native SoundFont commands own this registry; UI snapshots can be stale.
+    settings.as_object_mut().unwrap().remove("customSoundFontPaths");
     let overlap_behavior = settings.get("overlapBehavior").map(|value|
         serde_json::from_value::<OverlapBehavior>(value.clone())
             .map_err(|e| format!("Invalid overlap behavior: {e}"))
@@ -2000,13 +2005,14 @@ pub fn run() {
                         current_song: Arc::new(Mutex::new(None)),
                         audio_synth: Arc::new(Mutex::new(audio_synth)),
                         db,
-                        settings: preferences,
+                        settings: Arc::clone(&preferences),
                         watcher: Arc::new(Mutex::new(None)),
                         watcher_epoch: Arc::new(AtomicU64::new(0)),
                         library_updates: Arc::new(Mutex::new(())),
                         process_monitor,
                         config_manager,
                         config_watcher: Mutex::new(config_watcher),
+                        soundfont_watchers: Mutex::new(watch_soundfonts(&app, &preferences)),
                         config_sources,
                         song_defaults: Arc::new(RwLock::new(SongDefaults::default())),
                     });
@@ -2064,6 +2070,7 @@ pub fn run() {
             set_track_volume,
             set_synth_mode,
             list_soundfonts,
+            list_preset_soundfonts,
             add_soundfont,
             load_soundfont,
             delete_soundfont,

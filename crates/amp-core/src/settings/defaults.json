@@ -1,5 +1,6 @@
 {
   "onboardingCompleted": false,
+  "customSoundFontPaths": [],
   "ui": {
     "animationTiming": 0.2,
     "pedalsEnabled": true,
@@ -27,7 +28,7 @@
       "isListenMode": false,
       "synthMode": "adapted",
       "soundFontGapFilling": true,
-      "soundFontOrder": ["default", "generaluser", "legacy"],
+      "soundFontOrder": ["default", "legacy"],
       "soundFontId": "default",
       "volume": 0.85
     }

@@ -15,6 +15,41 @@ pub(super) struct FontStack {
     latched: [bool; 16],
 }
 
+/// Derive a deliberately incomplete bank in memory so gap tests need no extra asset.
+#[cfg(test)]
+pub(super) fn limited_test_font() -> Arc<SoundFont> {
+    let mut bytes = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../src-tauri/resources/soundfonts/Roland GM.sf2"
+    )).unwrap();
+    let mut chunk = 12;
+    let mut patched = false;
+    while chunk + 12 <= bytes.len() {
+        let size = u32::from_le_bytes(bytes[chunk + 4..chunk + 8].try_into().unwrap()) as usize;
+        if &bytes[chunk..chunk + 4] == b"LIST" && &bytes[chunk + 8..chunk + 12] == b"pdta" {
+            let end = chunk + 8 + size;
+            let mut sub = chunk + 12;
+            while sub + 8 <= end {
+                let len = u32::from_le_bytes(bytes[sub + 4..sub + 8].try_into().unwrap()) as usize;
+                if &bytes[sub..sub + 4] == b"igen" {
+                    for generator in bytes[sub + 8..sub + 8 + len].chunks_exact_mut(4) {
+                        // SF2 keyRange generator: cap its inclusive range below key 84.
+                        if u16::from_le_bytes([generator[0], generator[1]]) == 43 {
+                            generator[2] = generator[2].min(83);
+                            generator[3] = generator[3].min(83);
+                            patched = true;
+                        }
+                    }
+                }
+                sub += 8 + len + len % 2;
+            }
+        }
+        chunk += 8 + size + size % 2;
+    }
+    assert!(patched, "fixture must contain instrument key ranges");
+    Arc::new(SoundFont::new(&mut std::io::Cursor::new(bytes)).unwrap())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -32,9 +67,9 @@ mod tests {
     fn whistle_gap_uses_generaluser_and_renders_audio() {
         let mut stack = FontStack::new(
             vec![
-                font("TimGM6mb.sf2"),
-                font("GeneralUser-GS.sf2"),
-                font("legacy.sf2"),
+                limited_test_font(),
+                font("GeneralUser GS.sf2"),
+                font("Roland GM.sf2"),
             ],
             &SynthesizerSettings::new(44100),
         )
@@ -58,16 +93,16 @@ mod tests {
 
     #[test]
     fn order_and_disabled_gap_filling() {
-        let tim = font("TimGM6mb.sf2");
-        let gm = font("legacy.sf2");
+        let limited = limited_test_font();
+        let gm = font("Roland GM.sf2");
         let mut stack = FontStack::new(
-            vec![gm.clone(), tim.clone()],
+            vec![gm.clone(), limited.clone()],
             &SynthesizerSettings::new(44100),
         )
         .unwrap();
         stack.process_midi_message(0, 0xC0, 78, 0);
         assert_eq!(stack.source(0, 88, 100), Some(0));
-        let mut single = FontStack::new(vec![tim], &SynthesizerSettings::new(44100)).unwrap();
+        let mut single = FontStack::new(vec![limited], &SynthesizerSettings::new(44100)).unwrap();
         single.process_midi_message(0, 0xC0, 78, 0);
         single.note_on(0, 88, 100);
         let mut l = vec![0.0; 1024];
@@ -78,13 +113,13 @@ mod tests {
 
     #[test]
     fn bank_drum_and_velocity_coverage() {
-        let tim = font("TimGM6mb.sf2");
-        assert!(FontStack::covers(&tim, 0, 0, 60, 100));
-        assert!(!FontStack::covers(&tim, 0, 78, 88, 100));
-        assert!(!FontStack::covers(&tim, 0, 0, 60, 128));
-        assert!(FontStack::covers(&tim, 128, 0, 38, 100));
+        let limited = limited_test_font();
+        assert!(FontStack::covers(&limited, 0, 0, 60, 100));
+        assert!(!FontStack::covers(&limited, 0, 78, 88, 100));
+        assert!(!FontStack::covers(&limited, 0, 0, 60, 128));
+        assert!(FontStack::covers(&limited, 128, 0, 38, 100));
         let mut stack = FontStack::new(
-            vec![tim, font("legacy.sf2")],
+            vec![limited, font("Roland GM.sf2")],
             &SynthesizerSettings::new(44100),
         )
         .unwrap();
@@ -96,10 +131,10 @@ mod tests {
 
     #[test]
     fn fallback_is_not_doubled_and_receives_controllers_and_releases() {
-        let tim = font("TimGM6mb.sf2");
-        let gm = font("GeneralUser-GS.sf2");
+        let limited = limited_test_font();
+        let gm = font("GeneralUser GS.sf2");
         let settings = SynthesizerSettings::new(44100);
-        let mut stack = FontStack::new(vec![tim, gm.clone()], &settings).unwrap();
+        let mut stack = FontStack::new(vec![limited, gm.clone()], &settings).unwrap();
         let mut reference = FontStack::new(vec![gm], &settings).unwrap();
         for synth in [&mut stack, &mut reference] {
             synth.process_midi_message(5, 0xC0, 78, 0);

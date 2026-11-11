@@ -81,10 +81,9 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "resources/soundfonts/TimGM6mb.sf2",
-      "resources/soundfonts/legacy.sf2",
-      "resources/soundfonts/GeneralUser-GS.sf2",
-      "resources/soundfonts/GeneralUser-GS-LICENSE.txt",
+      "resources/soundfonts/GeneralUser GS.sf2",
+      "resources/soundfonts/GeneralUser GS-LICENSE.txt",
+      "resources/soundfonts/Roland GM.sf2",
       "resources/defaults/**/*",
       "resources/docs/*"
     ]

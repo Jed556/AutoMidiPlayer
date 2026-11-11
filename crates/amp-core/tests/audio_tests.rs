@@ -5,9 +5,9 @@ use rustysynth::SoundFont;
 
 #[test]
 fn test_soundfont_load_and_synth() {
-    let sf_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../src-tauri/resources/soundfonts/TimGM6mb.sf2");
+    let sf_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../src-tauri/resources/soundfonts/GeneralUser GS.sf2");
     if let Ok(mut file) = File::open(sf_path) {
-        let sf = SoundFont::new(&mut file).expect("Failed to parse TimGM6mb.sf2");
+        let sf = SoundFont::new(&mut file).expect("Failed to parse GeneralUser GS.sf2");
         let sf_arc = Arc::new(sf);
 
         // Test AudioDevice initialization
@@ -26,7 +26,7 @@ fn test_soundfont_load_and_synth() {
             synth.control_change(0, 64, 0); // Sustain pedal off
 
             // Test hot-swapping SoundFont while programs and CCs are active
-            let legacy_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../src-tauri/resources/soundfonts/legacy.sf2");
+            let legacy_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../src-tauri/resources/soundfonts/Roland GM.sf2");
             if let Ok(mut leg_file) = File::open(legacy_path) {
                 if let Ok(leg_sf) = SoundFont::new(&mut leg_file) {
                     synth.load_soundfont(Arc::new(leg_sf)).unwrap();
@@ -39,9 +39,9 @@ fn test_soundfont_load_and_synth() {
         }
     }
 
-    let legacy_sf_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../src-tauri/resources/soundfonts/legacy.sf2");
+    let legacy_sf_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../src-tauri/resources/soundfonts/Roland GM.sf2");
     if let Ok(mut file) = File::open(legacy_sf_path) {
-        let sf = SoundFont::new(&mut file).expect("Failed to parse legacy.sf2");
+        let sf = SoundFont::new(&mut file).expect("Failed to parse Roland GM.sf2");
         assert!(sf.get_presets().len() > 0);
     }
 }

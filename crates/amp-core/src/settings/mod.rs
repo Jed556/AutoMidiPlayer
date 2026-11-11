@@ -1,5 +1,6 @@
 pub mod legacy;
 pub mod defaults;
+pub mod soundfonts;
 
 use crate::{KeyboardLayoutJson, LibraryDatabase, LoadedGameBundle};
 use serde_json::{json, Value};

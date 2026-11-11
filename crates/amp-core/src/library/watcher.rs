@@ -37,6 +37,39 @@ fn needs_scan(event: &Event) -> bool {
 }
 
 impl DirectoryWatcher {
+    /// Watch only the source file's directory, without scanning its descendants.
+    pub fn watch_soundfont_file<F>(file: &Path, on_change: F) -> Result<Self, String>
+    where F: Fn() + Send + 'static,
+    {
+        let file = file.to_path_buf();
+        let parent = file.parent().ok_or("SoundFont path has no parent")?.to_path_buf();
+        Self::watch_filtered_mode(&parent, RecursiveMode::NonRecursive, move |event| {
+            if matches!(event.kind, EventKind::Access(_) | EventKind::Modify(ModifyKind::Metadata(_))) { return false; }
+            event.need_rescan() || event.paths.iter().any(|path| path == &file)
+        }, on_change)
+    }
+
+    /// Watch through the parent so removing/recreating the SoundFonts folder is detected too.
+    pub fn watch_soundfonts<F>(folder: &Path, on_change: F) -> Result<Self, String>
+    where F: Fn() + Send + 'static,
+    {
+        let root = folder.to_path_buf();
+        let parent = folder.parent().ok_or("SoundFonts folder has no parent")?;
+        Self::watch_filtered(parent, move |event| {
+            if event.need_rescan() { return true; }
+            // Reads can update access metadata; reloading in response would create a loop.
+            if matches!(event.kind, EventKind::Access(_) | EventKind::Modify(ModifyKind::Metadata(_))) { return false; }
+            event.paths.iter().any(|path| {
+                (path == &root && matches!(event.kind, EventKind::Create(_) | EventKind::Remove(_)
+                    | EventKind::Modify(ModifyKind::Name(_)) | EventKind::Any)) || (path.starts_with(&root)
+                    && path != &root
+                    && (path.extension().and_then(|ext| ext.to_str())
+                        .is_some_and(|ext| ext.eq_ignore_ascii_case("sf2"))
+                        || matches!(event.kind, EventKind::Remove(_) | EventKind::Modify(ModifyKind::Name(_)))))
+            })
+        }, on_change)
+    }
+
     /// Creates and starts watching a folder for changes to .mid and .midi files with debouncing.
     pub fn watch<F>(folder: &Path, on_change: F) -> Result<Self, String>
     where
@@ -74,6 +107,12 @@ impl DirectoryWatcher {
     fn watch_filtered<F, P>(folder: &Path, needs_scan: P, on_change: F) -> Result<Self, String>
     where F: Fn() + Send + 'static, P: Fn(&Event) -> bool + Send + 'static,
     {
+        Self::watch_filtered_mode(folder, RecursiveMode::Recursive, needs_scan, on_change)
+    }
+
+    fn watch_filtered_mode<F, P>(folder: &Path, mode: RecursiveMode, needs_scan: P, on_change: F) -> Result<Self, String>
+    where F: Fn() + Send + 'static, P: Fn(&Event) -> bool + Send + 'static,
+    {
         if !folder.exists() || !folder.is_dir() {
             return Err(format!("Cannot watch non-existent directory: {}", folder.display()));
         }
@@ -83,7 +122,7 @@ impl DirectoryWatcher {
             .map_err(|e| format!("Failed to create filesystem watcher: {}", e))?;
 
         watcher
-            .watch(folder, RecursiveMode::Recursive)
+            .watch(folder, mode)
             .map_err(|e| format!("Failed to watch folder {}: {}", folder.display(), e))?;
 
         let is_active = Arc::new(AtomicBool::new(true));
