@@ -15,6 +15,8 @@ async function createGameStore(selectedInstrumentIds = {}, configureGames = () =
   const notifications = [];
   const stopped = [];
   const mappingSources = [];
+  const pedalWrites = [];
+  let pedalWriteError;
   let onConfigsChanged;
   let onStatusChanged;
   let readStatuses = async () => initialStatuses;
@@ -39,6 +41,15 @@ async function createGameStore(selectedInstrumentIds = {}, configureGames = () =
         return () => {};
       },
       reloadConfigs: () => readConfigs(),
+      saveLayoutPedalBindings: async (id, bindings) => {
+        if (pedalWriteError) throw new Error(pedalWriteError);
+        pedalWrites.push([id, bindings]);
+        for (const game of snapshot.games) {
+          const layout = game.layouts.find(layout => layout.id === id);
+          if (layout) Object.assign(layout, bindings ?? { sustainKey: 'Space', sostenutoKey: null, unaCordaKey: null });
+        }
+        return true;
+      },
       onConfigsChanged: async callback => { onConfigsChanged = callback; return () => {}; },
       setActiveGame: async () => true,
       setGameInstrumentMapping: async (layout, pairs, paths) => { mappings.push([layout, pairs]); mappingSources.push(paths); return true; },
@@ -59,7 +70,8 @@ async function createGameStore(selectedInstrumentIds = {}, configureGames = () =
   const { gameStore } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
   delete globalThis[key];
   await gameStore.init();
-  return { gameStore, contexts, settingsWrites, mappings, notifications, stopped, mappingSources,
+  return { gameStore, contexts, settingsWrites, mappings, notifications, stopped, mappingSources, pedalWrites,
+    failPedalWrite(error) { pedalWriteError = error; },
     setSnapshot(value) { snapshot = value; },
     setReader(reader) { readConfigs = reader; },
     setStatusReader(reader) { readStatuses = reader; },
@@ -67,6 +79,26 @@ async function createGameStore(selectedInstrumentIds = {}, configureGames = () =
     emitChange() { onConfigsChanged(); return gameStore.refreshConfigs(); },
   };
 }
+
+test('pedal edits use the layout-file API, refresh playback, and leave app settings alone', async () => {
+  const h = await createGameStore();
+  const beforeSettings = h.settingsWrites.length;
+  const beforeMappings = h.mappings.length;
+  await h.gameStore.saveLayoutPedalBindings('qwerty', { sustainKey: null, sostenutoKey: 'Shift' });
+  assert.deepEqual(h.pedalWrites, [['qwerty', { sustainKey: null, sostenutoKey: 'Shift' }]]);
+  assert.equal(h.gameStore.activeLayout.sustainKey, null);
+  assert.equal(h.gameStore.activeLayout.sostenutoKey, 'Shift');
+  assert.equal(h.settingsWrites.length, beforeSettings);
+  assert.ok(h.mappings.length > beforeMappings);
+  await h.gameStore.saveLayoutPedalBindings('qwerty', null);
+  assert.equal(h.gameStore.activeLayout.sustainKey, 'Space');
+  assert.equal(h.gameStore.activeLayout.sostenutoKey, null);
+  h.failPedalWrite('File is read-only');
+  const afterReset = h.mappings.length;
+  await assert.rejects(h.gameStore.saveLayoutPedalBindings('qwerty', { sustainKey: 'Tab' }), /read-only/);
+  assert.equal(h.gameStore.activeLayout.sustainKey, 'Space');
+  assert.equal(h.mappings.length, afterReset);
+});
 
 test('layout choices survive restart for each game and instrument', async () => {
   const first = await createGameStore({ a: 'lyre' });

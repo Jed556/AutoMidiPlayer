@@ -1457,6 +1457,26 @@ fn get_game_configs(state: State<AppState>) -> Result<ConfigSnapshot, String> {
     Ok(state.config_manager.lock().map_err(|e| e.to_string())?.snapshot())
 }
 
+#[tauri::command]
+fn get_layout_pedal_defaults(layout_id: String, state: State<AppState>) -> Result<serde_json::Value, String> {
+    state.config_manager.lock().map_err(|e| e.to_string())?.layout_pedal_defaults(&layout_id)
+}
+
+#[tauri::command]
+async fn save_layout_pedal_bindings(
+    layout_id: String,
+    bindings: Option<serde_json::Map<String, serde_json::Value>>,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<bool, String> {
+    let manager = Arc::clone(&state.config_manager);
+    tauri::async_runtime::spawn_blocking(move || {
+        manager.lock().map_err(|e| e.to_string())?.save_layout_pedals(&layout_id, bindings.as_ref())?;
+        let _ = app.emit("configs:changed", ());
+        Ok(true)
+    }).await.map_err(|e| e.to_string())?
+}
+
 fn reload_configs(
     app: &AppHandle,
     config_manager: &Mutex<ConfigManager>,
@@ -2127,6 +2147,8 @@ pub fn run() {
             get_games,
             get_game_configs,
             get_keyboard_layouts,
+            get_layout_pedal_defaults,
+            save_layout_pedal_bindings,
             reload_game_configs,
             reset_game_configs,
             open_games_folder,

@@ -78,7 +78,7 @@ const layout = name => normalizeKeyboardLayout(JSON.parse(readFileSync(new URL(`
 test('Heartopia matrices preserve the configured rows and QWERTY bindings', () => {
   for (const [file, binding, sizes] of [
     ['Piano2Row', 'Heartopia_QWERTY_2Row', [8, 7]],
-    ['Piano3Row', 'Heartopia_QWERTY_3Row', [5, 5, 5]],
+    ['Piano3Row', 'QWERTY_15Keys', [5, 5, 5]],
     ['Piano22Key', 'Heartopia_QWERTY_22Key', [8, 7, 7]],
     ['Piano37Key', 'Heartopia_QWERTY_37Key', [13, 12, 12]],
   ]) {

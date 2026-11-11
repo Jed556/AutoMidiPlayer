@@ -5,5 +5,5 @@
   "processNames": ["HTGame"],
   "icon": "icon.png",
   "defaultInstrument": "Piano (21 Key)",
-  "defaultLayout": "NTE_QWERTY_21Keys"
+  "defaultLayout": "QWERTY_21Keys"
 }

@@ -2,7 +2,7 @@ import type { MidiFile } from './midi.js';
 import type { PlaybackStatus } from './playback.js';
 import type { MediaControlAction, MediaControlsSnapshot } from './mediaControls.js';
 import type { GameInfo, GameStatus, GameConfigState, KeyboardLayoutConfig } from './games.js';
-import type { AppSettings } from './settings.js';
+import type { AppSettings, PedalBindings } from './settings.js';
 import type { OnlineMidiItem } from './onlineMidi.js';
 
 /** Native Tauri backend API exposed to the renderer. */
@@ -171,6 +171,8 @@ export interface GamesApi {
   setGameInstrumentMapping: (layout: string, keyPairs: [number, string][], configPaths?: string[]) => Promise<boolean>;
   onGameStatusChanged: (callback: (statuses: GameStatus[]) => void) => Promise<() => void>;
   getKeyboardLayouts: () => Promise<Record<string, KeyboardLayoutConfig>>;
+  getLayoutPedalDefaults: (layoutId: string) => Promise<PedalBindings>;
+  saveLayoutPedalBindings: (layoutId: string, bindings: Partial<PedalBindings> | null) => Promise<boolean>;
   reloadConfigs: () => Promise<GameConfigState>;
   resetConfigs: () => Promise<GameConfigState>;
   openGamesFolder: () => Promise<boolean>;

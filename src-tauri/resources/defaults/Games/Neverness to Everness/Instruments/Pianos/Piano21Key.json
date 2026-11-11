@@ -9,5 +9,5 @@
     [48, 50, 52, 53, 55, 57, 59],
     [36, 38, 40, 41, 43, 45, 47]
   ],
-  "supportedLayouts": ["NTE_QWERTY_21Keys"]
+  "supportedLayouts": ["QWERTY_21Keys"]
 }

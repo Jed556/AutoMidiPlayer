@@ -89,6 +89,17 @@ fn all_bundled_defaults_pass_validation() {
     assert!(game_issues.is_empty(), "{game_issues:#?}");
     assert!(layout_issues.is_empty(), "{layout_issues:#?}");
     assert!(!games.is_empty() && !layouts.is_empty());
+    assert_eq!(layouts.len(), 23);
+    for game in &games {
+        if let Some(id) = &game.config.default_layout {
+            assert!(layouts.contains_key(&id.to_lowercase()), "missing game default {id}");
+        }
+        for instrument in &game.instruments {
+            for id in &instrument.supported_layouts {
+                assert!(layouts.contains_key(&id.to_lowercase()), "missing instrument layout {id}");
+            }
+        }
+    }
 }
 
 #[test]

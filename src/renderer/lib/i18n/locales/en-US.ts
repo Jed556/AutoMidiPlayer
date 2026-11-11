@@ -329,6 +329,8 @@ export const enUS = {
     gameInstrument: 'Game Instrument',
     keyboardLayout: 'Keyboard Layout',
     pedalBindings: 'Pedal Bindings',
+    pedalSettings: 'Pedal settings',
+    pedalBindingsDescription: 'Choose the key sent to the game for each pedal. Click Edit, then press a single key. Changes are saved to this keyboard layout’s JSON in app data. Escape cancels editing.',
     pedals: 'Pedals',
     resetPedals: 'Reset pedal bindings to defaults',
     pedalsResetSuccess: 'Pedal bindings reset to defaults.',
