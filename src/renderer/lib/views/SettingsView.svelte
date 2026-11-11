@@ -18,6 +18,7 @@
   import Slider from '../components/Common/Slider.svelte';
   import KeyEditControl from '../components/Settings/KeyEditControl.svelte';
   import SoundFontStack from '../components/Settings/SoundFontStack.svelte';
+  import SystemInfo from '../components/Settings/SystemInfo.svelte';
   import StorageUsageChart from '../components/Settings/StorageUsageChart.svelte';
   import OverlapBehaviorPicker from '../components/Settings/OverlapBehaviorPicker.svelte';
   import { getUpdateCheckFrequencyOptions } from '../components/Settings/settingsOptions';
@@ -926,6 +927,7 @@
         </div>
 
         <div class="card-body">
+          <SystemInfo />
           <div class="settings-grid-2col">
             <div class="switch-row">
               <ToggleSwitch

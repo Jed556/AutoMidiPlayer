@@ -254,6 +254,7 @@ export interface TelemetryApi {
 
 // Full typed API exposed to renderer window.api
 export interface AppWindowApi {
+  system: import('./system').SystemApi;
   midiInput: import('./midiInput').MidiInputApi;
   updates: import('./update').UpdatesApi;
   window: WindowControlApi;

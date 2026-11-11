@@ -2,6 +2,7 @@ import { DEFAULT_APP_SETTINGS } from '../../../shared/defaults/settings.js';
 import type { AppWindowApi, PedalState, SongSettingsContext, StorageUsage, LegacyDataStatus, LegacyMigrationResult } from '$shared/types/ipc.js';
 import type { GameStatus, GameConfigState, ConfigIssue, KeyboardLayoutConfig } from '$shared/types/games.js';
 import type { MidiFile } from '$shared/types/midi.js';
+import type { SystemSnapshot } from '$shared/types/system.js';
 import type { MidiInputState } from '$shared/types/midiInput.js';
 import type { OnlineMidiItem } from '$shared/types/onlineMidi.js';
 import type { PlaybackStatus } from '$shared/types/playback.js';
@@ -95,6 +96,7 @@ export function createAppApi(): AppWindowApi {
   const getGames = async () => (await getConfigs()).games;
 
   return {
+    system: { getSnapshot: () => invokeTauri<SystemSnapshot>('System', 'get_system_snapshot', undefined) },
     midiInput: {
       getState: () => invokeTauri<MidiInputState>('MidiInput', 'get_midi_input_state', undefined),
       refreshPorts: () => invokeTauri<MidiInputState>('MidiInput', 'refresh_midi_inputs', undefined),

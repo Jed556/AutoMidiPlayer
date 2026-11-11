@@ -37,7 +37,7 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libssl-dev librsvg2-dev libayatana-appindicator3-dev libasound2-dev libudev-dev libx11-dev libxtst-dev libxi-dev libxkbcommon-dev
       - run: pnpm install --frozen-lockfile
       - name: Test renderer lifecycle and playback
-        run: node --test tests/midi-input.test.mjs tests/instrument-input.test.mjs tests/queue.test.mjs tests/settings.test.mjs tests/startup.test.mjs tests/i18n.test.mjs
+        run: node --test tests/system-info.test.mjs tests/midi-input.test.mjs tests/instrument-input.test.mjs tests/queue.test.mjs tests/settings.test.mjs tests/startup.test.mjs tests/i18n.test.mjs
       - run: pnpm build:frontend
       - name: Test native code without physical input
         run: cargo test --workspace --lib --locked -j 2

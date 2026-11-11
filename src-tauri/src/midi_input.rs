@@ -48,7 +48,7 @@ enum Command {
     #[cfg(target_os = "linux")]
     Authorized(
         u64,
-        Result<Box<dyn amp_core::input::simulator::KeyboardOutput>, String>,
+        Result<Box<dyn amp_core::input::simulator::KeyboardOutput>, wayland::AuthorizationFailure>,
     ),
 }
 
@@ -169,7 +169,10 @@ impl MidiInputService {
                                             worker.fail(error);
                                         }
                                     }
-                                    Err(error) => worker.fail(error),
+                                    Err(error) => {
+                                        worker.fail(error.0.detail.clone().unwrap_or_else(|| "Wayland keyboard output is unavailable".into()));
+                                        worker.engine.observe_keyboard(error.0);
+                                    },
                                 }
                             }
                         }
@@ -330,6 +333,7 @@ impl Worker {
     fn stop(&mut self) {
         if let Some(cancel) = self.authorization_cancel.take() {
             cancel.store(true, Ordering::Release);
+            if self.state.starting { self.engine.observe_keyboard(amp_core::diagnostics::ServiceStatus::new(amp_core::diagnostics::ServiceState::Inactive)); }
         }
         self.epoch = self.epoch.wrapping_add(1);
         // Invalidate old callbacks before closing a potentially busy connection.
@@ -371,6 +375,7 @@ impl Worker {
             {
                 self.state.starting = true;
                 self.state.status = "permission".into();
+                self.engine.observe_keyboard(amp_core::diagnostics::ServiceStatus::new(amp_core::diagnostics::ServiceState::Checking));
                 let epoch = self.epoch;
                 let sender = _sender.clone();
                 let cancel = Arc::new(AtomicBool::new(false));

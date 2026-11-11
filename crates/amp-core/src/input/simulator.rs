@@ -2,6 +2,7 @@ use enigo::{Direction, Enigo, Key, Keyboard, Settings};
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
 use super::mapping::KeyStroke;
+use crate::diagnostics::{ServiceState, ServiceStatus};
 
 /// Keep physical pedal holds separate from timed note taps. Several MIDI
 /// channels (or pedals sharing a binding) can own the same held game key.
@@ -40,6 +41,7 @@ pub struct KeySimulator {
     output: Option<Box<dyn KeyboardOutput>>,
     owners: [HashSet<Key>; 5],
     error: Option<String>,
+    observation: ServiceStatus,
     hold_delay: Duration,
     pressed_keys: HashSet<Key>,
     last_press_time: Option<Instant>,
@@ -51,6 +53,7 @@ pub struct KeySimulator {
 pub trait KeyboardOutput: Send {
     fn key(&mut self, key: Key, up: bool) -> Result<(), String>;
     fn error(&self) -> Option<String> { None }
+    fn failure_state(&self) -> ServiceState { ServiceState::Unavailable }
 }
 
 struct EnigoOutput(Enigo);
@@ -59,6 +62,11 @@ struct EnigoOutput(Enigo);
 extern "C" { fn AXIsProcessTrusted() -> bool; }
 
 impl KeyboardOutput for EnigoOutput {
+    fn failure_state(&self) -> ServiceState {
+        #[cfg(target_os = "macos")]
+        if !unsafe { AXIsProcessTrusted() } { return ServiceState::PermissionRequired; }
+        ServiceState::Unavailable
+    }
     fn key(&mut self, key: Key, up: bool) -> Result<(), String> {
         self.0.key(key, if up { Direction::Release } else { Direction::Press }).map_err(|e| e.to_string())
     }
@@ -77,6 +85,7 @@ impl KeySimulator {
             output: None,
             owners: std::array::from_fn(|_| HashSet::new()),
             error: None,
+            observation: ServiceStatus::default(),
             hold_delay: Duration::from_millis(crate::settings::defaults::value("/keyPressDelayMs")),
             pressed_keys: HashSet::new(),
             last_press_time: None,
@@ -88,14 +97,18 @@ impl KeySimulator {
         if self.output.is_some() { return Ok(()); }
         #[cfg(target_os = "linux")]
         if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+            self.observation = ServiceStatus::new(ServiceState::PermissionRequired);
             return Err("Wayland keyboard output requires an authorized MIDI input session.".into());
         }
         self.output = Some(Box::new(EnigoOutput(Enigo::new(&Settings::default()).map_err(|error| {
+            let state = if matches!(error, enigo::NewConError::NoPermission) { ServiceState::PermissionRequired } else { ServiceState::Unavailable };
+            self.observation = ServiceStatus::with_detail(state, &error);
             #[cfg(target_os = "macos")]
             { format!("Keyboard output is unavailable: {error}. Enable Auto MIDI Player in System Settings > Privacy & Security > Accessibility, then press Start again.") }
             #[cfg(not(target_os = "macos"))]
             { error.to_string() }
         })?)));
+        self.observation = ServiceStatus::new(ServiceState::Ready);
         Ok(())
     }
 
@@ -103,10 +116,21 @@ impl KeySimulator {
         self.release_everything();
         self.output = output;
         self.error = None;
+        if self.output.is_some() { self.observation = ServiceStatus::new(ServiceState::Ready); }
+        else if self.observation.state == ServiceState::Ready { self.observation = ServiceStatus::new(ServiceState::Inactive); }
     }
 
+    pub fn observe(&mut self, status: ServiceStatus) { self.observation = status; }
+    pub fn status(&self) -> ServiceStatus { self.observation.clone() }
+
     pub fn take_error(&mut self) -> Option<String> {
-        self.error.take().or_else(|| self.output.as_ref().and_then(|o| o.error()))
+        let error = self.error.take().or_else(|| self.output.as_ref().and_then(|o| o.error()));
+        if let Some(error) = &error {
+            let state = if self.observation.state == ServiceState::PermissionRequired { ServiceState::PermissionRequired }
+                else { self.output.as_ref().map_or(ServiceState::Unavailable, |output| output.failure_state()) };
+            self.observation = ServiceStatus::with_detail(state, error);
+        }
+        error
     }
 
     pub fn is_ready(&self) -> bool {
@@ -213,6 +237,27 @@ mod tests {
         sim.set_output(Some(Box::new(Denied)));
         sim.send_owned_key(2, key, false);
         assert_eq!(sim.take_error().as_deref(), Some("permission denied"));
+    }
+
+    #[test]
+    fn status_reads_are_passive_and_failures_survive_backend_retirement() {
+        struct Failing;
+        impl KeyboardOutput for Failing {
+            fn key(&mut self, _: Key, _: bool) -> Result<(), String> { Err("output disconnected".into()) }
+        }
+        let mut sim = KeySimulator::new();
+        for _ in 0..3 { assert_eq!(sim.status().state, ServiceState::NotChecked); }
+        assert!(sim.output.is_none());
+        sim.set_output(Some(Box::new(Failing)));
+        assert_eq!(sim.status().state, ServiceState::Ready);
+        sim.send_owned_key(2, Key::A, false);
+        sim.take_error();
+        sim.set_output(None);
+        assert_eq!(sim.status().state, ServiceState::Unavailable);
+        assert_eq!(sim.status().detail.as_deref(), Some("output disconnected"));
+        sim.observe(ServiceStatus::new(ServiceState::PermissionRequired));
+        assert_eq!(sim.status().state, ServiceState::PermissionRequired);
+        assert!(sim.output.is_none());
     }
 
     fn bindings() -> [Option<KeyStroke>; 3] {

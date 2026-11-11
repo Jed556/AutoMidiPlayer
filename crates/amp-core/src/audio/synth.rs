@@ -7,6 +7,7 @@ use rodio::cpal::{self, traits::{DeviceTrait, HostTrait}};
 use rodio::{DeviceSinkBuilder, MixerDeviceSink, Player, Source};
 use rustysynth::{SoundFont, SynthesizerSettings};
 use super::font_stack::FontStack;
+use crate::diagnostics::{ServiceState, ServiceStatus};
 use super::ownership::AudioOwnership;
 use super::font_loader::{FontLoader, FontInput, PreparedSoundFont};
 
@@ -390,6 +391,7 @@ impl OutputSink {
     fn open(
         engine: &Arc<Mutex<SynthEngine>>,
         control_tx: &Sender<OutputControl>,
+        status: &Arc<Mutex<ServiceStatus>>,
     ) -> Result<Self, AudioError> {
         let device = cpal::default_host()
             .default_output_device()
@@ -399,8 +401,10 @@ impl OutputSink {
         // cpal reports a default-device switch (WASAPI) or a disconnect as a stream error;
         // the stream itself stays bound to the old device, so it has to be rebuilt.
         let error_tx = control_tx.clone();
+        let error_status = Arc::clone(status);
         let error_callback = move |err: cpal::Error| match err.kind() {
             cpal::ErrorKind::DeviceNotAvailable | cpal::ErrorKind::StreamInvalidated => {
+                *error_status.lock().unwrap_or_else(|e| e.into_inner()) = ServiceStatus::with_detail(ServiceState::Reconnecting, &err);
                 log::info!("Audio output stream invalidated ({err}); reopening on default device");
                 let _ = error_tx.send(OutputControl::Rebuild);
             }
@@ -435,19 +439,45 @@ impl OutputSink {
 /// Keeps an output stream open on the current system default device, rebuilding it whenever
 /// the device is switched, removed, or becomes available again.
 fn run_output_supervisor(
-    mut current: Option<OutputSink>,
+    current: Option<OutputSink>,
     engine: Arc<Mutex<SynthEngine>>,
     control_tx: Sender<OutputControl>,
     control_rx: Receiver<OutputControl>,
+    status: Arc<Mutex<ServiceStatus>>,
+) {
+    supervise_output(current, control_rx, Arc::clone(&status), || {
+        OutputSink::open(&engine, &control_tx, &status).inspect(|sink| {
+            log::info!("Audio output switched to device {:?}", sink.device_id);
+        })
+    }, OutputSink::default_device_changed, |recovered| {
+        let mut engine = lock_engine(&engine);
+        engine.process_pending_commands();
+        if recovered { engine.silence_all(); }
+    }, DEVICE_SWITCH_DEBOUNCE);
+}
+
+// The lifecycle is independent of CPAL so recovery and its observations can be
+// exercised without opening an actual device.
+fn supervise_output<S>(
+    mut current: Option<S>,
+    control_rx: Receiver<OutputControl>,
+    status: Arc<Mutex<ServiceStatus>>,
+    mut open: impl FnMut() -> Result<S, AudioError>,
+    device_changed: impl Fn(&S) -> bool,
+    mut maintain_engine: impl FnMut(bool),
+    debounce: Duration,
 ) {
     loop {
-        if current.is_none() { lock_engine(&engine).process_pending_commands(); }
+        if current.is_none() { maintain_engine(false); }
         let timeout = if current.is_some() { DEVICE_POLL_INTERVAL } else { DEVICE_RETRY_INTERVAL };
         let rebuild = match control_rx.recv_timeout(timeout) {
-            Ok(OutputControl::Shutdown) | Err(RecvTimeoutError::Disconnected) => return,
+            Ok(OutputControl::Shutdown) | Err(RecvTimeoutError::Disconnected) => {
+                *status.lock().unwrap_or_else(|e| e.into_inner()) = ServiceStatus::new(ServiceState::Inactive);
+                return;
+            },
             Ok(OutputControl::Rebuild) => true,
             Err(RecvTimeoutError::Timeout) => match &current {
-                Some(sink) => sink.default_device_changed(),
+                Some(sink) => device_changed(sink),
                 None => true,
             },
         };
@@ -455,9 +485,11 @@ fn run_output_supervisor(
             continue;
         }
 
-        std::thread::sleep(DEVICE_SWITCH_DEBOUNCE);
+        *status.lock().unwrap_or_else(|e| e.into_inner()) = ServiceStatus::new(ServiceState::Reconnecting);
+        std::thread::sleep(debounce);
         while let Ok(msg) = control_rx.try_recv() {
             if matches!(msg, OutputControl::Shutdown) {
+                *status.lock().unwrap_or_else(|e| e.into_inner()) = ServiceStatus::new(ServiceState::Inactive);
                 return;
             }
         }
@@ -466,18 +498,19 @@ fn run_output_supervisor(
         // Release the old device before opening the new one.
         drop(current.take());
 
-        match OutputSink::open(&engine, &control_tx) {
+        match open() {
             Ok(sink) => {
                 if recovering_from_outage {
                     // Notes queued while no device was available would otherwise all fire at once.
-                    let mut engine = lock_engine(&engine);
-                    engine.process_pending_commands();
-                    engine.silence_all();
+                    maintain_engine(true);
                 }
-                log::info!("Audio output switched to device {:?}", sink.device_id);
                 current = Some(sink);
+                *status.lock().unwrap_or_else(|e| e.into_inner()) = ServiceStatus::new(ServiceState::Ready);
             }
-            Err(err) => log::warn!("Audio output unavailable, will retry: {err}"),
+            Err(err) => {
+                *status.lock().unwrap_or_else(|e| e.into_inner()) = ServiceStatus::with_detail(ServiceState::Unavailable, &err);
+                log::warn!("Audio output unavailable, will retry: {err}");
+            },
         }
     }
 }
@@ -501,13 +534,16 @@ impl AudioDevice {
         let (init_tx, init_rx) = bounded::<Result<(), AudioError>>(1);
 
         // The stream is created and dropped on this thread only, so it never has to be Send.
+        let status = Arc::new(Mutex::new(ServiceStatus::new(ServiceState::Checking)));
+        let output_status = Arc::clone(&status);
         let thread_control_tx = control_tx.clone();
         let supervisor = std::thread::Builder::new()
             .name("audio-output".into())
-            .spawn(move || match OutputSink::open(&engine, &thread_control_tx) {
+            .spawn(move || match OutputSink::open(&engine, &thread_control_tx, &status) {
                 Ok(sink) => {
+                    *status.lock().unwrap_or_else(|e| e.into_inner()) = ServiceStatus::new(ServiceState::Ready);
                     let _ = init_tx.send(Ok(()));
-                    run_output_supervisor(Some(sink), engine, thread_control_tx, control_rx);
+                    run_output_supervisor(Some(sink), engine, thread_control_tx, control_rx, status);
                 }
                 Err(err) => {
                     let _ = init_tx.send(Err(err));
@@ -517,7 +553,7 @@ impl AudioDevice {
 
         match init_rx.recv() {
             Ok(Ok(())) => Ok(Self {
-                synth: AudioSynth { loader: Arc::new(FontLoader::new(cmd_tx.clone(), SAMPLE_RATE)), cmd_tx, source: 0, ownership: Arc::default() },
+                synth: AudioSynth { loader: Arc::new(FontLoader::new(cmd_tx.clone(), SAMPLE_RATE)), cmd_tx, source: 0, ownership: Arc::default(), output_status },
                 control_tx,
                 supervisor: Some(supervisor),
             }),
@@ -553,9 +589,13 @@ pub struct AudioSynth {
     cmd_tx: Sender<AudioCommand>,
     source: u8,
     ownership: Arc<Mutex<AudioOwnership>>,
+    output_status: Arc<Mutex<ServiceStatus>>,
 }
 
 impl AudioSynth {
+    /// Observed output-stream state; this never opens or restarts a device.
+    pub fn output_status(&self) -> ServiceStatus { self.output_status.lock().unwrap_or_else(|e| e.into_inner()).clone() }
+
     /// 0: song, 1: physical MIDI, 2: local previews.
     pub fn for_source(&self, source: u8) -> Self { Self { source, ..self.clone() } }
 

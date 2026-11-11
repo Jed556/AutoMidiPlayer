@@ -1,4 +1,5 @@
 pub mod midi;
+pub mod diagnostics;
 pub mod input;
 pub mod player;
 pub mod audio;

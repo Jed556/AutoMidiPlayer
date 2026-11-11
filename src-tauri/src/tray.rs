@@ -254,3 +254,6 @@ mod tests {
         }
     }
 }
+
+/// Passive availability check; never creates a tray icon.
+pub fn is_available(app: &AppHandle) -> bool { app.tray_by_id(ID).is_some() }
