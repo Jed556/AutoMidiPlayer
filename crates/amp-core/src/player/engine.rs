@@ -13,6 +13,7 @@ use crate::midi::{
 use crate::input::{NoteKeyMapping, KeySimulator};
 use crate::audio::{AudioSynth, SynthMode};
 use enigo::Key;
+use crate::diagnostics::ServiceStatus;
 use super::live_input::{LiveInput, LiveInputSnapshot, LiveSettings, MidiMessage};
 use crate::input::simulator::KeyboardOutput;
 use super::note_timing::{is_tap, note_durations, pending_note_owners, KeyReleases, KeyPressAction, OverlapBehavior};
@@ -139,6 +140,7 @@ pub enum PlayerEvent {
 }
 
 enum Command {
+    ObserveKeyboard(ServiceStatus),
     Fence(Sender<()>),
     MidiStart(u64),
     MidiStop,
@@ -185,6 +187,7 @@ pub struct PlaybackEngine {
     config_available: Arc<AtomicBool>,
     worker_handle: Option<std::thread::JoinHandle<()>>,
     midi_snapshot: Arc<Mutex<LiveInputSnapshot>>,
+    keyboard_status: Arc<Mutex<ServiceStatus>>,
     midi_queued: Arc<AtomicUsize>,
     midi_overflow: Arc<AtomicBool>,
 }
@@ -211,6 +214,8 @@ impl PlaybackEngine {
         let cb = Arc::new(event_callback);
         let midi_snapshot = Arc::new(Mutex::new(LiveInputSnapshot::default()));
         let worker_snapshot = Arc::clone(&midi_snapshot);
+        let keyboard_status = Arc::new(Mutex::new(ServiceStatus::default()));
+        let worker_keyboard_status = Arc::clone(&keyboard_status);
         let midi_queued = Arc::new(AtomicUsize::new(0));
         let midi_overflow = Arc::new(AtomicBool::new(false));
         let worker_queued = Arc::clone(&midi_queued);
@@ -228,6 +233,7 @@ impl PlaybackEngine {
                 config_available_clone,
                 cb,
                 worker_snapshot,
+                worker_keyboard_status,
                 worker_queued,
                 worker_overflow,
             );
@@ -240,11 +246,14 @@ impl PlaybackEngine {
             config_available,
             worker_handle: Some(worker_handle),
             midi_snapshot,
+            keyboard_status,
             midi_queued,
             midi_overflow,
         }
     }
 
+    pub fn keyboard_status(&self) -> ServiceStatus { self.keyboard_status.lock().unwrap_or_else(|e| e.into_inner()).clone() }
+    pub fn observe_keyboard(&self, status: ServiceStatus) { let _ = self.cmd_tx.send(Command::ObserveKeyboard(status)); }
     pub fn midi_start(&self, generation: u64) { let _ = self.cmd_tx.send(Command::MidiStart(generation)); }
     /// Wait for previously submitted cleanup without involving the UI thread.
     pub fn flush(&self) -> Result<(), String> {
@@ -441,6 +450,7 @@ fn run_playback_loop(
     config_available: Arc<AtomicBool>,
     callback: Arc<dyn Fn(PlayerEvent) + Send + Sync>,
     midi_snapshot: Arc<Mutex<LiveInputSnapshot>>,
+    keyboard_status: Arc<Mutex<ServiceStatus>>,
     midi_queued: Arc<AtomicUsize>,
     midi_overflow: Arc<AtomicBool>,
 ) {
@@ -503,6 +513,7 @@ fn run_playback_loop(
         for _ in 0..256 {
             let Some(cmd) = pending_command.take().or_else(|| cmd_rx.try_recv().ok()) else { break };
             match cmd {
+                Command::ObserveKeyboard(status) => key_sim.observe(status),
                 Command::Fence(reply) => { let _ = reply.send(()); }
                 Command::MidiStart(generation) => midi.start(generation, &mut key_sim, &audio_synth),
                 Command::MidiStop => midi.stop(&mut key_sim, &audio_synth),
@@ -890,6 +901,7 @@ fn run_playback_loop(
             midi.snapshot.error = Some(error);
         }
         midi.snapshot.keyboard_available = key_sim.is_ready() && midi.snapshot.error.is_none();
+        *keyboard_status.lock().unwrap_or_else(|e| e.into_inner()) = key_sim.status();
         *midi_snapshot.lock().unwrap_or_else(|e| e.into_inner()) = midi.snapshot.clone();
         let now_preview = Instant::now();
         preview_audio.retain(|&pitch, deadline| {

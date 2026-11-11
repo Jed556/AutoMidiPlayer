@@ -1,14 +1,21 @@
 //! Native media keys / Now Playing: Windows SMTC, macOS MediaPlayer, Linux MPRIS.
 //! Keep platform objects on Tauri's main thread (required by macOS), independent
 //! of configurable global shortcuts and without a WebView audio element.
-use std::{cell::RefCell, time::Duration};
-
+use std::{cell::RefCell, time::Duration, sync::{Mutex, OnceLock}};
+use amp_core::diagnostics::{ServiceState, ServiceStatus};
 use serde::{Deserialize, Serialize};
 use souvlaki::{
     MediaControlEvent, MediaControls, MediaMetadata, MediaPlayback, MediaPosition, PlatformConfig,
     SeekDirection,
 };
 use tauri::{AppHandle, Emitter, Manager};
+
+fn observed_status() -> &'static Mutex<ServiceStatus> {
+    static STATUS: OnceLock<Mutex<ServiceStatus>> = OnceLock::new();
+    STATUS.get_or_init(Mutex::default)
+}
+pub fn status() -> ServiceStatus { observed_status().lock().unwrap_or_else(|e| e.into_inner()).clone() }
+fn record_status(status: ServiceStatus) { *observed_status().lock().unwrap_or_else(|e| e.into_inner()) = status; }
 
 #[cfg(target_os = "windows")]
 mod windows;
@@ -139,6 +146,7 @@ fn sync(app: &AppHandle, snapshot: Snapshot) -> Result<(), String> {
         }
         let controls = create_session(app)?;
         SESSION.with(|session| *session.borrow_mut() = Some(controls));
+        record_status(ServiceStatus::new(ServiceState::Ready));
         log::info!("System media controls initialized");
     }
     SESSION.with(|session| {
@@ -190,13 +198,18 @@ pub fn sync_media_controls(app: AppHandle, snapshot: Snapshot) -> Result<(), Str
     app.run_on_main_thread(move || {
         if let Err(error) = sync(&handle, snapshot) {
             shutdown();
+            record_status(ServiceStatus::with_detail(ServiceState::Unavailable, &error));
             log::warn!("Unable to update system media controls: {error}");
         }
     })
-    .map_err(|error| error.to_string())
+    .map_err(|error| {
+        record_status(ServiceStatus::with_detail(ServiceState::Unavailable, &error));
+        error.to_string()
+    })
 }
 
 pub fn shutdown() {
+    if status().state == ServiceState::Ready { record_status(ServiceStatus::new(ServiceState::Inactive)); }
     // Dropping MediaControls detaches its OS callbacks on the main thread.
     SESSION.with(|session| {
         session.borrow_mut().take();
@@ -206,6 +219,19 @@ pub fn shutdown() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn passive_media_status_retains_initialization_failure() {
+        assert_eq!(status().state, ServiceState::NotChecked);
+        assert!(!INITIALIZED.with(|value| *value.borrow()));
+        assert!(SESSION.with(|value| value.borrow().is_none()));
+        record_status(ServiceStatus::with_detail(ServiceState::Unavailable, "Media service unavailable"));
+        shutdown();
+        assert_eq!(status().state, ServiceState::Unavailable);
+        assert_eq!(status().detail.as_deref(), Some("Media service unavailable"));
+        assert!(!INITIALIZED.with(|value| *value.borrow()));
+        record_status(ServiceStatus::default());
+    }
 
     #[cfg(target_os = "windows")]
     #[test]

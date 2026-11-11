@@ -30,7 +30,7 @@ fn render(engine: &mut SynthEngine) -> Vec<f32> {
 fn song_resets_and_preview_expiration_preserve_physical_midi_voices() {
     let (tx, rx) = unbounded();
     let song = AudioSynth { loader: Arc::new(FontLoader::new(tx.clone(), SAMPLE_RATE)),
-        cmd_tx: tx, source: 0, ownership: Arc::default() };
+        cmd_tx: tx, source: 0, ownership: Arc::default(), output_status: Arc::default() };
     let live = song.for_source(1);
     let preview = song.for_source(2);
     song.note_on(0, 60, 90);
@@ -48,7 +48,7 @@ fn song_resets_and_preview_expiration_preserve_physical_midi_voices() {
 fn channel_resets_preserve_another_sources_notes_and_pedals() {
     let (tx, rx) = unbounded();
     let song = AudioSynth { loader: Arc::new(FontLoader::new(tx.clone(), SAMPLE_RATE)),
-        cmd_tx: tx, source: 0, ownership: Arc::default() };
+        cmd_tx: tx, source: 0, ownership: Arc::default(), output_status: Arc::default() };
     let live = song.for_source(1);
     live.note_on(0, 60, 100);
     live.control_change(0, 64, 127);
@@ -72,7 +72,7 @@ fn clearing_deleted_soundfonts_silences_active_and_retiring_stacks_and_allows_re
     audio.replace_fonts(stack(sf.clone()));
     assert!(!audio.retiring.is_empty());
     let loader = Arc::new(FontLoader::new(tx.clone(), SAMPLE_RATE));
-    let synth = AudioSynth { loader, cmd_tx: tx, source: 0, ownership: Arc::default() };
+    let synth = AudioSynth { loader, cmd_tx: tx, source: 0, ownership: Arc::default(), output_status: Arc::default() };
     let pending = synth.loader.submit(FontInput::Fonts(vec![sf.clone()])).unwrap();
     synth.clear_soundfonts();
     assert!(await_handoff(&mut audio, &pending).is_err(), "a pending load must not restore deleted fonts");
@@ -95,7 +95,7 @@ fn preview_taps_stay_short_when_midi_sustain_arrives_after_playback_starts() {
     let sf = font("Roland GM.sf2");
     for (mode, follow_timing) in [(SynthMode::Adapted, true), (SynthMode::Adapted, false), (SynthMode::Raw, true)] {
         let (mut audio, cmd_tx) = engine(sf.clone());
-        let synth = AudioSynth { loader: Arc::new(FontLoader::new(cmd_tx.clone(), SAMPLE_RATE)), cmd_tx, source: 0, ownership: Arc::default() };
+        let synth = AudioSynth { loader: Arc::new(FontLoader::new(cmd_tx.clone(), SAMPLE_RATE)), cmd_tx, source: 0, ownership: Arc::default(), output_status: Arc::default() };
         let event = |time_us, note, is_note_on| TimedNoteEvent {
             time_us, note, is_note_on, channel: 0, track_index: 0,
             velocity: if is_note_on { 90 } else { 0 },
@@ -177,7 +177,7 @@ fn rapid_track_muting_sends_note_off_only_after_the_last_shared_synth_owner() {
     for mode in [SynthMode::Adapted, SynthMode::Raw] {
         // Capture synth commands without opening an audio device or sending keys.
         let (cmd_tx, cmd_rx) = unbounded();
-        let synth = AudioSynth { loader: Arc::new(FontLoader::new(cmd_tx.clone(), SAMPLE_RATE)), cmd_tx, source: 0, ownership: Arc::default() };
+        let synth = AudioSynth { loader: Arc::new(FontLoader::new(cmd_tx.clone(), SAMPLE_RATE)), cmd_tx, source: 0, ownership: Arc::default(), output_status: Arc::default() };
         let event = |time_us, track_index, is_note_on| TimedNoteEvent {
             time_us, track_index, channel: 0, note: 60, velocity: if is_note_on { 90 } else { 0 }, is_note_on,
         };
@@ -600,4 +600,40 @@ fn handoff_restores_latest_controllers_and_applies_master_volume_to_both_stacks(
             );
         }
     }
+}
+
+#[test]
+fn output_supervisor_reports_outage_recovery_and_shutdown_without_a_device() {
+    let status = Arc::new(Mutex::new(ServiceStatus::new(ServiceState::Ready)));
+    let worker_status = status.clone();
+    let (control, receiver) = unbounded();
+    let (opened, attempts) = unbounded();
+    let (results, next_result) = unbounded();
+    let (recovered, recovery) = unbounded();
+    let worker = std::thread::spawn(move || supervise_output(Some(()), receiver, worker_status,
+        || { opened.send(()).unwrap(); next_result.recv().unwrap() },
+        |_| false, |is_recovery| { if is_recovery { recovered.send(()).unwrap(); } }, Duration::ZERO));
+    let assert_state = |expected| {
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while status.lock().unwrap().state != expected {
+            assert!(Instant::now() < deadline, "status did not become {expected:?}");
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    };
+    control.send(OutputControl::Rebuild).unwrap();
+    attempts.recv_timeout(Duration::from_secs(2)).unwrap();
+    assert_state(ServiceState::Reconnecting);
+    results.send(Err(AudioError::StreamInit("device unplugged".into()))).unwrap();
+    assert_state(ServiceState::Unavailable);
+    assert!(status.lock().unwrap().detail.as_deref().unwrap().contains("device unplugged"));
+    control.send(OutputControl::Rebuild).unwrap();
+    attempts.recv_timeout(Duration::from_secs(2)).unwrap();
+    assert_state(ServiceState::Reconnecting);
+    results.send(Ok(())).unwrap();
+    recovery.recv_timeout(Duration::from_secs(2)).unwrap();
+    assert_state(ServiceState::Ready);
+    assert!(status.lock().unwrap().detail.is_none());
+    control.send(OutputControl::Shutdown).unwrap();
+    worker.join().unwrap();
+    assert_state(ServiceState::Inactive);
 }

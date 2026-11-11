@@ -2,6 +2,7 @@ mod config_manager;
 mod media_controls;
 mod midi_input;
 mod tray;
+mod system_info;
 mod process_monitor;
 mod updates;
 mod storage;
@@ -215,6 +216,7 @@ pub struct AppState {
     pub engine: Arc<PlaybackEngine>,
     pub current_song: Arc<Mutex<Option<ParsedMidi>>>,
     pub audio_synth: Arc<Mutex<Option<AudioSynth>>>,
+    pub audio_initialization_error: Option<String>,
     pub db: Arc<LibraryDatabase>,
     pub settings: Arc<SettingsStore>,
     pub watcher: Arc<Mutex<Option<DirectoryWatcher>>>,
@@ -1847,17 +1849,17 @@ pub fn run() {
                             let device = AudioDevice::new(default_sf);
                             if let Ok(dev) = device {
                                 let synth = dev.synth();
-                                let _ = synth_tx.send(Some(synth));
+                                let _ = synth_tx.send((Some(synth), None));
                                 loop {
                                     std::thread::sleep(std::time::Duration::from_secs(3600));
                                 }
                             } else {
-                                let _ = synth_tx.send(None);
+                                let _ = synth_tx.send((None, device.err().map(|error| error.to_string())));
                             }
                         })
                         .ok();
 
-                    let audio_synth = synth_rx.recv().ok().flatten();
+                    let (audio_synth, audio_initialization_error) = synth_rx.recv().unwrap_or_else(|error| (None, Some(error.to_string())));
 
                     set_startup_stage(&app, "Initializing player\u{2026}");
                     // Initialize amp-core playback engine
@@ -2045,6 +2047,7 @@ pub fn run() {
                         engine,
                         current_song: Arc::new(Mutex::new(None)),
                         audio_synth: Arc::new(Mutex::new(audio_synth)),
+                        audio_initialization_error,
                         db,
                         settings: Arc::clone(&preferences),
                         watcher: Arc::new(Mutex::new(None)),
@@ -2093,6 +2096,7 @@ pub fn run() {
             tray::on_window_event(window, event);
         })
         .invoke_handler(tauri::generate_handler![
+            system_info::get_system_snapshot,
             media_controls::sync_media_controls,
             midi_input::get_midi_input_state,
             midi_input::refresh_midi_inputs,
