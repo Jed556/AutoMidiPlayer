@@ -36,6 +36,8 @@
   "theme": "Dark",
   "accentColor": "#1DB954",
   "smoothScrolling": true,
+  "minimizeToTray": true,
+  "closeToTray": false,
   "autoEnableListenMode": true,
   "keypressMethod": "SendInput",
   "enableKeyUp": true,

@@ -95,6 +95,8 @@ fn settings_merge_persist_and_reset() {
         assert_eq!(db.get().unwrap(), SettingsStore::defaults());
         db.update(&json!({
             "theme": "Dark",
+            "minimizeToTray": false,
+            "closeToTray": true,
             "overlapBehavior": "retrigger",
             "gamePreviewFollowNoteTiming": true,
             "activeGameId": "game",
@@ -111,6 +113,8 @@ fn settings_merge_persist_and_reset() {
         let db = SettingsStore::open(path.clone(), &library, &[], &HashMap::new()).unwrap();
         let mut expected = SettingsStore::defaults();
         expected["theme"] = json!("Dark");
+        expected["minimizeToTray"] = json!(false);
+        expected["closeToTray"] = json!(true);
         expected["overlapBehavior"] = json!("retrigger");
         expected["gamePreviewFollowNoteTiming"] = json!(true);
         expected["activeGameId"] = json!("game");

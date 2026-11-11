@@ -596,8 +596,8 @@
             <div class="accent-field"><span>{t('settings.accentColor')}</span><div class="color-palette">
               {#each ACCENT_COLORS as color}<button type="button" class="color-dot" style:background={color.value} aria-label={color.name} aria-pressed={draft.accentColor === color.value} onclick={() => { draft.accentColor = color.value; themeStore.setAccentColor(color.value); }}>{#if draft.accentColor === color.value}<FluentIcon name="Checkmark" size={16} />{/if}</button>{/each}
             </div></div>
-            <div class="setting-row"><ToggleSwitch label={t('settings.minimizeToTray')} checked={true} /></div>
-            <div class="setting-row"><ToggleSwitch label={t('settings.closeToTray')} checked={false} /></div>
+            <div class="setting-row"><ToggleSwitch label={t('settings.minimizeToTray')} checked={draft.minimizeToTray} onchange={value => draft.minimizeToTray = value} /></div>
+            <div class="setting-row"><ToggleSwitch label={t('settings.closeToTray')} checked={draft.closeToTray} onchange={value => draft.closeToTray = value} /></div>
           {:else}
             <dl class="summary">
               {#if isLegacyDetected}

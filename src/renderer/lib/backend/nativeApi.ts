@@ -108,6 +108,7 @@ export function createAppApi(): AppWindowApi {
       minimize: () => invokeTauri<void>('Window', 'minimize_window', undefined),
       maximize: () => invokeTauri<boolean>('Window', 'maximize_window', undefined),
       close: () => invokeTauri<void>('Window', 'close_window', undefined),
+      completeClose: (cancel = false) => invokeTauri<void>('Window', 'complete_window_close', { cancel }),
       isMaximized: () => invokeTauri<boolean>('Window', 'is_maximized', undefined),
       setTitle: (title: string) => invokeTauri<void>('Window', 'set_window_title', { title }),
       onResized: (callback) => listenTauri('tauri://resize', callback),
