@@ -19,7 +19,7 @@
   import GradientSweep from '../components/Common/GradientSweep.svelte';
   import { createFrameResizeObserver } from '../utils/frameResizeObserver';
   import { tooltip } from '../actions/tooltip';
-  import { bufferedImage } from '../actions/bufferedImage';
+  import GameIcon from '../components/Common/GameIcon.svelte';
   import { toastOffset } from '../actions/toastOffset';
   import { InstrumentInput, keyboardPitches } from '../utils/instrumentInput';
   import { createPianoRows, createPianoSlots, hasInGameInstrumentLayout, pianoRange, type PianoSlot } from '../utils/instrumentKeyboard';
@@ -186,13 +186,6 @@
   // Instrument & Keyboard Layout Selection
   // ==========================================
   let selectedLayoutId = $state<string>('');
-  let activeGameImageError = $state(false);
-
-  $effect(() => {
-    if (gameStore.activeGame?.id) {
-      activeGameImageError = false;
-    }
-  });
 
   let instrumentOptions = $derived.by(() => {
     const list = gameStore.activeGame?.instruments;
@@ -556,18 +549,7 @@
     <!-- Top Left: Game Info Badge with Game Name & Ghost Dropdowns -->
     <div class="game-info-badge">
       <button type="button" class="inst-game-avatar-wrap game-selector-trigger" onclick={toggleGameSelector} aria-label={t('gameSelector.selectTargetGame')} aria-haspopup="dialog" aria-expanded={uiStore.gameSelectorOpen && uiStore.gameSelectorAnchor === topBar} use:tooltip={gameStore.gameDeletionTooltip} data-tooltip-follow="false">
-        {#if !activeGameImageError && !gameStore.activeGame?.isMissing}
-          <div
-            class="inst-game-icon"
-            use:bufferedImage={{ src: gameStore.activeGame?.iconUrl,
-              fallbackSrc: `images/games/${gameStore.activeGame?.imageFileName || 'Genshin_Impact.png'}`,
-              onUnavailable: () => { activeGameImageError = true; } }}
-          ></div>
-        {:else}
-          <div class="inst-game-avatar-placeholder">
-            <FluentIcon name="Games" size={24} />
-          </div>
-        {/if}
+        <GameIcon size={62} borderRadius="var(--radius-md)" placeholderSize={24} objectFit="contain" GrayscaleInactiveGame={false} />
       </button>
 
       <div class="inst-game-meta">
@@ -857,22 +839,7 @@
     justify-content: center;
   }
 
-  .inst-game-icon {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-  }
 
-  .inst-game-avatar-placeholder {
-    width: 100%;
-    height: 100%;
-    border-radius: inherit;
-    background: var(--bg-hover, rgba(255, 255, 255, 0.08));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-tertiary);
-  }
 
   .inst-game-meta {
     min-width: 0;

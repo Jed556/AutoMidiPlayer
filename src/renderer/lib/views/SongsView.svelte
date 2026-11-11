@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
   import { playbackStore } from '../state/playbackStore.svelte';
   import { libraryStore } from '../state/libraryStore.svelte';
   import { uiStore } from '../state/uiStore.svelte';
@@ -111,6 +111,94 @@
       return `${hours} hr ${minutes} min`;
     }
     return `${minutes} min`;
+  });
+
+  interface PlaylistSnapshot {
+    id: string;
+    title: string;
+    icon: string;
+    gradient: string;
+    badge: string;
+    songCountText: string;
+    durationText: string;
+  }
+
+  let previousPlaylist = $state<PlaylistSnapshot | null>(null);
+  let isSweeping = $state(false);
+  let lastPlaylistId = $state<string | null>(null);
+  let lastSnapshot: PlaylistSnapshot | null = null;
+  let transitionRevision = 0;
+  let sweepTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function captureCurrentSnapshot(): PlaylistSnapshot {
+    return {
+      id: currentPlaylist?.id ?? libraryStore.selectedPlaylistId,
+      title: currentPlaylist?.title || t('nav.songs'),
+      icon: currentPlaylist?.icon || 'Cd',
+      gradient: currentPlaylist?.gradient || 'linear-gradient(135deg, #1DB954 0%, #0d9488 100%)',
+      badge: 'Playlist',
+      songCountText: `${filteredSongs.length} ${filteredSongs.length === 1 ? 'song' : 'songs'}`,
+      durationText: totalDurationFormatted,
+    };
+  }
+
+  $effect(() => {
+    const selectedId = libraryStore.selectedPlaylistId;
+
+    if (lastPlaylistId === null) {
+      lastPlaylistId = selectedId;
+      untrack(() => {
+        lastSnapshot = captureCurrentSnapshot();
+      });
+      return;
+    }
+
+    if (selectedId !== lastPlaylistId) {
+      const prevSnapshot = lastSnapshot ?? untrack(() => captureCurrentSnapshot());
+      lastPlaylistId = selectedId;
+      const rev = ++transitionRevision;
+
+      if (animationStore.isOff) {
+        isSweeping = false;
+        previousPlaylist = null;
+        untrack(() => {
+          lastSnapshot = captureCurrentSnapshot();
+        });
+        return;
+      }
+
+      previousPlaylist = prevSnapshot;
+      if (sweepTimer) clearTimeout(sweepTimer);
+      isSweeping = false;
+
+      requestAnimationFrame(() => {
+        if (rev !== transitionRevision) return;
+        isSweeping = true;
+
+        sweepTimer = setTimeout(() => {
+          if (rev === transitionRevision) {
+            isSweeping = false;
+            previousPlaylist = null;
+            sweepTimer = null;
+            lastSnapshot = captureCurrentSnapshot();
+          }
+        }, 550);
+      });
+    }
+  });
+
+  $effect(() => {
+    // Keep snapshot in sync with counts and duration changes when not sweeping
+    if (!isSweeping) {
+      lastSnapshot = captureCurrentSnapshot();
+    }
+  });
+
+  onDestroy(() => {
+    if (sweepTimer) {
+      clearTimeout(sweepTimer);
+      sweepTimer = null;
+    }
   });
 
   async function importMidi() {
@@ -243,21 +331,51 @@
 
   <!-- Spotify Hero Banner: Big Text & Artwork, no username -->
   <div class="hero-banner">
-    <div
-      class="hero-artwork"
-      style="background: {currentPlaylist?.gradient || 'linear-gradient(135deg, #1DB954 0%, #0d9488 100%)'};"
-    >
-      <FluentIcon name={currentPlaylist?.icon || 'Cd'} filled={true} size={56} />
+    <!-- Sweeping Album Artwork -->
+    <div class="hero-artwork-host">
+      {#if isSweeping && previousPlaylist}
+        <div
+          class="hero-artwork-layer hero-artwork-prev sweeping"
+          style="background: {previousPlaylist.gradient};"
+          aria-hidden="true"
+        >
+          <FluentIcon name={previousPlaylist.icon} filled={true} size={56} />
+        </div>
+      {/if}
+      <div
+        class="hero-artwork-layer hero-artwork-curr"
+        class:sweeping={isSweeping}
+        style="background: {currentPlaylist?.gradient || 'linear-gradient(135deg, #1DB954 0%, #0d9488 100%)'};"
+      >
+        <FluentIcon name={currentPlaylist?.icon || 'Cd'} filled={true} size={56} />
+      </div>
     </div>
-    <div class="hero-info">
-      <span class="hero-badge">Playlist</span>
-      <h1 class="hero-title">{currentPlaylist?.title || t('nav.songs')}</h1>
-      <div class="hero-meta">
-        <span class="meta-item bold">{filteredSongs.length} {filteredSongs.length === 1 ? 'song' : 'songs'}</span>
-        {#if totalDurationFormatted}
-          <span class="meta-dot">•</span>
-          <span class="meta-item">{totalDurationFormatted}</span>
-        {/if}
+
+    <!-- Sweeping Hero Info (Type Badge, Title, Counts) -->
+    <div class="hero-info-host">
+      {#if isSweeping && previousPlaylist}
+        <div class="hero-info-layer hero-info-prev sweeping" aria-hidden="true">
+          <span class="hero-badge">{previousPlaylist.badge}</span>
+          <h1 class="hero-title">{previousPlaylist.title}</h1>
+          <div class="hero-meta">
+            <span class="meta-item bold">{previousPlaylist.songCountText}</span>
+            {#if previousPlaylist.durationText}
+              <span class="meta-dot">•</span>
+              <span class="meta-item">{previousPlaylist.durationText}</span>
+            {/if}
+          </div>
+        </div>
+      {/if}
+      <div class="hero-info-layer hero-info-curr" class:sweeping={isSweeping}>
+        <span class="hero-badge">Playlist</span>
+        <h1 class="hero-title">{currentPlaylist?.title || t('nav.songs')}</h1>
+        <div class="hero-meta">
+          <span class="meta-item bold">{filteredSongs.length} {filteredSongs.length === 1 ? 'song' : 'songs'}</span>
+          {#if totalDurationFormatted}
+            <span class="meta-dot">•</span>
+            <span class="meta-item">{totalDurationFormatted}</span>
+          {/if}
+        </div>
       </div>
     </div>
   </div>
@@ -379,27 +497,207 @@
     z-index: 1;
   }
 
-  .hero-artwork {
+  /* Artwork Container */
+  .hero-artwork-host {
     width: 140px;
     height: 140px;
     min-width: 140px;
     min-height: 140px;
     border-radius: 6px;
-    background: linear-gradient(135deg, #1DB954 0%, #0d9488 100%);
+    box-shadow: var(--hero-artwork-shadow, 0 4px 60px rgba(0, 0, 0, 0.5));
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .hero-artwork-layer {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: var(--hero-artwork-shadow, 0 4px 60px rgba(0, 0, 0, 0.5));
     color: #ffffff;
-    flex-shrink: 0;
-    transition: background var(--transition-normal);
   }
 
-  .hero-info {
+  .hero-artwork-layer.hero-artwork-curr {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
+
+  .hero-artwork-layer.hero-artwork-prev.sweeping {
+    z-index: 1;
+    pointer-events: none;
+    -webkit-mask-image: linear-gradient(
+      135deg,
+      transparent 0%,
+      transparent 42%,
+      rgba(0, 0, 0, 0.5) 50%,
+      #000 55%,
+      #000 100%
+    );
+    mask-image: linear-gradient(
+      135deg,
+      transparent 0%,
+      transparent 42%,
+      rgba(0, 0, 0, 0.5) 50%,
+      #000 55%,
+      #000 100%
+    );
+    -webkit-mask-size: 320% 320%;
+    mask-size: 320% 320%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: 100% 100%;
+    mask-position: 100% 100%;
+    will-change: mask-position, -webkit-mask-position;
+    animation: sweepMaskOut 0.55s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  }
+
+  .hero-artwork-layer.hero-artwork-curr.sweeping {
+    z-index: 2;
+    -webkit-mask-image: linear-gradient(
+      135deg,
+      #000 0%,
+      #000 45%,
+      rgba(0, 0, 0, 0.5) 50%,
+      transparent 58%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      135deg,
+      #000 0%,
+      #000 45%,
+      rgba(0, 0, 0, 0.5) 50%,
+      transparent 58%,
+      transparent 100%
+    );
+    -webkit-mask-size: 320% 320%;
+    mask-size: 320% 320%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: 100% 100%;
+    mask-position: 100% 100%;
+    will-change: mask-position, -webkit-mask-position;
+    animation: sweepMaskIn 0.55s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  }
+
+  /* Info Container */
+  .hero-info-host {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 100%;
+    align-items: end;
+    min-width: 0;
+    position: relative;
+  }
+
+  .hero-info-layer {
+    grid-area: 1 / 1;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
     min-width: 0;
+    width: 100%;
+    padding-right: 24px;
+  }
+
+  .hero-info-layer.hero-info-curr {
+    z-index: 1;
+  }
+
+  .hero-info-layer.hero-info-prev.sweeping {
+    z-index: 1;
+    pointer-events: none;
+    -webkit-mask-image: linear-gradient(
+      135deg,
+      transparent 0%,
+      transparent 42%,
+      rgba(0, 0, 0, 0.5) 50%,
+      #000 55%,
+      #000 100%
+    );
+    mask-image: linear-gradient(
+      135deg,
+      transparent 0%,
+      transparent 42%,
+      rgba(0, 0, 0, 0.5) 50%,
+      #000 55%,
+      #000 100%
+    );
+    -webkit-mask-size: 320% 320%;
+    mask-size: 320% 320%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: 100% 100%;
+    mask-position: 100% 100%;
+    will-change: mask-position, -webkit-mask-position;
+    animation: sweepMaskOut 0.55s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  }
+
+  .hero-info-layer.hero-info-curr.sweeping {
+    z-index: 2;
+    -webkit-mask-image: linear-gradient(
+      135deg,
+      #000 0%,
+      #000 45%,
+      rgba(0, 0, 0, 0.5) 50%,
+      transparent 58%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      135deg,
+      #000 0%,
+      #000 45%,
+      rgba(0, 0, 0, 0.5) 50%,
+      transparent 58%,
+      transparent 100%
+    );
+    -webkit-mask-size: 320% 320%;
+    mask-size: 320% 320%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: 100% 100%;
+    mask-position: 100% 100%;
+    will-change: mask-position, -webkit-mask-position;
+    animation: sweepMaskIn 0.55s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  }
+
+  /* Dual-Mask Keyframes (45-degree angle from upper-left to lower-right) */
+  @keyframes sweepMaskOut {
+    0% {
+      -webkit-mask-position: 100% 100%;
+      mask-position: 100% 100%;
+    }
+    100% {
+      -webkit-mask-position: 0% 0%;
+      mask-position: 0% 0%;
+    }
+  }
+
+  @keyframes sweepMaskIn {
+    0% {
+      -webkit-mask-position: 100% 100%;
+      mask-position: 100% 100%;
+    }
+    100% {
+      -webkit-mask-position: 0% 0%;
+      mask-position: 0% 0%;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero-artwork-layer.hero-artwork-prev.sweeping,
+    .hero-artwork-layer.hero-artwork-curr.sweeping,
+    .hero-info-layer.hero-info-prev.sweeping,
+    .hero-info-layer.hero-info-curr.sweeping {
+      animation: none;
+      -webkit-mask-image: none;
+      mask-image: none;
+    }
   }
 
   .hero-badge {
@@ -419,6 +717,7 @@
     line-height: 1.05;
     color: #ffffff;
     margin: 0 0 10px 0;
+    padding-right: 8px;
     user-select: text;
     word-break: break-word;
   }

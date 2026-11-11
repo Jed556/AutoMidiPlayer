@@ -1,7 +1,6 @@
 <script lang="ts">
   import { uiStore } from '../../state/uiStore.svelte';
   import { gameStore } from '../../state/gameStore.svelte';
-  import { notificationCenter } from '../../ui/notificationCenter.svelte';
   import { dialogBackdrop, popupScaleIn, popupScaleOut } from '../../utils/transitions';
   import { t } from '../../i18n';
   import FluentIcon from '../Icons/FluentIcon.svelte';
@@ -62,13 +61,6 @@
   function selectGame(gameId: string) {
     gameStore.setActiveGame(gameId);
     uiStore.gameSelectorOpen = false;
-    const game = gameStore.games.find(g => g.id === gameId);
-    if (game) {
-      notificationCenter.info(
-        t('gameSelector.gameSetToastTitle', { name: game.displayName || game.name || game.id }),
-        t('gameSelector.layoutToastMsg', { layout: gameStore.getGameLayout(game)?.name || 'No Layouts' })
-      );
-    }
   }
 
   function handleBackdrop(e: MouseEvent) {
