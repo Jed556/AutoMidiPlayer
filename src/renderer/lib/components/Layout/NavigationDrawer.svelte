@@ -1,14 +1,13 @@
 <script lang="ts">
   import { searchOverflow } from '../../actions/searchOverflow';
-  import { bufferedImage } from '../../actions/bufferedImage';
   import { playbackStore } from '../../state/playbackStore.svelte';
   import { uiStore } from '../../state/uiStore.svelte';
   import { gameStore } from '../../state/gameStore.svelte';
   import { libraryStore, type PlaylistInfo } from '../../state/libraryStore.svelte';
   import { t } from '../../i18n';
   import FluentIcon from '../Icons/FluentIcon.svelte';
-  import AdaptiveText from '../Common/AdaptiveText.svelte';
   import CustomScrollViewer from '../Common/CustomScrollViewer.svelte';
+  import GameSelectorButton from './GameSelectorButton.svelte';
 
   interface Props {
     isResizing?: boolean;
@@ -17,13 +16,6 @@
   let { isResizing = false }: Props = $props();
 
   let searchQuery = $state('');
-  let activeGameImageError = $state(false);
-
-  $effect(() => {
-    if (gameStore.activeGame?.id) {
-      activeGameImageError = false;
-    }
-  });
 
   // Primary Page Navigation Items (6 tabs: tracks, studio, sheet, instrument, queue, discover)
   let navItems = $derived([
@@ -37,11 +29,6 @@
 
   function selectTab(id: string) {
     uiStore.activeTab = id;
-  }
-
-  function toggleGameSelector() {
-    uiStore.gameSelectorAnchor = null;
-    uiStore.gameSelectorOpen = !uiStore.gameSelectorOpen;
   }
 
   function selectPlaylist(playlist: PlaylistInfo) {
@@ -171,31 +158,7 @@
 
     <!-- Bottom Navigation Items (Pinned at the bottom, Fixed) -->
     <div class="nav-bottom">
-      <button
-        class="game-drawer-item"
-        class:active={uiStore.gameSelectorOpen}
-        onclick={toggleGameSelector}
-        title={gameStore.gameDeletionTooltip || t('nav.activeGameTooltip', { game: gameStore.activeGame?.displayName || gameStore.activeGame?.name || 'Game' })}
-        data-tooltip-position="right"
-        data-tooltip-follow="false"
-      >
-        <div class="game-image-host" class:running={gameStore.activeGame?.isRunning}>
-          {#if !activeGameImageError && !gameStore.activeGame?.isMissing}
-            <div
-              role="img"
-              aria-label={gameStore.activeGame?.displayName || gameStore.activeGame?.name || 'Game'}
-              class="game-image"
-              use:bufferedImage={{ src: gameStore.activeGame?.iconUrl,
-                fallbackSrc: `images/games/${gameStore.activeGame?.imageFileName || 'Genshin_Impact.png'}`,
-                onUnavailable: () => { activeGameImageError = true; } }}
-            ></div>
-          {:else}
-            <div class="game-image-placeholder">
-              <FluentIcon name="Games" size={18} />
-            </div>
-          {/if}
-        </div>
-      </button>
+      <GameSelectorButton variant="collapsed" />
 
       <button
         class="nav-item"
@@ -341,39 +304,7 @@
     <!-- Pinned Bottom Controls (Always at the bottom of the drawer) -->
     <div class="expanded-bottom">
       <!-- Active Game Row -->
-      <button
-        class="expanded-bottom-item"
-        class:active={uiStore.gameSelectorOpen}
-        onclick={toggleGameSelector}
-        title={gameStore.gameDeletionTooltip || `Active Game: ${gameStore.activeGame?.displayName || gameStore.activeGame?.name || 'Game'}`}
-        data-tooltip-disabled={gameStore.gameDeletionTooltip ? undefined : 'true'}
-        data-tooltip-follow="false"
-      >
-        <div class="game-bottom-icon-host">
-          {#if !activeGameImageError && !gameStore.activeGame?.isMissing}
-            <div
-              role="img"
-              aria-label={gameStore.activeGame?.displayName || gameStore.activeGame?.name || 'Game'}
-              class="game-bottom-icon"
-              class:running={gameStore.activeGame?.isRunning}
-              use:bufferedImage={{ src: gameStore.activeGame?.iconUrl,
-                fallbackSrc: `images/games/${gameStore.activeGame?.imageFileName || 'Genshin_Impact.png'}`,
-                onUnavailable: () => { activeGameImageError = true; } }}
-            ></div>
-          {:else}
-            <div class="game-bottom-icon-placeholder" class:running={gameStore.activeGame?.isRunning}>
-              <FluentIcon name="Games" size={18} />
-            </div>
-          {/if}
-          {#if gameStore.activeGame?.isRunning}
-            <div class="running-indicator-dot"></div>
-          {/if}
-        </div>
-        <div class="bottom-item-info">
-          <div class="bottom-item-title"><AdaptiveText text={gameStore.activeGame?.displayName || gameStore.activeGame?.name || 'Game'} compactText={gameStore.activeGame?.shortName} /></div>
-          <div class="bottom-item-sub">{gameStore.activeGame?.isMissing ? 'Entry Deleted' : gameStore.activeGame?.isRunning ? 'Running' : 'Target Game'}</div>
-        </div>
-      </button>
+      <GameSelectorButton variant="expanded" />
 
       <!-- Settings Row -->
       <button
@@ -700,51 +631,6 @@
     justify-content: center;
     padding: 0 4px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-  }
-
-  .game-drawer-item {
-    width: 60px;
-    height: 60px;
-    min-width: 60px;
-    min-height: 60px;
-    flex-shrink: 0;
-    aspect-ratio: 1 / 1;
-    margin: 3px 0 6px 0;
-    padding: 0;
-    border-radius: 8px;
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    overflow: hidden;
-    outline: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .game-image-host {
-    width: 100%;
-    height: 100%;
-    border-radius: 8px;
-    overflow: hidden;
-    transition: transform var(--transition-fast);
-  }
-
-  .game-drawer-item:hover .game-image-host {
-    transform: scale(1.08);
-  }
-
-  .game-image {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: 8px;
-    filter: grayscale(1);
-    transition: filter var(--transition-normal);
-  }
-
-  .game-image-host.running .game-image {
-    filter: none;
   }
 
   /* EXPANDED MODE (2-COLUMN & 3-COLUMN) */
@@ -1193,57 +1079,6 @@
 
   .expanded-bottom-item.active {
     background: var(--card-bg, #1F1F1F);
-  }
-
-  .game-bottom-icon-host {
-    position: relative;
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
-    border-radius: 6px;
-    overflow: hidden;
-    flex-shrink: 0;
-  }
-
-  .game-bottom-icon {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    filter: grayscale(1);
-    transition: filter var(--transition-normal);
-  }
-
-  .game-bottom-icon.running {
-    filter: none;
-  }
-
-  .game-image-placeholder,
-  .game-bottom-icon-placeholder {
-    width: 100%;
-    height: 100%;
-    border-radius: inherit;
-    background: var(--bg-hover, rgba(255, 255, 255, 0.08));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-tertiary);
-    transition: color var(--transition-normal);
-  }
-
-  .game-image-host.running .game-image-placeholder,
-  .game-bottom-icon-placeholder.running {
-    color: var(--accent);
-  }
-
-  .running-indicator-dot {
-    position: absolute;
-    bottom: 2px;
-    right: 2px;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--status-success);
-    border: 1.5px solid var(--bg-app, #000000);
   }
 
   .settings-bottom-icon {
