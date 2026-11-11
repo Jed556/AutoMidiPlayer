@@ -84,6 +84,8 @@ export interface AppSettings {
   theme: ThemeMode;
   accentColor: string; // hex
   smoothScrolling: boolean;
+  minimizeToTray: boolean;
+  closeToTray: boolean;
   autoEnableListenMode: boolean;
   keypressMethod?: KeypressMethod;
   enableKeyUp: boolean;

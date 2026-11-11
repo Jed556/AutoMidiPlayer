@@ -747,6 +747,9 @@ export const enUS = {
     tooltipPositionBottom: 'Bottom (Below)',
     tooltipPositionLeft: 'Left',
     tooltipPositionRight: 'Right',
+    // System Section
+    system: 'System',
+    systemSubtext: 'Choose how the app behaves in your system.',
     minimizeToTray: 'Minimize to System Tray',
     closeToTray: 'Close to System Tray',
 

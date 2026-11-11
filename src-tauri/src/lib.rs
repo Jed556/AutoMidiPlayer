@@ -1,5 +1,6 @@
 mod config_manager;
 mod media_controls;
+mod tray;
 mod process_monitor;
 mod updates;
 mod storage;
@@ -227,8 +228,8 @@ pub struct AppState {
 
 // Window commands
 #[tauri::command]
-fn minimize_window(window: tauri::Window) {
-    let _ = window.minimize();
+fn minimize_window(window: tauri::Window) -> Result<(), String> {
+    tray::minimize(&window).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -888,6 +889,7 @@ async fn clear_discover_cache() -> Result<u64, String> {
 async fn update_app_settings(
     mut settings: serde_json::Value,
     state: State<'_, AppState>,
+    app: AppHandle,
 ) -> Result<bool, String> {
     if !settings.is_object() {
         return Err("Application settings must be a JSON object".to_string());
@@ -909,6 +911,9 @@ async fn update_app_settings(
     // loop when settings are changed repeatedly.
     tauri::async_runtime::spawn_blocking(move || {
         preferences.update(&settings).map_err(|e| e.to_string())?;
+        if settings.get("onboardingCompleted").is_some() || settings.pointer("/ui/locale").is_some() {
+            tray::refresh(&app, &preferences.get().map_err(|e| e.to_string())?);
+        }
         if let Some(behavior) = overlap_behavior {
             engine.set_overlap_behavior(behavior);
         }
@@ -933,8 +938,9 @@ async fn update_app_settings(
 }
 
 #[tauri::command]
-fn reset_app_settings(state: State<AppState>) -> Result<bool, String> {
+fn reset_app_settings(state: State<AppState>, app: AppHandle) -> Result<bool, String> {
     state.settings.reset().map_err(|e| e.to_string())?;
+    tray::refresh(&app, defaults::document());
     *state.song_defaults.write().map_err(|e| e.to_string())? = SongDefaults::default();
     state.engine.set_hold_delay_ms(defaults::value("/keyPressDelayMs"));
     state.engine.set_game_preview_follow_note_timing(defaults::value("/gamePreviewFollowNoteTiming"));
@@ -982,6 +988,7 @@ async fn clear_app_data(app: AppHandle, state: State<'_, AppState>) -> Result<()
         *song.lock().map_err(|e| e.to_string())? = None;
         *song_defaults.write().map_err(|e| e.to_string())? = SongDefaults::default();
         settings.clear_data()?;
+        tray::refresh(&app, defaults::document());
         engine.set_hold_delay_ms(defaults::value("/keyPressDelayMs"));
         engine.set_game_preview_follow_note_timing(defaults::value("/gamePreviewFollowNoteTiming"));
         engine.set_overlap_behavior(OverlapBehavior::default());
@@ -1781,6 +1788,11 @@ pub fn run() {
             app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
             app.manage(updates::UpdateState::default());
 
+            // Tray failure must leave normal minimize/close behavior available.
+            if let Err(error) = tray::install(app.handle()) {
+                log::warn!("Unable to initialize system tray: {error}");
+            }
+
             // Return from setup immediately so the webview can display the splash.
             // App commands are gated by get_startup_status until AppState is managed.
             let startup = Arc::new(Mutex::new(StartupStatus {
@@ -2036,6 +2048,7 @@ pub fn run() {
                         config_sources,
                         song_defaults: Arc::new(RwLock::new(SongDefaults::default())),
                     });
+                    tray::refresh(&app, &settings);
                 }));
                 if let Ok(mut status) = startup.lock() {
                     match result {
@@ -2052,6 +2065,7 @@ pub fn run() {
 
             Ok(())
         })
+        .on_window_event(tray::on_window_event)
         .invoke_handler(tauri::generate_handler![
             media_controls::sync_media_controls,
             get_startup_status,
@@ -2063,6 +2077,7 @@ pub fn run() {
             minimize_window,
             maximize_window,
             close_window,
+            tray::complete_window_close,
             is_maximized,
             set_window_title,
             load_midi_file,
@@ -2175,8 +2190,11 @@ pub fn run() {
         ])
         .build(context)
         .expect("error while building tauri application")
-        .run(|_app, event| {
+        .run(|app, event| {
             if matches!(event, tauri::RunEvent::Exit) {
+                if let Some(state) = app.try_state::<AppState>() {
+                    state.engine.panic();
+                }
                 media_controls::shutdown();
             }
         });

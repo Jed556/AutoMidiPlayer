@@ -749,6 +749,9 @@ export const zhCN: TranslationSchema = {
     tooltipPositionBottom: '下方 (Bottom)',
     tooltipPositionLeft: '左侧 (Left)',
     tooltipPositionRight: '右侧 (Right)',
+    // System Section
+    system: '系统',
+    systemSubtext: '选择应用在系统中的行为。',
     minimizeToTray: '最小化到系统托盘',
     closeToTray: '关闭时最小化到托盘',
 

@@ -10,6 +10,7 @@ export interface WindowControlApi {
   minimize: () => Promise<void>;
   maximize: () => Promise<boolean>;
   close: () => Promise<void>;
+  completeClose: (cancel?: boolean) => Promise<void>;
   isMaximized: () => Promise<boolean>;
   setTitle: (title: string) => Promise<void>;
   onResized: (callback: () => void) => () => void;

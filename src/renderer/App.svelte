@@ -14,6 +14,7 @@
   import { t } from './lib/i18n';
   import { api, isTauri } from './lib/backend';
   import { connectMediaControls } from './lib/backend/mediaControls';
+  import { createWindowCloseHandler } from './lib/backend/windowClose';
 
   // Layout components
   import TitleBar from './lib/components/Layout/TitleBar.svelte';
@@ -195,26 +196,15 @@
   onMount(() => {
     let disposed = false;
     let removeCloseListener: (() => void) | undefined;
-    let closing = false;
 
     if (isTauri) {
       void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
         const appWindow = getCurrentWindow();
-        const unlisten = await appWindow.onCloseRequested(async event => {
-          if (closing) {
-            event.preventDefault();
-            return;
-          }
-          closing = true;
-          try {
-            // Tauri awaits this callback before destroying the window.
-            await flushSession();
-          } catch (error) {
-            event.preventDefault();
-            closing = false;
-            notificationCenter.error('Unable to save session', String(error));
-          }
-        });
+        const unlisten = await appWindow.onCloseRequested(createWindowCloseHandler(
+          api.window,
+          flushSession,
+          error => notificationCenter.error('Unable to save session', String(error)),
+        ));
         if (disposed) unlisten();
         else removeCloseListener = unlisten;
       }).catch(error => console.error('Unable to register session close handler:', error));

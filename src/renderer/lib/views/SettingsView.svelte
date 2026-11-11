@@ -50,6 +50,7 @@
     { id: 'section-hotkeys', icon: 'Keyboard', labelKey: 'settings.hotkeys' },
     { id: 'section-song-defaults', icon: 'MusicNote2', labelKey: 'settings.newSongDefaults' },
     { id: 'section-style', icon: 'Color', labelKey: 'settings.style' },
+    { id: 'section-system', icon: 'Settings', labelKey: 'settings.system' },
     { id: 'section-updates', icon: 'ArrowCircleUp', labelKey: 'settings.updates' },
     { id: 'section-locations', icon: 'Location', labelKey: 'settings.locations' },
     { id: 'section-storage', icon: 'FolderSync', labelKey: 'settings.storage' },
@@ -911,19 +912,33 @@
               </div>
             </div>
 
-            <!-- Tray Toggles -->
-            <div class="setting-group">
-              <div class="switch-row">
-                <ToggleSwitch
-                  label={t('settings.minimizeToTray')} checked={true}
-                />
-              </div>
+          </div>
+        </div>
+      </section>
 
-              <div class="switch-row">
-                <ToggleSwitch
-                  label={t('settings.closeToTray')} checked={false}
-                />
-              </div>
+      <!-- System Section -->
+      <section id="section-system" class="settings-card">
+        <div class="card-header">
+          <div class="header-text">
+            <h3 class="card-title">{t('settings.system')}</h3>
+            <span class="card-subtext">{t('settings.systemSubtext')}</span>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <div class="settings-grid-2col">
+            <div class="switch-row">
+              <ToggleSwitch
+                label={t('settings.minimizeToTray')} checked={settingsStore.settings.minimizeToTray}
+                onchange={value => settingsStore.update('minimizeToTray', value)}
+              />
+            </div>
+
+            <div class="switch-row">
+              <ToggleSwitch
+                label={t('settings.closeToTray')} checked={settingsStore.settings.closeToTray}
+                onchange={value => settingsStore.update('closeToTray', value)}
+              />
             </div>
           </div>
         </div>

@@ -84,6 +84,24 @@ async function harness(initial = {}) {
   return { store, api, folderCalls, errors, telemetryCalls, themeCalls, saved: () => saved, setLayouts: counts => { keyboardLayouts = layouts(...counts); } };
 }
 
+test('tray preferences default, persist, reload and reset independently', async () => {
+  const h = await harness();
+  await h.store.init();
+  assert.equal(h.store.settings.minimizeToTray, true);
+  assert.equal(h.store.settings.closeToTray, false);
+  h.store.update('minimizeToTray', false);
+  h.store.update('closeToTray', true);
+  await settle();
+  const reloaded = await harness(h.saved());
+  await reloaded.store.init();
+  assert.equal(reloaded.store.settings.minimizeToTray, false);
+  assert.equal(reloaded.store.settings.closeToTray, true);
+  reloaded.store.resetAllDefaults();
+  await settle();
+  assert.equal(reloaded.saved().minimizeToTray, true);
+  assert.equal(reloaded.saved().closeToTray, false);
+});
+
 test('song, note, hotkey and full resets restore the shared defaults without mutating them', async () => {
   const h = await harness({ defaultHoldNotes: false, defaultMergeNotes: true,
     defaultTranspose: 'Down', defaultSpeed: 2, defaultMergeToleranceMs: 300 });

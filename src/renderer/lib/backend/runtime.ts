@@ -42,7 +42,8 @@ async function invokeCommand<T>(scope: string, command: string, args: Record<str
   }
 
   try {
-    await waitForBackendReady();
+    // These native commands also work before AppState exists or after startup fails.
+    if (scope !== 'Window') await waitForBackendReady();
     const { invoke } = await import('@tauri-apps/api/core');
     return args === undefined
       ? await invoke<T>(command)
