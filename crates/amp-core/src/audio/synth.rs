@@ -7,6 +7,7 @@ use rodio::cpal::{self, traits::{DeviceTrait, HostTrait}};
 use rodio::{DeviceSinkBuilder, MixerDeviceSink, Player, Source};
 use rustysynth::{SoundFont, SynthesizerSettings};
 use super::font_stack::FontStack;
+use super::ownership::AudioOwnership;
 use super::font_loader::{FontLoader, FontInput, PreparedSoundFont};
 
 const SAMPLE_RATE: u32 = 44100;
@@ -516,7 +517,7 @@ impl AudioDevice {
 
         match init_rx.recv() {
             Ok(Ok(())) => Ok(Self {
-                synth: AudioSynth { loader: Arc::new(FontLoader::new(cmd_tx.clone(), SAMPLE_RATE)), cmd_tx },
+                synth: AudioSynth { loader: Arc::new(FontLoader::new(cmd_tx.clone(), SAMPLE_RATE)), cmd_tx, source: 0, ownership: Arc::default() },
                 control_tx,
                 supervisor: Some(supervisor),
             }),
@@ -550,18 +551,52 @@ impl Drop for AudioDevice {
 pub struct AudioSynth {
     loader: Arc<FontLoader>,
     cmd_tx: Sender<AudioCommand>,
+    source: u8,
+    ownership: Arc<Mutex<AudioOwnership>>,
 }
 
 impl AudioSynth {
+    /// 0: song, 1: physical MIDI, 2: local previews.
+    pub fn for_source(&self, source: u8) -> Self { Self { source, ..self.clone() } }
+
     pub fn note_on(&self, channel: u8, note: u8, velocity: u8) {
+        if velocity == 0 { self.note_off(channel, note); return; }
+        let mut ownership = self.ownership.lock().unwrap_or_else(|e| e.into_inner());
+        ownership.on(self.source, channel, note);
         let _ = self.cmd_tx.send(AudioCommand::NoteOn { channel, note, velocity });
     }
 
     pub fn note_off(&self, channel: u8, note: u8) {
-        let _ = self.cmd_tx.send(AudioCommand::NoteOff { channel, note });
+        let mut ownership = self.ownership.lock().unwrap_or_else(|e| e.into_inner());
+        if ownership.off(self.source, channel, note) {
+            let _ = self.cmd_tx.send(AudioCommand::NoteOff { channel, note });
+        }
     }
 
     pub fn control_change(&self, channel: u8, controller: u8, value: u8) {
+        let mut ownership = self.ownership.lock().unwrap_or_else(|e| e.into_inner());
+        if matches!(controller, 120 | 121 | 123) {
+            if controller != 121 {
+                let notes: Vec<_> = ownership.notes.keys().filter(|(ch, _)| *ch == channel).copied().collect();
+                for (ch, note) in notes {
+                    if ownership.off(self.source, ch, note) {
+                        let _ = self.cmd_tx.send(AudioCommand::NoteOff { channel: ch, note });
+                    }
+                }
+            } else {
+                let _ = self.cmd_tx.send(AudioCommand::ControlChange { channel, controller, value });
+            }
+            // Channel panic and controller resets are scoped to the caller.
+            // Restore pedals still owned by a backing song or live keyboard.
+            for controller in [64, 66, 67] {
+                let value = ownership.pedal(self.source, channel, controller, 0);
+                let _ = self.cmd_tx.send(AudioCommand::ControlChange { channel, controller, value });
+            }
+            return;
+        }
+        let value = if matches!(controller, 64 | 66 | 67) {
+            ownership.pedal(self.source, channel, controller, value)
+        } else { value };
         let _ = self.cmd_tx.send(AudioCommand::ControlChange { channel, controller, value });
     }
 
@@ -599,7 +634,20 @@ impl AudioSynth {
     }
 
     pub fn all_notes_off(&self) {
-        let _ = self.cmd_tx.send(AudioCommand::AllNotesOff);
+        let mut ownership = self.ownership.lock().unwrap_or_else(|e| e.into_inner());
+        let notes: Vec<_> = ownership.notes.keys().copied().collect();
+        for (channel, note) in notes {
+            if ownership.off(self.source, channel, note) {
+                let _ = self.cmd_tx.send(AudioCommand::NoteOff { channel, note });
+            }
+        }
+        for channel in 0..16 {
+            for controller in [64, 66, 67] {
+                let value = ownership.pedal(self.source, channel, controller, 0);
+                let _ = self.cmd_tx.send(AudioCommand::ControlChange { channel, controller, value });
+            }
+        }
+        if self.source == 0 && !ownership.has_other(self.source) { let _ = self.cmd_tx.send(AudioCommand::AllNotesOff); }
     }
 
     pub fn clear_soundfonts(&self) {
@@ -608,7 +656,9 @@ impl AudioSynth {
     }
 
     pub fn reset(&self) {
-        let _ = self.cmd_tx.send(AudioCommand::Reset);
+        self.all_notes_off();
+        let ownership = self.ownership.lock().unwrap_or_else(|e| e.into_inner());
+        if !ownership.has_other(self.source) { let _ = self.cmd_tx.send(AudioCommand::Reset); }
     }
 }
 

@@ -2,6 +2,7 @@ import { DEFAULT_APP_SETTINGS } from '../../../shared/defaults/settings.js';
 import type { AppWindowApi, PedalState, SongSettingsContext, StorageUsage, LegacyDataStatus, LegacyMigrationResult } from '$shared/types/ipc.js';
 import type { GameStatus, GameConfigState, ConfigIssue, KeyboardLayoutConfig } from '$shared/types/games.js';
 import type { MidiFile } from '$shared/types/midi.js';
+import type { MidiInputState } from '$shared/types/midiInput.js';
 import type { OnlineMidiItem } from '$shared/types/onlineMidi.js';
 import type { PlaybackStatus } from '$shared/types/playback.js';
 import type { AppSettings, PedalBindings } from '$shared/types/settings.js';
@@ -94,6 +95,14 @@ export function createAppApi(): AppWindowApi {
   const getGames = async () => (await getConfigs()).games;
 
   return {
+    midiInput: {
+      getState: () => invokeTauri<MidiInputState>('MidiInput', 'get_midi_input_state', undefined),
+      refreshPorts: () => invokeTauri<MidiInputState>('MidiInput', 'refresh_midi_inputs', undefined),
+      selectPort: (portId) => invokeTauri<MidiInputState>('MidiInput', 'select_midi_input', { portId }),
+      start: () => invokeTauri<MidiInputState>('MidiInput', 'start_midi_input', undefined),
+      stop: () => invokeTauri<MidiInputState>('MidiInput', 'stop_midi_input', undefined),
+      onStateChanged: (callback) => listenTauri('midi-input:state', callback),
+    },
     updates: {
       prepare: (tagName) => invokeTauri<PreparedUpdate>('Updates', 'prepare_update', { tagName }),
       download: (onProgress) => updateCommand('download_update', onProgress),

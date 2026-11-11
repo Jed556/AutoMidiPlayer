@@ -1,5 +1,6 @@
 {
   "onboardingCompleted": false,
+  "midiInputPortId": null,
   "customSoundFontPaths": [],
   "ui": {
     "animationTiming": 0.2,

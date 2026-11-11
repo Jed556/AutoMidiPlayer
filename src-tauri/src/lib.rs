@@ -1,5 +1,6 @@
 mod config_manager;
 mod media_controls;
+mod midi_input;
 mod tray;
 mod process_monitor;
 mod updates;
@@ -210,6 +211,7 @@ pub struct MidiFilePayload {
 }
 
 pub struct AppState {
+    pub midi_input: Arc<midi_input::MidiInputService>,
     pub engine: Arc<PlaybackEngine>,
     pub current_song: Arc<Mutex<Option<ParsedMidi>>>,
     pub audio_synth: Arc<Mutex<Option<AudioSynth>>>,
@@ -894,8 +896,9 @@ async fn update_app_settings(
     if !settings.is_object() {
         return Err("Application settings must be a JSON object".to_string());
     }
-    // The native SoundFont commands own this registry; UI snapshots can be stale.
+    // Native device/SoundFont commands own these values; UI snapshots can be stale.
     settings.as_object_mut().unwrap().remove("customSoundFontPaths");
+    settings.as_object_mut().unwrap().remove("midiInputPortId");
     let overlap_behavior = settings.get("overlapBehavior").map(|value|
         serde_json::from_value::<OverlapBehavior>(value.clone())
             .map_err(|e| format!("Invalid overlap behavior: {e}"))
@@ -939,6 +942,7 @@ async fn update_app_settings(
 
 #[tauri::command]
 fn reset_app_settings(state: State<AppState>, app: AppHandle) -> Result<bool, String> {
+    state.midi_input.reset();
     state.settings.reset().map_err(|e| e.to_string())?;
     tray::refresh(&app, defaults::document());
     *state.song_defaults.write().map_err(|e| e.to_string())? = SongDefaults::default();
@@ -953,6 +957,8 @@ fn reset_app_settings(state: State<AppState>, app: AppHandle) -> Result<bool, St
 
 #[tauri::command]
 async fn clear_app_data(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let midi_input = Arc::clone(&state.midi_input);
+    tauri::async_runtime::spawn_blocking(move || midi_input.reset()).await.map_err(|e| e.to_string())?;
     // Reuse the process and audio device. File and database work runs off the UI
     // thread so the loading screen and window controls remain responsive.
     let engine = Arc::clone(&state.engine);
@@ -2032,7 +2038,10 @@ pub fn run() {
                     }).ok();
 
                     // Manage AppState in Tauri
+                    let midi_input = Arc::new(midi_input::MidiInputService::new(app.clone(), Arc::clone(&engine),
+                        Arc::clone(&preferences), Arc::clone(&process_monitor)));
                     app.manage(AppState {
+                        midi_input,
                         engine,
                         current_song: Arc::new(Mutex::new(None)),
                         audio_synth: Arc::new(Mutex::new(audio_synth)),
@@ -2065,9 +2074,31 @@ pub fn run() {
 
             Ok(())
         })
-        .on_window_event(tray::on_window_event)
+        .on_window_event(|window, event| {
+            if let Some(state) = window.app_handle().try_state::<AppState>() {
+                match event {
+                    tauri::WindowEvent::Focused(focused) => {
+                        state.midi_input.window_focus(window.label(), *focused);
+                        if *focused {
+                            state.engine.midi_gate(false);
+                            if state.midi_input.has_keyboard_session() && !state.engine.midi_snapshot().listen_mode {
+                                state.engine.pause();
+                            }
+                        }
+                    }
+                    tauri::WindowEvent::Destroyed => state.midi_input.window_focus(window.label(), false),
+                    _ => {}
+                }
+            }
+            tray::on_window_event(window, event);
+        })
         .invoke_handler(tauri::generate_handler![
             media_controls::sync_media_controls,
+            midi_input::get_midi_input_state,
+            midi_input::refresh_midi_inputs,
+            midi_input::select_midi_input,
+            midi_input::start_midi_input,
+            midi_input::stop_midi_input,
             get_startup_status,
             start_runtime,
             updates::prepare_update,
@@ -2193,7 +2224,9 @@ pub fn run() {
         .run(|app, event| {
             if matches!(event, tauri::RunEvent::Exit) {
                 if let Some(state) = app.try_state::<AppState>() {
+                    state.midi_input.shutdown();
                     state.engine.panic();
+                    let _ = state.engine.flush();
                 }
                 media_controls::shutdown();
             }

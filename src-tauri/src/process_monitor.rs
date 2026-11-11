@@ -22,6 +22,9 @@ mod platform {
 }
 pub use platform::focus_window_by_pid;
 
+/// Native live input does not depend on renderer process-status subscriptions.
+pub(crate) fn foreground_pid() -> Option<u32> { platform::snapshot().foreground_pid }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GameProcessTarget {

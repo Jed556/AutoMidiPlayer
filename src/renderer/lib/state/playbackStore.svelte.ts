@@ -475,6 +475,10 @@ class PlaybackStore {
     const restoredSong = [...this.queue, ...libraryStore.songs].find(song => song.id === saved.activeSongId && !song.isMissing);
     const initialSong = restoredSong ?? this.queue.find(song => !song.isMissing) ?? libraryStore.songs.find(song => !song.isMissing);
     if (initialSong) this.loadSong(initialSong);
+    else {
+      this.holdNotes = settingsStore.settings.defaultHoldNotes;
+      this.tapThresholdMs = settingsStore.settings.defaultTapThresholdMs;
+    }
     this.currentTimeSeconds = restoredSong ? Math.min(saved.positionSeconds, this.durationSeconds) : 0;
     this.syncQueueIndex();
     // Restore a preview only; the engine loads the song and seeks when Play is pressed.
@@ -483,6 +487,7 @@ class PlaybackStore {
       api.playback.setVolume(Math.round(this.volume * 100)),
       api.playback.setListenMode(this.isListenMode),
       api.playback.setSynthMode(this.synthMode),
+      this.syncNoteTiming(),
     ]);
     await this.applySoundFontConfiguration().catch(error => {
       notificationCenter.error(t('settings.soundFontLoadFailed'), String(error));

@@ -200,7 +200,7 @@ class SettingsStore {
   private save() {
     try {
       // UI preferences and active-game selection are owned by their respective stores.
-      const { ui, activeGameId, selectedInstrumentIds, selectedLayoutIds, ...settings } = this.settings;
+      const { ui, activeGameId, selectedInstrumentIds, selectedLayoutIds, midiInputPortId, ...settings } = this.settings;
       api.settings.updateSettings(settings).catch((error) => console.error('[SettingsStore] Save failed:', error));
       this.syncSongDefaults();
     } catch (e) {

@@ -102,6 +102,18 @@ test('tray preferences default, persist, reload and reset independently', async 
   assert.equal(reloaded.saved().closeToTray, false);
 });
 
+test('ordinary preference saves cannot overwrite native MIDI device selection with a stale snapshot', async () => {
+  const h = await harness({ midiInputPortId: 'native-selected-device' });
+  await h.store.init();
+  const writes = [];
+  h.api.settings.updateSettings = async patch => { writes.push(patch); return true; };
+  h.store.settings.midiInputPortId = null;
+  h.store.update('theme', 'Light');
+  await settle();
+  assert.ok(writes.length > 0);
+  assert.ok(writes.every(patch => !Object.hasOwn(patch, 'midiInputPortId')));
+});
+
 test('song, note, hotkey and full resets restore the shared defaults without mutating them', async () => {
   const h = await harness({ defaultHoldNotes: false, defaultMergeNotes: true,
     defaultTranspose: 'Down', defaultSpeed: 2, defaultMergeToleranceMs: 300 });

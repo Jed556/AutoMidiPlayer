@@ -21,3 +21,4 @@ pub use library::{
     extract_metadata, import_files, sanitize_tag, scan_folder,
 };
 pub use rustysynth::SoundFont;
+pub use enigo::Key as OutputKey;

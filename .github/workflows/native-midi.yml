@@ -1,0 +1,45 @@
+name: Native MIDI checks
+
+on:
+  pull_request:
+    paths:
+      - 'crates/**'
+      - 'src/**'
+      - 'src-tauri/**'
+      - 'tests/**'
+      - 'Cargo.*'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/native-midi.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-22.04, macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Linux libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libssl-dev librsvg2-dev libayatana-appindicator3-dev libasound2-dev libudev-dev libx11-dev libxtst-dev libxi-dev libxkbcommon-dev
+      - run: pnpm install --frozen-lockfile
+      - name: Test renderer lifecycle and playback
+        run: node --test tests/midi-input.test.mjs tests/instrument-input.test.mjs tests/queue.test.mjs tests/settings.test.mjs tests/startup.test.mjs tests/i18n.test.mjs
+      - run: pnpm build:frontend
+      - name: Test native code without physical input
+        run: cargo test --workspace --lib --locked -j 2
+      - name: Test core integration
+        run: cargo test -p amp-core --tests --locked -j 2

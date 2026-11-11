@@ -74,6 +74,8 @@ export interface PedalBindings {
 }
 
 export interface AppSettings {
+  /** Owned by the native MIDI service; change through MidiInputApi.selectPort. */
+  midiInputPortId: string | null;
   /** Set only after first-run setup has saved preferences and imported the library. */
   onboardingCompleted: boolean;
   selectedInstrumentIds?: Record<string, string>;

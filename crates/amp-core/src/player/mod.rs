@@ -1,3 +1,4 @@
+pub mod live_input;
 pub mod engine;
 mod note_timing;
 pub use note_timing::{note_durations, OverlapBehavior};

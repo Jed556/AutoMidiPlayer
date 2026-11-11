@@ -27,6 +27,43 @@ fn render(engine: &mut SynthEngine) -> Vec<f32> {
 }
 
 #[test]
+fn song_resets_and_preview_expiration_preserve_physical_midi_voices() {
+    let (tx, rx) = unbounded();
+    let song = AudioSynth { loader: Arc::new(FontLoader::new(tx.clone(), SAMPLE_RATE)),
+        cmd_tx: tx, source: 0, ownership: Arc::default() };
+    let live = song.for_source(1);
+    let preview = song.for_source(2);
+    song.note_on(0, 60, 90);
+    live.note_on(0, 60, 100);
+    preview.note_on(0, 60, 100);
+    rx.try_iter().for_each(drop);
+    song.reset(); preview.note_off(0, 60);
+    let commands: Vec<_> = rx.try_iter().collect();
+    assert!(!commands.iter().any(|c| matches!(c, AudioCommand::AllNotesOff | AudioCommand::Reset | AudioCommand::NoteOff { channel: 0, note: 60 })));
+    live.note_off(0, 60);
+    assert!(matches!(rx.recv().unwrap(), AudioCommand::NoteOff { channel: 0, note: 60 }));
+}
+
+#[test]
+fn channel_resets_preserve_another_sources_notes_and_pedals() {
+    let (tx, rx) = unbounded();
+    let song = AudioSynth { loader: Arc::new(FontLoader::new(tx.clone(), SAMPLE_RATE)),
+        cmd_tx: tx, source: 0, ownership: Arc::default() };
+    let live = song.for_source(1);
+    live.note_on(0, 60, 100);
+    live.control_change(0, 64, 127);
+    song.note_on(0, 60, 100);
+    rx.try_iter().for_each(drop);
+    song.control_change(0, 121, 0);
+    song.control_change(0, 120, 0);
+    let commands: Vec<_> = rx.try_iter().collect();
+    assert!(!commands.iter().any(|c| matches!(c, AudioCommand::NoteOff { channel: 0, note: 60 } | AudioCommand::AllNotesOff)));
+    assert!(commands.iter().any(|c| matches!(c, AudioCommand::ControlChange { channel: 0, controller: 64, value: 127 })));
+    live.note_off(0, 60);
+    assert!(matches!(rx.recv().unwrap(), AudioCommand::NoteOff { channel: 0, note: 60 }));
+}
+
+#[test]
 fn clearing_deleted_soundfonts_silences_active_and_retiring_stacks_and_allows_recovery() {
     let sf = font("Roland GM.sf2");
     let (mut audio, tx) = engine(sf.clone());
@@ -35,7 +72,7 @@ fn clearing_deleted_soundfonts_silences_active_and_retiring_stacks_and_allows_re
     audio.replace_fonts(stack(sf.clone()));
     assert!(!audio.retiring.is_empty());
     let loader = Arc::new(FontLoader::new(tx.clone(), SAMPLE_RATE));
-    let synth = AudioSynth { loader, cmd_tx: tx };
+    let synth = AudioSynth { loader, cmd_tx: tx, source: 0, ownership: Arc::default() };
     let pending = synth.loader.submit(FontInput::Fonts(vec![sf.clone()])).unwrap();
     synth.clear_soundfonts();
     assert!(await_handoff(&mut audio, &pending).is_err(), "a pending load must not restore deleted fonts");
@@ -58,7 +95,7 @@ fn preview_taps_stay_short_when_midi_sustain_arrives_after_playback_starts() {
     let sf = font("Roland GM.sf2");
     for (mode, follow_timing) in [(SynthMode::Adapted, true), (SynthMode::Adapted, false), (SynthMode::Raw, true)] {
         let (mut audio, cmd_tx) = engine(sf.clone());
-        let synth = AudioSynth { loader: Arc::new(FontLoader::new(cmd_tx.clone(), SAMPLE_RATE)), cmd_tx };
+        let synth = AudioSynth { loader: Arc::new(FontLoader::new(cmd_tx.clone(), SAMPLE_RATE)), cmd_tx, source: 0, ownership: Arc::default() };
         let event = |time_us, note, is_note_on| TimedNoteEvent {
             time_us, note, is_note_on, channel: 0, track_index: 0,
             velocity: if is_note_on { 90 } else { 0 },
@@ -140,7 +177,7 @@ fn rapid_track_muting_sends_note_off_only_after_the_last_shared_synth_owner() {
     for mode in [SynthMode::Adapted, SynthMode::Raw] {
         // Capture synth commands without opening an audio device or sending keys.
         let (cmd_tx, cmd_rx) = unbounded();
-        let synth = AudioSynth { loader: Arc::new(FontLoader::new(cmd_tx.clone(), SAMPLE_RATE)), cmd_tx };
+        let synth = AudioSynth { loader: Arc::new(FontLoader::new(cmd_tx.clone(), SAMPLE_RATE)), cmd_tx, source: 0, ownership: Arc::default() };
         let event = |time_us, track_index, is_note_on| TimedNoteEvent {
             time_us, track_index, channel: 0, note: 60, velocity: if is_note_on { 90 } else { 0 }, is_note_on,
         };
