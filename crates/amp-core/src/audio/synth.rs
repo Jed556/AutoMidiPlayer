@@ -50,6 +50,7 @@ pub enum AudioCommand {
     SetTrackMuted { track_index: usize, muted: bool },
     SetTrackVolume { track_index: usize, volume: f32 },
     InstallSoundFont(Box<PreparedSoundFont>),
+    ClearSoundFonts,
     AllNotesOff,
     Reset,
 }
@@ -228,6 +229,10 @@ impl SynthEngine {
                     }
                 }
                 AudioCommand::AllNotesOff => self.silence_all(),
+                AudioCommand::ClearSoundFonts => {
+                    if let Some(stack) = self.synth.take() { let _ = self.reclaim_tx.send(stack); }
+                    self.clear_retiring();
+                }
                 AudioCommand::Reset => {
                     self.channel_programs = [0; 16];
                     for map in &mut self.channel_controllers { map.clear(); }
@@ -595,6 +600,11 @@ impl AudioSynth {
 
     pub fn all_notes_off(&self) {
         let _ = self.cmd_tx.send(AudioCommand::AllNotesOff);
+    }
+
+    pub fn clear_soundfonts(&self) {
+        self.loader.cancel_pending();
+        let _ = self.cmd_tx.send(AudioCommand::ClearSoundFonts);
     }
 
     pub fn reset(&self) {

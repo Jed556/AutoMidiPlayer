@@ -51,6 +51,8 @@ export interface PlaybackApi {
   setSynthMode: (mode: 'adapted' | 'raw') => Promise<boolean>;
   configureSoundFontStack: (names: string[]) => Promise<boolean>;
   listSoundFonts: () => Promise<string[]>;
+  listPresetSoundFonts: () => Promise<string[]>;
+  onSoundFontsChanged: (callback: () => void) => () => void;
   addSoundFont: (path: string) => Promise<string>;
   loadSoundFont: (name: string) => Promise<boolean>;
   deleteSoundFont: (name: string) => Promise<boolean>;

@@ -17,6 +17,11 @@ import { libraryStore } from './libraryStore.svelte.js';
 import { settingsStore } from './settingsStore.svelte.js';
 import { t } from '../i18n';
 
+const STOCK_SOUND_FONTS = {
+  default: 'GeneralUser GS.sf2',
+  legacy: 'Roland GM.sf2',
+};
+
 class PlaybackStore {
   // ==========================================
   // Core Playback State
@@ -41,11 +46,12 @@ class PlaybackStore {
   trackVolumes = $state<Record<number, number>>({});
   soundFontId = $state<string>('default');
   soundFontGapFilling = $state(true);
-  soundFontOrder = $state<string[]>(['default', 'generaluser', 'legacy']);
+  soundFontOrder = $state<string[]>(['default', 'legacy']);
   soundFontBusy = $state(false);
   availableSoundFonts = $state<string[]>([]);
+  availablePresetSoundFonts = $state<string[]>(Object.keys(STOCK_SOUND_FONTS));
   customSoundFontPath = $state<string>('');
-  customSoundFontName = $state<string>('TimGM6mb');
+  customSoundFontName = $state<string>('General User');
 
   // Active playing notes for visualizers (piano keys / card glow / piano roll)
   activeNotes = $state<{ pitch: number; trackId: number }[]>([]);
@@ -428,7 +434,14 @@ class PlaybackStore {
       this.loadedSongContext = gameStore.songSettingsContext;
 
       onProgress?.('startup.preferences');
-      await this.restoreSession(await loadUiPreferences());
+      const preferences = await loadUiPreferences();
+      this.stopSoundFontMonitoring();
+      this.removeSoundFontListener = api.playback.onSoundFontsChanged(() => {
+        void this.applySoundFontConfiguration().catch(error => {
+          notificationCenter.error(t('settings.soundFontLoadFailed'), String(error));
+        });
+      });
+      await this.restoreSession(preferences);
 
       // Subscribe to process monitor updates for mid-playback focus loss or process exit
       gameStore.onGameStatusChange((activeGame) => {
@@ -470,9 +483,10 @@ class PlaybackStore {
       api.playback.setVolume(Math.round(this.volume * 100)),
       api.playback.setListenMode(this.isListenMode),
       api.playback.setSynthMode(this.synthMode),
-      this.refreshSoundFonts(),
     ]);
-    await this.applySoundFontConfiguration();
+    await this.applySoundFontConfiguration().catch(error => {
+      notificationCenter.error(t('settings.soundFontLoadFailed'), String(error));
+    });
   }
 
   persistSession(positionSeconds: number, force = false) {
@@ -961,28 +975,56 @@ class PlaybackStore {
   }
 
   private soundFontWrites: Promise<unknown> = Promise.resolve();
+  private missingStockSoundFonts = '';
+  private removeSoundFontListener: (() => void) | undefined;
+
+  stopSoundFontMonitoring() {
+    this.removeSoundFontListener?.();
+    this.removeSoundFontListener = undefined;
+  }
+
+  get installedSoundFonts() {
+    return [...this.availablePresetSoundFonts, ...this.availableSoundFonts];
+  }
 
   soundFontLabel(id: string) {
-    return id === 'default' ? 'TimGM6mb' : id === 'generaluser' ? 'GeneralUser GS' : id === 'legacy' ? 'Windows / Roland GM' : id.replace(/\.sf2$/i, '');
+    return id === 'default' ? 'General User' : id === 'legacy' ? 'Roland GM' : id.split(/[\\/]/).pop()!.replace(/\.sf2$/i, '');
   }
 
   async refreshSoundFonts() {
-    this.availableSoundFonts = await api.playback.listSoundFonts();
-    const installed = ['default', 'generaluser', 'legacy', ...this.availableSoundFonts];
+    const [custom, presets] = await Promise.all([
+      api.playback.listSoundFonts(), api.playback.listPresetSoundFonts(),
+    ]);
+    this.availableSoundFonts = custom;
+    this.availablePresetSoundFonts = presets;
+    const missing = Object.entries(STOCK_SOUND_FONTS)
+      .filter(([id]) => !presets.includes(id)).map(([, filename]) => filename).join('\n');
+    if (missing && missing !== this.missingStockSoundFonts) {
+      notificationCenter.error(t('settings.stockSoundFontsMissing'), missing);
+    }
+    this.missingStockSoundFonts = missing;
+    const installed = this.installedSoundFonts;
     this.soundFontOrder = [...new Set([...this.soundFontOrder, ...installed])].filter(id => installed.includes(id));
-    if (!installed.includes(this.soundFontId)) this.soundFontId = 'default';
+    if (!installed.includes(this.soundFontId)) this.soundFontId = this.soundFontOrder[0] ?? '';
+    this.customSoundFontName = this.soundFontLabel(this.soundFontGapFilling ? this.soundFontOrder[0] ?? '' : this.soundFontId);
   }
 
-  async applySoundFontConfiguration(order = this.soundFontOrder, gapFilling = this.soundFontGapFilling, selected = this.soundFontId) {
-    const names = gapFilling ? [...order] : [selected];
+  async applySoundFontConfiguration(order?: string[], gapFilling?: boolean, selected?: string) {
     const write = this.soundFontWrites.catch(() => {}).then(async () => {
       this.soundFontBusy = true;
       try {
+        await this.refreshSoundFonts();
+        const availableOrder = [...new Set([...(order ?? this.soundFontOrder), ...this.installedSoundFonts])]
+          .filter(id => this.installedSoundFonts.includes(id));
+        const requestedSelected = selected ?? this.soundFontId;
+        const availableSelected = availableOrder.includes(requestedSelected) ? requestedSelected : availableOrder[0] ?? '';
+        const useGapFilling = gapFilling ?? this.soundFontGapFilling;
+        const names = useGapFilling ? availableOrder : availableSelected ? [availableSelected] : [];
         if (!await api.playback.configureSoundFontStack(names)) throw new Error('SoundFont configuration failed');
-        this.soundFontOrder = [...order];
-        this.soundFontGapFilling = gapFilling;
-        this.soundFontId = selected;
-        this.customSoundFontName = this.soundFontLabel(gapFilling ? order[0] : selected);
+        this.soundFontOrder = availableOrder;
+        this.soundFontGapFilling = useGapFilling;
+        this.soundFontId = availableSelected;
+        this.customSoundFontName = this.soundFontLabel(useGapFilling ? availableOrder[0] ?? '' : availableSelected);
         this.persistSession(this.currentTimeSeconds, true);
       } finally { this.soundFontBusy = false; }
     });
@@ -1012,7 +1054,7 @@ class PlaybackStore {
   async loadCustomSoundFont(path: string) { await this.addSoundFont(path); }
 
   async resetSoundFont() {
-    await this.applySoundFontConfiguration(['default', 'generaluser', 'legacy', ...this.availableSoundFonts], true, 'default');
+    await this.applySoundFontConfiguration([...Object.keys(STOCK_SOUND_FONTS), ...this.availableSoundFonts], true, 'default');
   }
 
 

@@ -27,12 +27,35 @@ fn render(engine: &mut SynthEngine) -> Vec<f32> {
 }
 
 #[test]
+fn clearing_deleted_soundfonts_silences_active_and_retiring_stacks_and_allows_recovery() {
+    let sf = font("Roland GM.sf2");
+    let (mut audio, tx) = engine(sf.clone());
+    tx.send(AudioCommand::NoteOn { channel: 0, note: 60, velocity: 100 }).unwrap();
+    render(&mut audio);
+    audio.replace_fonts(stack(sf.clone()));
+    assert!(!audio.retiring.is_empty());
+    let loader = Arc::new(FontLoader::new(tx.clone(), SAMPLE_RATE));
+    let synth = AudioSynth { loader, cmd_tx: tx };
+    let pending = synth.loader.submit(FontInput::Fonts(vec![sf.clone()])).unwrap();
+    synth.clear_soundfonts();
+    assert!(await_handoff(&mut audio, &pending).is_err(), "a pending load must not restore deleted fonts");
+    assert!(render(&mut audio).iter().all(|sample| *sample == 0.0));
+    assert!(audio.synth.is_none());
+    assert!(audio.retiring.is_empty());
+    audio.replace_fonts(stack(sf));
+    synth.note_on(0, 60, 100);
+    let mut audible = false;
+    for _ in 0..10 { audible |= render(&mut audio).iter().any(|sample| sample.abs() > 0.0001); }
+    assert!(audible);
+}
+
+#[test]
 fn preview_taps_stay_short_when_midi_sustain_arrives_after_playback_starts() {
     use crate::{KeyboardLayout, NoteKeyMapping, ParsedMidi, PlaybackEngine, PlayerEvent, TempoMap, TimedNoteEvent};
     use crate::midi::{ControlEventKind, TimedControlEvent};
     use std::sync::mpsc;
 
-    let sf = font("TimGM6mb.sf2");
+    let sf = font("Roland GM.sf2");
     for (mode, follow_timing) in [(SynthMode::Adapted, true), (SynthMode::Adapted, false), (SynthMode::Raw, true)] {
         let (mut audio, cmd_tx) = engine(sf.clone());
         let synth = AudioSynth { loader: Arc::new(FontLoader::new(cmd_tx.clone(), SAMPLE_RATE)), cmd_tx };
@@ -74,7 +97,7 @@ fn preview_taps_stay_short_when_midi_sustain_arrives_after_playback_starts() {
 
 #[test]
 fn game_durations_clear_sustain_and_preserve_midi_pedals_across_font_changes() {
-    let sf = font("TimGM6mb.sf2");
+    let sf = font("Roland GM.sf2");
     let (mut audio, tx) = engine(sf.clone());
     tx.send(AudioCommand::ControlChange { channel: 0, controller: 64, value: 127 }).unwrap();
     tx.send(AudioCommand::ControlChange { channel: 0, controller: 66, value: 127 }).unwrap();
@@ -173,12 +196,12 @@ fn reused_output_buffer_contains_only_the_current_audio_block() {
 
 #[test]
 fn streaming_source_never_replays_old_audio_across_switch_stop_and_restart() {
-    let tim = font("TimGM6mb.sf2");
-    let gm = font("GeneralUser-GS.sf2");
-    let (stream_engine, tx) = engine(tim.clone());
+    let limited = super::super::font_stack::limited_test_font();
+    let gm = font("GeneralUser GS.sf2");
+    let (stream_engine, tx) = engine(limited.clone());
     let shared = Arc::new(Mutex::new(stream_engine));
     let mut source = SynthSource::new(shared.clone());
-    let (mut reference, ref_tx) = engine(tim);
+    let (mut reference, ref_tx) = engine(limited);
     for block in 0..48 {
         if block == 8 {
             lock_engine(&shared).replace_fonts(stack(gm.clone()));
@@ -241,10 +264,10 @@ fn send(tx: &Sender<AudioCommand>, cmd: AudioCommand) {
 
 #[test]
 fn sounding_note_is_sample_identical_across_handoff_and_new_notes_use_new_font() {
-    let tim = font("TimGM6mb.sf2");
-    let gm = font("GeneralUser-GS.sf2");
-    let (mut switched, tx) = engine(tim.clone());
-    let (mut reference, ref_tx) = engine(tim);
+    let limited = super::super::font_stack::limited_test_font();
+    let gm = font("GeneralUser GS.sf2");
+    let (mut switched, tx) = engine(limited.clone());
+    let (mut reference, ref_tx) = engine(limited);
     for sender in [&tx, &ref_tx] {
         send(
             sender,
@@ -294,7 +317,7 @@ fn sounding_note_is_sample_identical_across_handoff_and_new_notes_use_new_font()
         switched.retiring[0].stack.has_pending_notes(),
         "sustain keeps retiring notes alive"
     );
-    // A new whistle note in TimGM's gap must go only to the new SoundFont.
+    // A new whistle note in the limited fixture's gap must go only to the new SoundFont.
     send(
         &tx,
         AudioCommand::NoteOn {
@@ -362,7 +385,7 @@ fn sounding_note_is_sample_identical_across_handoff_and_new_notes_use_new_font()
 
 #[test]
 fn held_silent_notes_are_not_reclaimed_and_panic_and_reset_silence_every_stack() {
-    let sf = font("TimGM6mb.sf2");
+    let sf = font("Roland GM.sf2");
     let (mut engine, tx) = engine(sf.clone());
     send(
         &tx,
@@ -439,7 +462,7 @@ fn await_handoff(
 
 #[test]
 fn preparation_is_background_acknowledged_latest_wins_and_failure_keeps_playback() {
-    let sf = font("TimGM6mb.sf2");
+    let sf = font("Roland GM.sf2");
     let (mut engine, tx) = engine(sf.clone());
     let loader = FontLoader::new(tx.clone(), SAMPLE_RATE);
     send(
@@ -479,7 +502,7 @@ fn preparation_is_background_acknowledged_latest_wins_and_failure_keeps_playback
 
 #[test]
 fn handoff_restores_latest_controllers_and_applies_master_volume_to_both_stacks() {
-    let sf = font("TimGM6mb.sf2");
+    let sf = font("Roland GM.sf2");
     let (mut switched, tx) = engine(sf.clone());
     let (mut reference, ref_tx) = engine(sf.clone());
     for sender in [&tx, &ref_tx] {
@@ -521,7 +544,7 @@ fn handoff_restores_latest_controllers_and_applies_master_volume_to_both_stacks(
     let actual = render(&mut switched);
     let expected = render(&mut reference);
     assert_eq!(actual, expected, "controllers reach retiring voices");
-    let mut fresh = stack(font("TimGM6mb.sf2"));
+    let mut fresh = stack(font("Roland GM.sf2"));
     reference.restore_channels(&mut fresh);
     switched.synth.as_mut().unwrap().note_on(0, 74, 90);
     fresh.note_on(0, 74, 90);

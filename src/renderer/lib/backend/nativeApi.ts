@@ -172,6 +172,8 @@ export function createAppApi(): AppWindowApi {
       setSynthMode: (mode) => invokeTauri<boolean>('Playback', 'set_synth_mode', { mode }),
       configureSoundFontStack: (names) => invokeTauri<boolean>('Playback', 'configure_soundfont_stack', { names }),
       listSoundFonts: () => invokeTauri<string[]>('Playback', 'list_soundfonts', undefined),
+      listPresetSoundFonts: () => invokeTauri<string[]>('Playback', 'list_preset_soundfonts', undefined),
+      onSoundFontsChanged: (callback) => listenTauri('soundfonts:changed', callback),
       addSoundFont: (path) => invokeTauri<string>('Playback', 'add_soundfont', { path }),
       loadSoundFont: (name) => invokeTauri<boolean>('Playback', 'load_soundfont', { name }),
       deleteSoundFont: (name) => invokeTauri<boolean>('Playback', 'delete_soundfont', { name }),

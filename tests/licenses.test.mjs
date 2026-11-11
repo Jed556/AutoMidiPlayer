@@ -8,7 +8,7 @@ const markdown = readFileSync(new URL('../THIRD-PARTY-LICENSES.md', import.meta.
 const entries = parseLicenseMarkdown(markdown);
 
 test('the consolidated notices cover the current app stack and omit obsolete WPF libraries', () => {
-  for (const name of ['svelte', '@tauri-apps/api', '@fluentui/svg-icons', 'tauri', 'midly', 'enigo', 'rustysynth', 'rodio', 'rusqlite', 'sentry', 'TimGM6mb soundfont', 'GenshinLyreMidiPlayer']) {
+  for (const name of ['svelte', '@tauri-apps/api', '@fluentui/svg-icons', 'tauri', 'midly', 'enigo', 'rustysynth', 'rodio', 'rusqlite', 'sentry', 'GeneralUser GS SoundFont', 'GenshinLyreMidiPlayer']) {
     assert.ok(entries.some(entry => entry.name === name && entry.licenseText.length > 200 && entry.url.startsWith('https://')), name);
   }
   for (const name of ['DryWetMIDI', '.NET Foundation', 'Fody', 'Stylet', 'WPF UI', 'JetBrains.Annotations']) assert.ok(!entries.some(entry => entry.name === name), name);

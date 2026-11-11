@@ -109,6 +109,10 @@ impl FontLoader {
             .recv()
             .map_err(|_| "Audio output stopped before SoundFont handoff")?
     }
+
+    pub fn cancel_pending(&self) {
+        self.latest.fetch_add(1, Ordering::AcqRel);
+    }
 }
 
 fn prepare(input: FontInput, sample_rate: u32) -> Result<FontStack, String> {

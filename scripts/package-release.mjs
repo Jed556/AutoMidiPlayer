@@ -83,7 +83,7 @@ if (command === 'stage') {
     const archive = join(destination, `AutoMidiPlayer_v${version}_windows-x64-portable.zip`);
     execFileSync('7z', ['a', '-tzip', archive, './*', '-mx=9'], { cwd: portable, stdio: 'inherit' });
     const listing = execFileSync('7z', ['l', '-slt', archive], { encoding: 'utf8' });
-    const soundfonts = ['TimGM6mb.sf2', 'GeneralUser-GS.sf2', 'GeneralUser-GS-LICENSE.txt', 'legacy.sf2']
+    const soundfonts = ['GeneralUser GS.sf2', 'GeneralUser GS-LICENSE.txt', 'Roland GM.sf2']
       .map(name => `resources/soundfonts/${name}`);
     for (const name of [...documents, ...soundfonts, 'portable.txt', 'Auto MIDI Player.exe']) {
       if (!listing.replaceAll('\\', '/').includes(name)) throw new Error(`Portable ZIP missing ${name}`);

@@ -16,6 +16,7 @@ async function createPlayer({ writeQueue, readQueue, writeSongSettings, readSong
   const playbackCalls = [];
   const songSettingsWrites = [];
   const preferenceWrites = [];
+  const notifications = [];
   let persisted = [];
   const songs = ['a', 'b', 'c', 'd', 'e'].map(id => ({
     id, title: id, artist: '', album: '', filePath: `${id}.mid`, durationMs: 60000,
@@ -45,9 +46,13 @@ async function createPlayer({ writeQueue, readQueue, writeSongSettings, readSong
         return true;
       },
     },
-    playback: new Proxy({}, { get: (_, method) => async (...args) => {
+    playback: new Proxy({}, { get: (_, method) => method === 'onSoundFontsChanged'
+      ? (callback) => playback.onSoundFontsChanged?.(callback) ?? (() => {})
+      : async (...args) => {
       playbackCalls.push([method, ...args]);
-      return playback[method] ? playback[method](...args) : method === 'listSoundFonts' ? [] : true;
+      return playback[method] ? playback[method](...args)
+        : method === 'listSoundFonts' ? []
+        : method === 'listPresetSoundFonts' ? ['default', 'legacy'] : true;
     } }),
   };
   const mocks = {
@@ -57,7 +62,7 @@ async function createPlayer({ writeQueue, readQueue, writeSongSettings, readSong
     '../utils/sessionPreferences.js': sessionPreferences,
     '../backend/index.js': { api, isTauri: native, loadedMidiToMidiFile: song => ({ ...song }) },
     '../utils/musicConstants.js': music,
-    '../ui/notificationCenter.svelte': { notificationCenter: new Proxy({}, { get: () => () => {} }) },
+    '../ui/notificationCenter.svelte': { notificationCenter: new Proxy({}, { get: (_, method) => (...args) => notifications.push([method, ...args]) }) },
     '../utils/playbackPosition.js': { PlaybackPositionGate },
     './uiStore.svelte.js': { uiStore: { init: async () => {} } },
     './gameStore.svelte.js': { gameStore },
@@ -74,7 +79,7 @@ async function createPlayer({ writeQueue, readQueue, writeSongSettings, readSong
   const { playbackStore: player } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
   delete globalThis[key];
   player.isListenMode = true;
-  return { player, songs, writes, playbackCalls, libraryStore, songSettingsWrites, gameStore, settingsStore, preferenceWrites };
+  return { player, songs, writes, playbackCalls, libraryStore, songSettingsWrites, gameStore, settingsStore, preferenceWrites, notifications };
 }
 const ids = songs => songs.map(s => s.id);
 
@@ -1026,15 +1031,15 @@ test('window title reflects the active playing song without artist when unknown,
 test('SoundFont hierarchy persists, restores and keeps the selected single bank when disabled', async () => {
   const {player, preferenceWrites, playbackCalls} = await createPlayer();
   await player.refreshSoundFonts();
-  assert.deepEqual(player.soundFontOrder, ['default', 'generaluser', 'legacy']);
-  await player.applySoundFontConfiguration(['generaluser', 'legacy', 'default'], true, 'legacy');
+  assert.deepEqual(player.soundFontOrder, ['default', 'legacy']);
+  await player.applySoundFontConfiguration(['legacy', 'default'], true, 'legacy');
   await player.applySoundFontConfiguration(undefined, false);
   assert.deepEqual(playbackCalls.filter(c => c[0] === 'configureSoundFontStack').at(-1)[1], ['legacy']);
   const saved = preferenceWrites.at(-1).playback;
   assert.equal(saved.soundFontGapFilling, false);
   const restored = await createPlayer();
   await restored.player.restoreSession({playback: saved});
-  assert.deepEqual(restored.player.soundFontOrder, ['generaluser', 'legacy', 'default']);
+  assert.deepEqual(restored.player.soundFontOrder, ['legacy', 'default']);
   assert.equal(restored.player.soundFontId, 'legacy');
   assert.equal(restored.player.soundFontGapFilling, false);
 });
@@ -1042,10 +1047,164 @@ test('SoundFont hierarchy persists, restores and keeps the selected single bank 
 test('failed SoundFont configuration preserves the previous settings and can be retried', async () => {
   let fail = true;
   const {player} = await createPlayer({playback: {configureSoundFontStack: async () => { if(fail) throw new Error('Bad bank'); return true; }}});
-  await assert.rejects(player.applySoundFontConfiguration(['legacy','default','generaluser'], false, 'legacy'));
-  assert.deepEqual(player.soundFontOrder, ['default','generaluser','legacy']);
+  await assert.rejects(player.applySoundFontConfiguration(['legacy','default'], false, 'legacy'));
+  assert.deepEqual(player.soundFontOrder, ['default','legacy']);
   assert.equal(player.soundFontGapFilling, true);
   fail = false;
-  await player.applySoundFontConfiguration(['legacy','default','generaluser'], false, 'legacy');
+  await player.applySoundFontConfiguration(['legacy','default'], false, 'legacy');
   assert.equal(player.soundFontId, 'legacy');
+});
+
+test('missing stock SoundFonts show one error with filenames and leave only available settings cards', async () => {
+  const { player, playbackCalls, notifications } = await createPlayer({ playback: {
+    listPresetSoundFonts: async () => ['legacy'],
+    listSoundFonts: async () => ['Custom.sf2'],
+  } });
+  await player.restoreSession({ playback: {
+    soundFontOrder: ['legacy', 'default', 'Custom.sf2'],
+    soundFontId: 'default', soundFontGapFilling: true,
+  } });
+  assert.deepEqual(player.soundFontOrder, ['legacy', 'Custom.sf2']);
+  assert.equal(player.soundFontId, 'legacy');
+  assert.deepEqual(playbackCalls.filter(c => c[0] === 'configureSoundFontStack').at(-1)[1], ['legacy', 'Custom.sf2']);
+  await player.refreshSoundFonts();
+  assert.deepEqual(notifications, [['error', 'settings.stockSoundFontsMissing', 'GeneralUser GS.sf2']]);
+  await player.resetSoundFont();
+  assert.deepEqual(player.soundFontOrder, ['legacy', 'Custom.sf2']);
+  assert.equal(player.soundFontId, 'legacy');
+});
+
+test('a missing single SoundFont falls back to the first available font in the saved order', async () => {
+  const { player, playbackCalls } = await createPlayer({ playback: {
+    listPresetSoundFonts: async () => ['legacy'],
+  } });
+  await player.restoreSession({ playback: {
+    soundFontOrder: ['default', 'legacy'], soundFontId: 'default', soundFontGapFilling: false,
+  } });
+  assert.equal(player.soundFontGapFilling, false);
+  assert.equal(player.soundFontId, 'legacy');
+  assert.deepEqual(playbackCalls.filter(c => c[0] === 'configureSoundFontStack').at(-1)[1], ['legacy']);
+});
+
+test('startup and reset tolerate no SoundFonts, then recover when a custom font is added', async () => {
+  let custom = [];
+  const { player, playbackCalls, notifications } = await createPlayer({ playback: {
+    listPresetSoundFonts: async () => [],
+    listSoundFonts: async () => custom,
+    addSoundFont: async () => { custom = ['Custom.sf2']; return 'Custom.sf2'; },
+  } });
+  await player.restoreSession({ playback: {} });
+  await player.resetSoundFont();
+  await player.applySoundFontConfiguration(undefined, false);
+  assert.deepEqual(player.soundFontOrder, []);
+  assert.equal(player.soundFontId, '');
+  assert.ok(playbackCalls.filter(c => c[0] === 'configureSoundFontStack').every(c => c[1].length === 0));
+  assert.deepEqual(notifications, [['error', 'settings.stockSoundFontsMissing', 'GeneralUser GS.sf2\nRoland GM.sf2']]);
+  await player.addSoundFont('Custom.sf2');
+  assert.deepEqual(player.soundFontOrder, ['Custom.sf2']);
+  assert.equal(player.soundFontId, 'Custom.sf2');
+  assert.deepEqual(playbackCalls.filter(c => c[0] === 'configureSoundFontStack').at(-1)[1], ['Custom.sf2']);
+});
+
+test('SoundFonts disappearing or returning are reflected when configuring playback', async () => {
+  let presets = ['default', 'legacy'];
+  const { player, playbackCalls, notifications } = await createPlayer({ playback: {
+    listPresetSoundFonts: async () => presets,
+  } });
+  await player.refreshSoundFonts();
+  presets = ['default'];
+  await player.applySoundFontConfiguration();
+  assert.deepEqual(player.soundFontOrder, ['default']);
+  assert.deepEqual(playbackCalls.filter(c => c[0] === 'configureSoundFontStack').at(-1)[1], ['default']);
+  presets = ['default', 'legacy'];
+  await player.refreshSoundFonts();
+  assert.deepEqual(player.soundFontOrder, presets);
+  presets = ['default'];
+  await player.refreshSoundFonts();
+  assert.equal(notifications.length, 2, 'A recurrence is reported after the fonts were restored');
+});
+
+test('startup reports SoundFont load failures without rejecting session restoration', async () => {
+  const { player, notifications } = await createPlayer({ playback: {
+    configureSoundFontStack: async () => { throw new Error('File disappeared during loading'); },
+  } });
+  await player.restoreSession({ playback: {} });
+  assert.deepEqual(notifications, [['error', 'settings.soundFontLoadFailed', 'Error: File disappeared during loading']]);
+  assert.equal(player.soundFontBusy, false);
+});
+
+test('live SoundFont events remove stock and custom fonts, fall back, and clear the last font', async () => {
+  let changed;
+  let presets = ['default', 'legacy'];
+  let custom = ['Custom.sf2'];
+  let unsubscribed = 0;
+  const { player, playbackCalls, notifications } = await createPlayer({ playback: {
+    listPresetSoundFonts: async () => presets,
+    listSoundFonts: async () => custom,
+    onSoundFontsChanged: callback => { changed = callback; return () => { unsubscribed++; }; },
+  }, preferences: { playback: { soundFontGapFilling: false, soundFontId: 'default' } } });
+  await player.initialize();
+  presets = ['legacy'];
+  changed();
+  await player.flushPersistence();
+  assert.deepEqual(player.soundFontOrder, ['legacy', 'Custom.sf2']);
+  assert.equal(player.soundFontId, 'legacy');
+  assert.deepEqual(playbackCalls.filter(c => c[0] === 'configureSoundFontStack').at(-1)[1], ['legacy']);
+  assert.deepEqual(notifications.at(-1), ['error', 'settings.stockSoundFontsMissing', 'GeneralUser GS.sf2']);
+  presets = [];
+  changed();
+  await player.flushPersistence();
+  assert.equal(player.soundFontId, 'Custom.sf2');
+  custom = [];
+  changed();
+  await player.flushPersistence();
+  assert.deepEqual(player.soundFontOrder, []);
+  assert.equal(player.soundFontId, '');
+  assert.deepEqual(playbackCalls.filter(c => c[0] === 'configureSoundFontStack').at(-1)[1], []);
+  // A recreated directory or restored file becomes selectable without reopening Settings.
+  presets = ['default'];
+  changed();
+  await player.flushPersistence();
+  assert.deepEqual(player.soundFontOrder, ['default']);
+  assert.equal(player.soundFontId, 'default');
+  player.stopSoundFontMonitoring();
+  assert.equal(unsubscribed, 1);
+});
+
+test('live deletion during a SoundFont switch preserves the latest queued choices', async () => {
+  let changed;
+  let finishSwitch;
+  let switching = false;
+  let presets = ['default', 'legacy'];
+  const { player, playbackCalls } = await createPlayer({ playback: {
+    listPresetSoundFonts: async () => presets,
+    onSoundFontsChanged: callback => { changed = callback; return () => {}; },
+    configureSoundFontStack: async () => {
+      if (switching) { switching = false; await new Promise(resolve => { finishSwitch = resolve; }); }
+      return true;
+    },
+  } });
+  await player.initialize();
+  switching = true;
+  const selection = player.applySoundFontConfiguration(['legacy', 'default'], false, 'legacy');
+  while (!finishSwitch) await new Promise(resolve => setImmediate(resolve));
+  presets = ['legacy', 'default'];
+  changed();
+  finishSwitch();
+  await selection;
+  await player.flushPersistence();
+  assert.deepEqual(player.soundFontOrder, ['legacy', 'default']);
+  assert.equal(player.soundFontId, 'legacy');
+  assert.equal(player.soundFontGapFilling, false);
+  assert.deepEqual(playbackCalls.filter(c => c[0] === 'configureSoundFontStack').at(-1)[1], ['legacy']);
+});
+
+test('custom SoundFont paths display only their file name and survive session restoration', async () => {
+  const path = 'C:\\Music\\SoundFonts\\My Bank.sf2';
+  const {player, playbackCalls} = await createPlayer({playback: {listSoundFonts: async () => [path]}});
+  await player.restoreSession({playback: {soundFontOrder: [path, 'default', 'legacy'], soundFontId: path, soundFontGapFilling: false}});
+  assert.equal(player.soundFontLabel(path), 'My Bank');
+  assert.equal(player.soundFontLabel('/home/music/Other.sf2'), 'Other');
+  assert.equal(player.customSoundFontName, 'My Bank');
+  assert.deepEqual(playbackCalls.filter(call => call[0] === 'configureSoundFontStack').at(-1)[1], [path]);
 });
