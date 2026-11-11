@@ -4,6 +4,7 @@
   import { startRuntime } from './lib/backend/startupGate';
   import { startupProgress, nativeStartupProgress } from './lib/backend/startupProgress';
   import { libraryStore } from './lib/state/libraryStore.svelte';
+  import { midiInputStore } from './lib/state/midiInputStore.svelte';
   import { playbackStore } from './lib/state/playbackStore.svelte';
   import { uiStore } from './lib/state/uiStore.svelte';
   import { themeStore } from './lib/state/themeStore.svelte';
@@ -47,6 +48,7 @@
     const updateCheck = settingsStore.settings.autoCheckUpdates
       ? updateStore.checkForUpdates(false) : Promise.resolve();
     await playbackStore.initialize(status => { startupStatus = status; });
+    await midiInputStore.init();
     startupStatus = 'startup.view';
     if (currentTab !== 'discover' && currentTab !== 'new-playlist') await loadView(currentTab);
     if (updateStore.isCheckingUpdate) startupStatus = 'startup.updates';

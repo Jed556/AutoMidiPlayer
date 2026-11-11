@@ -37,23 +37,103 @@ impl PedalOutput {
 }
 
 pub struct KeySimulator {
-    enigo: Enigo,
+    output: Option<Box<dyn KeyboardOutput>>,
+    owners: [HashSet<Key>; 5],
+    error: Option<String>,
     hold_delay: Duration,
     pressed_keys: HashSet<Key>,
     last_press_time: Option<Instant>,
     pedals: PedalOutput,
 }
 
+/// One backend owns the physical keyboard. Wayland supplies a portal backend;
+/// other desktops initialize Enigo only when output is requested.
+pub trait KeyboardOutput: Send {
+    fn key(&mut self, key: Key, up: bool) -> Result<(), String>;
+    fn error(&self) -> Option<String> { None }
+}
+
+struct EnigoOutput(Enigo);
+#[cfg(target_os = "macos")]
+#[link(name = "ApplicationServices", kind = "framework")]
+extern "C" { fn AXIsProcessTrusted() -> bool; }
+
+impl KeyboardOutput for EnigoOutput {
+    fn key(&mut self, key: Key, up: bool) -> Result<(), String> {
+        self.0.key(key, if up { Direction::Release } else { Direction::Press }).map_err(|e| e.to_string())
+    }
+    fn error(&self) -> Option<String> {
+        #[cfg(target_os = "macos")]
+        if !unsafe { AXIsProcessTrusted() } {
+            return Some("Keyboard permission was revoked. Enable AMP in System Settings > Privacy & Security > Accessibility, then press Start again.".into());
+        }
+        None
+    }
+}
+
 impl KeySimulator {
     pub fn new() -> Self {
-        let enigo = Enigo::new(&Settings::default()).expect("Failed to initialize Enigo input simulator");
         Self {
-            enigo,
+            output: None,
+            owners: std::array::from_fn(|_| HashSet::new()),
+            error: None,
             hold_delay: Duration::from_millis(crate::settings::defaults::value("/keyPressDelayMs")),
             pressed_keys: HashSet::new(),
             last_press_time: None,
             pedals: PedalOutput::default(),
         }
+    }
+
+    pub fn prepare(&mut self) -> Result<(), String> {
+        if self.output.is_some() { return Ok(()); }
+        #[cfg(target_os = "linux")]
+        if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+            return Err("Wayland keyboard output requires an authorized MIDI input session.".into());
+        }
+        self.output = Some(Box::new(EnigoOutput(Enigo::new(&Settings::default()).map_err(|error| {
+            #[cfg(target_os = "macos")]
+            { format!("Keyboard output is unavailable: {error}. Enable Auto MIDI Player in System Settings > Privacy & Security > Accessibility, then press Start again.") }
+            #[cfg(not(target_os = "macos"))]
+            { error.to_string() }
+        })?)));
+        Ok(())
+    }
+
+    pub fn set_output(&mut self, output: Option<Box<dyn KeyboardOutput>>) {
+        self.release_everything();
+        self.output = output;
+        self.error = None;
+    }
+
+    pub fn take_error(&mut self) -> Option<String> {
+        self.error.take().or_else(|| self.output.as_ref().and_then(|o| o.error()))
+    }
+
+    pub fn is_ready(&self) -> bool {
+        self.output.as_ref().is_some_and(|output| output.error().is_none())
+    }
+
+    // 0: song notes, 1: song pedals, 2: live notes, 3: live pedals, 4: previews.
+    pub fn send_owned_key(&mut self, source: usize, key: Key, up: bool) {
+        if up {
+            if !self.owners[source].remove(&key) { return; }
+        } else {
+            self.owners[source].insert(key);
+        }
+        if self.owners.iter().enumerate().any(|(i, keys)| i != source && keys.contains(&key)) { return; }
+        let result = self.prepare().and_then(|_| self.output.as_mut().unwrap().key(key, up));
+        if let Err(error) = result { self.error = Some(error); }
+    }
+
+    pub fn release_source(&mut self, source: usize) {
+        let keys: Vec<_> = self.owners[source].iter().copied().collect();
+        for key in keys { self.send_owned_key(source, key, true); }
+    }
+
+    pub fn release_everything(&mut self) {
+        for source in 0..5 { self.release_source(source); }
+        self.pressed_keys.clear();
+        self.pedals.clear();
     }
 
     /// Sets the minimum key hold delay in milliseconds; the initial value comes from defaults.json.
@@ -65,12 +145,11 @@ impl KeySimulator {
     pub fn send_key(&mut self, key: Key, is_key_up: bool) {
         if is_key_up {
             self.pressed_keys.remove(&key);
-            let _ = self.enigo.key(key, Direction::Release);
         } else {
             self.pressed_keys.insert(key);
             self.last_press_time = Some(Instant::now());
-            let _ = self.enigo.key(key, Direction::Press);
         }
+        self.send_owned_key(0, key, is_key_up);
     }
 
     pub fn press_stroke(&mut self, stroke: KeyStroke) {
@@ -81,15 +160,14 @@ impl KeySimulator {
 
     pub fn sync_pedals(&mut self, bindings: &[Option<KeyStroke>; 3], down: [bool; 3], enabled: bool) {
         for (key, is_key_up) in self.pedals.reconcile(bindings, down, enabled) {
-            self.send_key(key, is_key_up);
+            self.send_owned_key(1, key, is_key_up);
         }
     }
 
     /// Releases all currently held physical keys to ensure keys never get stuck
-    pub fn release_all(&mut self, all_keys: &[Key]) {
-        for &key in all_keys {
-            let _ = self.enigo.key(key, Direction::Release);
-        }
+    pub fn release_all(&mut self, _all_keys: &[Key]) {
+        self.release_source(0);
+        self.release_source(1);
         self.pressed_keys.clear();
         self.pedals.clear();
     }
@@ -105,6 +183,37 @@ impl Default for KeySimulator {
 mod tests {
     use super::*;
     use crate::input::parse_key_stroke;
+
+    #[test]
+    fn source_release_preserves_other_keys_and_reports_output_failure() {
+        use std::sync::{Arc, Mutex};
+        struct Output(Arc<Mutex<Vec<(Key, bool)>>>);
+        impl KeyboardOutput for Output {
+            fn key(&mut self, key: Key, up: bool) -> Result<(), String> {
+                self.0.lock().unwrap().push((key, up)); Ok(())
+            }
+        }
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let mut sim = KeySimulator::new();
+        sim.set_output(Some(Box::new(Output(events.clone()))));
+        let key = parse_key_stroke("a").unwrap().key;
+        sim.send_key(key, false);
+        sim.send_owned_key(2, key, false);
+        sim.release_all(&[key]); // seek, pause, stop, EOF: song only
+        assert_eq!(*events.lock().unwrap(), [(key, false)]);
+        sim.send_owned_key(4, key, false);
+        sim.release_source(2);
+        assert_eq!(events.lock().unwrap().len(), 1);
+        sim.release_source(4);
+        assert_eq!(*events.lock().unwrap(), [(key, false), (key, true)]);
+        struct Denied;
+        impl KeyboardOutput for Denied {
+            fn key(&mut self, _: Key, _: bool) -> Result<(), String> { Err("permission denied".into()) }
+        }
+        sim.set_output(Some(Box::new(Denied)));
+        sim.send_owned_key(2, key, false);
+        assert_eq!(sim.take_error().as_deref(), Some("permission denied"));
+    }
 
     fn bindings() -> [Option<KeyStroke>; 3] {
         ["space", "Enter", "^q"].map(parse_key_stroke)

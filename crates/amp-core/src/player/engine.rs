@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 use crossbeam_channel::{unbounded, Sender, Receiver};
 use spin_sleep::SpinSleeper;
@@ -13,6 +13,8 @@ use crate::midi::{
 use crate::input::{NoteKeyMapping, KeySimulator};
 use crate::audio::{AudioSynth, SynthMode};
 use enigo::Key;
+use super::live_input::{LiveInput, LiveInputSnapshot, LiveSettings, MidiMessage};
+use crate::input::simulator::KeyboardOutput;
 use super::note_timing::{is_tap, note_durations, pending_note_owners, KeyReleases, KeyPressAction, OverlapBehavior};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -137,6 +139,13 @@ pub enum PlayerEvent {
 }
 
 enum Command {
+    Fence(Sender<()>),
+    MidiStart(u64),
+    MidiStop,
+    MidiMessage(u64, MidiMessage),
+    MidiGate(bool),
+    PrepareKeyboard(Sender<Result<(), String>>),
+    SetKeyboard(Option<Box<dyn KeyboardOutput>>),
     Play,
     Pause,
     Stop,
@@ -175,6 +184,9 @@ pub struct PlaybackEngine {
     current_time_us: Arc<Mutex<u64>>,
     config_available: Arc<AtomicBool>,
     worker_handle: Option<std::thread::JoinHandle<()>>,
+    midi_snapshot: Arc<Mutex<LiveInputSnapshot>>,
+    midi_queued: Arc<AtomicUsize>,
+    midi_overflow: Arc<AtomicBool>,
 }
 
 impl PlaybackEngine {
@@ -197,6 +209,12 @@ impl PlaybackEngine {
         let status_clone = Arc::clone(&status);
         let time_clone = Arc::clone(&current_time_us);
         let cb = Arc::new(event_callback);
+        let midi_snapshot = Arc::new(Mutex::new(LiveInputSnapshot::default()));
+        let worker_snapshot = Arc::clone(&midi_snapshot);
+        let midi_queued = Arc::new(AtomicUsize::new(0));
+        let midi_overflow = Arc::new(AtomicBool::new(false));
+        let worker_queued = Arc::clone(&midi_queued);
+        let worker_overflow = Arc::clone(&midi_overflow);
 
         let worker_handle = std::thread::spawn(move || {
             run_playback_loop(
@@ -209,6 +227,9 @@ impl PlaybackEngine {
                 time_clone,
                 config_available_clone,
                 cb,
+                worker_snapshot,
+                worker_queued,
+                worker_overflow,
             );
         });
 
@@ -218,8 +239,41 @@ impl PlaybackEngine {
             current_time_us,
             config_available,
             worker_handle: Some(worker_handle),
+            midi_snapshot,
+            midi_queued,
+            midi_overflow,
         }
     }
+
+    pub fn midi_start(&self, generation: u64) { let _ = self.cmd_tx.send(Command::MidiStart(generation)); }
+    /// Wait for previously submitted cleanup without involving the UI thread.
+    pub fn flush(&self) -> Result<(), String> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        self.cmd_tx.send(Command::Fence(tx)).map_err(|e| e.to_string())?;
+        rx.recv_timeout(Duration::from_secs(5)).map_err(|e| e.to_string())
+    }
+    pub fn midi_stop(&self) { let _ = self.cmd_tx.send(Command::MidiStop); }
+    pub fn midi_message(&self, generation: u64, message: MidiMessage) {
+        let mut queued = self.midi_queued.load(Ordering::Acquire);
+        loop {
+            if queued >= 4096 { self.midi_overflow.store(true, Ordering::Release); return; }
+            match self.midi_queued.compare_exchange_weak(queued, queued + 1, Ordering::AcqRel, Ordering::Acquire) {
+                Ok(_) => break,
+                Err(current) => queued = current,
+            }
+        }
+        if self.cmd_tx.send(Command::MidiMessage(generation, message)).is_err() {
+            self.midi_queued.fetch_sub(1, Ordering::AcqRel);
+        }
+    }
+    pub fn midi_gate(&self, allowed: bool) { let _ = self.cmd_tx.send(Command::MidiGate(allowed)); }
+    pub fn midi_snapshot(&self) -> LiveInputSnapshot { self.midi_snapshot.lock().unwrap_or_else(|e| e.into_inner()).clone() }
+    pub fn prepare_keyboard(&self) -> Result<(), String> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        self.cmd_tx.send(Command::PrepareKeyboard(tx)).map_err(|e| e.to_string())?;
+        rx.recv_timeout(Duration::from_secs(5)).map_err(|e| e.to_string())?
+    }
+    pub fn set_keyboard_output(&self, output: Option<Box<dyn KeyboardOutput>>) { let _ = self.cmd_tx.send(Command::SetKeyboard(output)); }
 
     pub fn play(&self) {
         let _ = self.cmd_tx.send(Command::Play);
@@ -386,8 +440,16 @@ fn run_playback_loop(
     time_arc: Arc<Mutex<u64>>,
     config_available: Arc<AtomicBool>,
     callback: Arc<dyn Fn(PlayerEvent) + Send + Sync>,
+    midi_snapshot: Arc<Mutex<LiveInputSnapshot>>,
+    midi_queued: Arc<AtomicUsize>,
+    midi_overflow: Arc<AtomicBool>,
 ) {
     let mut key_sim = KeySimulator::new();
+    let mut midi = LiveInput::default();
+    let mut repress_gap_ms = crate::settings::defaults::value("/repressGapMs");
+    let mut pending_command = None;
+    let mut preview_audio = HashMap::<u8, Instant>::new();
+    let mut preview_keys = HashMap::<Key, Instant>::new();
     let sleeper = SpinSleeper::default();
 
     let mut durations = initial_song.as_ref().map(|song| note_durations(&song.events)).unwrap_or_default();
@@ -437,8 +499,31 @@ fn run_playback_loop(
 
     loop {
         // 1. Process pending commands
-        while let Ok(cmd) = cmd_rx.try_recv() {
+        // A noisy MIDI port must not starve note deadlines or UI snapshots.
+        for _ in 0..256 {
+            let Some(cmd) = pending_command.take().or_else(|| cmd_rx.try_recv().ok()) else { break };
             match cmd {
+                Command::Fence(reply) => { let _ = reply.send(()); }
+                Command::MidiStart(generation) => midi.start(generation, &mut key_sim, &audio_synth),
+                Command::MidiStop => midi.stop(&mut key_sim, &audio_synth),
+                Command::MidiGate(allowed) => midi.gate(allowed && send_input && config_available.load(Ordering::Acquire), &mut key_sim, &audio_synth),
+                Command::MidiMessage(generation, message) => {
+                    midi_queued.fetch_sub(1, Ordering::AcqRel);
+                    if midi_overflow.swap(false, Ordering::AcqRel) {
+                        midi.stop(&mut key_sim, &audio_synth);
+                        midi.snapshot.error = Some("MIDI input overflow. Start input again after checking the device.".into());
+                    }
+                    midi.message(generation, message, Instant::now(), &LiveSettings {
+                        mapping: &mapping, listen: listen_mode, synth_mode,
+                        hold: hold_notes, tap_ms: tap_duration_ms, preview_timing: game_preview_follow_note_timing,
+                        overlap: overlap_behavior, pedals_enabled,
+                    }, &mut key_sim, &audio_synth);
+                }
+                Command::PrepareKeyboard(reply) => { let _ = reply.send(key_sim.prepare()); }
+                Command::SetKeyboard(output) => {
+                    if !listen_mode { midi.clear(&mut key_sim, &audio_synth); }
+                    key_sim.set_output(output);
+                }
                 Command::Play => {
                     if config_available.load(Ordering::Acquire) && status != PlaybackStatus::Playing && current_song.is_some() {
                         if current_song.as_ref().is_some_and(|song| event_idx >= song.events.len() && control_idx >= song.control_events.len()) {
@@ -589,6 +674,7 @@ fn run_playback_loop(
                     }
                 }
                 Command::SetHoldDelayMs(ms) => {
+                    if tap_duration_ms != ms.min(1000) { midi.clear(&mut key_sim, &audio_synth); }
                     tap_duration_ms = ms.min(1000);
                     key_sim.set_hold_delay_ms(ms);
                 }
@@ -596,13 +682,16 @@ fn run_playback_loop(
                     overlap_behavior = behavior;
                 }
                 Command::SetRepressGapMs(ms) => {
+                    repress_gap_ms = ms;
                     key_releases.set_repress_gap_ms(ms);
                 }
                 Command::SetNoteTiming { hold_notes: enabled, tap_threshold_ms: threshold } => {
+                    if hold_notes != enabled { midi.clear(&mut key_sim, &audio_synth); }
                     hold_notes = enabled;
                     tap_threshold_ms = threshold.min(10_000);
                 }
                 Command::SetGamePreviewFollowNoteTiming(enabled) => {
+                    if game_preview_follow_note_timing != enabled { midi.clear(&mut key_sim, &audio_synth); }
                     game_preview_follow_note_timing = enabled;
                     if let Some(ref synth) = audio_synth {
                         synth.set_enforce_note_durations(listen_mode && synth_mode == SynthMode::Adapted && enabled);
@@ -622,11 +711,13 @@ fn run_playback_loop(
                     }
                 }
                 Command::SetPedalsEnabled(enabled) => {
+                    if pedals_enabled != enabled { midi.clear(&mut key_sim, &audio_synth); }
                     pedals_enabled = enabled;
                 }
                 Command::SetSendInput(enabled) => {
                     send_input = enabled;
                     if !enabled {
+                        midi.gate(false, &mut key_sim, &audio_synth);
                         key_sim.release_all(&all_keys);
                         key_releases.clear();
                     }
@@ -660,6 +751,10 @@ fn run_playback_loop(
                     callback(PlayerEvent::TimeUpdate { time_us: 0, seek_id });
                 }
                 Command::Panic => {
+                    midi.stop(&mut key_sim, &audio_synth);
+                    key_sim.release_everything();
+                    if let Some(synth) = &audio_synth { synth.for_source(2).all_notes_off(); }
+                    preview_audio.clear(); preview_keys.clear();
                     status = PlaybackStatus::Stopped;
                     key_sim.release_all(&all_keys);
                     if let Some(ref synth) = audio_synth {
@@ -678,6 +773,10 @@ fn run_playback_loop(
                     update_status(status, &status_arc);
                 }
                 Command::Shutdown => {
+                    midi.stop(&mut key_sim, &audio_synth);
+                    key_sim.release_everything();
+                    if let Some(synth) = &audio_synth { synth.for_source(2).all_notes_off(); }
+                    preview_audio.clear(); preview_keys.clear();
                     key_sim.release_all(&all_keys);
                     active_held_notes.clear();
                     live_notes.clear();
@@ -688,6 +787,7 @@ fn run_playback_loop(
                     return;
                 }
                 Command::SetListenMode(enabled) => {
+                    if listen_mode != enabled { midi.clear(&mut key_sim, &audio_synth); }
                     listen_mode = enabled;
                     if let Some(ref synth) = audio_synth {
                         synth.set_enforce_note_durations(listen_mode && synth_mode == SynthMode::Adapted && game_preview_follow_note_timing);
@@ -716,6 +816,7 @@ fn run_playback_loop(
                     }
                 }
                 Command::SetSynthMode(mode) => {
+                    if synth_mode != mode { midi.clear(&mut key_sim, &audio_synth); }
                     synth_mode = mode;
                     if let Some(ref synth) = audio_synth {
                         synth.set_enforce_note_durations(listen_mode && synth_mode == SynthMode::Adapted && game_preview_follow_note_timing);
@@ -739,6 +840,7 @@ fn run_playback_loop(
                     }
                 }
                 Command::SetMapping(new_mapping) => {
+                    midi.clear(&mut key_sim, &audio_synth);
                     key_sim.release_all(&all_keys);
                     key_releases.clear();
                     active_held_notes.clear();
@@ -753,25 +855,16 @@ fn run_playback_loop(
                     mapping = new_mapping;
                 }
                 Command::TapNote { pitch, listen_mode: tap_listen } => {
+                    let now = Instant::now();
                     if tap_listen {
-                        if let Some(ref synth) = audio_synth {
-                            synth.note_on(0, pitch, 100);
-                            let s_clone = synth.clone();
-                            std::thread::spawn(move || {
-                                std::thread::sleep(Duration::from_millis(150));
-                                s_clone.note_off(0, pitch);
-                            });
+                        if let Some(synth) = &audio_synth {
+                            synth.for_source(2).note_on(0, pitch, 100);
+                            preview_audio.insert(pitch, now + Duration::from_millis(150));
                         }
                     } else if send_input {
                         if let Some(stroke) = mapping.get_stroke(pitch) {
-                            let key = stroke.key;
-                            let now = Instant::now();
-                            let deadline = now + Duration::from_millis(tap_duration_ms);
-                            match key_releases.begin_stroke(stroke, usize::MAX, now, Some(deadline), OverlapBehavior::Retrigger).0 {
-                                KeyPressAction::Press => key_sim.press_stroke(stroke),
-                                KeyPressAction::Retrigger => key_sim.send_key(key, true),
-                                KeyPressAction::Deferred | KeyPressAction::Ignore => {}
-                            }
+                            for (key, up) in stroke.press_events() { key_sim.send_owned_key(4, key, up); }
+                            preview_keys.insert(stroke.key, now + Duration::from_millis(tap_duration_ms));
                         }
                     }
                 }
@@ -784,6 +877,30 @@ fn run_playback_loop(
                 }
             }
         }
+
+        midi.snapshot.listen_mode = listen_mode;
+        midi.snapshot.audio_available = audio_synth.is_some();
+        if !config_available.load(Ordering::Acquire) { midi.gate(false, &mut key_sim, &audio_synth); }
+        midi.tick(Instant::now(), &mut key_sim, &audio_synth, repress_gap_ms);
+        if let Some(error) = key_sim.take_error() {
+            midi.stop(&mut key_sim, &audio_synth);
+            // Retire a failed backend so permission failures cannot keep
+            // stopping a later Listen Mode session.
+            key_sim.set_output(None);
+            midi.snapshot.error = Some(error);
+        }
+        midi.snapshot.keyboard_available = key_sim.is_ready() && midi.snapshot.error.is_none();
+        *midi_snapshot.lock().unwrap_or_else(|e| e.into_inner()) = midi.snapshot.clone();
+        let now_preview = Instant::now();
+        preview_audio.retain(|&pitch, deadline| {
+            if *deadline > now_preview { return true; }
+            if let Some(synth) = &audio_synth { synth.for_source(2).note_off(0, pitch); }
+            false
+        });
+        preview_keys.retain(|&key, deadline| {
+            if *deadline > now_preview { return true; }
+            key_sim.send_owned_key(4, key, true); false
+        });
 
         // Reconcile after commands as well as CC events: toggles, resumes,
         // seeks and output/layout changes must update held game keys promptly.
@@ -825,7 +942,7 @@ fn run_playback_loop(
             let wait = key_releases.next_deadline()
                 .map(|deadline| deadline.saturating_duration_since(Instant::now()))
                 .unwrap_or(Duration::from_millis(15));
-            sleeper.sleep(wait.min(Duration::from_millis(15)));
+            pending_command = cmd_rx.recv_timeout(wait.min(Duration::from_millis(5))).ok();
             continue;
         }
 
@@ -850,7 +967,7 @@ fn run_playback_loop(
         if event_idx >= song.events.len() && control_idx >= song.control_events.len() {
             // A tap may outlast its MIDI note, including the final note in the song.
             if let Some(deadline) = next_note_deadline(&key_releases, &live_notes) {
-                sleeper.sleep(deadline.saturating_duration_since(Instant::now()).min(Duration::from_millis(10)));
+                pending_command = cmd_rx.recv_timeout(deadline.saturating_duration_since(Instant::now()).min(Duration::from_millis(10))).ok();
                 continue;
             }
             status = PlaybackStatus::Stopped;
@@ -888,7 +1005,7 @@ fn run_playback_loop(
                     .map(|deadline| deadline.saturating_duration_since(Instant::now()).as_micros() as u64)
                     .unwrap_or(10_000);
                 let chunk_us = real_wait_us.min(10_000).min(release_wait);
-                sleeper.sleep(Duration::from_micros(chunk_us));
+                pending_command = cmd_rx.recv_timeout(Duration::from_micros(chunk_us)).ok();
                 let elapsed = last_instant.elapsed();
                 last_instant = Instant::now();
                 current_us += (elapsed.as_micros() as f64 * speed).round() as u64;

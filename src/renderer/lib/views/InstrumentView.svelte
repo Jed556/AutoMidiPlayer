@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onDestroy } from 'svelte';
+  import { midiInputStore } from '../state/midiInputStore.svelte';
   import { playbackStore } from '../state/playbackStore.svelte';
   import { gameStore } from '../state/gameStore.svelte';
   import { uiStore } from '../state/uiStore.svelte';
@@ -317,84 +318,18 @@
   // ==========================================
   // Physical MIDI Input (Lower Right)
   // ==========================================
-  let midiInputs = $state<{ value: string; label: string }[]>([
-    { value: 'none', label: 'None' }
+  const midiInputs = $derived([
+    { value: '', label: t('instrument.noMidiDevice') },
+    ...midiInputStore.state.ports.map(port => ({ value: port.id, label: port.name })),
+    ...(midiInputStore.state.selectedPortId && !midiInputStore.state.ports.some(port => port.id === midiInputStore.state.selectedPortId)
+      ? [{ value: midiInputStore.state.selectedPortId, label: t('instrument.midiDeviceUnavailable') }] : []),
   ]);
-  let selectedMidiId = $state<string>('none');
-  let isRefreshingMidi = $state(false);
-  let midiAccess = $state<any>(null);
-  let disposed = false;
   let inputPitches = $state(new Set<number>());
   const instrumentInput = new InstrumentInput(pitches => { inputPitches = pitches; });
   const inputEnabled = $derived(uiStore.activeTab === 'instrument'
     && !uiStore.activeDialog && !uiStore.gameSelectorOpen);
 
-  function updateMidiDevices(access: any) {
-    const devices: { value: string; label: string }[] = [{ value: 'none', label: 'None' }];
-    access.inputs.forEach((input: any) => {
-      if (input.state !== 'disconnected') {
-        devices.push({ value: input.id, label: input.name || `MIDI Device (${input.id})` });
-      }
-    });
-    midiInputs = devices;
-    if (!devices.some(device => device.value === selectedMidiId)) selectedMidiId = 'none';
-  }
-
-  async function loadMidiDevices() {
-    if (!('requestMIDIAccess' in navigator)) return;
-    const access = await (navigator as any).requestMIDIAccess();
-    if (disposed) return;
-    midiAccess = access;
-    updateMidiDevices(access);
-  }
-
-  async function refreshMidiDevices() {
-    isRefreshingMidi = true;
-    try {
-      await loadMidiDevices();
-    } catch (e) {
-      console.warn('[WebMIDI] Not supported or permission denied:', e);
-    } finally {
-      setTimeout(() => {
-        isRefreshingMidi = false;
-        notificationCenter.info(t('instrument.refreshDevices'), t('instrument.midiDevicesRefreshed'));
-      }, 450);
-    }
-  }
-
-  onMount(() => {
-    void loadMidiDevices().catch(() => {});
-  });
-
-  $effect(() => {
-    const access = midiAccess;
-    if (!access) return;
-    const stateChanged = (event: any) => {
-      if (event.port.id === selectedMidiId && event.port.state === 'disconnected') {
-        instrumentInput.clear('midi:');
-      }
-      updateMidiDevices(access);
-    };
-    access.addEventListener('statechange', stateChanged);
-    return () => access.removeEventListener('statechange', stateChanged);
-  });
-
-  $effect(() => {
-    const input = inputEnabled && selectedMidiId !== 'none' ? midiAccess?.inputs.get(selectedMidiId) : null;
-    const message = (event: any) => {
-      if (!inputEnabled || document.hidden || !document.hasFocus()) return;
-      const pitch = instrumentInput.midi(event.data);
-      if (pitch !== null) previewNote(pitch);
-    };
-    input?.addEventListener('midimessage', message);
-    return () => {
-      input?.removeEventListener('midimessage', message);
-      instrumentInput.clear('midi:');
-    };
-  });
-
   onDestroy(() => {
-    disposed = true;
     if (scheduledTimerInterval) clearInterval(scheduledTimerInterval);
     instrumentInput.clear();
     for (const timer of previewTimers.values()) clearTimeout(timer);
@@ -403,7 +338,7 @@
   // ==========================================
   // Layout Definitions & Active Note Glow
   // ==========================================
-  let activePitches = $derived(new Set([...playbackStore.activeNotes.map(n => n.pitch), ...inputPitches]));
+  let activePitches = $derived(new Set([...playbackStore.activeNotes.map(n => n.pitch), ...inputPitches, ...midiInputStore.state.pitches]));
 
   const selectedGameLayout = $derived(
     gameStore.activeGame?.layouts?.find(layout => layout.id === selectedLayoutId) ?? null
@@ -770,8 +705,10 @@
           <Dropdown
             options={midiInputs}
             showTooltips={false}
-            bind:value={selectedMidiId}
-            width="175px"
+            value={midiInputStore.state.selectedPortId ?? ''}
+            onchange={(value) => midiInputStore.select(String(value) || null)}
+            disabled={midiInputStore.busy}
+            width={bottomBarWidth >= 760 ? '175px' : '140px'}
             placeholder={t('instrument.noMidiDevice')}
           />
         </div>
@@ -779,17 +716,35 @@
         <button
           type="button"
           class="midi-refresh-btn theme-ghost-button"
-          onclick={refreshMidiDevices}
+          onclick={() => midiInputStore.refresh()}
           use:tooltip={t('instrument.refreshDevices')}
         >
-          <RefreshIcon loading={isRefreshingMidi} size={15} />
+          <RefreshIcon loading={midiInputStore.refreshing} size={15} />
         </button>
+        <Button variant="ghost" size={bottomBarWidth >= 900 ? 'sm' : 'icon'} disabled={midiInputStore.busy || (!midiInputStore.state.selectedPortId && !midiInputStore.state.active && !midiInputStore.state.starting)}
+          onclick={() => midiInputStore.state.active || midiInputStore.state.starting ? midiInputStore.stop() : midiInputStore.start()}
+          ariaLabel={midiInputStore.state.active || midiInputStore.state.starting ? t('instrument.midiStop') : t('instrument.midiStart')}
+          title={midiInputStore.state.active || midiInputStore.state.starting ? t('instrument.midiStop') : t('instrument.midiStart')}>
+          <FluentIcon name={midiInputStore.state.active || midiInputStore.state.starting ? 'Stop' : 'Play'} size={14} />
+          {#if bottomBarWidth >= 900}
+            {midiInputStore.state.active || midiInputStore.state.starting ? t('instrument.stop') : t('instrument.start')}
+          {/if}
+        </Button>
+      </div>
+      <div class="midi-status" role="status" aria-live="polite" title={midiInputStore.state.error ?? ''}>
+        {t(`instrument.midiStatus_${midiInputStore.state.status}`)}
+        {#if midiInputStore.state.requiresSession && !midiInputStore.state.listenMode}
+          <span class="midi-wayland-hint">{t('instrument.midiWaylandHint')}</span>
+        {/if}
       </div>
     </div>
   </div>
 </div>
 
 <style>
+  .midi-status { max-width: 360px; font-size: 11px; color: var(--text-secondary); text-align: right; line-height: 1.4; }
+  .midi-wayland-hint { display: block; }
+
   .instrument-view {
     display: flex;
     flex-direction: column;
@@ -1325,7 +1280,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 20px;
+    padding: 8px 20px;
     gap: 16px;
     flex-shrink: 0;
   }
@@ -1336,6 +1291,8 @@
     align-items: center;
     gap: 18px;
   }
+
+  .bottom-right-controls { flex-direction: column; align-items: flex-end; gap: 4px; }
 
   .control-unit {
     display: flex;
