@@ -42,16 +42,47 @@ test('device selection and active input live in the app store, not a view', asyn
   const h = await store();
   const init = h.store.init(); h.read(h.state); await init;
   await h.store.select('opaque-device-id');
-  assert.equal(h.store.state.active, false);
-  await h.store.start();
+  assert.equal(h.store.state.active, true);
   h.emit({ ...h.store.state, pitches: [60, 64] });
   assert.equal(h.store.state.active, true);
   // A view remount may reinitialize the store, but cannot reconnect or stop it.
   await h.store.init();
   assert.deepEqual(h.calls, [['select', 'opaque-device-id'], ['start']]);
   assert.deepEqual(h.store.state.pitches, [60, 64]);
-  await h.store.stop();
+  await h.store.select(null);
+  assert.equal(h.store.state.active, false);
+  assert.equal(h.store.state.selectedPortId, null);
+  assert.deepEqual(h.calls.at(-1), ['select', null]);
   assert.deepEqual(h.store.state.pitches, []);
+});
+
+test('restores an available selected device at startup but skips missing and already active devices', async () => {
+  for (const mode of ['available', 'missing', 'active', 'starting']) {
+    const h = await store();
+    const init = h.store.init();
+    h.read({ ...h.state, selectedPortId: mode === 'missing' ? 'missing-id' : 'opaque-device-id',
+      active: mode === 'active', starting: mode === 'starting' });
+    await init;
+    assert.deepEqual(h.calls, mode === 'available' ? [['start']] : [], mode);
+  }
+});
+
+test('refresh retries a failed selected device without restarting an active connection', async () => {
+  const h = await store();
+  h.midiInput.start = async () => { throw new Error('Device is busy'); };
+  await h.store.select('opaque-device-id');
+  assert.equal(h.store.state.selectedPortId, 'opaque-device-id');
+  assert.equal(h.store.state.status, 'error');
+  assert.match(h.notifications.at(-1)[1], /Device is busy/);
+  h.midiInput.start = async () => {
+    h.calls.push(['start']);
+    Object.assign(h.state, { active: true, connected: true, status: 'listening' });
+    return { ...h.state };
+  };
+  await h.store.refresh();
+  assert.equal(h.store.state.active, true);
+  await h.store.refresh();
+  assert.deepEqual(h.calls, [['select', 'opaque-device-id'], ['refresh'], ['start'], ['refresh']]);
 });
 
 test('a late initial snapshot cannot overwrite a newer disconnect or active state', async () => {
@@ -66,15 +97,25 @@ test('a late initial snapshot cannot overwrite a newer disconnect or active stat
   assert.equal(h.store.state.selectedPortId, 'opaque-device-id');
 });
 
+test('a startup event with a saved device takes precedence over a stale initial read', async () => {
+  const h = await store();
+  const init = h.store.init();
+  h.emit({ ...h.state, selectedPortId: 'opaque-device-id' });
+  h.read(h.state);
+  await init;
+  assert.deepEqual(h.calls, [['start']]);
+  assert.equal(h.store.state.active, true);
+});
+
 test('Wayland authorization remains stoppable and output failures are surfaced', async () => {
   const h = await store();
   const init = h.store.init(); h.read(h.state); await init;
   h.midiInput.start = async () => ({ ...h.state, starting: true, requiresSession: true, status: 'permission' });
-  await h.store.start();
+  await h.store.select('opaque-device-id');
   assert.equal(h.store.busy, false);
   assert.equal(h.store.state.starting, true);
-  await h.store.stop();
-  assert.equal(h.calls.at(-1)[0], 'stop');
+  await h.store.select(null);
+  assert.deepEqual(h.calls.at(-1), ['select', null]);
   h.midiInput.start = async () => { throw new Error('Permission denied'); };
   await h.store.start();
   assert.equal(h.store.state.status, 'error');

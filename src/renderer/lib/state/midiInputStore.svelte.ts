@@ -28,6 +28,7 @@ export class MidiInputStore {
     try {
       const state = await api.midiInput.getState();
       if (revision === this.revision) this.accept(state);
+      await this.startSelected();
     } catch (error) { this.report(error); }
   }
 
@@ -44,12 +45,28 @@ export class MidiInputStore {
     catch (error) { this.report(error); }
     finally { this.busy = false; }
   }
-  select(portId: string | null) { return this.run(() => api.midiInput.selectPort(portId)); }
+  select(portId: string | null) {
+    return this.run(async () => {
+      const state = await api.midiInput.selectPort(portId);
+      // Keep the selection visible even if opening the device fails.
+      this.accept(state);
+      return portId ? api.midiInput.start() : state;
+    });
+  }
+  private startSelected() {
+    if (this.state.selectedPortId && !this.state.active && !this.state.starting
+      && this.state.ports.some(port => port.id === this.state.selectedPortId)) {
+      return this.start();
+    }
+  }
   start() { return this.run(() => api.midiInput.start()); }
   stop() { return this.run(() => api.midiInput.stop()); }
   async refresh() {
     this.refreshing = true;
-    try { await this.run(() => api.midiInput.refreshPorts()); }
+    try {
+      await this.run(() => api.midiInput.refreshPorts());
+      await this.startSelected();
+    }
     finally { this.refreshing = false; }
   }
 }
