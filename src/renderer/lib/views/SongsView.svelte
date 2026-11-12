@@ -8,6 +8,7 @@
   import { settingsStore } from '../state/settingsStore.svelte';
   import { t } from '../i18n';
   import type { MidiFile } from '$shared/types/midi';
+  import { replaceVisibleSongOrder, sortLibrarySongs } from '../utils/libraryOrdering';
   import FluentIcon from '../components/Icons/FluentIcon.svelte';
   import ExpandableSearchBox from '../components/Common/ExpandableSearchBox.svelte';
   import PlayPauseIcon from '../components/Icons/PlayPauseIcon.svelte';
@@ -44,6 +45,7 @@
   let sortMenuOpen = $state(false);
 
   let sortOptions = $derived([
+    { value: 'custom', label: t('songs.sortCustom') },
     { value: 'title', label: t('songs.sortTitle') },
     { value: 'artist', label: t('songs.sortArtist') },
     { value: 'duration', label: t('songs.sortDuration') },
@@ -71,34 +73,33 @@
 
   let scrollContainerEl = $state<HTMLDivElement>();
 
-  const timestampCache = new WeakMap<object, number>();
-  function getTimestamp(song: MidiFile): number {
-    const cached = timestampCache.get(song);
-    if (cached !== undefined) return cached;
-    const timestamp = new Date(song.dateAdded || 0).getTime();
-    timestampCache.set(song, timestamp);
-    return timestamp;
-  }
-
   let filteredSongs = $derived(
-    playlistSongs
+    sortLibrarySongs(playlistSongs
       .filter(song =>
         (song.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (song.artist || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         ((song as any).album && (song as any).album.toLowerCase().includes(searchQuery.toLowerCase()))
-      )
-      .sort((a, b) => {
-        if (uiStore.songsSortMode === 'title') return a.title.localeCompare(b.title);
-        if (uiStore.songsSortMode === 'artist') return a.artist.localeCompare(b.artist);
-        if (uiStore.songsSortMode === 'duration') {
-          return (b.durationSeconds ?? b.durationMs / 1000) - (a.durationSeconds ?? a.durationMs / 1000);
-        }
-        if (uiStore.songsSortMode === 'dateAdded') {
-          return getTimestamp(b) - getTimestamp(a);
-        }
-        return 0;
-      })
+      ), uiStore.songsSortMode, uiStore.songsSortDirection,
+      currentPlaylist?.id === 'songs' || currentPlaylist?.id === 'all-songs'
+        ? uiStore.librarySongOrder : [])
   );
+
+  const canReorderSongs = $derived(uiStore.songsSortMode === 'custom' && !searchQuery.trim());
+
+  async function handleReorder(songs: MidiFile[]) {
+    if (!canReorderSongs) return;
+    try {
+      if (!currentPlaylist || currentPlaylist.id === 'songs' || currentPlaylist.id === 'all-songs') {
+        uiStore.librarySongOrder = replaceVisibleSongOrder(uiStore.librarySongOrder,
+          playlistSongs.map(song => song.id), songs.map(song => song.id));
+        uiStore.persistPreferences(libraryStore.selectedPlaylistId);
+      } else {
+        await libraryStore.reorderPlaylist(currentPlaylist.id, songs.map(song => song.id));
+      }
+    } catch (error) {
+      notificationCenter.error(t('common.error'), String(error));
+    }
+  }
 
   // Formatted duration for hero metadata (e.g. "31 hr 49 min" or "48 min")
   let totalDurationFormatted = $derived.by(() => {
@@ -311,6 +312,7 @@
 <svelte:window onclick={() => { sortMenuOpen = false; }} />
 
 <CustomScrollViewer
+  persistenceKey={`songs:${libraryStore.selectedPlaylistId}`}
   class="songs-view {isScrolled ? 'is-scrolled' : ''}"
   contentClass="songs-view-content"
   bind:scrollContainer={scrollContainerEl}
@@ -437,6 +439,18 @@
                 {/if}
               </button>
             {/each}
+            {#if uiStore.songsSortMode !== 'custom'}
+              <button class="sort-menu-option" class:selected={uiStore.songsSortDirection === 'asc'}
+                onclick={() => { uiStore.songsSortDirection = 'asc'; sortMenuOpen = false; }}>
+                <span>{t('songs.sortAscending')}</span>
+                {#if uiStore.songsSortDirection === 'asc'}<FluentIcon name="Checkmark" size={14} class="check-icon" />{/if}
+              </button>
+              <button class="sort-menu-option" class:selected={uiStore.songsSortDirection === 'desc'}
+                onclick={() => { uiStore.songsSortDirection = 'desc'; sortMenuOpen = false; }}>
+                <span>{t('songs.sortDescending')}</span>
+                {#if uiStore.songsSortDirection === 'desc'}<FluentIcon name="Checkmark" size={14} class="check-icon" />{/if}
+              </button>
+            {/if}
           </div>
         {/if}
       </div>
@@ -446,6 +460,8 @@
   <!-- Shared SongListTable with Spotify-style resizable columns and sticky header -->
   <SongListTable
     songs={filteredSongs}
+    canReorder={canReorderSongs}
+    onreorder={handleReorder}
     embedInScroll={true}
     scrollContainer={scrollContainerEl}
     bind:selectedId={selectedSongId}

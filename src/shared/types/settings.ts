@@ -34,7 +34,10 @@ export interface PlaybackPreferences {
 export interface UiPreferences {
   lastViewedPage?: string;
   selectedPlaylistId?: string;
-  songsSortMode?: 'title' | 'artist' | 'dateAdded' | 'duration';
+  songsSortMode?: 'custom' | 'title' | 'artist' | 'dateAdded' | 'duration';
+  songsSortDirection?: 'asc' | 'desc';
+  librarySongOrder?: string[];
+  scrollPositions?: Record<string, { x: number; y: number }>;
   studioSidebarCollapsed?: boolean;
   studio?: Partial<StudioPreferences>;
   playback?: Partial<PlaybackPreferences>;

@@ -478,6 +478,10 @@ class PlaybackStore {
     else {
       this.holdNotes = settingsStore.settings.defaultHoldNotes;
       this.tapThresholdMs = settingsStore.settings.defaultTapThresholdMs;
+      this.mergeNotes = settingsStore.settings.defaultMergeNotes ?? DEFAULT_APP_SETTINGS.defaultMergeNotes;
+      this.mergeToleranceMs = settingsStore.settings.defaultMergeToleranceMs ?? DEFAULT_APP_SETTINGS.defaultMergeToleranceMs;
+      this.autoChord = settingsStore.settings.defaultAutoChord ?? DEFAULT_APP_SETTINGS.defaultAutoChord;
+      this.chordDetectionMilliseconds = settingsStore.settings.defaultChordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds;
     }
     this.currentTimeSeconds = restoredSong ? Math.min(saved.positionSeconds, this.durationSeconds) : 0;
     this.syncQueueIndex();
@@ -488,6 +492,7 @@ class PlaybackStore {
       api.playback.setListenMode(this.isListenMode),
       api.playback.setSynthMode(this.synthMode),
       this.syncNoteTiming(),
+      this.syncNoteProcessing(),
     ]);
     await this.applySoundFontConfiguration().catch(error => {
       notificationCenter.error(t('settings.soundFontLoadFailed'), String(error));
@@ -673,10 +678,11 @@ class PlaybackStore {
     }
     this.tapThresholdMs = song.tapThresholdMs ?? DEFAULT_APP_SETTINGS.defaultTapThresholdMs;
     void this.syncNoteTiming();
-    if (song.autoChord !== undefined) {
-      this.autoChord = song.autoChord;
-    }
+    this.autoChord = song.autoChord ?? DEFAULT_APP_SETTINGS.defaultAutoChord;
     this.chordDetectionMilliseconds = song.chordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds;
+    // A preview selection must not reprocess the previously loaded native song.
+    // Play reapplies these settings after the selected file has loaded.
+    if (!isTauri || this._currentLoadedPath === song.filePath) void this.syncNoteProcessing();
     if (song.enableKeyChangeMarkers !== undefined) {
       this.enableKeyChangeMarkers = song.enableKeyChangeMarkers;
     }
@@ -765,6 +771,7 @@ class PlaybackStore {
   setMergeNotes(value: boolean) {
     this.mergeNotes = value;
     if (this.activeSong) this.activeSong.mergeNotes = value;
+    void this.syncNoteProcessing();
     this.scheduleAutoSaveSongSettings();
   }
 
@@ -772,12 +779,21 @@ class PlaybackStore {
     if (!Number.isInteger(value) || value < 1 || value > 1000) return;
     this.mergeToleranceMs = value;
     if (this.activeSong) this.activeSong.mergeToleranceMs = value;
+    void this.syncNoteProcessing();
     this.scheduleAutoSaveSongSettings();
   }
 
   private syncNoteTiming() {
     return api.playback.setNoteTiming(this.holdNotes, this.tapThresholdMs)
       .catch(error => notificationCenter.error('Unable to update note timing', String(error)));
+  }
+
+  private syncNoteProcessing() {
+    // Controls and Edit can update a preview before its file replaces the engine song.
+    if (isTauri && (!this.activeSong || this._currentLoadedPath !== this.activeSong.filePath)) return Promise.resolve(true);
+    return api.playback.setNoteProcessing(this.mergeNotes, this.mergeToleranceMs,
+      this.autoChord, this.chordDetectionMilliseconds)
+      .catch(error => notificationCenter.error('Unable to update note processing', String(error)));
   }
 
   setTapThresholdMs(value: number) {
@@ -793,6 +809,7 @@ class PlaybackStore {
     if (this.activeSong) {
       this.activeSong.autoChord = val;
     }
+    void this.syncNoteProcessing();
     this.scheduleAutoSaveSongSettings();
   }
 
@@ -800,6 +817,7 @@ class PlaybackStore {
     if (!Number.isFinite(value)) return;
     this.chordDetectionMilliseconds = Math.max(0, Math.min(500, Math.round(value)));
     if (this.activeSong) this.activeSong.chordDetectionMilliseconds = this.chordDetectionMilliseconds;
+    void this.syncNoteProcessing();
     this.scheduleAutoSaveSongSettings();
   }
 
@@ -1079,6 +1097,10 @@ class PlaybackStore {
     }
   }
 
+  get hasPlayableSong(): boolean {
+    return Boolean(this.activeSong || this.playbackQueue.length);
+  }
+
   private get playbackQueue(): MidiFile[] {
     return this.isShuffled ? this.shuffledQueue : this.queue;
   }
@@ -1188,6 +1210,7 @@ class PlaybackStore {
           await api.playback.setKeyMarkers(this.activeSong?.keyMarkers ?? []);
           await api.playback.setKeyMarkersEnabled(this.enableKeyChangeMarkers);
           await this.syncNoteTiming();
+          await this.syncNoteProcessing();
           await api.playback.setSpeed(this.enginePlaybackSpeed);
           await this.syncKeyOffset();
           await api.playback.setTransposeMode(this.transposeMode);
@@ -1480,8 +1503,11 @@ class PlaybackStore {
       this.holdNotes = song.holdNotes;
       this.tapThresholdMs = song.tapThresholdMs ?? DEFAULT_APP_SETTINGS.defaultTapThresholdMs;
       await this.syncNoteTiming();
+      this.mergeNotes = song.mergeNotes ?? DEFAULT_APP_SETTINGS.defaultMergeNotes;
+      this.mergeToleranceMs = song.mergeToleranceMs ?? DEFAULT_APP_SETTINGS.defaultMergeToleranceMs;
       this.autoChord = song.autoChord ?? DEFAULT_APP_SETTINGS.defaultAutoChord;
       this.chordDetectionMilliseconds = song.chordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds;
+      await this.syncNoteProcessing();
       this.enableKeyChangeMarkers = song.enableKeyChangeMarkers ?? DEFAULT_APP_SETTINGS.defaultEnableKeyChangeMarkers;
       if (resetTrackVolumes) this.trackVolumes = {};
       this.applyTrackSettings(this.activeSong);

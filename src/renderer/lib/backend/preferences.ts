@@ -11,6 +11,7 @@ let timer: ReturnType<typeof setTimeout> | null = null;
 let writes: Promise<void> = Promise.resolve();
 
 function merge(older: UiPreferences, newer: UiPreferences): UiPreferences {
+  // scrollPositions is a complete bounded history; merge it by replacement so evicted keys stay gone.
   const result = { ...older, ...newer };
   for (const key of ['studio', 'playback', 'songColumnWidths'] as const) {
     if (older[key] && newer[key]) Object.assign(result, { [key]: { ...older[key], ...newer[key] } });

@@ -126,7 +126,7 @@
       />
 
       <!-- Tab Contents -->
-      <CustomScrollViewer class="sidebar-content-viewer" contentClass="sidebar-content" padding="10px">
+      <CustomScrollViewer persistenceKey={`studio-sidebar:${playbackStore.activeSong?.id ?? 'none'}:${uiStore.studio.sidebarTab}`} class="sidebar-content-viewer" contentClass="sidebar-content" padding="10px">
         {#if uiStore.studio.sidebarTab === 'tracks'}
           <div class="tracks-tab">
             <div class="tracks-list">
@@ -320,8 +320,8 @@
                   </div>
                   <div class="note-control switch-row-card">
                     <div class="switch-card-text">
-                      <div class="switch-card-title">{t('studio.autoChord') || 'Auto Chord Detection'}</div>
-                      <div class="switch-card-desc">{t('studio.autoChordDesc') || 'Play chords as game chord-pads'}</div>
+                      <div class="switch-card-title">{t('studio.autoChord')}</div>
+                      <div class="switch-card-desc">{t('studio.autoChordDesc')}</div>
                     </div>
                     <ToggleSwitch
                       bind:checked={playbackStore.autoChord}

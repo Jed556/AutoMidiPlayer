@@ -90,6 +90,7 @@
     <!-- COMPRESSED MODE (Original 80px Width, Clean Vertical Layout) -->
     <div class="nav-top">
       <CustomScrollViewer
+        persistenceKey="navigation:compressed"
         showScrollbar={false}
         fadeHeight={16}
         contentStyle="align-items: center; padding: 4px 0 0;"
@@ -129,6 +130,7 @@
     <!-- Middle: Scrollable Playlists List (Spotify-style Collapsed Sidebar) -->
     <div class="compressed-playlists-wrapper">
       <CustomScrollViewer
+        persistenceKey="playlists:compressed"
         contentClass="compressed-playlists-scroll"
         contentStyle="align-items: center; padding: 0 0 16px;"
         showScrollbar={false}
@@ -209,7 +211,7 @@
          - 3-Column Mode: 2 items per row side-by-side
     -->
     <div class="nav-pages-wrapper">
-      <CustomScrollViewer showScrollbar={false} fadeHeight={16}>
+      <CustomScrollViewer persistenceKey={`navigation:${uiStore.libraryMode}`} showScrollbar={false} fadeHeight={16}>
         <nav class="nav-pages-section" class:two-column={uiStore.libraryMode === 'two-column'} class:three-column={uiStore.libraryMode === 'three-column'} aria-label="Main Navigation" data-tooltip-disabled="true">
           {#each navItems as item (item.id)}
             {@const isActive = (uiStore.activeTab || '').toLowerCase() === item.id}
@@ -261,6 +263,7 @@
     <div class="library-scroll-wrapper">
       <CustomScrollViewer
         contentClass="library-grid-scroll"
+        persistenceKey={`playlists:${uiStore.libraryMode}`}
         fadeHeight={32}
       >
         <div class="cards-grid {uiStore.libraryMode}" data-tooltip-disabled="true">

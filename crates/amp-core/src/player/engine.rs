@@ -17,6 +17,7 @@ use crate::diagnostics::ServiceStatus;
 use super::live_input::{LiveInput, LiveInputSnapshot, LiveSettings, MidiMessage};
 use crate::input::simulator::KeyboardOutput;
 use super::note_timing::{is_tap, note_durations, pending_note_owners, KeyReleases, KeyPressAction, OverlapBehavior};
+use super::note_processing::{NoteProcessingSettings, ChordNote, merge_notes, detect_chords};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum PlaybackStatus {
@@ -90,6 +91,7 @@ struct LiveNote {
     duration_us: Option<u64>,
     deadline: Option<Instant>,
     adapted_timing: bool,
+    chord_pad: bool,
 }
 
 fn next_note_deadline(keys: &KeyReleases, notes: &HashMap<usize, LiveNote>) -> Option<Instant> {
@@ -161,6 +163,8 @@ enum Command {
     SetOverlapBehavior(OverlapBehavior),
     SetRepressGapMs(u64),
     SetNoteTiming { hold_notes: bool, tap_threshold_ms: u64 },
+    SetNoteProcessing(NoteProcessingSettings),
+    SetNoteLogging(bool),
     SetGamePreviewFollowNoteTiming(bool),
     SetPedalsEnabled(bool),
     SetSendInput(bool),
@@ -342,6 +346,14 @@ impl PlaybackEngine {
         let _ = self.cmd_tx.send(Command::SetNoteTiming { hold_notes, tap_threshold_ms });
     }
 
+    pub fn set_note_processing(&self, settings: NoteProcessingSettings) {
+        let _ = self.cmd_tx.send(Command::SetNoteProcessing(settings));
+    }
+
+    pub fn set_note_logging(&self, enabled: bool) {
+        let _ = self.cmd_tx.send(Command::SetNoteLogging(enabled));
+    }
+
     pub fn set_game_preview_follow_note_timing(&self, enabled: bool) {
         let _ = self.cmd_tx.send(Command::SetGamePreviewFollowNoteTiming(enabled));
     }
@@ -455,6 +467,7 @@ fn run_playback_loop(
     midi_overflow: Arc<AtomicBool>,
 ) {
     let mut key_sim = KeySimulator::new();
+    let mut log_played_notes = false;
     let mut midi = LiveInput::default();
     let mut repress_gap_ms = crate::settings::defaults::value("/repressGapMs");
     let mut pending_command = None;
@@ -463,7 +476,14 @@ fn run_playback_loop(
     let sleeper = SpinSleeper::default();
 
     let mut durations = initial_song.as_ref().map(|song| note_durations(&song.events)).unwrap_or_default();
-    let mut current_song = initial_song;
+    // Retain the untouched MIDI so live toggles never accumulate transformations.
+    let mut source_song = initial_song.map(Arc::new);
+    let mut current_song = source_song.clone();
+    let mut note_processing = NoteProcessingSettings::default();
+    let mut rebuild_notes = note_processing.merge_notes;
+    let mut rebuild_chords = true;
+    let mut chord_notes: Vec<Option<ChordNote>> = Vec::new();
+    let mut triggered_chords = HashSet::new();
     let mut hold_notes = crate::settings::defaults::value("/defaultHoldNotes");
     let mut tap_threshold_ms = crate::settings::defaults::value("/defaultTapThresholdMs");
     let mut tap_duration_ms = crate::settings::defaults::value("/keyPressDelayMs");
@@ -538,6 +558,8 @@ fn run_playback_loop(
                 Command::Play => {
                     if config_available.load(Ordering::Acquire) && status != PlaybackStatus::Playing && current_song.is_some() {
                         if current_song.as_ref().is_some_and(|song| event_idx >= song.events.len() && control_idx >= song.control_events.len()) {
+                            rebuild_chords = true;
+                            triggered_chords.clear();
                             current_us = 0;
                             event_idx = 0;
                             control_idx = 0;
@@ -579,6 +601,8 @@ fn run_playback_loop(
                     }
                 }
                 Command::Stop => {
+                    rebuild_chords = true;
+                    triggered_chords.clear();
                     status = PlaybackStatus::Stopped;
                     current_us = 0;
                     last_sync_us = 0;
@@ -606,6 +630,8 @@ fn run_playback_loop(
                         continue;
                     }
                     seek_id = request_id;
+                    rebuild_chords = true;
+                    triggered_chords.clear();
                     if let Some(ref song) = current_song {
                         current_us = target_us.min(song.duration_us);
                         *time_arc.lock().unwrap() = current_us;
@@ -649,11 +675,14 @@ fn run_playback_loop(
                 }
                 Command::SetKeyOffset(offset) => {
                     key_offset = offset;
+                    rebuild_chords = true;
                 }
                 Command::SetTransposeMode(mode) => {
                     transpose_mode = mode;
+                    rebuild_chords = true;
                 }
                 Command::SetTrackMuted(track_idx, muted) => {
+                    rebuild_chords = true;
                     if muted {
                         muted_tracks.insert(track_idx);
                         let owners: Vec<_> = live_notes.iter()
@@ -676,6 +705,7 @@ fn run_playback_loop(
                         synth.set_track_muted(track_idx, muted);
                     }
                 }
+                Command::SetNoteLogging(enabled) => { log_played_notes = enabled; }
                 Command::SetFps(fps) => {
                     if fps == 0 {
                         sync_interval_us = 4_000; // ~240 FPS / uncapped
@@ -700,6 +730,15 @@ fn run_playback_loop(
                     if hold_notes != enabled { midi.clear(&mut key_sim, &audio_synth); }
                     hold_notes = enabled;
                     tap_threshold_ms = threshold.min(10_000);
+                }
+                Command::SetNoteProcessing(settings) => {
+                    if note_processing != settings {
+                        rebuild_notes |= note_processing.merge_notes != settings.merge_notes
+                            || ((note_processing.merge_notes || settings.merge_notes)
+                                && note_processing.merge_tolerance_ms != settings.merge_tolerance_ms);
+                        rebuild_chords = true;
+                        note_processing = settings;
+                    }
                 }
                 Command::SetGamePreviewFollowNoteTiming(enabled) => {
                     if game_preview_follow_note_timing != enabled { midi.clear(&mut key_sim, &audio_synth); }
@@ -734,7 +773,13 @@ fn run_playback_loop(
                     }
                 }
                 Command::LoadSong(new_song) => {
+                    chord_notes.clear();
+                    triggered_chords.clear();
+                    rebuild_notes = note_processing.merge_notes;
+                    rebuild_chords = true;
                     durations = note_durations(&new_song.events);
+                    let new_song = Arc::new(new_song);
+                    source_song = Some(Arc::clone(&new_song));
                     current_song = Some(new_song);
                     current_us = 0;
                     last_sync_us = 0;
@@ -762,6 +807,8 @@ fn run_playback_loop(
                     callback(PlayerEvent::TimeUpdate { time_us: 0, seek_id });
                 }
                 Command::Panic => {
+                    triggered_chords.clear();
+                    rebuild_chords = true;
                     midi.stop(&mut key_sim, &audio_synth);
                     key_sim.release_everything();
                     if let Some(synth) = &audio_synth { synth.for_source(2).all_notes_off(); }
@@ -839,6 +886,7 @@ fn run_playback_loop(
                     }
                 }
                 Command::SetTrackVolume(track_idx, vol) => {
+                    rebuild_chords = true;
                     track_volumes.insert(track_idx, vol.clamp(0.0, 1.0));
                     if let Some(ref synth) = audio_synth {
                         synth.set_track_volume(track_idx, vol);
@@ -851,6 +899,7 @@ fn run_playback_loop(
                     }
                 }
                 Command::SetMapping(new_mapping) => {
+                    rebuild_chords = true;
                     midi.clear(&mut key_sim, &audio_synth);
                     key_sim.release_all(&all_keys);
                     key_releases.clear();
@@ -880,13 +929,85 @@ fn run_playback_loop(
                     }
                 }
                 Command::SetKeyMarkers(mut markers) => {
+                    rebuild_chords = true;
                     markers.sort_by_key(|m| m.time_ms);
                     key_markers = markers;
                 }
                 Command::SetKeyMarkersEnabled(enabled) => {
+                    rebuild_chords = true;
                     key_markers_enabled = enabled;
                 }
             }
+        }
+
+        if rebuild_notes {
+            rebuild_notes = false;
+            if let Some(source) = &source_song {
+                let song = if note_processing.merge_notes {
+                    let mut merged = (**source).clone();
+                    merged.events = merge_notes(&source.events, note_processing.merge_tolerance_ms);
+                    Arc::new(merged)
+                } else { Arc::clone(source) };
+                durations = note_durations(&song.events);
+                chord_notes.clear();
+                triggered_chords.clear();
+                event_idx = song.events.partition_point(|event| event.time_us < current_us);
+                current_song = Some(song);
+                // Only release the backing song; physical MIDI owns separate outputs.
+                key_sim.release_all(&all_keys);
+                if let Some(synth) = &audio_synth {
+                    synth.all_notes_off();
+                    // all_notes_off clears this source's pedals. Restore the
+                    // MIDI controller/program state before chasing held notes.
+                    if listen_mode {
+                        for event in &source.control_events[..control_idx] {
+                            match event.kind {
+                                ControlEventKind::ControlChange { controller, value } =>
+                                    synth.control_change(event.channel, controller, value),
+                                ControlEventKind::ProgramChange { program } =>
+                                    synth.program_change(event.channel, program),
+                            }
+                        }
+                    }
+                }
+                active_held_notes.clear();
+                live_notes.clear();
+                key_releases.clear();
+                publish_live_notes(&live_notes, &mut active_notes, &mut active_track_notes, &callback);
+                restore_notes = status == PlaybackStatus::Playing;
+                last_instant = Instant::now();
+                rebuild_chords = true;
+            }
+        }
+        if rebuild_chords {
+            rebuild_chords = false;
+            // A pad attack replaces the whole chord. Keep its remaining members
+            // suppressed if controls change between their staggered onsets.
+            let frozen: Vec<_> = chord_notes.iter().map(|note|
+                note.filter(|note| triggered_chords.contains(&note.chord_id))).collect();
+            let next_chord_id = frozen.iter().flatten().map(|note| note.chord_id + 1).max().unwrap_or(0);
+            let mut planned = if note_processing.auto_chord && !mapping.chord_pads().is_empty() {
+                current_song.as_ref().map(|song| detect_chords(
+                    &song.events, mapping.chord_pads(), note_processing.chord_detection_milliseconds,
+                    |index, event| frozen.get(index).is_none_or(Option::is_none)
+                        && !muted_tracks.contains(&event.track_index)
+                        && ((event.velocity as f32) * track_volumes.get(&event.track_index).copied().unwrap_or(1.0)).round() > 0.0,
+                    |pitch, time_us| {
+                        let marker = key_markers_enabled.then(|| get_active_marker(&key_markers, (time_us + 10_000) / 1000)).flatten();
+                        process_note_pitch(pitch, marker.map(|m| m.key_offset).unwrap_or(key_offset),
+                            marker.and_then(|m| m.transpose).unwrap_or(transpose_mode),
+                            min_pitch, max_pitch, &playable_notes)
+                    },
+                )).unwrap_or_default()
+            } else { Vec::new() };
+            for note in planned.iter_mut().flatten() { note.chord_id += next_chord_id; }
+            if frozen.iter().any(Option::is_some) {
+                planned.resize(frozen.len(), None);
+                for (index, note) in frozen.into_iter().enumerate() {
+                    if note.is_some() { planned[index] = note; }
+                }
+            }
+            chord_notes = planned;
         }
 
         midi.snapshot.listen_mode = listen_mode;
@@ -927,13 +1048,15 @@ fn run_playback_loop(
                 && is_tap(hold_notes, tap_threshold_ms, note.duration_us, speed) {
                 let deadline = note.started + Duration::from_millis(tap_duration_ms);
                 note.deadline = Some(deadline);
-                if let Some(key) = note.key { key_releases.retime(key, owner, deadline); }
+                if !note.chord_pad {
+                    if let Some(key) = note.key { key_releases.retime(key, owner, deadline); }
+                }
             }
         }
         for (stroke, owners) in key_releases.take_presses(now) {
             key_sim.press_stroke(stroke);
             for owner in owners {
-                if let Some(note) = live_notes.get_mut(&owner) {
+                if let Some(note) = live_notes.get_mut(&owner).filter(|note| !note.chord_pad) {
                     note.deadline = note.deadline.map(|at| now + at.saturating_duration_since(note.started));
                     note.started = now;
                 }
@@ -1110,8 +1233,25 @@ fn run_playback_loop(
                         max_pitch,
                         &playable_notes,
                     );
-                    let mapped_stroke = mapped_note.and_then(|n| mapping.get_stroke(n));
+                    let chord = (!listen_mode).then(|| chord_notes.get(owner_index).copied().flatten()).flatten();
+                    let chord_pad = chord.is_some_and(|note| note.trigger && !restoring);
+                    let mapped_stroke = match chord {
+                        // Pads are one timed attack, never retriggered by a historical seek/resume.
+                        Some(note) => (note.trigger && !restoring).then_some(note.stroke),
+                        None => mapped_note.and_then(|n| mapping.get_stroke(n)),
+                    };
                     let mapped_key = mapped_stroke.map(|stroke| stroke.key);
+
+                    if log_played_notes {
+                        log::info!(target: "amp_core::player::note_diagnostics",
+                            "NOTE_ON track={} channel={} original={} mapped={:?} key={:?} velocity={} output={} restored={} chord_pad={}",
+                            ev.track_index, ev.channel, ev.note, mapped_note, mapped_stroke, effective_vel,
+                            if listen_mode { "synth" } else if send_input { "game" } else { "disabled" }, restoring, chord_pad);
+                        log::info!(target: "amp_core::player::scheduler_diagnostics",
+                            "DISPATCH scheduled_us={} actual_us={} drift_us={} speed={} track={} original={}",
+                            ev.time_us, current_us, ((current_us.saturating_sub(ev.time_us) as f64) / speed).round() as u64,
+                            speed, ev.track_index, ev.note);
+                    }
 
                     active_held_notes.entry((ev.track_index, ev.channel, ev.note)).or_default()
                         .push_back((mapped_note, mapped_key, owner_index));
@@ -1127,7 +1267,7 @@ fn run_playback_loop(
                     } else { None };
                     live_notes.insert(owner_index, LiveNote {
                         pitch: mapped_note, key: mapped_key, track_index: ev.track_index,
-                        synth_note, started, duration_us: durations[owner_index], deadline, adapted_timing,
+                        synth_note, started, duration_us: durations[owner_index], deadline, adapted_timing, chord_pad,
                     });
 
                     if listen_mode {
@@ -1138,9 +1278,13 @@ fn run_playback_loop(
                         }
                     } else if send_input {
                         if let Some(stroke) = mapped_stroke {
+                            if let Some(chord) = chord.filter(|note| note.trigger && !restoring) {
+                                triggered_chords.insert(chord.chord_id);
+                            }
                             let key = stroke.key;
-                            let (action, press_at) = key_releases.begin_stroke(stroke, owner_index, started, deadline, overlap_behavior);
-                            if let Some(note) = live_notes.get_mut(&owner_index) {
+                            let key_deadline = if chord_pad { Some(started + Duration::from_millis(tap_duration_ms)) } else { deadline };
+                            let (action, press_at) = key_releases.begin_stroke(stroke, owner_index, started, key_deadline, overlap_behavior);
+                            if let Some(note) = live_notes.get_mut(&owner_index).filter(|note| !note.chord_pad) {
                                 note.started = press_at;
                                 note.deadline = deadline.map(|at| press_at + at.saturating_duration_since(started));
                             }
@@ -1168,9 +1312,14 @@ fn run_playback_loop(
             } else {
                 // NoteOff always runs, regardless of the current mute or volume.
                 // Only release the exact output acquired by its matching NoteOn.
-                if let Some((_pitch, key, owner)) = active_held_notes
+                if let Some((pitch, key, owner)) = active_held_notes
                     .get_mut(&(ev.track_index, ev.channel, ev.note))
                     .and_then(VecDeque::pop_front) {
+                    if log_played_notes {
+                        log::info!(target: "amp_core::player::note_diagnostics",
+                            "NOTE_OFF track={} channel={} original={} mapped={:?} key={:?}",
+                            ev.track_index, ev.channel, ev.note, pitch, key);
+                    }
                     if let Some(key) = key {
                         if key_releases.note_off(key, owner) {
                             key_sim.send_key(key, true);

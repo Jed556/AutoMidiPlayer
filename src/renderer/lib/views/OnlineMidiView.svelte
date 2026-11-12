@@ -150,6 +150,7 @@
 
   <!-- Results List matching WPF DiscoveryCard ItemsControl -->
   <CustomScrollViewer
+    persistenceKey="discover"
     class="cards-scroll-viewer"
     contentClass="cards-viewport"
     padding="20px 24px 32px 24px"

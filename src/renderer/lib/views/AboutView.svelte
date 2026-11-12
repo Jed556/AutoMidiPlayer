@@ -57,6 +57,7 @@
 </script>
 
 <CustomScrollViewer
+  persistenceKey="about"
   bind:scrollContainer={viewEl}
   class="about-scroll-viewer"
   contentClass="about-view {isCentered ? 'is-centered' : ''}"

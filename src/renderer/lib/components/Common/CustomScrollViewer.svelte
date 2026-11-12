@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick, type Snippet } from 'svelte';
   import { createFrameResizeObserver } from '../../utils/frameResizeObserver';
+  import { attachScrollPersistence } from '../../actions/persistScroll';
 
   interface Props {
     children?: Snippet;
@@ -16,6 +17,7 @@
     fadeRampDistance?: number; // Scroll distance in px to reach maximum fade (default 32)
     showScrollbar?: boolean;   // Whether to show the scrollbar (default true)
     scrollContainer?: HTMLDivElement; // Bindable ref to the scrollable element
+    persistenceKey?: string;
     onscroll?: (e: Event) => void;
     onwheel?: (e: WheelEvent) => void;
     onpointerdown?: (e: PointerEvent) => void;
@@ -40,6 +42,7 @@
     fadeRampDistance = 32,
     showScrollbar = true,
     scrollContainer = $bindable(),
+    persistenceKey,
     onscroll: externalOnScroll,
     onwheel: externalOnWheel,
     onpointerdown: externalOnPointerDown,
@@ -60,6 +63,10 @@
   // Update bindable prop
   $effect(() => {
     scrollContainer = internalScrollEl;
+  });
+
+  $effect(() => {
+    if (internalScrollEl && persistenceKey) return attachScrollPersistence(internalScrollEl, persistenceKey);
   });
 
   export function updateScrollFade() {

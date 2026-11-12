@@ -395,11 +395,22 @@ pub fn open_logs_folder() -> Result<(), String> {
 /// Custom log::Log implementation that dispatches to our multi-channel file logger
 pub struct AmpLogger;
 
+fn diagnostic_channel(target: &str) -> Option<LogChannel> {
+    match target {
+        "amp_core::player::note_diagnostics" => Some(LogChannel::InputOutput),
+        "amp_core::player::scheduler_diagnostics" => Some(LogChannel::Scheduler),
+        _ => None,
+    }
+}
+
 impl log::Log for AmpLogger {
     fn enabled(&self, metadata: &Metadata) -> bool {
         // Enigo logs every key press/release at debug level. Suppress this chatter
         // before formatting or writing to the console and disk; retain warnings/errors.
         let target = metadata.target();
+        // These high-volume records are explicitly opted into in the engine.
+        // Keep their switch independent of crash-log verbosity.
+        if diagnostic_channel(target).is_some() { return true; }
         if (target == "enigo" || target.starts_with("enigo::"))
             && metadata.level() > Level::Warn
         {
@@ -420,7 +431,9 @@ impl log::Log for AmpLogger {
         }
 
         let target = record.target();
-        let channel = if target.starts_with("amp_core::midi") {
+        let channel = if let Some(channel) = diagnostic_channel(target) {
+            channel
+        } else if target.starts_with("amp_core::midi") {
             LogChannel::MidiParser
         } else if target.starts_with("amp_core::player") || target.starts_with("amp_core::audio") {
             LogChannel::Playback
@@ -472,6 +485,9 @@ mod tests {
 
     #[test]
     fn test_channel_resolution() {
+        assert_eq!(diagnostic_channel("amp_core::player::note_diagnostics"), Some(LogChannel::InputOutput));
+        assert_eq!(diagnostic_channel("amp_core::player::scheduler_diagnostics"), Some(LogChannel::Scheduler));
+        assert_eq!(diagnostic_channel("amp_core::player::engine"), None);
         assert_eq!(resolve_step_channel("MIDI_PARSE_HEADER"), LogChannel::MidiParser);
         assert_eq!(resolve_step_channel("TRACK_CHUNK"), LogChannel::MidiParser);
         assert_eq!(resolve_step_channel("PLAYBACK_START"), LogChannel::Playback);

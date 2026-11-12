@@ -83,6 +83,32 @@ test('the Note Modifiers display selection survives restart', async () => {
   assert.equal(restored.studio.displayMode, 'NoteModifiers');
 });
 
+test('custom library order and sort direction survive store recreation', async () => {
+  const { ui, saved } = await createUi();
+  ui.songsSortMode = 'custom';
+  ui.songsSortDirection = 'desc';
+  ui.librarySongOrder = ['song-c', 'unavailable-song', 'song-a', 'song-b'];
+  ui.persistPreferences('songs');
+  ui.persistPreferences('songs');
+  assert.equal(saved.length, 1, 'An unchanged library order does not produce idle writes');
+  assert.deepEqual(saved[0].librarySongOrder, ['song-c', 'unavailable-song', 'song-a', 'song-b']);
+  const restored = (await createUi(saved[0])).ui;
+  assert.equal(restored.songsSortMode, 'custom');
+  assert.equal(restored.songsSortDirection, 'desc');
+  assert.deepEqual([...restored.librarySongOrder], ['song-c', 'unavailable-song', 'song-a', 'song-b']);
+});
+
+test('malformed ordering preferences normalize without discarding usable song IDs', async () => {
+  const { ui } = await createUi({ songsSortMode: 'invalid', songsSortDirection: 'sideways',
+    librarySongOrder: ['song-b', null, '', '   ', 7, 'song-b', 'song-a', false] });
+  assert.equal(ui.songsSortMode, 'title');
+  assert.equal(ui.songsSortDirection, 'asc');
+  assert.deepEqual([...ui.librarySongOrder], ['song-b', 'song-a']);
+  const invalidContainer = (await createUi({ librarySongOrder: { id: 'song-a' }, songsSortDirection: false })).ui;
+  assert.deepEqual([...invalidContainer.librarySongOrder], []);
+  assert.equal(invalidContainer.songsSortDirection, 'asc');
+});
+
 test('opening Settings restores the preferred drawer width when leaving it', async () => {
   const { ui } = await createUi({ lastViewedPage: 'settings', libraryWidth: 340 });
   assert.equal(ui.activeTab, 'settings');
@@ -103,6 +129,18 @@ test('rapid independent preference changes merge and flush before closing', asyn
   assert.equal(writes.length, 1);
   assert.deepEqual(writes[0], { ui: { studio: { zoomX: 160, zoomY: 20 },
     playback: { isListenMode: true, positionSeconds: 42 }, lastViewedPage: 'studio', pedalsEnabled: false } });
+});
+
+test('viewport snapshots replace evicted history while coalescing with unrelated preferences', async () => {
+  const writes = [];
+  const prefs = await loadModule('../src/renderer/lib/backend/preferences.ts', {
+    './index.js': { api: { settings: { updateSettings: async value => { writes.push(value); return true; } } } },
+  });
+  prefs.saveUiPreferences({ scrollPositions: { 'studio:old-song': { x: 120, y: 300 } } });
+  prefs.saveUiPreferences({ studio: { zoomX: 200 } });
+  prefs.saveUiPreferences({ scrollPositions: { 'studio:new-song': { x: 400, y: 500 } } });
+  await prefs.flushUiPreferences();
+  assert.deepEqual(writes, [{ ui: { studio: { zoomX: 200 }, scrollPositions: { 'studio:new-song': { x: 400, y: 500 } } } }]);
 });
 
 test('failed writes retain changes and a retry keeps the newest preference', async () => {

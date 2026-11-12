@@ -86,6 +86,21 @@ test('saving a song strips legacy label offsets while preserving numeric marker 
   ]);
 });
 
+test('song serialization preserves merge settings and note processing reaches the native command', async () => {
+  const { api, calls } = await nativeHarness();
+  await api.songs.saveSong({ id: 'song', keyOffset: 0, baseKeyOffset: 0, transposeMode: 'Smart',
+    tracks: [], mergeNotes: true, mergeToleranceMs: 175, autoChord: true, chordDetectionMilliseconds: 65,
+  }, { kind: 'instrument', gameId: 'a', instrumentId: 'lyre' });
+  assert.equal(calls[0][1].settings.mergeNotes, true);
+  assert.equal(calls[0][1].settings.mergeMilliseconds, 175);
+  assert.equal(calls[0][1].settings.autoChord, true);
+  assert.equal(calls[0][1].settings.chordDetectionMilliseconds, 65);
+  await api.playback.setNoteProcessing(true, 175, true, 65);
+  assert.deepEqual(calls.at(-1), ['set_note_processing', {
+    mergeNotes: true, mergeToleranceMs: 175, autoChord: true, chordDetectionMilliseconds: 65,
+  }]);
+});
+
 test('manual refresh scans the folder before reading songs, even with auto scan disabled', async () => {
   const { api, calls } = await nativeHarness();
   const songs = await api.songs.scanFolder('C:/MIDIs');
@@ -223,4 +238,24 @@ test('native file conflict actions keep disk deletion separate from library remo
     ['resolve_library_file_issue', { path: 'a.mid', action: 'restore' }],
     ['resolve_library_file_issue', { path: 'a.mid', action: 'deleteFile' }],
   ]);
+});
+
+test('playlist ordering goes through the playlist API and refreshes its stored membership order', async () => {
+  const h = await storeHarness();
+  const currentSongs = [{ id: 'a', title: 'A' }, { id: 'b', title: 'B' }];
+  let playlistSongs = [...currentSongs];
+  h.api.playlists.getPlaylists = async () => [{ id: 'liked-songs', title: 'Liked Songs' }];
+  h.api.playlists.getPlaylistSongs = async () => playlistSongs;
+  h.api.playlists.reorderPlaylist = async (playlistId, ids) => {
+    h.calls.push(['reorder-playlist', playlistId, ids]);
+    playlistSongs = ids.map(id => currentSongs.find(song => song.id === id));
+    return true;
+  };
+  await h.store.init();
+  await h.store.reorderPlaylist('liked-songs', ['b', 'a']);
+  assert.deepEqual(h.calls, [['reorder-playlist', 'liked-songs', ['b', 'a']]]);
+  assert.deepEqual(h.store.songsByPlaylist['liked-songs'].map(song => song.id), ['b', 'a']);
+  h.api.playlists.reorderPlaylist = async () => false;
+  await assert.rejects(h.store.reorderPlaylist('liked-songs', ['a', 'b']), /could not be saved/);
+  assert.deepEqual(h.store.songsByPlaylist['liked-songs'].map(song => song.id), ['b', 'a']);
 });

@@ -1120,6 +1120,34 @@ impl LibraryDatabase {
         Ok(())
     }
 
+    /// Replace visible members' ordering without dropping hidden or missing files.
+    pub fn reorder_playlist(&self, playlist_id: &str, song_ids: &[String]) -> Result<(), rusqlite::Error> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        let exists: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM Playlists WHERE Id = ?1)",
+            [playlist_id], |row| row.get(0))?;
+        if !exists {
+            return Err(rusqlite::Error::InvalidParameterName("Playlist does not exist".into()));
+        }
+        let existing = {
+            let mut stmt = tx.prepare("SELECT SongId FROM PlaylistSongs WHERE PlaylistId = ?1 ORDER BY SortOrder, SongId")?;
+            let rows = stmt.query_map([playlist_id], |row| row.get::<_, String>(0))?;
+            rows.collect::<Result<Vec<_>, _>>()?
+        };
+        let existing_ids: std::collections::HashSet<_> = existing.iter().collect();
+        let selected: std::collections::HashSet<_> = song_ids.iter().collect();
+        if selected.len() != song_ids.len() || song_ids.iter().any(|id| !existing_ids.contains(id)) {
+            return Err(rusqlite::Error::InvalidParameterName("Reordered songs must be unique playlist members".into()));
+        }
+        let mut reordered = song_ids.iter();
+        for (index, id) in existing.iter().enumerate() {
+            let id = if selected.contains(id) { reordered.next().unwrap() } else { id };
+            tx.execute("UPDATE PlaylistSongs SET SortOrder = ?3 WHERE PlaylistId = ?1 AND SongId = ?2",
+                params![playlist_id, id, index as i64])?;
+        }
+        tx.commit()
+    }
+
     pub fn get_playlist_songs(&self, playlist_id: &str) -> Result<Vec<SongRecord>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(

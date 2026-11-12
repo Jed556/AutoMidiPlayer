@@ -12,7 +12,7 @@ function resetHarness({ failure } = {}) {
   const body = stripTypeScriptTypes(app.slice(start, end));
   const calls = [];
   const errors = new Map();
-  const make = new Function('settingsStore', 'updateStore', 'playbackStore', 'api', 'tick', 'window', 'sessionStorage', 'localStorage', `
+  const make = new Function('settingsStore', 'updateStore', 'playbackStore', 'api', 'tick', 'window', 'sessionStorage', 'localStorage', 'scheduledPlaybackStore', `
     let clearingAppData = false, startupReady = true, showStartup = false, startupStatus, splashEntered;
     const startupProgress = { beginStartup() {} };
     ${body}
@@ -28,6 +28,7 @@ function resetHarness({ failure } = {}) {
     { location: { reload: () => calls.push('reload') } },
     { setItem: (key, value) => errors.set(key, value), clear: () => calls.push('sessionStorage') },
     { clear: () => calls.push('localStorage') },
+    { cancelAndWait: async () => calls.push('scheduledTimer') },
   ), calls, errors };
 }
 
@@ -42,7 +43,7 @@ test('Clear Data enters the splash, stops and drains writes, then clears and rel
   h.enter();
   await reset;
   assert.equal(h.state().startupReady, false);
-  assert.deepEqual(h.calls, ['unmount', 'hotkeys', 'timer', 'stop', 'flush', 'clear', 'localStorage', 'sessionStorage', 'reload']);
+  assert.deepEqual(h.calls, ['unmount', 'hotkeys', 'timer', 'scheduledTimer', 'stop', 'flush', 'clear', 'localStorage', 'sessionStorage', 'reload']);
   assert.equal(h.errors.size, 0);
 });
 

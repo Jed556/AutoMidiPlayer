@@ -272,7 +272,7 @@
             </div>
           </div>
         </div>
-        <ToggleSwitch bind:checked={autoChord} label="Auto Chord Detection" />
+        <ToggleSwitch bind:checked={autoChord} label={t('studio.autoChord')} title={t('studio.autoChordDesc')} />
       </div>
     </section>
     <div class="file-info">

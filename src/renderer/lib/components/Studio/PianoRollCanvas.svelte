@@ -1,6 +1,8 @@
 <script lang="ts">
   import { DEFAULT_UI_PREFERENCES } from '../../../../shared/defaults/settings';
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
+  import { scrollPositionStore } from '../../state/scrollPositionStore';
+  import { manualViewportPosition } from '../../utils/scrollPositions';
   import { uiStore } from '../../state/uiStore.svelte';
   import { playbackStore } from '../../state/playbackStore.svelte';
   import { themeStore } from '../../state/themeStore.svelte';
@@ -29,6 +31,7 @@
     hoverTime?: number | null;
     isLockedToPlayhead?: boolean;
     highlightedTrackIndex?: number | null;
+    persistenceKey?: string;
   }
 
   let {
@@ -41,6 +44,7 @@
     hoverTime = $bindable(null),
     isLockedToPlayhead = $bindable(DEFAULT_UI_PREFERENCES.studio.isLockedToPlayhead),
     highlightedTrackIndex = null,
+    persistenceKey,
   }: Props = $props();
 
   function formatHoverTime(seconds: number): string {
@@ -79,6 +83,59 @@
   let height = 0;
   let pixelRatio = 1;
   let sizeDirty = false;
+  let mounted = $state(false);
+  let viewportInitialized = false;
+  let viewportKey = '';
+  let lastViewport = { x: 0, y: 0 };
+  let viewportSaveTimer: ReturnType<typeof setTimeout> | undefined;
+
+  // Viewport identity follows the song, while zoom and playhead locking remain global preferences.
+  $effect(() => {
+    const key = persistenceKey;
+    if (!mounted || !key) return;
+    let disposed = false;
+    viewportInitialized = false;
+    viewportKey = key;
+    void scrollPositionStore.ready().then(() => {
+      if (disposed) return;
+      untrack(() => {
+        const saved = scrollPositionStore.get(key);
+        const containerH = canvasContainer?.clientHeight || 400;
+        const maxY = Math.max(0, TOTAL_PITCHES * zoomY - containerH);
+        scrollY = Math.min(maxY, saved?.y ?? Math.max(0, (MAX_PITCH - 60) * zoomY - containerH / 2));
+        const manualX = Math.min(Math.max(0, playbackStore.durationSeconds * zoomX), saved?.x ?? 0);
+        scrollX = isLockedToPlayhead
+          ? Math.max(0, playbackStore.currentTimeSeconds * zoomX)
+          : manualX;
+        zoomYCenterFromTopTo = (scrollY + containerH / 2) / zoomY;
+        zoomYCenterFromTopFrom = zoomYCenterFromTopTo;
+        lastViewport = { x: manualX, y: scrollY };
+        viewportInitialized = true;
+        onScrollChange?.(scrollX, scrollY);
+        dirty = true;
+      });
+    });
+    return () => {
+      disposed = true;
+      if (viewportSaveTimer) clearTimeout(viewportSaveTimer);
+      viewportSaveTimer = undefined;
+      if (viewportInitialized) scrollPositionStore.set(key, lastViewport);
+      viewportInitialized = false;
+    };
+  });
+
+  $effect(() => {
+    const position = { x: scrollX, y: scrollY };
+    const locked = isLockedToPlayhead;
+    if (!viewportInitialized) return;
+    const next = manualViewportPosition(lastViewport, position, locked);
+    if (next === lastViewport) return;
+    lastViewport = next;
+    if (!viewportSaveTimer) viewportSaveTimer = setTimeout(() => {
+      viewportSaveTimer = undefined;
+      scrollPositionStore.set(viewportKey, lastViewport);
+    }, 250);
+  });
   $effect(() => {
     uiStore.activeTab;
     zoomX; zoomY; scrollX; scrollY; isLockedToPlayhead;
@@ -1296,6 +1353,7 @@
     scrollY = Math.max(0, (MAX_PITCH - initialCenterPitch) * zoomY - containerH / 2);
     zoomYCenterFromTopTo = MAX_PITCH - initialCenterPitch + 0.5;
     zoomYCenterFromTopFrom = zoomYCenterFromTopTo;
+    mounted = true;
   });
 
   onDestroy(() => {

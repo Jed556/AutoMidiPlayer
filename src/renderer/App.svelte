@@ -6,6 +6,7 @@
   import { libraryStore } from './lib/state/libraryStore.svelte';
   import { midiInputStore } from './lib/state/midiInputStore.svelte';
   import { playbackStore } from './lib/state/playbackStore.svelte';
+  import { scheduledPlaybackStore } from './lib/state/scheduledPlaybackStore.svelte';
   import { uiStore } from './lib/state/uiStore.svelte';
   import { themeStore } from './lib/state/themeStore.svelte';
   import { animationStore } from './lib/state/animationStore.svelte';
@@ -107,6 +108,7 @@
       await tick();
       settingsStore.suspendHotkeys();
       updateStore.configureTimer({ ...settingsStore.settings, autoCheckUpdates: false });
+      await scheduledPlaybackStore.cancelAndWait();
       await playbackStore.stop();
       await playbackStore.flushPersistence().catch(error => console.warn('Unable to flush data before clearing:', error));
       await api.settings.clearAppData();

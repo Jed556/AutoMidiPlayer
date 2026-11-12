@@ -10,6 +10,9 @@
     "lastViewedPage": "songs",
     "selectedPlaylistId": "songs",
     "songsSortMode": "title",
+    "songsSortDirection": "asc",
+    "librarySongOrder": [],
+    "scrollPositions": {},
     "studioSidebarCollapsed": false,
     "locale": "en-US",
     "studio": {

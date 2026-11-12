@@ -185,6 +185,13 @@ class LibraryStore {
     await this.reload();
     return res;
   }
+
+  async reorderPlaylist(playlistId: string, songIds: string[]) {
+    const success = await api.playlists.reorderPlaylist(playlistId, songIds);
+    if (!success) throw new Error('The playlist order could not be saved.');
+    await this.reload();
+    return success;
+  }
 }
 
 export const libraryStore = new LibraryStore();
