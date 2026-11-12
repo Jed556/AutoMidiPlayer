@@ -149,6 +149,7 @@
         </Dropdown>
       </div>
       <PianoRollCanvas
+        persistenceKey={`studio:${playbackStore.activeSong?.id ?? 'none'}`}
         {renderTracks}
         bind:this={pianoRoll}
         bind:zoomX={uiStore.studio.zoomX}

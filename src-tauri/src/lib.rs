@@ -484,6 +484,26 @@ fn set_note_timing(hold_notes: bool, tap_threshold_ms: u64, state: State<AppStat
 }
 
 #[tauri::command]
+fn set_note_processing(
+    merge_notes: bool,
+    merge_tolerance_ms: u64,
+    auto_chord: bool,
+    chord_detection_milliseconds: u64,
+    state: State<AppState>,
+) -> Result<bool, String> {
+    if !(1..=1000).contains(&merge_tolerance_ms) {
+        return Err("Merge tolerance must be between 1 and 1000 ms".into());
+    }
+    if chord_detection_milliseconds > 1000 {
+        return Err("Chord detection tolerance must be between 0 and 1000 ms".into());
+    }
+    state.engine.set_note_processing(amp_core::player::NoteProcessingSettings {
+        merge_notes, merge_tolerance_ms, auto_chord, chord_detection_milliseconds,
+    });
+    Ok(true)
+}
+
+#[tauri::command]
 fn panic_stop(state: State<AppState>) -> Result<bool, String> {
     state.engine.panic();
     Ok(true)
@@ -916,6 +936,9 @@ async fn update_app_settings(
     // loop when settings are changed repeatedly.
     tauri::async_runtime::spawn_blocking(move || {
         preferences.update(&settings).map_err(|e| e.to_string())?;
+        if settings.get("debugModeEnabled").is_some() || settings.get("logPlayedNotes").is_some() {
+            engine.set_note_logging(played_note_logging_enabled(&preferences.get().map_err(|e| e.to_string())?));
+        }
         if settings.get("onboardingCompleted").is_some() || settings.pointer("/ui/locale").is_some() {
             tray::refresh(&app, &preferences.get().map_err(|e| e.to_string())?);
         }
@@ -942,6 +965,11 @@ async fn update_app_settings(
     }).await.map_err(|e| e.to_string())?
 }
 
+fn played_note_logging_enabled(settings: &serde_json::Value) -> bool {
+    settings.get("debugModeEnabled").and_then(serde_json::Value::as_bool).unwrap_or(false)
+        && settings.get("logPlayedNotes").and_then(serde_json::Value::as_bool).unwrap_or(false)
+}
+
 #[tauri::command]
 fn reset_app_settings(state: State<AppState>, app: AppHandle) -> Result<bool, String> {
     state.midi_input.reset();
@@ -949,6 +977,7 @@ fn reset_app_settings(state: State<AppState>, app: AppHandle) -> Result<bool, St
     tray::refresh(&app, defaults::document());
     *state.song_defaults.write().map_err(|e| e.to_string())? = SongDefaults::default();
     state.engine.set_hold_delay_ms(defaults::value("/keyPressDelayMs"));
+    state.engine.set_note_logging(played_note_logging_enabled(defaults::document()));
     state.engine.set_game_preview_follow_note_timing(defaults::value("/gamePreviewFollowNoteTiming"));
     state.engine.set_overlap_behavior(OverlapBehavior::default());
     state.engine.set_repress_gap_ms(defaults::value("/repressGapMs"));
@@ -998,6 +1027,7 @@ async fn clear_app_data(app: AppHandle, state: State<'_, AppState>) -> Result<()
         settings.clear_data()?;
         tray::refresh(&app, defaults::document());
         engine.set_hold_delay_ms(defaults::value("/keyPressDelayMs"));
+        engine.set_note_logging(played_note_logging_enabled(defaults::document()));
         engine.set_game_preview_follow_note_timing(defaults::value("/gamePreviewFollowNoteTiming"));
         engine.set_overlap_behavior(OverlapBehavior::default());
         engine.set_repress_gap_ms(defaults::value("/repressGapMs"));
@@ -1252,6 +1282,13 @@ fn get_playlist_songs(
 }
 
 #[tauri::command]
+fn reorder_playlist(playlist_id: String, song_ids: Vec<String>, state: State<AppState>, app: AppHandle) -> Result<bool, String> {
+    state.db.reorder_playlist(&playlist_id, &song_ids).map_err(|e| e.to_string())?;
+    let _ = app.emit("library:updated", ());
+    Ok(true)
+}
+
+#[tauri::command]
 fn get_albums(state: State<AppState>) -> Result<Vec<AlbumRecord>, String> {
     state.db.get_albums().map_err(|e| e.to_string())
 }
@@ -1441,7 +1478,14 @@ fn set_game_instrument_mapping(
     };
 
     let mapping = if let Some(layout_cfg) = cm.layouts.get(&layout_lower) {
-        mapping.with_pedal_bindings(layout_cfg)
+        let mapping = mapping.with_pedal_bindings(layout_cfg);
+        // The renderer already supplies the selected instrument's config path.
+        // Resolve pads from that instrument, never another instrument sharing its layout.
+        if let Some(instrument) = cm.games.iter().flat_map(|game| &game.instruments)
+            .find(|instrument| instrument.file_path.as_ref()
+                .is_some_and(|path| sources.iter().any(|source| source == Path::new(path)))) {
+            mapping.with_chord_pads(instrument, layout_cfg)
+        } else { mapping }
     } else {
         mapping
     };
@@ -1777,6 +1821,12 @@ pub fn run() {
     };
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            // The first plugin runs before startup services or a second webview.
+            if let Err(error) = tray::show(app) {
+                log::warn!("Unable to restore the existing application window: {error}");
+            }
+        }))
         .setup(|app| {
             // Local logging is available even before setup; diagnostics wait.
             let _ = logging::init_logger(logging::ALL_STEPS_VERBOSITY, cfg!(debug_assertions));
@@ -1918,6 +1968,7 @@ pub fn run() {
                             .expect("Failed to initialize settings.json"))
                     };
                     let settings = preferences.get().expect("Failed to read settings.json");
+                    engine.set_note_logging(played_note_logging_enabled(&settings));
                     // First-run setup must not send diagnostics or opt-out refresh pings.
                     if settings.get("onboardingCompleted").and_then(serde_json::Value::as_bool).unwrap_or_else(|| defaults::value("/onboardingCompleted")) {
                         telemetry::init(settings.get("telemetryOptIn")
@@ -2128,6 +2179,7 @@ pub fn run() {
             set_ui_fps,
             set_hold_delay,
             set_note_timing,
+            set_note_processing,
             panic_stop,
             update_global_hotkeys,
             // Phase 10 key modulation & detection commands
@@ -2178,6 +2230,7 @@ pub fn run() {
             add_to_playlist,
             remove_from_playlist,
             get_playlist_songs,
+            reorder_playlist,
             get_albums,
             watch_library_folder,
             // Phase 6 queue commands
@@ -2240,6 +2293,14 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn played_note_diagnostics_require_debug_mode_and_explicit_opt_in() {
+        assert!(!played_note_logging_enabled(&serde_json::json!({})));
+        assert!(!played_note_logging_enabled(&serde_json::json!({"debugModeEnabled": false, "logPlayedNotes": true})));
+        assert!(!played_note_logging_enabled(&serde_json::json!({"debugModeEnabled": true, "logPlayedNotes": false})));
+        assert!(played_note_logging_enabled(&serde_json::json!({"debugModeEnabled": true, "logPlayedNotes": true})));
+    }
 
     #[test]
     fn test_shortcut_parsing() {

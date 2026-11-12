@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { themeStore } from '../../state/themeStore.svelte';
+  import { playbackStore } from '../../state/playbackStore.svelte';
+  import { persistScroll } from '../../actions/persistScroll';
   import type { SheetPart } from '../../utils/pianoSheet';
   import { layoutSheetRows, sheetVisibleRange, sheetAttackMs, type SheetFragment, type SheetRow } from '../../utils/sheetViewport';
   import { sheetGlowValue, startSheetGlow, releaseSheetGlow, sheetGlowAnimating, type SheetGlowPulse } from '../../utils/sheetGlow';
@@ -242,7 +244,7 @@
 <div class="sheet-output" bind:this={host}>
   <canvas class="sheet-base" bind:this={baseCanvas} aria-hidden="true"></canvas>
   <canvas class="sheet-glow" bind:this={glowCanvas} aria-hidden="true"></canvas>
-  <textarea class="sheet-native" bind:this={input} value={text} readonly aria-label={label} spellcheck="false" wrap="soft"></textarea>
+  <textarea class="sheet-native" bind:this={input} use:persistScroll={`sheet:${playbackStore.activeSong?.id ?? 'none'}`} value={text} readonly aria-label={label} spellcheck="false" wrap="soft"></textarea>
 </div>
 
 <style>

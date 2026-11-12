@@ -45,6 +45,8 @@ function serializeSongSettings(song: MidiFile) {
     disabledTracks: song.tracks.filter((track) => track.isMuted).map((track) => track.index).join(',') || null,
     keyChanges,
     speed: song.speed,
+    mergeNotes: song.mergeNotes ?? DEFAULT_APP_SETTINGS.defaultMergeNotes,
+    mergeMilliseconds: song.mergeToleranceMs ?? DEFAULT_APP_SETTINGS.defaultMergeToleranceMs,
     holdNotes: song.holdNotes,
     tapThresholdMs: song.tapThresholdMs ?? DEFAULT_APP_SETTINGS.defaultTapThresholdMs,
     autoChord: song.autoChord ?? DEFAULT_APP_SETTINGS.defaultAutoChord,
@@ -140,6 +142,8 @@ export function createAppApi(): AppWindowApi {
       setTrackVolume: (trackIndex, volume) => invokeTauri<boolean>('Playback', 'set_track_volume', { trackIndex, volume }),
       setListenMode: (enabled) => invokeTauri<boolean>('Playback', 'set_listen_mode', { enabled }),
       setNoteTiming: (holdNotes, tapThresholdMs) => invokeTauri<boolean>('Playback', 'set_note_timing', { holdNotes, tapThresholdMs }),
+      setNoteProcessing: (mergeNotes, mergeToleranceMs, autoChord, chordDetectionMilliseconds) =>
+        invokeTauri<boolean>('Playback', 'set_note_processing', { mergeNotes, mergeToleranceMs, autoChord, chordDetectionMilliseconds }),
       setKeyMarkers: (markers) => invokeTauri<boolean>('Playback', 'set_key_markers', {
         markers: markers.map((marker) => ({
           timeMs: marker.timeMs ?? Math.round((marker.time ?? 0) * 1000),
@@ -247,6 +251,7 @@ export function createAppApi(): AppWindowApi {
     },
 
     playlists: {
+      reorderPlaylist: (playlistId, songIds) => invokeTauri<boolean>('Playlists', 'reorder_playlist', { playlistId, songIds }),
       getPlaylists: () => invokeTauri('Playlists', 'get_playlists', undefined),
       createPlaylist: (title, icon, bannerColor) =>
         invokeTauri('Playlists', 'create_playlist', { title, icon, bannerColor }),

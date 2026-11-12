@@ -256,6 +256,7 @@
 
     <!-- Track Cards List -->
     <CustomScrollViewer
+      persistenceKey={`tracks:${playbackStore.activeSong?.id ?? 'none'}`}
       class="tracks-scroll-viewer"
       contentClass="tracks-scroll-host"
       bind:scrollContainer={scrollHostEl}

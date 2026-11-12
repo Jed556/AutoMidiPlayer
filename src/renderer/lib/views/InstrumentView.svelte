@@ -2,6 +2,7 @@
   import { onDestroy } from 'svelte';
   import { midiInputStore } from '../state/midiInputStore.svelte';
   import { playbackStore } from '../state/playbackStore.svelte';
+  import { scheduledPlaybackStore } from '../state/scheduledPlaybackStore.svelte';
   import { gameStore } from '../state/gameStore.svelte';
   import { uiStore } from '../state/uiStore.svelte';
   import { animationStore } from '../state/animationStore.svelte';
@@ -19,6 +20,7 @@
   import GradientSweep from '../components/Common/GradientSweep.svelte';
   import { createFrameResizeObserver } from '../utils/frameResizeObserver';
   import { tooltip } from '../actions/tooltip';
+  import { persistScroll } from '../actions/persistScroll';
   import GameIcon from '../components/Common/GameIcon.svelte';
   import { toastOffset } from '../actions/toastOffset';
   import { InstrumentInput, keyboardPitches } from '../utils/instrumentInput';
@@ -244,61 +246,12 @@
   // ==========================================
   // Autoplay / Scheduled Playback (Upper Right)
   // ==========================================
-  const nowInit = new Date();
-  let scheduledHour = $state<number>(nowInit.getHours());
-  let scheduledMinute = $state<number>(nowInit.getMinutes());
-  let isScheduledTimerActive = $state<boolean>(false);
-  let scheduledCountdownSeconds = $state<number>(0);
-  let scheduledTimerInterval: any = null;
-
-  function setToNow() {
-    const now = new Date();
-    scheduledHour = now.getHours();
-    scheduledMinute = now.getMinutes();
-  }
+  const scheduledAction = $derived(scheduledPlaybackStore.active || scheduledPlaybackStore.executing
+    ? scheduledPlaybackStore.action : playbackStore.isPlaying ? 'pause' : 'play');
 
   function startStopScheduledTimer() {
-    if (isScheduledTimerActive) {
-      cancelScheduledTimer();
-      return;
-    }
-
-    const now = new Date();
-    const target = new Date();
-    target.setHours(scheduledHour, scheduledMinute, 0, 0);
-
-    if (target.getTime() <= now.getTime()) {
-      target.setDate(target.getDate() + 1);
-    }
-
-    const diffSec = Math.max(1, Math.round((target.getTime() - now.getTime()) / 1000));
-    scheduledCountdownSeconds = diffSec;
-    isScheduledTimerActive = true;
-
-    notificationCenter.info(
-      t('instrument.timerStartedTitle'),
-      `${t('instrument.scheduledStartTime')} ${scheduledHour.toString().padStart(2, '0')}:${scheduledMinute.toString().padStart(2, '0')} (${formatCountdown(diffSec)})`
-    );
-
-    if (scheduledTimerInterval) clearInterval(scheduledTimerInterval);
-    scheduledTimerInterval = setInterval(() => {
-      scheduledCountdownSeconds--;
-      if (scheduledCountdownSeconds <= 0) {
-        clearInterval(scheduledTimerInterval);
-        isScheduledTimerActive = false;
-        playbackStore.play();
-        notificationCenter.success(
-          t('instrument.timerFinishedTitle'),
-          t('instrument.timerFinishedMsg')
-        );
-      }
-    }, 1000);
-  }
-
-  function cancelScheduledTimer() {
-    if (scheduledTimerInterval) clearInterval(scheduledTimerInterval);
-    isScheduledTimerActive = false;
-    notificationCenter.info(t('instrument.timerCancelledTitle'), t('instrument.timerCancelledMsg'));
+    if (scheduledPlaybackStore.active) scheduledPlaybackStore.cancel();
+    else scheduledPlaybackStore.arm();
   }
 
   function formatCountdown(sec: number): string {
@@ -330,7 +283,6 @@
     && !uiStore.activeDialog && !uiStore.gameSelectorOpen);
 
   onDestroy(() => {
-    if (scheduledTimerInterval) clearInterval(scheduledTimerInterval);
     instrumentInput.clear();
     for (const timer of previewTimers.values()) clearTimeout(timer);
   });
@@ -431,7 +383,7 @@
 {/snippet}
 
 {#snippet pianoKeyboard(slots: PianoSlot[], showBindings = false)}
-<div class="piano-keys-scroll">
+<div class="piano-keys-scroll" use:persistScroll={'instrument:piano'}>
   <div class="piano-keyboard-strip" style:--white-key-count={pianoRowColumns} style:--row-key-count={slots.length}>
     {#each slots as slot}
       <div class="piano-key-slot" class:sharp-only={!slot.white}>
@@ -523,21 +475,21 @@
         <div class="time-inputs-group">
           <div class="time-box">
             <NumberBox
-              bind:value={scheduledHour}
+              bind:value={scheduledPlaybackStore.hour}
               min={0}
               max={23}
               step={1}
-              disabled={isScheduledTimerActive}
+              disabled={scheduledPlaybackStore.active || scheduledPlaybackStore.executing}
             />
           </div>
           <span class="time-colon">:</span>
           <div class="time-box">
             <NumberBox
-              bind:value={scheduledMinute}
+              bind:value={scheduledPlaybackStore.minute}
               min={0}
               max={59}
               step={1}
-              disabled={isScheduledTimerActive}
+              disabled={scheduledPlaybackStore.active || scheduledPlaybackStore.executing}
             />
           </div>
         </div>
@@ -545,31 +497,32 @@
         <Button
           variant="secondary"
           compact
-          disabled={isScheduledTimerActive}
-          onclick={setToNow}
-          title="Set to current time"
+          disabled={scheduledPlaybackStore.active || scheduledPlaybackStore.executing}
+          onclick={() => scheduledPlaybackStore.setToNow()}
+          title={t('instrument.setToNow')}
         >
           {t('instrument.now')}
         </Button>
 
         <Button
-          variant={isScheduledTimerActive ? 'danger' : 'accent'}
+          variant={scheduledPlaybackStore.active ? 'danger' : 'accent'}
           compact
           onclick={startStopScheduledTimer}
+          disabled={scheduledPlaybackStore.executing}
         >
-          {isScheduledTimerActive ? t('instrument.stop') : t('instrument.start')}
+          {scheduledPlaybackStore.active ? t('instrument.cancelTimer') : t('instrument.startTimer')}
         </Button>
       </div>
 
       <div class="sched-status-row">
-        {#if isScheduledTimerActive}
+        {#if scheduledPlaybackStore.active}
           <span class="sched-countdown">
             <span class="sched-pulse-dot"></span>
-            {t('instrument.startsIn')}: {formatCountdown(scheduledCountdownSeconds)}
+            {t(scheduledAction === 'play' ? 'instrument.playsIn' : 'instrument.pausesIn')}: {formatCountdown(scheduledPlaybackStore.remainingSeconds)}
           </span>
         {:else}
           <span class="sched-info">
-            {t('instrument.scheduledStartTime')} {scheduledHour.toString().padStart(2, '0')}:{scheduledMinute.toString().padStart(2, '0')}
+            {t(scheduledAction === 'play' ? 'instrument.schedulePlay' : 'instrument.schedulePause')} {scheduledPlaybackStore.hour.toString().padStart(2, '0')}:{scheduledPlaybackStore.minute.toString().padStart(2, '0')}
           </span>
         {/if}
       </div>

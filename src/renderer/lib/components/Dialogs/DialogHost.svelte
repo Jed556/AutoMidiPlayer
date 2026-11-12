@@ -9,6 +9,7 @@
   import ThirdPartyLicensesDialog from './ThirdPartyLicensesDialog.svelte';
   import ActionDialog from './ActionDialog.svelte';
   import PedalSettingsDialog from './PedalSettingsDialog.svelte';
+  import SheetLegendDialog from './SheetLegendDialog.svelte';
 
   let { onreset }: { onreset: () => Promise<void> } = $props();
 
@@ -57,6 +58,8 @@
         <ActionDialog />
       {:else if uiStore.activeDialog === 'pedalSettings'}
         <PedalSettingsDialog />
+      {:else if uiStore.activeDialog === 'sheetLegend'}
+        <SheetLegendDialog />
       {/if}
     </div>
   </div>
@@ -107,7 +110,8 @@
   }
 
   .dialog-box.dialog-action,
-  .dialog-box.dialog-pedalSettings {
+  .dialog-box.dialog-pedalSettings,
+  .dialog-box.dialog-sheetLegend {
     width: 480px;
   }
 

@@ -3318,6 +3318,14 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [07c7993a082dd28479b2](#notice-07c7993a082dd28479b2)
 
+<!-- amp-license: {"name":"tauri-plugin-single-instance","version":"2.5.5","licenseName":"Apache-2.0 OR MIT","url":"https://github.com/tauri-apps/plugins-workspace","kind":"rust","textId":"b7f455413bfe5f9d7da5"} -->
+### tauri-plugin-single-instance 2.5.5
+
+- License: Apache-2.0 OR MIT
+- Repository/source: [https://github.com/tauri-apps/plugins-workspace](https://github.com/tauri-apps/plugins-workspace)
+- Category: rust
+- Full notice: [b7f455413bfe5f9d7da5](#notice-b7f455413bfe5f9d7da5)
+
 <!-- amp-license: {"name":"tauri-plugin-updater","version":"2.14.1","licenseName":"MIT","url":"https://github.com/tauri-apps/plugins-workspace","kind":"rust","textId":"07c7993a082dd28479b2"} -->
 ### tauri-plugin-updater 2.14.1
 
@@ -12757,6 +12765,33 @@ DEALINGS IN THE SOFTWARE.
 MIT License
 
 Copyright (c) 2017 - Present Tauri Apps Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<!-- amp-license-text: b7f455413bfe5f9d7da5 -->
+### Notice b7f455413bfe5f9d7da5
+
+```text
+MIT License
+
+Copyright (c) 2017 - Present The Tauri Programme in the Commons Conservancy
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

@@ -3,6 +3,7 @@
   import { gameStore } from '../state/gameStore.svelte';
   import { settingsStore } from '../state/settingsStore.svelte';
   import { notificationCenter } from '../ui/notificationCenter.svelte';
+  import { uiStore } from '../state/uiStore.svelte';
   import { t } from '../i18n';
   import { instrumentKeyPairs } from '../../../shared/utils/instrumentLayout';
   import { createDisplayPitch } from '../components/Studio/studioDisplay';
@@ -91,10 +92,7 @@
   }
 
   function showLegend() {
-    notificationCenter.info(
-      t('sheet.legendToastTitle'),
-      t('sheet.legendToastMsg')
-    );
+    uiStore.openDialog('sheetLegend', { delimiter });
   }
 </script>
 

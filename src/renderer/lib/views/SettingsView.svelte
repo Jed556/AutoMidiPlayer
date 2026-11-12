@@ -349,6 +349,7 @@
     <!-- Left Column: Table of Contents (~1/3) -->
     <aside class="settings-toc-sidebar" aria-label={t('settings.tableOfContents')}>
       <CustomScrollViewer
+        persistenceKey="settings:navigation"
         class="toc-scroll-viewer"
         contentClass="toc-scroll-content"
         gap="12px"
@@ -387,6 +388,7 @@
 
   <!-- Right Column: Cards Container (~2/3) -->
   <CustomScrollViewer
+    persistenceKey="settings:content"
     class="settings-cards-viewer"
     contentClass="settings-cards-viewport"
     bind:scrollContainer={rightContainerRef}
@@ -805,7 +807,8 @@
 
               <div class="switch-row">
                 <ToggleSwitch
-                  label="Auto Chord Detection"
+                  label={t('studio.autoChord')}
+                  title={t('studio.autoChordDesc')}
                   checked={settingsStore.settings.defaultAutoChord}
                   onchange={(v) => settingsStore.update('defaultAutoChord', v)}
                 />
@@ -1413,16 +1416,6 @@
                     title={t('settings.logPlayedNotesTooltip')}
                     checked={settingsStore.settings.logPlayedNotes}
                     onchange={(v) => settingsStore.update('logPlayedNotes', v)}
-                  />
-                </div>
-
-                <!-- Page Caching -->
-                <div class="switch-row">
-                  <ToggleSwitch
-                    label={t('settings.pageCaching')}
-                    title={t('settings.pageCachingTooltip')}
-                    checked={settingsStore.settings.pageCaching}
-                    onchange={(v) => settingsStore.update('pageCaching', v)}
                   />
                 </div>
 

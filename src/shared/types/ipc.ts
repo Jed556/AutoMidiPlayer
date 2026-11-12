@@ -39,6 +39,7 @@ export interface PlaybackApi {
   setTrackVolume: (trackIndex: number, volume: number) => Promise<boolean>;
   setListenMode: (enabled: boolean) => Promise<boolean>;
   setNoteTiming: (holdNotes: boolean, tapThresholdMs: number) => Promise<boolean>;
+  setNoteProcessing: (mergeNotes: boolean, mergeToleranceMs: number, autoChord: boolean, chordDetectionMilliseconds: number) => Promise<boolean>;
   setKeyMarkers: (markers: any[]) => Promise<boolean>;
   setKeyMarkersEnabled: (enabled: boolean) => Promise<boolean>;
   detectKeySignatures: (filePath: string) => Promise<any[]>;
@@ -142,6 +143,7 @@ export interface LibraryScanSummary {
 }
 
 export interface PlaylistsApi {
+  reorderPlaylist: (playlistId: string, songIds: string[]) => Promise<boolean>;
   getPlaylists: () => Promise<any[]>;
   createPlaylist: (title: string, icon?: string, bannerColor?: string) => Promise<any>;
   deletePlaylist: (id: string) => Promise<boolean>;

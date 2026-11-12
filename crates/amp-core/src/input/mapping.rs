@@ -9,6 +9,13 @@ pub struct KeyStroke {
     pub control: bool,
 }
 
+/// A pre-composed instrument chord paired with its selected layout binding.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChordPad {
+    pub pitch_classes: Vec<u8>,
+    pub stroke: KeyStroke,
+}
+
 impl KeyStroke {
     pub fn plain(key: Key) -> Self {
         Self { key, shift: false, control: false }
@@ -93,6 +100,7 @@ pub struct NoteKeyMapping {
     map: HashMap<u8, KeyStroke>,
     playable_notes: Vec<u8>,
     pedal_bindings: [Option<KeyStroke>; 3],
+    chord_pads: Vec<ChordPad>,
 }
 
 impl NoteKeyMapping {
@@ -171,6 +179,7 @@ impl NoteKeyMapping {
             map,
             playable_notes,
             pedal_bindings: [None; 3],
+            chord_pads: Vec::new(),
         }
     }
 
@@ -197,6 +206,7 @@ impl NoteKeyMapping {
             map,
             playable_notes,
             pedal_bindings: [None; 3],
+            chord_pads: Vec::new(),
         }
     }
 
@@ -213,6 +223,29 @@ impl NoteKeyMapping {
     pub fn pedal_bindings(&self) -> &[Option<KeyStroke>; 3] {
         &self.pedal_bindings
     }
+
+    pub fn with_chord_bindings(mut self, pads: Vec<ChordPad>) -> Self {
+        self.chord_pads = pads;
+        self
+    }
+
+    pub fn with_chord_pads(self, instrument: &super::config::InstrumentConfigJson, layout: &super::config::KeyboardLayoutJson) -> Self {
+        if instrument.supports_chords == Some(false)
+            || (!instrument.supported_layouts.is_empty()
+                && !instrument.supported_layouts.iter().any(|id| id.eq_ignore_ascii_case(&layout.id))) {
+            return self.with_chord_bindings(Vec::new());
+        }
+        let pads = instrument.chord_pads.iter().zip(layout.chord_keys.iter().flatten())
+            .filter_map(|(pad, binding)| {
+                let stroke = parse_key_stroke(binding)?;
+                if pad.pitch_classes.iter().any(|&pitch| pitch > 11)
+                    || pad.pitch_classes.iter().copied().collect::<HashSet<_>>().len() < 3 { return None; }
+                Some(ChordPad { pitch_classes: pad.pitch_classes.clone(), stroke })
+            }).collect();
+        self.with_chord_bindings(pads)
+    }
+
+    pub fn chord_pads(&self) -> &[ChordPad] { &self.chord_pads }
 
     /// Resolves a MIDI note to an Enigo physical Key, if mapped.
     pub fn get_key(&self, note: u8) -> Option<Key> {
@@ -243,7 +276,8 @@ impl NoteKeyMapping {
     /// Returns all distinct physical keys in this layout (used for panic release).
     pub fn all_keys(&self) -> Vec<Key> {
         let mut keys = HashSet::new();
-        for stroke in self.map.values().chain(self.pedal_bindings.iter().flatten()) {
+        for stroke in self.map.values().chain(self.pedal_bindings.iter().flatten())
+            .chain(self.chord_pads.iter().map(|pad| &pad.stroke)) {
             keys.insert(stroke.key);
             if stroke.shift { keys.insert(Key::Shift); }
             if stroke.control { keys.insert(Key::Control); }

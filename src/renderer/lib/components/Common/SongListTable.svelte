@@ -356,7 +356,7 @@
   let dropTargetPos = $state<{ x: number; y: number }>({ x: 0, y: 0 });
   let previewWidth = $state<number>(0);
   let previewHeight = $state<number>(56);
-  let isDragReorderable = $derived(isQueue && canReorder);
+  let isDragReorderable = $derived((isQueue || !!onreorder) && canReorder);
   let isDragCommitting = $state(false);
 
   function getDisplayIndex(songIdx: number): number {
@@ -1074,6 +1074,7 @@
     </div>
   {:else}
     <CustomScrollViewer
+      persistenceKey={isQueue ? 'queue' : undefined}
       class="table-body-viewer"
       contentClass="table-body"
       bind:scrollContainer={internalScrollEl}

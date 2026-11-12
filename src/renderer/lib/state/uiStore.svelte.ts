@@ -71,6 +71,8 @@ class UiStore {
   studioSidebarCollapsed = $state<boolean>(DEFAULT_UI_PREFERENCES.studioSidebarCollapsed);
   studio = $state(normalizeStudio());
   songsSortMode = $state<NonNullable<UiPreferences['songsSortMode']>>(DEFAULT_UI_PREFERENCES.songsSortMode);
+  songsSortDirection = $state<'asc' | 'desc'>(DEFAULT_UI_PREFERENCES.songsSortDirection);
+  librarySongOrder = $state<string[]>([...DEFAULT_UI_PREFERENCES.librarySongOrder]);
 
   // Instrument View Stage State
   instrumentStage = $state<'game' | 'piano'>('game');
@@ -105,6 +107,8 @@ class UiStore {
       lastViewedPage: normalizePage(this.activeTab),
       selectedPlaylistId,
       songsSortMode: this.songsSortMode,
+      songsSortDirection: this.songsSortDirection,
+      librarySongOrder: [...this.librarySongOrder],
       studioSidebarCollapsed: this.studioSidebarCollapsed,
       studio: { ...this.studio },
       instrumentStage: this.instrumentStage,
@@ -364,8 +368,11 @@ class UiStore {
       const preferences = await loadUiPreferences();
       this.studio = normalizeStudio(preferences.studio ?? {});
       this.studioSidebarCollapsed = typeof preferences.studioSidebarCollapsed === 'boolean' ? preferences.studioSidebarCollapsed : DEFAULT_UI_PREFERENCES.studioSidebarCollapsed;
-      this.songsSortMode = ['title', 'artist', 'dateAdded', 'duration'].includes(preferences.songsSortMode ?? '')
+      this.songsSortMode = ['custom', 'title', 'artist', 'dateAdded', 'duration'].includes(preferences.songsSortMode ?? '')
         ? preferences.songsSortMode! : DEFAULT_UI_PREFERENCES.songsSortMode;
+      this.songsSortDirection = preferences.songsSortDirection === 'desc' ? 'desc' : 'asc';
+      this.librarySongOrder = Array.isArray(preferences.librarySongOrder)
+        ? [...new Set(preferences.librarySongOrder.filter((id): id is string => typeof id === 'string' && id.trim().length > 0))] : [];
       this.setLibraryWidth(boundedNumber(preferences.libraryWidth, DEFAULT_UI_PREFERENCES.libraryWidth, 80, 385), false);
       this.lastExpandedWidth = boundedNumber(preferences.libraryExpandedWidth, DEFAULT_UI_PREFERENCES.libraryExpandedWidth, 220, 385);
       const tab = normalizePage(preferences.lastViewedPage);

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { persistScroll } from '../actions/persistScroll';
   import { searchOverflow } from '../actions/searchOverflow';
   import { onDestroy, tick, type Component } from 'svelte';
   import { uiStore } from '../state/uiStore.svelte';
@@ -1027,7 +1028,7 @@
       </div>
 
       <!-- Icon Cards Grid Scroll Container -->
-      <div class="grid-scroll-area">
+      <div class="grid-scroll-area" use:persistScroll={'icon-debug'}>
         {#if filteredIcons.length === 0}
           <div class="empty-results-state">
             <FluentIcon name="Search" size={36} class="empty-icon" />

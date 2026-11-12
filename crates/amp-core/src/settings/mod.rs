@@ -22,13 +22,26 @@ pub struct SettingsStore {
 pub(crate) fn merge(target: &mut Value, patch: &Value) {
     if let (Some(target), Some(patch)) = (target.as_object_mut(), patch.as_object()) {
         for (key, value) in patch {
-            if value.is_object() && target.get(key).is_some_and(Value::is_object) {
+            // Position snapshots are bounded collections; merging evicted keys back
+            // would make them grow forever despite the renderer's size limit.
+            if key != "scrollPositions" && value.is_object() && target.get(key).is_some_and(Value::is_object) {
                 merge(target.get_mut(key).unwrap(), value);
             } else {
                 target.insert(key.clone(), value.clone());
             }
         }
     }
+}
+
+#[cfg(test)]
+#[test]
+fn scroll_snapshots_replace_evicted_entries_without_losing_other_preferences() {
+    let mut current = json!({ "ui": { "scrollPositions": { "old": {"x": 1, "y": 20} }, "locale": "en-US", "studio": {"zoomX": 80} } });
+    merge(&mut current, &json!({ "ui": { "scrollPositions": { "new": {"x": 2, "y": 30} }, "studio": {"zoomY": 16} } }));
+    assert!(current["ui"]["scrollPositions"].get("old").is_none());
+    assert_eq!(current["ui"]["scrollPositions"]["new"]["y"], 30);
+    assert_eq!(current["ui"]["locale"], "en-US");
+    assert_eq!(current["ui"]["studio"], json!({"zoomX": 80, "zoomY": 16}));
 }
 
 fn public_settings(mut document: Value) -> Value {
