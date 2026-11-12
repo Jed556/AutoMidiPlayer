@@ -71,6 +71,7 @@
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   {#snippet footer()}
     <Button variant="ghost" icon="ArrowClockwise" disabled={!canReset || saving}
+      title={t('instrument.resetPedalsTooltip')}
       onclick={() => save(null)}>{t('instrument.resetPedals')}</Button>
     <Button variant="primary" onclick={() => uiStore.closeDialog()}>{t('dialogs.close')}</Button>
   {/snippet}

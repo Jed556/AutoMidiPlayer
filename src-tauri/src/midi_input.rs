@@ -322,7 +322,7 @@ impl Worker {
                 self.state.ports = ports;
                 if missing && (self.state.active || self.state.starting) {
                     self.fail(
-                        "The selected MIDI device was disconnected. Reconnect it and press Start."
+                        "The selected MIDI device was disconnected. Reconnect it and refresh MIDI inputs."
                             .into(),
                     );
                 }

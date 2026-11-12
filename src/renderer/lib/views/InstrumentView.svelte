@@ -14,9 +14,9 @@
   import Button from '../components/Common/Button.svelte';
   import NumberBox from '../components/Common/NumberBox.svelte';
   import Dropdown from '../components/Common/Dropdown.svelte';
-  import ToggleSwitch from '../components/Common/ToggleSwitch.svelte';
   import RefreshIcon from '../components/Icons/RefreshIcon.svelte';
   import PedalIcon from '../components/Icons/PedalIcon.svelte';
+  import ChordIcon from '../components/Icons/ChordIcon.svelte';
   import GradientSweep from '../components/Common/GradientSweep.svelte';
   import { createFrameResizeObserver } from '../utils/frameResizeObserver';
   import { tooltip } from '../actions/tooltip';
@@ -277,6 +277,8 @@
     ...(midiInputStore.state.selectedPortId && !midiInputStore.state.ports.some(port => port.id === midiInputStore.state.selectedPortId)
       ? [{ value: midiInputStore.state.selectedPortId, label: t('instrument.midiDeviceUnavailable') }] : []),
   ]);
+  const midiInputLabel = $derived(midiInputs.find(option => option.value === (midiInputStore.state.selectedPortId ?? ''))?.label ?? t('instrument.noMidiDevice'));
+  let midiDropdownWidth = $state(0);
   let inputPitches = $state(new Set<number>());
   const instrumentInput = new InstrumentInput(pitches => { inputPitches = pitches; });
   const inputEnabled = $derived(uiStore.activeTab === 'instrument'
@@ -585,17 +587,19 @@
     <div class="bottom-left-controls">
       <!-- Auto Chord Toggle -->
       <div class="control-unit" class:disabled={!supportsChords}>
-        <div class="auto-chord-control" use:tooltip={supportsChords ? t('instrument.detectPlayChords') : t('instrument.noChordSupport')}>
-          <ToggleSwitch
-            checked={playbackStore.autoChord}
-            onchange={(value) => playbackStore.setAutoChord(value)}
-            disabled={!supportsChords}
-            title={t('instrument.autoChord')}
-          />
-          <span onclick={() => { if (supportsChords) playbackStore.setAutoChord(!playbackStore.autoChord); }} role="presentation">
-            {@render bottomLabel(t('instrument.autoChord'))}
-          </span>
-        </div>
+        <button
+          type="button"
+          class="instrument-toggle-btn auto-chord-control"
+          class:enabled={playbackStore.autoChord}
+          disabled={!supportsChords}
+          aria-label={t('instrument.autoChord')}
+          aria-pressed={playbackStore.autoChord}
+          onclick={() => playbackStore.setAutoChord(!playbackStore.autoChord)}
+          use:tooltip={supportsChords ? t('instrument.detectPlayChords') : t('instrument.noChordSupport')}
+        >
+          <ChordIcon size={16} filled={playbackStore.autoChord} isActive={playbackStore.autoChord} />
+          {@render bottomLabel(t('instrument.autoChord'))}
+        </button>
         {#if supportsChords && playbackStore.autoChord}
           <div class="tolerance-box" use:tooltip={t('instrument.chordTolerance')}>
             <NumberBox
@@ -614,7 +618,7 @@
       <div class="control-unit" class:disabled={!supportsPedals}>
         <button
           type="button"
-          class="pedal-toggle-btn"
+          class="instrument-toggle-btn pedal-toggle-btn"
           class:enabled={playbackStore.pedals.enabled}
           disabled={!supportsPedals}
           aria-label={t('instrument.pedals')}
@@ -654,14 +658,20 @@
           {@render bottomLabel(t('instrument.midiInput'))}
         </div>
 
-        <div class="midi-dropdown-wrap">
+        <div class="midi-dropdown-wrap" style:width={midiDropdownWidth ? `${midiDropdownWidth}px` : 'auto'}>
+          <span class="midi-dropdown-sizer" aria-hidden="true">
+            <span class="midi-dropdown-measure" bind:clientWidth={midiDropdownWidth}>
+              <span>{midiInputLabel}</span>
+              <FluentIcon name="ChevronDown" size={11} />
+            </span>
+          </span>
           <Dropdown
             options={midiInputs}
             showTooltips={false}
             value={midiInputStore.state.selectedPortId ?? ''}
             onchange={(value) => midiInputStore.select(String(value) || null)}
             disabled={midiInputStore.busy}
-            width={bottomBarWidth >= 760 ? '175px' : '140px'}
+            ariaLabel={t('instrument.midiInput')}
             placeholder={t('instrument.noMidiDevice')}
           />
         </div>
@@ -669,35 +679,19 @@
         <button
           type="button"
           class="midi-refresh-btn theme-ghost-button"
+          disabled={midiInputStore.busy}
+          aria-label={t('instrument.refreshDevices')}
           onclick={() => midiInputStore.refresh()}
           use:tooltip={t('instrument.refreshDevices')}
         >
           <RefreshIcon loading={midiInputStore.refreshing} size={15} />
         </button>
-        <Button variant="ghost" size={bottomBarWidth >= 900 ? 'sm' : 'icon'} disabled={midiInputStore.busy || (!midiInputStore.state.selectedPortId && !midiInputStore.state.active && !midiInputStore.state.starting)}
-          onclick={() => midiInputStore.state.active || midiInputStore.state.starting ? midiInputStore.stop() : midiInputStore.start()}
-          ariaLabel={midiInputStore.state.active || midiInputStore.state.starting ? t('instrument.midiStop') : t('instrument.midiStart')}
-          title={midiInputStore.state.active || midiInputStore.state.starting ? t('instrument.midiStop') : t('instrument.midiStart')}>
-          <FluentIcon name={midiInputStore.state.active || midiInputStore.state.starting ? 'Stop' : 'Play'} size={14} />
-          {#if bottomBarWidth >= 900}
-            {midiInputStore.state.active || midiInputStore.state.starting ? t('instrument.stop') : t('instrument.start')}
-          {/if}
-        </Button>
-      </div>
-      <div class="midi-status" role="status" aria-live="polite" title={midiInputStore.state.error ?? ''}>
-        {t(`instrument.midiStatus_${midiInputStore.state.status}`)}
-        {#if midiInputStore.state.requiresSession && !midiInputStore.state.listenMode}
-          <span class="midi-wayland-hint">{t('instrument.midiWaylandHint')}</span>
-        {/if}
       </div>
     </div>
   </div>
 </div>
 
 <style>
-  .midi-status { max-width: 360px; font-size: 11px; color: var(--text-secondary); text-align: right; line-height: 1.4; }
-  .midi-wayland-hint { display: block; }
-
   .instrument-view {
     display: flex;
     flex-direction: column;
@@ -1227,7 +1221,8 @@
      Bottom Bar
      ========================================== */
   .inst-bottom-bar {
-    min-height: 52px;
+    min-height: 44px;
+    box-sizing: border-box;
     background: var(--bg-secondary);
     border: none;
     display: flex;
@@ -1245,7 +1240,7 @@
     gap: 18px;
   }
 
-  .bottom-right-controls { flex-direction: column; align-items: flex-end; gap: 4px; }
+  .bottom-right-controls { min-width: 0; max-width: 60%; }
 
   .control-unit {
     display: flex;
@@ -1257,15 +1252,20 @@
     opacity: 0.5;
   }
 
-  .auto-chord-control,
-  .pedal-toggle-btn {
+  .instrument-toggle-btn {
     display: inline-flex;
     align-items: center;
     flex-shrink: 0;
     white-space: nowrap;
     font-size: 12px;
     font-weight: 500;
-    color: var(--text-secondary);
+    color: var(--text-primary);
+    opacity: 0.35;
+    padding: 4px 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    transition: opacity var(--transition-normal), color var(--transition-fast);
   }
 
   .bottom-control-label {
@@ -1273,19 +1273,24 @@
     white-space: nowrap;
   }
 
-  .pedal-toggle-btn {
-    padding: 4px 0;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    transition: color var(--transition-fast);
+  .instrument-toggle-btn.enabled {
+    color: var(--accent);
+    opacity: 0.85;
   }
 
-  .pedal-toggle-btn.enabled { color: var(--accent); }
-  .pedal-toggle-btn:disabled { cursor: not-allowed; }
-  .pedal-toggle-btn:focus-visible {
+  .instrument-toggle-btn:is(:hover, :focus-visible):not(:disabled) { opacity: 1; }
+  .instrument-toggle-btn:active:not(:disabled) { opacity: 0.5; }
+  .instrument-toggle-btn:disabled {
+    opacity: 0.22;
+    cursor: not-allowed;
+  }
+  .instrument-toggle-btn:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .instrument-toggle-btn { transition: none; }
   }
 
   .tolerance-box {
@@ -1311,6 +1316,7 @@
     width: 24px;
     height: 24px;
     padding: 0;
+    flex-shrink: 0;
   }
 
   /* MIDI Input Group */
@@ -1318,6 +1324,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    min-width: 0;
   }
 
   .midi-icon-label {
@@ -1327,12 +1334,46 @@
     color: var(--text-secondary);
     font-size: 12px;
     font-weight: 500;
+    flex-shrink: 0;
   }
 
   :global(.midi-plug-icon) {
     color: var(--accent);
   }
 
+  .midi-dropdown-wrap {
+    position: relative;
+    min-width: 0;
+    max-width: 320px;
+    transition: width var(--transition-normal);
+  }
+
+  .midi-dropdown-sizer {
+    position: absolute;
+    visibility: hidden;
+    pointer-events: none;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+  }
+
+  .midi-dropdown-measure {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    width: max-content;
+    white-space: nowrap;
+    font-size: 12px;
+  }
+
+  .midi-dropdown-wrap :global(.trigger-label) {
+    font-size: 12px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .midi-dropdown-wrap { transition: none; }
+  }
 
   .midi-dropdown-wrap :global(.dropdown-trigger) {
     height: 28px;
