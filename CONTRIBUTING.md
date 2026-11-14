@@ -1,60 +1,43 @@
 # Contributing
-When contributing to this repository, please first discuss the change you wish to make via issue, or any other method with me or the maintainers of this repository before making a change.
 
-This project has a [Code of Conduct](https://github.com/Jed556/AutoMidiPlayer?tab=coc-ov-file#contributor-covenant-code-of-conduct), please follow it in all your interactions with the project.
+Want to help improve AMP? Thank you! 💖 Please discuss your planned change in an issue or with me or the maintainers before starting, so we can agree on what it should do.
+
+Please follow our [Code of Conduct](CODE_OF_CONDUCT.md) in all project interactions.
+
+## Get Set Up
+
+The current desktop rewrite lives on **`rewrite-experimental`** and uses Svelte 5, Tauri v2, and Rust. Follow [Build from Source](README.md#build-from-source) for prerequisites and commands, or see the Wiki's [Getting Started](https://github.com/Jed556/AutoMidiPlayer/wiki/Getting-Started) for platform details and configuration examples.
+
+The main pieces are:
+
+* `src/renderer` - the Svelte interface, with shared types and defaults in `src/shared`.
+* `src-tauri` - desktop integration, including MIDI devices, game detection, media controls, and the system tray.
+* `crates/amp-core` - MIDI parsing, playback, synthesis, note mapping, and library storage.
+
+Adding a game, instrument, or keyboard layout? Edit the bundled JSON under `src-tauri/resources/defaults/`. You can try custom mappings in the installed app first; the Wiki explains where to put them.
 
 ## Pull Request Process
 
-1. Do not include the build itself where the project is cleaned using `dotnet clean`.
-2. Update the README.md with details of changes to the project, new features, and others if applicable.
-3. Increase the version number of the project and the README.md to the new version that this
-   Pull Request would represent. The versioning scheme we use is [SemVer](http://semver.org/).
+1. Keep the change focused and explain the problem it solves. Include a small example or reproduction steps when useful.
+2. Update the README
+3. Run the checks relevant to your change and mention the results. For UI changes, screenshots help; for playback or input changes, say which game, OS, or MIDI device you tried.
+4. Keep generated builds, caches, personal settings, MIDI collections, and personal SoundFonts out of the pull request.
 
-## Build
-If you just want to run the program, there are precompiled releases that can be found in [here](https://github.com/Jed556/AutoMidiPlayer/releases).
+Release versions are managed by the project's scripts and workflows. You don't need to bump the version just to open a pull request unless a maintainer asks.
 
-### Requirements
-* [Git](https://git-scm.com) for cloning the project
-* [.NET 10.0](https://dotnet.microsoft.com/download/dotnet/10.0) SDK
+## Check Your Changes
 
-#### Publish a single binary for Windows
-```bat
-git clone https://github.com/Jed556/AutoMidiPlayer.git
-cd AutoMidiPlayer
+These are the usual checks; pick the ones that cover what you changed:
 
-dotnet publish -r win-x86 -c Release -o bin\publish --self-contained false -p:PublishSingleFile=true
-```
-> For other runtimes, visit the [RID Catalog](https://docs.microsoft.com/en-us/dotnet/core/rid-catalog) and change the runtime value.
+```bash
+# Compile the frontend
+pnpm build:frontend
 
-#### Build the project (not necessary if you published)
-```bat
-git clone https://github.com/Jed556/AutoMidiPlayer.git
-cd AutoMidiPlayer
+# Run frontend/store and integration regression tests
+node --test tests/*.test.mjs
 
-dotnet build
+# Run the Rust library tests
+cargo test --workspace --lib --locked
 ```
 
-#### Publish the project using defaults
-```bat
-git clone https://github.com/Jed556/AutoMidiPlayer.git
-cd AutoMidiPlayer
-
-dotnet publish
-```
-
-### Notes
-If you want to build using the [.Net Core 3.1 SDK](https://dotnet.microsoft.com/download), you need to make a few changes to the project files.
-
-#### Project SDK
-Change the Project SDK of `AutoMidiPlayer.WPF.csproj` into `Microsoft.NET.Sdk.WindowsDesktop`.
-```diff
-- <Project Sdk="Microsoft.NET.Sdk">
-+ <Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
-```
-
-### Language Version
-Change the `LangVersion` of both projects into `preview`.
-```diff
-- <LangVersion>latest</LangVersion>
-+ <LangVersion>preview</LangVersion>
-```
+You can run an individual test file while working on one feature. Use `pnpm dev` to check the desktop app, and `pnpm build` when you need to verify native packaging. A browser capture or automated test doesn't verify physical MIDI input or in-game playback, so include a short manual check when your change depends on those.

@@ -18,105 +18,105 @@
 
 ---
 
+
 ### Supported Games and Instruments
-- **Genshin Impact** - All 11 instruments as of August 2026
-- **Wuthering Waves** - 21-key instruments (shared QWERTY mapping)
-- **Neverness to Everness (NTE)** - Piano (21-key & 36-key)
-- **Where Winds Meet** - Guqin
-- **Blue Protocol: Star Resonance** - Piano (61-key & 88-key)
-- **Sky: Children of the Light** - All available Sky instruments as of February 2026
-- **Roblox** - Piano (61-key & 88-key)
-- **Heartopia** - Piano (All variations), 15-key instruments (e.g. lyre, wooden bass, violin, etc.)
-- **Core Keeper** - All instruments (shared 24-key chromatic layout; sounding range C2–B3 up to C5–B6 per instrument)
-- **Harry Potter: Magic Awakened (HPMA)** - Piano (14-key & 36-key)
+
+| Game | Bundled instruments |
+| --- | --- |
+| **Genshin Impact** | 11 instruments, including lyres, zithers, pianos, percussion, Ukulele, Nightwind Horn, and Lingering Euphonia |
+| **Wuthering Waves** | 21-key instrument layout |
+| **Neverness to Everness (NTE)** | Piano (21-key and 36-key), Guitar |
+| **Where Winds Meet** | Guqin |
+| **Blue Protocol: Star Resonance** | Piano (61-key and 88-key) |
+| **Sky: Children of the Light** | String, keyboard, wind, and percussion instruments |
+| **Roblox** | Piano (61-key and 88-key) |
+| **Heartopia** | Piano variations, plus string, wind, and percussion instruments in two-row and three-row layouts |
+| **Core Keeper** | Pocket Piano, Drumkit, Cello, Harp, Flute, and Ocarina |
+| **Harry Potter: Magic Awakened (HPMA)** | Piano (14-key and 36-key) |
 
 See the [Support wiki page][wiki-support] for details on supported games, instruments, and keyboard layouts.
 
 ## Quick Start
 
-1. [Download][latest] the package for your platform. Windows offers an installer or a portable ZIP; macOS uses a DMG; Linux offers AppImage and deb packages.
-2. Open a .mid file by pressing the **+** button at the top left.
-3. Enable the tracks that you want to be played back.
-4. Press play and it will automatically switch to the target game window.
-5. Automatically stops playing if you switch to a different window.
+1. Launch the desktop app and finish setup. If an old AMP profile is found, you can choose to import it.
+2. Choose your game, instrument, and keyboard layout. Make sure they match what you have open in the game.
+3. Add your `.mid` or `.midi` files with the **+** button (**Import MIDI files**) in Songs, or set a MIDI folder in Settings.
+4. Open **Tracks** and keep the parts you want to play. A melody track is a good place to start!
+5. Turn on **Listen Mode** to hear the song through your speakers first. Adjust the key, transpose, speed, and note settings as needed.
+6. To play in-game, open the game's instrument, turn Listen Mode off, and press **Play**. AMP tries to focus the selected game on Windows, macOS, and X11; losing game focus pauses playback.
 
-> [!NOTE]
-> If you get a SmartScreen popup, click on "More info" and then "Run anyway"
-> The reason this appears is because the application is not signed. Signing costs money which can get very expensive.
+On **Wayland**, game output requires permission through the desktop's keyboard portal. It sends keys to the focused app and cannot identify the game, so bring the game to the foreground yourself. See [Getting Started][wiki-getting-started] for platform permissions and troubleshooting.
+
+Here's where the main controls live. The annotated screenshots use the current interface with **AMP Demo** data and no connected MIDI device; your library and available instruments may look different.
+
+![Annotated Instrument page showing instrument selection, pedals, scheduling, and MIDI input](https://raw.githubusercontent.com/wiki/Jed556/AutoMidiPlayer/Assets/Screenshots/rewrite-instrument-annotated.svg)
 
 ## Features
 
-### Core Features
-* **Multi-game support** - Play on Genshin Impact, Wuthering Waves, Sky, Roblox, Heartopia, Neverness to Everness, Blue Protocol: Star Resonance, Harry Potter: Magic Awakened, Core Keeper, and Where Winds Meet
-* **Spotify-style UI** - Modern player interface with fixed bottom controls
-* **Studio View** - Piano roll interface with scrubbing and mid-song key changes
-* **Per-song Settings** - Key offset, transpose, speed, and BPM settings are saved for each song
-* **System Media Controls** - Control playback with media buttons on Windows, macOS, and Linux, even while minimized.
+### Make a Song Fit Your Instrument
 
-### Instrument Playback
-* Test MIDI files through speakers before playing in-game
-* Change keyboard layouts (QWERTY, QWERTZ, AZERTY, DVORAK, etc.)
-* Hold and merge nearby notes. _Some songs sound better when merged ([#4](https://github.com/sabihoshi/GenshinLyreMidiPlayer/issues/4))_
-* Smart transposition with key auto-correction for instruments with limited note ranges
-* Sustain pedal support
-* Play using your own MIDI Input Device
+* **Per-song tuning** - Save key offsets, transpose, speed, BPM, and note settings for the selected instrument, the whole game, or all games. Instrument settings take priority, so the same song can suit different instruments without setting everything up again.
+* **Smart transpose and Auto Correct** - Help notes fit instruments with limited ranges or missing sharps and flats. You can also choose Up, Down, or Ignore transposition.
+* **Hold Notes and Tap Threshold** - Choose between short key taps and held notes, or tap short notes while holding longer ones.
+* **Merge Notes** - Join repeated notes of the same pitch when they overlap or fall within your chosen gap. Try it on songs where repeated taps sound too busy.
+* **Auto Chord** - Match groups of notes to built-in chord keys on instruments that support them, such as Genshin's Ukulele and Lingering Euphonia.
+* **Pedals and layouts** - Use sustain, sostenuto, and soft pedals where supported. Edit pedal bindings for the selected keyboard layout, and choose from QWERTY, QWERTZ, AZERTY, Dvorak, and other available mappings.
 
-<img width="1361" height="871" alt="image" src="https://github.com/user-attachments/assets/964af576-4d43-40dd-a88d-075b79b2ab0d" />
+Every game's instrument behaves a little differently. Preview your changes, then try a short section in-game to find what sounds best.
 
-### Discovery (Online MIDI) [Rewrite: Work in Progress]
-Browse, search, and download MIDI files directly inside the app without opening a browser.
-* **Online Repositories** - Browse MIDI tracks from various online repositories.
-* **In-App Synthesizer Preview** - Listen to song previews before downloading or adding to your library
-* **Detailed Track Breakdown** - Inspect tracks, channels, instruments, note counts, BPM, ratings, and download counts
-* **Library Import** - Download and add tracks directly into your song list with original track names preserved
+### Listen Before You Play
 
-<img width="1561" height="984" alt="image" src="https://github.com/user-attachments/assets/60f43e53-2bab-4bd2-82d8-562b956d35d9" />
+Listen Mode plays through your speakers using SoundFonts instead of sending game keys. Pick **Game Preview (Adapted)** to hear notes fitted to the selected instrument, or **Full Chromatic (Raw)** to hear the original MIDI pitches.
 
-### MIDI Track Management
-* Play multiple tracks of a MIDI file simultaneously
-* Turn on/off tracks in realtime
+* **Play In-Game Durations** makes the adapted preview follow Hold Notes, Tap Threshold, and Key Press Delay. Leave it off to keep the MIDI's note lengths.
+* Use the bundled **GeneralUser GS** and **Roland GM** SoundFonts, or add your own `.sf2` files.
+* Turn on **Automatic gap filling** and arrange SoundFonts in priority order. Missing instruments and notes fall back to the next font in the list.
+* Custom SoundFonts stay at their original locations. Removing one from AMP removes its registration and leaves your file alone.
+* **Volume Normalization** balances the combined SoundFont audio, including overlapping notes, so quiet and loud passages are easier to listen to.
 
-<img width="1361" height="871" alt="image" src="https://github.com/user-attachments/assets/e1acce9b-6000-4704-bb21-0d1bb89edc2f" />
+![Annotated audio settings showing synthesis mode, in-game durations, SoundFont priority, gap filling, and volume normalization](https://raw.githubusercontent.com/wiki/Jed556/AutoMidiPlayer/Assets/Screenshots/rewrite-audio-annotated.svg)
 
-### Studio View
-A piano roll interface to inspect notes, scrub through songs, and set mid-song key changes.
-* Real-time horizontal piano roll with keyboard guide and note highlighting
-* Add key change markers to modulate keys throughout the song (or auto-detect them from the MIDI file)
-* Timeline scrubber with zoom controls and playhead tracking
-* Quick drawer to toggle tracks and tweak song settings
+### Play Your Own MIDI Keyboard
 
-<img width="1361" height="871" alt="image" src="https://github.com/user-attachments/assets/ff4cf315-d15f-411e-9c75-ce4d6e3f948f" />
+Choose a device from **MIDI Input** on the Instrument page and start playing-selecting it connects automatically. AMP remembers the device and tries to reconnect to it at launch when it is available. After unplugging and reconnecting it, use **Refresh** to reconnect.
 
-### Piano Sheet
-The Piano Sheet allows you to easily share songs to other people, or for yourself to try. You can change the delimiter as well as the split size, and spacing. This will use the current keyboard layout that you have chosen.
+Live input works with Listen Mode or game output, including note velocity and supported pedals. You can play along with a MIDI song, and the connection stays active while you browse other pages or minimize to the tray. Select **None** to disconnect. See the [MIDI input guide][wiki-how-to-use] for details and platform permissions.
 
-<img width="1561" height="984" alt="image" src="https://github.com/user-attachments/assets/e50f1578-23f5-49c6-a488-c5625cd68d2d" />
+### Tracks, Studio, and Piano Sheet
 
-### Queue
-A queue allows you to play songs without having to open or delete a song or file.
+* **Tracks** - Play several MIDI tracks together, mute parts you don't need, or solo a part to hear it clearly.
+* **Studio** - Follow a live piano roll with note highlighting, a keyboard guide, timeline scrubbing, zoom, and playhead tracking. Adjust tracks and song settings from the side panel.
+* **Key change markers** - Add mid-song key offsets in Studio or detect key changes from the MIDI, then edit or disable the markers as needed.
+* **Piano Sheet** - Turn the selected song into keyboard notation using your current layout. Adjust the delimiter, grouping, and spacing, and check the legend when a symbol is unfamiliar.
 
-<img width="1361" height="871" alt="image" src="https://github.com/user-attachments/assets/acfe2b3e-5a07-46f6-9fc4-eb435f9355b5" />
+![Annotated Studio page showing key markers, song settings, and the timeline scrubber](https://raw.githubusercontent.com/wiki/Jed556/AutoMidiPlayer/Assets/Screenshots/rewrite-studio-annotated.svg)
 
-### Theming
-You can set the player to light mode/dark mode and change its accent color.
+### Your Library and Queue
+
+* Import MIDI files or scan a MIDI folder, search your library, and sort by title, artist, duration, or date added.
+* Switch to custom order to drag songs into the order you want. AMP remembers your ordering and scroll positions.
+* Add songs to the queue, reorder what's coming next, and use shuffle or repeat for longer listening sessions.
+* Schedule a play or pause action from the Instrument page. The timer keeps running while you change pages; keep AMP open for it to fire.
+
+### Desktop Conveniences
+
+* **System tray** - Choose whether minimizing or closing hides AMP to the tray. Use the tray menu to play/pause, skip ahead, reopen the window, or exit.
+* **Playback shortcuts** - Use configurable hotkeys and native media controls, including while the window is minimized. Availability depends on your desktop and its permissions.
+* **Make it yours** - Choose light, dark, or system theme, change the accent color, and switch between English and Simplified Chinese.
+* **Migration** - Import an existing legacy library and settings during setup when detected. Old-data cleanup is optional.
+* **System and diagnostics** - View system information, open logs, and adjust diagnostic settings from Settings when you need help with an issue.
+
+### Still in Progress
+
+**Discover (online MIDI)** and **New Playlist** currently not implemented yet in the rewrite. You can checkout Discover in the legacy app.
 
 ## About
 
 ### What are MIDI files?
-MIDI files (.mid) are a set of instructions that play various instruments on what are called tracks. You can enable specific tracks that you want it to play. It converts the notes on the track into keyboard inputs for the game. Currently it is tuned to C major.
+MIDI files (`.mid` and `.midi`) contain notes, timing, and instrument instructions rather than recorded audio. AMP lets you choose which tracks to play, then either turns their notes into game keys or plays them through a SoundFont. The selected instrument, keyboard layout, and tuning settings decide which notes fit.
 
 ### Can this get me banned?
-The short answer is that it's uncertain. Use it at your own risk. Do not play songs that will spam the keyboard, listen to the MIDI file first and make sure to play only one instrument so that the tool doesn't spam keyboard inputs.
-* For Genshin Impact, here is [miHoYo's response](https://genshin.mihoyo.com/en/news/detail/5763) to using 3rd party tools.
-* For Wuthering Waves, review KURO's [User Agreement](https://wutheringwaves.kurogames.com/p/agreement_public.html) restrictions on unauthorized third-party software.
-* For Neverness to Everness, see their [Data collected to prevent cheating and unauthorized software](https://static.pwsdk.com/nte/privacy/privacy.html).
-* For Where Winds Meet, check their [Ban Report page](https://www.wherewindsmeetgame.com/news/official/BanReport.html) for included violations.
-* For Blue Protocol: Star Resonance, check their [Terms of Service](https://www.playbpsr.com/terms).
-* For Sky, see their policy on [third-party apps](https://thatgamecompany.helpshift.com/hc/en/17-sky-children-of-the-light/faq/1250-can-i-use-or-create-third-party-applications-like-mods-or-bots/).
-* For Roblox, refer to their [third-party services Terms of Use](https://en.help.roblox.com/hc/en-us/articles/115004647846-Roblox-Terms-of-Use#third-party-services).
-* For Heartopia, here is their [Official Discord message](https://discord.com/channels/1128257488375005215/1460985755529773301/1465702188700405986) about using 3rd party tools.
-* For Core Keeper, read Fireshine Games' [Legal page](https://fireshinegames.co.uk/legal/).
-* For Harry Potter: Magic Awakened, check the User Conduct section in NetEase's [Terms of Use](https://protocol.unisdk.easebar.com/release/latest_v487.html).
+There is no guarantee that a game permits automated input or that using AMP will avoid account restrictions. Check the game's current rules and use it at your own risk. See the [Disclaimer][wiki-disclaimer] for more information.
 
 ## Documentation
 
@@ -132,34 +132,32 @@ For setup details, feature walkthroughs, safety notes, and troubleshooting, use 
 
 ## Build from Source
 
-If you just want to run the app, download the latest [release][latest].
-
 ### Requirements
+
 * [Git](https://git-scm.com)
 * [Node.js](https://nodejs.org) (v24+) & [pnpm](https://pnpm.io)
 * [Rust](https://www.rust-lang.org) (MSVC toolchain on Windows, native toolchain on Linux/macOS)
 * [Tauri platform prerequisites](https://v2.tauri.app/start/prerequisites/)
 
 ### Build and run
+
 ```bash
-git clone https://github.com/Jed556/AutoMidiPlayer.git
-cd AutoMidiPlayer-rewrite
+git clone --branch rewrite-experimental https://github.com/Jed556/AutoMidiPlayer.git
+cd AutoMidiPlayer
 
 # Install frontend dependencies
-pnpm install
+pnpm install --frozen-lockfile
 
 # Start Tauri desktop app in dev mode (Vite + Rust)
 pnpm dev
-
-# Start frontend dev server only (browser mode)
-pnpm dev:frontend
 
 # Build native packages for the current platform
 pnpm build
 ```
 
-For publish options and advanced setup, see [Getting Started][wiki-getting-started].
-For documentation and release setup, see the [project wiki](https://github.com/Jed556/AutoMidiPlayer/wiki).
+`pnpm dev` starts both the frontend and native backend. `pnpm dev:frontend` starts Vite alone for frontend work; the app's library, settings, and playback require Tauri and do not work as a standalone browser app.
+
+For platform prerequisites, package formats, and custom game or instrument definitions, see [Getting Started][wiki-getting-started]. Windows, macOS, X11, and Wayland have different permission and focus requirements; a successful build does not verify physical MIDI or in-game behavior on every platform.
 
 ## Contributing
 
@@ -167,7 +165,10 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md).
 For adding notes, instruments, games, or keyboard mappings, see [Getting Started][wiki-getting-started]
 
 # Special Thanks
-This project was originally forked from **[sabihoshi/GenshinLyreMidiPlayer][GenshinLyreMidiPlayer]** [v4.0.5](https://github.com/sabihoshi/GenshinLyreMidiPlayer/releases/tag/v4.0.5) and later detached into its own repository to enable multi-game support and features that do not fit the original Genshin Impact-only design. Huge thanks for the original work!
+
+This project was originally forked from **[sabihoshi/GenshinLyreMidiPlayer][GenshinLyreMidiPlayer]** [v4.0.5](https://github.com/sabihoshi/GenshinLyreMidiPlayer/releases/tag/v4.0.5) and later detached into its own repository to enable multi-game support and features that do not fit the original Genshin Impact-only design. Huge thanks for the original work! 🔥
+
+Special thanks to **[Lunaferlone](https://github.com/Lunaferlone)** for helping with QA and testing! 💖
 
 # License
 
@@ -179,12 +180,14 @@ This project was originally forked from **[sabihoshi/GenshinLyreMidiPlayer][Gens
 
 <br/>
 
-> Demo videos and screenshots are for illustrative purposes only and may not reflect the latest version of the application. Actual features, UI, and supported games/instruments may vary. Please refer to the [latest release][latest] and Wiki for up-to-date information.
+> [!IMPORTANT]
+> This README and the Wiki describe the desktop rewrite on **`rewrite-experimental`**, built with Svelte 5, Tauri v2, and Rust. Older releases use the previous C#/WPF app and have different features and setup steps.
 
 > [!NOTE]
 > I don't have knowledge about music theory, if you find any issues with note mappings or transpositions, please open an issue or PR. Thank you! 💖
 
 [latest]: https://github.com/Jed556/AutoMidiPlayer/releases/latest
+[releases]: https://github.com/Jed556/AutoMidiPlayer/releases
 [GenshinLyreMidiPlayer]: https://github.com/sabihoshi/GenshinLyreMidiPlayer
 [wiki-home]: https://github.com/Jed556/AutoMidiPlayer/wiki
 [wiki-getting-started]: https://github.com/Jed556/AutoMidiPlayer/wiki/Getting-Started
