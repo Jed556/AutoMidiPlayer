@@ -565,6 +565,10 @@
           {:else if page === 'player'}
             {#if isMigrating}<p class="note">{t('onboarding.migratedNoteDefaultsHelp')}</p>{/if}
             <div class="setting-row"><ToggleSwitch label={t('settings.autoListenMode')} description={t('settings.autoListenModeTooltip')} checked={draft.autoEnableListenMode} onchange={value => draft.autoEnableListenMode = value} /></div>
+            <div class="setting-row">
+              <ToggleSwitch label={t('settings.volumeNormalization')} description={t('settings.volumeNormalizationDesc')}
+                checked={draft.volumeNormalization} onchange={value => draft.volumeNormalization = value} />
+            </div>
             <div class="overlap-setting">
               <OverlapBehaviorPicker value={draft.overlapBehavior} onchange={value => draft.overlapBehavior = value}
                 repressGapMs={draft.repressGapMs} onrepressgapchange={value => draft.repressGapMs = value} />

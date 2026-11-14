@@ -175,6 +175,7 @@ enum Command {
     SetListenMode(bool),
     SetSynthMode(SynthMode),
     SetMasterVolume(f32),
+    SetVolumeNormalization(bool),
     SetTrackVolume(usize, f32),
     SetAudioSynth(Option<AudioSynth>),
     SetMapping(NoteKeyMapping),
@@ -386,6 +387,10 @@ impl PlaybackEngine {
         let _ = self.cmd_tx.send(Command::SetMasterVolume(volume));
     }
 
+    pub fn set_volume_normalization(&self, enabled: bool) {
+        let _ = self.cmd_tx.send(Command::SetVolumeNormalization(enabled));
+    }
+
     pub fn set_track_volume(&self, track_index: usize, volume: f32) {
         let _ = self.cmd_tx.send(Command::SetTrackVolume(track_index, volume));
     }
@@ -516,6 +521,7 @@ fn run_playback_loop(
     // Phase 4 audio states
     let mut listen_mode = crate::settings::defaults::value("/ui/playback/isListenMode");
     let mut synth_mode = SynthMode::default();
+    let mut volume_normalization = crate::settings::defaults::value("/volumeNormalization");
 
     let mut mapping = mapping;
     let mut all_keys = mapping.all_keys();
@@ -885,6 +891,12 @@ fn run_playback_loop(
                         synth.set_master_volume(vol);
                     }
                 }
+                Command::SetVolumeNormalization(enabled) => {
+                    volume_normalization = enabled;
+                    if let Some(ref synth) = audio_synth {
+                        synth.set_volume_normalization(enabled);
+                    }
+                }
                 Command::SetTrackVolume(track_idx, vol) => {
                     rebuild_chords = true;
                     track_volumes.insert(track_idx, vol.clamp(0.0, 1.0));
@@ -895,6 +907,7 @@ fn run_playback_loop(
                 Command::SetAudioSynth(s) => {
                     audio_synth = s;
                     if let Some(ref synth) = audio_synth {
+                        synth.set_volume_normalization(volume_normalization);
                         synth.set_enforce_note_durations(listen_mode && synth_mode == SynthMode::Adapted && game_preview_follow_note_timing);
                     }
                 }

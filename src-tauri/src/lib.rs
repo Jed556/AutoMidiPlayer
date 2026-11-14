@@ -954,6 +954,9 @@ async fn update_app_settings(
         if let Some(enabled) = settings.get("gamePreviewFollowNoteTiming").and_then(serde_json::Value::as_bool) {
             engine.set_game_preview_follow_note_timing(enabled);
         }
+        if let Some(enabled) = settings.get("volumeNormalization").and_then(serde_json::Value::as_bool) {
+            engine.set_volume_normalization(enabled);
+        }
         if let Some(enabled) = settings.get("ui").and_then(|ui| ui.get("pedalsEnabled")).and_then(serde_json::Value::as_bool) {
             engine.set_pedals_enabled(enabled);
         }
@@ -979,6 +982,7 @@ fn reset_app_settings(state: State<AppState>, app: AppHandle) -> Result<bool, St
     state.engine.set_hold_delay_ms(defaults::value("/keyPressDelayMs"));
     state.engine.set_note_logging(played_note_logging_enabled(defaults::document()));
     state.engine.set_game_preview_follow_note_timing(defaults::value("/gamePreviewFollowNoteTiming"));
+    state.engine.set_volume_normalization(defaults::value("/volumeNormalization"));
     state.engine.set_overlap_behavior(OverlapBehavior::default());
     state.engine.set_repress_gap_ms(defaults::value("/repressGapMs"));
     state.engine.set_pedals_enabled(defaults::value("/ui/pedalsEnabled"));
@@ -1029,6 +1033,7 @@ async fn clear_app_data(app: AppHandle, state: State<'_, AppState>) -> Result<()
         engine.set_hold_delay_ms(defaults::value("/keyPressDelayMs"));
         engine.set_note_logging(played_note_logging_enabled(defaults::document()));
         engine.set_game_preview_follow_note_timing(defaults::value("/gamePreviewFollowNoteTiming"));
+        engine.set_volume_normalization(defaults::value("/volumeNormalization"));
         engine.set_overlap_behavior(OverlapBehavior::default());
         engine.set_repress_gap_ms(defaults::value("/repressGapMs"));
         engine.set_pedals_enabled(defaults::value("/ui/pedalsEnabled"));
@@ -1978,6 +1983,8 @@ pub fn run() {
                         .and_then(serde_json::Value::as_u64).unwrap_or_else(|| defaults::value("/keyPressDelayMs")).min(1000));
                     engine.set_game_preview_follow_note_timing(settings.get("gamePreviewFollowNoteTiming")
                         .and_then(serde_json::Value::as_bool).unwrap_or_else(|| defaults::value("/gamePreviewFollowNoteTiming")));
+                    engine.set_volume_normalization(settings.get("volumeNormalization")
+                        .and_then(serde_json::Value::as_bool).unwrap_or_else(|| defaults::value("/volumeNormalization")));
                     engine.set_overlap_behavior(settings.get("overlapBehavior")
                         .and_then(|value| serde_json::from_value(value.clone()).ok()).unwrap_or_default());
                     engine.set_repress_gap_ms(settings.get("repressGapMs")

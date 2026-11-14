@@ -7,6 +7,7 @@ use rodio::cpal::{self, traits::{DeviceTrait, HostTrait}};
 use rodio::{DeviceSinkBuilder, MixerDeviceSink, Player, Source};
 use rustysynth::{SoundFont, SynthesizerSettings};
 use super::font_stack::FontStack;
+use super::normalization::VolumeNormalizer;
 use crate::diagnostics::{ServiceState, ServiceStatus};
 use super::ownership::AudioOwnership;
 use super::font_loader::{FontLoader, FontInput, PreparedSoundFont};
@@ -49,6 +50,7 @@ pub enum AudioCommand {
     ProgramChange { channel: u8, program: u8 },
     SetEnforceNoteDurations(bool),
     SetMasterVolume(f32),
+    SetVolumeNormalization(bool),
     SetTrackMuted { track_index: usize, muted: bool },
     SetTrackVolume { track_index: usize, volume: f32 },
     InstallSoundFont(Box<PreparedSoundFont>),
@@ -74,6 +76,7 @@ struct SynthEngine {
     cmd_rx: Receiver<AudioCommand>,
     sample_rate: u32,
     master_volume: f32,
+    normalizer: VolumeNormalizer,
     track_volumes: HashMap<usize, f32>,
     muted_tracks: HashSet<usize>,
     channel_programs: [u8; 16],
@@ -101,6 +104,7 @@ impl SynthEngine {
             cmd_rx,
             sample_rate: SAMPLE_RATE,
             master_volume: crate::settings::defaults::value("/ui/playback/volume"),
+            normalizer: VolumeNormalizer::new(SAMPLE_RATE, crate::settings::defaults::value("/volumeNormalization")),
             track_volumes: HashMap::new(),
             muted_tracks: HashSet::new(),
             channel_programs: [0; 16],
@@ -135,10 +139,10 @@ impl SynthEngine {
                 let _ = self.reclaim_tx.send(tail.stack);
             } else { i += 1; }
         }
-        for i in 0..BLOCK_SIZE {
-            out.push((self.left_buf[i] * self.master_volume).clamp(-1.0, 1.0));
-            out.push((self.right_buf[i] * self.master_volume).clamp(-1.0, 1.0));
-        }
+        let notes_held = self.synth.as_ref().is_some_and(|s| s.has_pending_notes())
+            || self.retiring.iter().any(|tail| tail.stack.has_pending_notes());
+        self.normalizer.process(&mut self.left_buf, &mut self.right_buf,
+            self.master_volume, notes_held, out);
     }
 
     fn clear_retiring(&mut self) {
@@ -154,6 +158,7 @@ impl SynthEngine {
             self.synth = Some(s);
         }
         self.clear_retiring();
+        self.normalizer.reset();
     }
 
     fn process_pending_commands(&mut self) {
@@ -211,6 +216,7 @@ impl SynthEngine {
                 AudioCommand::SetMasterVolume(vol) => {
                     self.master_volume = vol.clamp(0.0, 2.0);
                 }
+                AudioCommand::SetVolumeNormalization(enabled) => self.normalizer.set_enabled(enabled),
                 AudioCommand::SetTrackMuted { track_index, muted } => {
                     if muted {
                         self.muted_tracks.insert(track_index);
@@ -234,12 +240,14 @@ impl SynthEngine {
                 AudioCommand::ClearSoundFonts => {
                     if let Some(stack) = self.synth.take() { let _ = self.reclaim_tx.send(stack); }
                     self.clear_retiring();
+                    self.normalizer.reset();
                 }
                 AudioCommand::Reset => {
                     self.channel_programs = [0; 16];
                     for map in &mut self.channel_controllers { map.clear(); }
                     if let Some(ref mut s) = self.synth { s.reset(); }
                     self.clear_retiring();
+                    self.normalizer.reset();
                 }
             }
         }
@@ -652,6 +660,10 @@ impl AudioSynth {
         let _ = self.cmd_tx.send(AudioCommand::SetMasterVolume(volume));
     }
 
+    pub fn set_volume_normalization(&self, enabled: bool) {
+        let _ = self.cmd_tx.send(AudioCommand::SetVolumeNormalization(enabled));
+    }
+
     pub fn set_track_muted(&self, track_index: usize, muted: bool) {
         let _ = self.cmd_tx.send(AudioCommand::SetTrackMuted { track_index, muted });
     }
@@ -705,3 +717,7 @@ impl AudioSynth {
 #[cfg(test)]
 #[path = "switch_tests.rs"]
 mod switch_tests;
+
+#[cfg(test)]
+#[path = "normalization_tests.rs"]
+mod normalization_tests;

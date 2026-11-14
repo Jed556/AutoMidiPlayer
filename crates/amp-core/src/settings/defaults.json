@@ -43,6 +43,7 @@
   "minimizeToTray": true,
   "closeToTray": false,
   "autoEnableListenMode": true,
+  "volumeNormalization": true,
   "keypressMethod": "SendInput",
   "enableKeyUp": true,
   "keyPressDelayMs": 50,

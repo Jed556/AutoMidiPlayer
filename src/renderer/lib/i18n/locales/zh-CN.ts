@@ -654,6 +654,8 @@ export const zhCN: TranslationSchema = {
     synthModeFullChromatic: '全音阶 (原始 MIDI)',
     synthModeFullChromaticDesc: '直接播放完整的 88 键原始 MIDI 音符，不受音域限制。',
     masterVolume: '主音量',
+    volumeNormalization: '音量标准化',
+    volumeNormalizationDesc: '平衡包含重叠音符在内的音色库混合音频，降低较响的乐段并提高较轻的乐段。',
 
     // Hotkeys Section
     hotkeys: '全局快捷键',

@@ -742,6 +742,7 @@
           </span>
           <Dropdown
             options={midiInputs}
+            variant="ghost"
             showTooltips={false}
             value={midiInputStore.state.selectedPortId ?? ''}
             onchange={(value) => midiInputStore.select(String(value) || null)}
@@ -1454,6 +1455,8 @@
 
   .midi-dropdown-wrap {
     position: relative;
+    display: flex;
+    align-items: center;
     min-width: 0;
     max-width: 320px;
     transition: width var(--transition-normal);
@@ -1471,8 +1474,7 @@
   .midi-dropdown-measure {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 0 10px;
+    gap: 4px;
     width: max-content;
     white-space: nowrap;
     font-size: 12px;

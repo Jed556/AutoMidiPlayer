@@ -600,6 +600,14 @@
                 </div>
               </div>
             </div>
+            <div class="setting-group">
+              <ToggleSwitch
+                label={t('settings.volumeNormalization')}
+                checked={settingsStore.settings.volumeNormalization}
+                onchange={(value) => settingsStore.update('volumeNormalization', value)}
+              />
+              <p class="setting-description">{t('settings.volumeNormalizationDesc')}</p>
+            </div>
             </div>
             <SoundFontStack />
           </div>
