@@ -86,6 +86,9 @@
       "resources/soundfonts/Roland GM.sf2",
       "resources/defaults/**/*",
       "resources/docs/*"
-    ]
+    ],
+    "macOS": {
+      "signingIdentity": "-"
+    }
   }
 }

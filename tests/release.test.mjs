@@ -308,6 +308,7 @@ test('notes omit empty groups and maintenance, retain breaking changes and dedup
   assert.equal(notes.match(/@new-user/g).length, 1);
   assert.doesNotMatch(notes, /## Changes|Update documentation|@existing|dependabot|Copilot/i);
   assert.match(notes, /compare\/v8.0.0\.\.\.v8.1.0/);
+  assert.match(notes, /\*\*macOS:\*\*.*Open Anyway.*wiki\/Getting-Started#macos-first-launch/);
   const first = renderNotes({}, '8.0.0', 'Jed556/AutoMidiPlayer');
   assert.doesNotMatch(first, /## /);
   assert.match(first, /commits\/v8.0.0/);

@@ -74,6 +74,8 @@ export function renderNotes(release, version, repo, previous) {
     lines.push('');
   }
   const url = previous ? `${base}/compare/${previous}...${tag}` : `${base}/commits/${tag}`;
+  // macOS builds are ad-hoc signed (not notarized), so Gatekeeper needs a one-time approval.
+  lines.push(`> **macOS:** The first launch is blocked by Gatekeeper because the app isn't notarized. Open it once, then choose **Open Anyway** in System Settings → Privacy & Security. [More details](${base}/wiki/Getting-Started#macos-first-launch)`, '');
   lines.push(`**Full Changelog**: [${previous ? `${previous}...${tag}` : tag}](${url})`, '');
   return lines.join('\n');
 }

@@ -47,6 +47,8 @@ See the [Support wiki page][wiki-support] for details on supported games, instru
 
 On **Wayland**, game output requires permission through the desktop's keyboard portal. It sends keys to the focused app and cannot identify the game, so bring the game to the foreground yourself. See [Getting Started][wiki-getting-started] for platform permissions and troubleshooting.
 
+On **macOS**, the app isn't notarized, so the first launch is blocked by Gatekeeper. Open it once, then click **Open Anyway** in **System Settings → Privacy & Security** (or run `xattr -cr "/Applications/Auto MIDI Player.app"`). If game keys stop working after an update, re-enable AMP under **Privacy & Security → Accessibility**. See [First launch on macOS][wiki-macos-first-launch].
+
 Here's where the main controls live. The annotated screenshots use the current interface with **AMP Demo** data and no connected MIDI device; your library and available instruments may look different.
 
 ![Annotated Instrument page showing instrument selection, pedals, scheduling, and MIDI input](https://raw.githubusercontent.com/wiki/Jed556/AutoMidiPlayer/Assets/Screenshots/rewrite-instrument-annotated.svg)
@@ -191,6 +193,7 @@ Special thanks to **[Lunaferlone](https://github.com/Lunaferlone)** for helping 
 [GenshinLyreMidiPlayer]: https://github.com/sabihoshi/GenshinLyreMidiPlayer
 [wiki-home]: https://github.com/Jed556/AutoMidiPlayer/wiki
 [wiki-getting-started]: https://github.com/Jed556/AutoMidiPlayer/wiki/Getting-Started
+[wiki-macos-first-launch]: https://github.com/Jed556/AutoMidiPlayer/wiki/Getting-Started#macos-first-launch
 [wiki-how-to-use]: https://github.com/Jed556/AutoMidiPlayer/wiki/How-to-Use
 [wiki-how-it-works]: https://github.com/Jed556/AutoMidiPlayer/wiki/How-it-Works
 [wiki-support]: https://github.com/Jed556/AutoMidiPlayer/wiki/Support
