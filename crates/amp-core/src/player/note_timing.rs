@@ -194,21 +194,21 @@ mod tests {
     #[test]
     fn muting_cancels_taps_and_pending_attacks_without_releasing_other_owners() {
         let now = Instant::now();
-        let stroke = KeyStroke::plain(Key::A);
+        let stroke = KeyStroke::plain(Key::Unicode('a'));
         let mut releases = KeyReleases::default();
         releases.begin_stroke(stroke, 1, now, None, OverlapBehavior::Retrigger);
         releases.begin_stroke(stroke, 2, now, Some(now + Duration::from_secs(1)), OverlapBehavior::Retrigger);
-        assert!(!releases.cancel_owner(Key::A, 2));
+        assert!(!releases.cancel_owner(Key::Unicode('a'), 2));
         // The older owner still needs the queued key-down after the retrigger's
         // key-up, even though the owner that requested the retrigger was muted.
         assert_eq!(releases.take_presses(now + default_repress_gap()), vec![(stroke, vec![])]);
-        assert!(releases.note_off(Key::A, 1));
+        assert!(releases.note_off(Key::Unicode('a'), 1));
         assert!(releases.next_deadline().is_none());
 
         releases.begin_stroke(stroke, 3, now, None, OverlapBehavior::Retrigger);
         releases.begin_stroke(stroke, 4, now, Some(now + Duration::from_secs(1)), OverlapBehavior::Retrigger);
-        assert!(!releases.cancel_owner(Key::A, 3));
-        assert!(releases.cancel_owner(Key::A, 4));
+        assert!(!releases.cancel_owner(Key::Unicode('a'), 3));
+        assert!(releases.cancel_owner(Key::Unicode('a'), 4));
         assert!(releases.take_presses(now + default_repress_gap()).is_empty());
         assert!(releases.take_due(now + Duration::from_secs(2)).is_empty());
         assert!(releases.next_deadline().is_none());
@@ -217,20 +217,20 @@ mod tests {
     #[test]
     fn a_muted_or_ignored_owner_cannot_release_a_newer_hold_on_the_same_key() {
         let mut releases = KeyReleases::default();
-        releases.begin_press(Key::A, 1, None, OverlapBehavior::Hold);
-        assert_eq!(releases.begin_press(Key::A, 2, None, OverlapBehavior::Hold), KeyPressAction::Ignore);
-        assert!(!releases.cancel_owner(Key::A, 2));
-        assert!(releases.cancel_owner(Key::A, 1));
-        releases.begin_press(Key::A, 3, None, OverlapBehavior::Hold);
-        assert!(!releases.note_off(Key::A, 1));
-        assert!(!releases.cancel_owner(Key::A, 1));
-        assert!(releases.note_off(Key::A, 3));
+        releases.begin_press(Key::Unicode('a'), 1, None, OverlapBehavior::Hold);
+        assert_eq!(releases.begin_press(Key::Unicode('a'), 2, None, OverlapBehavior::Hold), KeyPressAction::Ignore);
+        assert!(!releases.cancel_owner(Key::Unicode('a'), 2));
+        assert!(releases.cancel_owner(Key::Unicode('a'), 1));
+        releases.begin_press(Key::Unicode('a'), 3, None, OverlapBehavior::Hold);
+        assert!(!releases.note_off(Key::Unicode('a'), 1));
+        assert!(!releases.cancel_owner(Key::Unicode('a'), 1));
+        assert!(releases.note_off(Key::Unicode('a'), 3));
     }
 
     #[test]
     fn configured_repress_gap_controls_output_and_preserves_the_original_hold() {
         let now = Instant::now();
-        let stroke = KeyStroke::plain(Key::A);
+        let stroke = KeyStroke::plain(Key::Unicode('a'));
         for (ms, expected) in [(0, 0), (1, 1), (65, 65), (1000, 1000), (2000, 1000)] {
             let mut releases = KeyReleases::default();
             releases.set_repress_gap_ms(ms);
@@ -242,8 +242,8 @@ mod tests {
                 assert!(releases.take_presses(press_at - Duration::from_micros(1)).is_empty());
             }
             assert_eq!(releases.take_presses(press_at), vec![(stroke, vec![2])]);
-            assert!(!releases.note_off(Key::A, 2));
-            assert!(releases.note_off(Key::A, 1));
+            assert!(!releases.note_off(Key::Unicode('a'), 2));
+            assert!(releases.note_off(Key::Unicode('a'), 1));
             releases.clear();
             releases.begin_stroke(stroke, 3, now, None, OverlapBehavior::Retrigger);
             assert_eq!(releases.begin_stroke(stroke, 4, now, None, OverlapBehavior::Retrigger).1, press_at,
@@ -275,7 +275,7 @@ mod tests {
         // C4 from track 0: 47.442s..90.093s; track 1 overlaps at
         // 64.884s..65.545s and 65.581s..66.905s (same MIDI channel).
         let mut releases = KeyReleases::default();
-        let stroke = KeyStroke::plain(Key::A);
+        let stroke = KeyStroke::plain(Key::Unicode('a'));
         let origin = Instant::now();
         let at = |us| origin + Duration::from_micros(us);
         assert_eq!(releases.begin_stroke(stroke, 445, at(47_442_000), None, OverlapBehavior::Retrigger).0,
@@ -300,28 +300,28 @@ mod tests {
     fn deferred_repress_keeps_chords_immediate_and_tap_duration_starts_at_key_down() {
         let mut releases = KeyReleases::default();
         let now = Instant::now();
-        let stroke = KeyStroke::plain(Key::A);
+        let stroke = KeyStroke::plain(Key::Unicode('a'));
         let tap = Duration::from_millis(35);
         releases.begin_stroke(stroke, 1, now, None, OverlapBehavior::Retrigger);
         let (action, press_at) = releases.begin_stroke(stroke, 2, now, Some(now + tap), OverlapBehavior::Retrigger);
         assert_eq!(action, KeyPressAction::Retrigger);
-        assert!(!releases.note_off(Key::A, 1));
-        let chord = KeyStroke::plain(Key::B);
+        assert!(!releases.note_off(Key::Unicode('a'), 1));
+        let chord = KeyStroke::plain(Key::Unicode('b'));
         assert_eq!(releases.begin_stroke(chord, 3, now, None, OverlapBehavior::Retrigger),
             (KeyPressAction::Press, now));
         assert!(releases.take_due(press_at).is_empty());
         assert_eq!(releases.take_presses(press_at), vec![(stroke, vec![2])]);
         assert!(releases.take_due(now + tap).is_empty());
         assert_eq!(releases.next_deadline(), Some(press_at + tap));
-        assert_eq!(releases.take_due(press_at + tap), vec![Key::A]);
-        assert!(releases.note_off(Key::B, 3));
+        assert_eq!(releases.take_due(press_at + tap), vec![Key::Unicode('a')]);
+        assert!(releases.note_off(Key::Unicode('b'), 3));
     }
 
     #[test]
     fn simultaneous_overlaps_share_an_attack_without_extending_the_release_gap() {
         let mut releases = KeyReleases::default();
         let now = Instant::now();
-        let stroke = KeyStroke::plain(Key::A);
+        let stroke = KeyStroke::plain(Key::Unicode('a'));
         releases.begin_stroke(stroke, 1, now, None, OverlapBehavior::Retrigger);
         let (_, press_at) = releases.begin_stroke(stroke, 2, now, None, OverlapBehavior::Retrigger);
         let shifted = KeyStroke { shift: true, ..stroke };
@@ -331,15 +331,15 @@ mod tests {
         assert_eq!(releases.next_deadline(), Some(press_at));
         assert_eq!(releases.take_presses(press_at), vec![(shifted, vec![2, 3])]);
         assert!(releases.take_presses(press_at).is_empty());
-        assert!(!releases.note_off(Key::A, 1));
-        assert!(!releases.note_off(Key::A, 3));
-        assert!(releases.note_off(Key::A, 2));
+        assert!(!releases.note_off(Key::Unicode('a'), 1));
+        assert!(!releases.note_off(Key::Unicode('a'), 3));
+        assert!(releases.note_off(Key::Unicode('a'), 2));
     }
 
     #[test]
     fn stopped_or_finished_owners_cancel_pending_attacks_and_hold_mode_still_ignores_overlaps() {
         let now = Instant::now();
-        let stroke = KeyStroke::plain(Key::A);
+        let stroke = KeyStroke::plain(Key::Unicode('a'));
         for cleanup in [0, 1, 2] {
             let mut releases = KeyReleases::default();
             releases.begin_stroke(stroke, 1, now, None, OverlapBehavior::Retrigger);
@@ -347,13 +347,13 @@ mod tests {
             match cleanup {
                 0 => releases.clear(), // stop, pause, seek, panic, output or layout change
                 1 => {
-                    assert!(!releases.note_off(Key::A, 1));
-                    assert!(releases.note_off(Key::A, 2));
+                    assert!(!releases.note_off(Key::Unicode('a'), 1));
+                    assert!(releases.note_off(Key::Unicode('a'), 2));
                 }
                 _ => {
-                    releases.retime(Key::A, 1, now);
-                    releases.retime(Key::A, 2, now);
-                    assert_eq!(releases.take_due(now), vec![Key::A]);
+                    releases.retime(Key::Unicode('a'), 1, now);
+                    releases.retime(Key::Unicode('a'), 2, now);
+                    assert_eq!(releases.take_due(now), vec![Key::Unicode('a')]);
                 }
             }
             assert!(releases.next_deadline().is_none());
@@ -364,29 +364,29 @@ mod tests {
         assert_eq!(releases.begin_stroke(stroke, 2, now, None, OverlapBehavior::Hold).0, KeyPressAction::Ignore);
         assert!(releases.next_deadline().is_none());
         assert!(releases.take_presses(now + default_repress_gap()).is_empty());
-        assert!(releases.note_off(Key::A, 1));
+        assert!(releases.note_off(Key::Unicode('a'), 1));
     }
 
     #[test]
     fn late_worker_wakeup_preserves_a_repressed_taps_full_hold_time() {
         let mut releases = KeyReleases::default();
         let now = Instant::now();
-        let stroke = KeyStroke::plain(Key::A);
+        let stroke = KeyStroke::plain(Key::Unicode('a'));
         let tap = Duration::from_millis(20);
         releases.begin_stroke(stroke, 1, now, None, OverlapBehavior::Retrigger);
         releases.begin_stroke(stroke, 2, now, Some(now + tap), OverlapBehavior::Retrigger);
-        assert!(!releases.note_off(Key::A, 1));
+        assert!(!releases.note_off(Key::Unicode('a'), 1));
         let late = now + Duration::from_millis(100);
         assert_eq!(releases.take_presses(late), vec![(stroke, vec![2])]);
         assert!(releases.take_due(late).is_empty());
         assert_eq!(releases.next_deadline(), Some(late + tap));
-        assert_eq!(releases.take_due(late + tap), vec![Key::A]);
+        assert_eq!(releases.take_due(late + tap), vec![Key::Unicode('a')]);
     }
 
     #[test]
     fn keep_held_ignores_overlaps_without_changing_owner_or_deadline() {
         let mut releases = KeyReleases::default();
-        let key = Key::A;
+        let key = Key::Unicode('a');
         let now = Instant::now();
         assert_eq!(releases.begin_press(key, 1, None, OverlapBehavior::Hold), KeyPressAction::Press);
         assert_eq!(releases.begin_press(key, 2, Some(now), OverlapBehavior::Hold), KeyPressAction::Ignore);
@@ -403,12 +403,12 @@ mod tests {
     fn retrigger_keeps_key_held_until_all_overlaps_end_in_any_order() {
         for order in [[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]] {
             let mut releases = KeyReleases::default();
-            assert_eq!(releases.begin_press(Key::A, 1, None, OverlapBehavior::Retrigger), KeyPressAction::Press);
-            assert_eq!(releases.begin_press(Key::A, 2, None, OverlapBehavior::Retrigger), KeyPressAction::Retrigger);
-            assert_eq!(releases.begin_press(Key::A, 3, None, OverlapBehavior::Retrigger), KeyPressAction::Retrigger);
+            assert_eq!(releases.begin_press(Key::Unicode('a'), 1, None, OverlapBehavior::Retrigger), KeyPressAction::Press);
+            assert_eq!(releases.begin_press(Key::Unicode('a'), 2, None, OverlapBehavior::Retrigger), KeyPressAction::Retrigger);
+            assert_eq!(releases.begin_press(Key::Unicode('a'), 3, None, OverlapBehavior::Retrigger), KeyPressAction::Retrigger);
             for (index, owner) in order.into_iter().enumerate() {
-                assert_eq!(releases.note_off(Key::A, owner), index == 2, "release order {order:?}");
-                assert!(!releases.note_off(Key::A, owner), "duplicate NoteOff must not release another owner");
+                assert_eq!(releases.note_off(Key::Unicode('a'), owner), index == 2, "release order {order:?}");
+                assert!(!releases.note_off(Key::Unicode('a'), owner), "duplicate NoteOff must not release another owner");
             }
         }
     }
@@ -417,15 +417,15 @@ mod tests {
     fn changing_overlap_behavior_applies_to_next_press_and_preserves_other_chord_keys() {
         let mut releases = KeyReleases::default();
         let now = Instant::now();
-        releases.begin_press(Key::A, 1, Some(now), OverlapBehavior::Hold);
-        releases.begin_press(Key::B, 2, None, OverlapBehavior::Hold);
-        assert_eq!(releases.begin_press(Key::A, 3, None, OverlapBehavior::Retrigger), KeyPressAction::Retrigger);
-        assert_eq!(releases.begin_press(Key::A, 4, None, OverlapBehavior::Hold), KeyPressAction::Ignore);
+        releases.begin_press(Key::Unicode('a'), 1, Some(now), OverlapBehavior::Hold);
+        releases.begin_press(Key::Unicode('b'), 2, None, OverlapBehavior::Hold);
+        assert_eq!(releases.begin_press(Key::Unicode('a'), 3, None, OverlapBehavior::Retrigger), KeyPressAction::Retrigger);
+        assert_eq!(releases.begin_press(Key::Unicode('a'), 4, None, OverlapBehavior::Hold), KeyPressAction::Ignore);
         assert!(releases.take_due(now).is_empty());
-        assert!(releases.note_off(Key::B, 2));
-        assert!(releases.note_off(Key::A, 3));
+        assert!(releases.note_off(Key::Unicode('b'), 2));
+        assert!(releases.note_off(Key::Unicode('a'), 3));
         releases.clear();
-        assert_eq!(releases.begin_press(Key::A, 5, None, OverlapBehavior::Hold), KeyPressAction::Press);
+        assert_eq!(releases.begin_press(Key::Unicode('a'), 5, None, OverlapBehavior::Hold), KeyPressAction::Press);
     }
 
     #[test]
@@ -497,13 +497,13 @@ mod tests {
     fn live_threshold_changes_retime_each_overlapping_note_independently() {
         let mut releases = KeyReleases::default();
         let now = Instant::now();
-        releases.press(Key::Q, 1, None);
-        releases.press(Key::Q, 2, None);
-        releases.retime(Key::Q, 1, now);
+        releases.press(Key::Unicode('q'), 1, None);
+        releases.press(Key::Unicode('q'), 2, None);
+        releases.retime(Key::Unicode('q'), 1, now);
         assert!(releases.take_due(now).is_empty());
-        assert!(!releases.note_off(Key::Q, 1));
-        releases.retime(Key::Q, 2, now);
-        assert_eq!(releases.take_due(now), vec![Key::Q]);
+        assert!(!releases.note_off(Key::Unicode('q'), 1));
+        releases.retime(Key::Unicode('q'), 2, now);
+        assert_eq!(releases.take_due(now), vec![Key::Unicode('q')]);
     }
 
     #[test]
@@ -512,13 +512,13 @@ mod tests {
         let now = Instant::now();
         let early = now + Duration::from_millis(20);
         let late = now + Duration::from_millis(80);
-        releases.begin_press(Key::A, 1, Some(late), OverlapBehavior::Retrigger);
-        releases.begin_press(Key::A, 2, Some(early), OverlapBehavior::Retrigger);
+        releases.begin_press(Key::Unicode('a'), 1, Some(late), OverlapBehavior::Retrigger);
+        releases.begin_press(Key::Unicode('a'), 2, Some(early), OverlapBehavior::Retrigger);
         assert_eq!(releases.next_deadline(), Some(early));
-        assert!(!releases.note_off(Key::A, 2));
+        assert!(!releases.note_off(Key::Unicode('a'), 2));
         assert!(releases.take_due(early).is_empty());
         assert_eq!(releases.next_deadline(), Some(late));
-        assert_eq!(releases.take_due(late), vec![Key::A]);
+        assert_eq!(releases.take_due(late), vec![Key::Unicode('a')]);
         assert!(releases.next_deadline().is_none());
     }
 
@@ -526,11 +526,11 @@ mod tests {
     fn short_retrigger_tap_does_not_cut_off_an_older_hold() {
         let mut releases = KeyReleases::default();
         let now = Instant::now();
-        releases.begin_press(Key::A, 1, None, OverlapBehavior::Retrigger);
-        releases.begin_press(Key::A, 2, Some(now), OverlapBehavior::Retrigger);
+        releases.begin_press(Key::Unicode('a'), 1, None, OverlapBehavior::Retrigger);
+        releases.begin_press(Key::Unicode('a'), 2, Some(now), OverlapBehavior::Retrigger);
         assert!(releases.take_due(now).is_empty());
-        assert!(!releases.note_off(Key::A, 2));
-        assert!(releases.note_off(Key::A, 1));
+        assert!(!releases.note_off(Key::Unicode('a'), 2));
+        assert!(releases.note_off(Key::Unicode('a'), 1));
     }
 
     #[test]

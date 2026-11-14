@@ -291,11 +291,26 @@ impl NoteKeyMapping {
     }
 }
 
+/// Maps a character to a physical key. Letters are case-folded; Shift is
+/// tracked separately by `KeyStroke`.
+///
+/// On Windows, ASCII letters and digits use enigo's layout-independent virtual
+/// key variants (`Key::A`, `Key::Num1`, ...). Those variants only exist on
+/// Windows, so other platforms send them as `Key::Unicode`.
 pub fn char_to_key(c: char) -> Option<Key> {
+    let c = if c.is_ascii_alphabetic() { c.to_ascii_lowercase() } else { c };
+    #[cfg(target_os = "windows")]
+    if let Some(key) = windows_virtual_key(c) {
+        return Some(key);
+    }
+    Some(Key::Unicode(c))
+}
+
+#[cfg(target_os = "windows")]
+fn windows_virtual_key(c: char) -> Option<Key> {
     match c {
-        'a'..='z' | 'A'..='Z' => {
-            let lower = c.to_ascii_lowercase();
-            match lower {
+        'a'..='z' => {
+            match c {
                 'a' => Some(Key::A),
                 'b' => Some(Key::B),
                 'c' => Some(Key::C),
@@ -335,7 +350,7 @@ pub fn char_to_key(c: char) -> Option<Key> {
         '7' => Some(Key::Num7),
         '8' => Some(Key::Num8),
         '9' => Some(Key::Num9),
-        _ => Some(Key::Unicode(c)),
+        _ => None,
     }
 }
 
@@ -427,7 +442,19 @@ pub fn parse_key_str(s: &str) -> Option<Key> {
 }
 
 pub fn key_to_char(key: Key) -> char {
+    #[cfg(target_os = "windows")]
+    if let Some(c) = windows_virtual_key_char(key) {
+        return c;
+    }
     match key {
+        Key::Unicode(c) => c,
+        _ => '?',
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn windows_virtual_key_char(key: Key) -> Option<char> {
+    Some(match key {
         Key::A => 'a',
         Key::B => 'b',
         Key::C => 'c',
@@ -464,7 +491,6 @@ pub fn key_to_char(key: Key) -> char {
         Key::Num7 => '7',
         Key::Num8 => '8',
         Key::Num9 => '9',
-        Key::Unicode(c) => c,
-        _ => '?',
-    }
+        _ => return None,
+    })
 }

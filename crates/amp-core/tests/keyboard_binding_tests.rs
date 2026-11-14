@@ -1,10 +1,12 @@
 use std::collections::HashSet;
 
 use amp_core::{
-    parse_key_stroke, process_note_pitch, InstrumentConfigJson,
+    char_to_key, parse_key_stroke, process_note_pitch, InstrumentConfigJson,
     KeyboardLayout, KeyboardLayoutJson, KeyStroke, NoteKeyMapping, TransposeMode,
 };
 use enigo::Key;
+
+fn key(c: char) -> Key { char_to_key(c).unwrap() }
 
 fn stroke(key: Key, shift: bool, control: bool) -> KeyStroke {
     KeyStroke { key, shift, control }
@@ -13,18 +15,18 @@ fn stroke(key: Key, shift: bool, control: bool) -> KeyStroke {
 #[test]
 fn roblox_bindings_preserve_shift_ctrl_and_the_literal_caret() {
     for (text, expected) in [
-        ("q", stroke(Key::Q, false, false)),
-        ("Q", stroke(Key::Q, true, false)),
-        ("!", stroke(Key::Num1, true, false)),
-        ("@", stroke(Key::Num2, true, false)),
-        ("$", stroke(Key::Num4, true, false)),
-        ("%", stroke(Key::Num5, true, false)),
-        ("^", stroke(Key::Num6, true, false)),
-        ("*", stroke(Key::Num8, true, false)),
-        ("(", stroke(Key::Num9, true, false)),
-        ("^1", stroke(Key::Num1, false, true)),
-        ("^q", stroke(Key::Q, false, true)),
-        ("^A", stroke(Key::A, true, true)),
+        ("q", stroke(key('q'), false, false)),
+        ("Q", stroke(key('q'), true, false)),
+        ("!", stroke(key('1'), true, false)),
+        ("@", stroke(key('2'), true, false)),
+        ("$", stroke(key('4'), true, false)),
+        ("%", stroke(key('5'), true, false)),
+        ("^", stroke(key('6'), true, false)),
+        ("*", stroke(key('8'), true, false)),
+        ("(", stroke(key('9'), true, false)),
+        ("^1", stroke(key('1'), false, true)),
+        ("^q", stroke(key('q'), false, true)),
+        ("^A", stroke(key('a'), true, true)),
         ("Enter", stroke(Key::Return, false, false)),
         ("space", stroke(Key::Space, false, false)),
         (" ", stroke(Key::Space, false, false)),
@@ -42,11 +44,11 @@ fn mixed_chords_scope_modifiers_to_each_key_down() {
         events.extend(parse_key_stroke(text).unwrap().press_events());
     }
     assert_eq!(events, vec![
-        (Key::Control, false), (Key::Shift, false), (Key::A, false),
+        (Key::Control, false), (Key::Shift, false), (key('a'), false),
         (Key::Shift, true), (Key::Control, true),
-        (Key::Q, false),
-        (Key::Shift, false), (Key::Q, false), (Key::Shift, true),
-        (Key::Num1, false),
+        (key('q'), false),
+        (Key::Shift, false), (key('q'), false), (Key::Shift, true),
+        (key('1'), false),
     ]);
 }
 
@@ -93,17 +95,17 @@ fn every_configured_roblox_pitch_has_a_distinct_binding_without_transposition() 
 fn piano88_extended_ranges_use_the_original_players_ctrl_keys() {
     let mapping = piano88();
     for (note, expected) in [
-        (21, stroke(Key::Num1, false, true)),
-        (35, stroke(Key::T, false, true)),
-        (36, stroke(Key::Num1, false, false)),
-        (37, stroke(Key::Num1, true, false)),
-        (46, stroke(Key::Num6, true, false)),
-        (54, stroke(Key::Q, true, false)),
-        (60, stroke(Key::T, false, false)),
-        (61, stroke(Key::T, true, false)),
-        (96, stroke(Key::M, false, false)),
-        (97, stroke(Key::Y, false, true)),
-        (108, stroke(Key::J, false, true)),
+        (21, stroke(key('1'), false, true)),
+        (35, stroke(key('t'), false, true)),
+        (36, stroke(key('1'), false, false)),
+        (37, stroke(key('1'), true, false)),
+        (46, stroke(key('6'), true, false)),
+        (54, stroke(key('q'), true, false)),
+        (60, stroke(key('t'), false, false)),
+        (61, stroke(key('t'), true, false)),
+        (96, stroke(key('m'), false, false)),
+        (97, stroke(key('y'), false, true)),
+        (108, stroke(key('j'), false, true)),
     ] {
         assert_eq!(mapping.get_stroke(note), Some(expected), "MIDI {note}");
     }
@@ -135,7 +137,7 @@ fn edited_layout_pedal_fields_replace_and_clear_native_bindings() {
     layout.una_corda_key = Some("q".into());
     let mapping = piano61().with_pedal_bindings(&layout);
     assert_eq!(mapping.pedal_bindings(), &[
-        None, Some(KeyStroke::plain(Key::Shift)), Some(KeyStroke::plain(Key::Q))
+        None, Some(KeyStroke::plain(Key::Shift)), Some(KeyStroke::plain(key('q')))
     ]);
     assert!(!mapping.all_keys().contains(&Key::Space));
     assert!(mapping.all_keys().contains(&Key::Shift));

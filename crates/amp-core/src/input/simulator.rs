@@ -206,7 +206,9 @@ impl Default for KeySimulator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::input::parse_key_stroke;
+    use crate::input::{char_to_key, parse_key_stroke};
+
+    fn key(c: char) -> Key { char_to_key(c).unwrap() }
 
     #[test]
     fn source_release_preserves_other_keys_and_reports_output_failure() {
@@ -250,7 +252,7 @@ mod tests {
         assert!(sim.output.is_none());
         sim.set_output(Some(Box::new(Failing)));
         assert_eq!(sim.status().state, ServiceState::Ready);
-        sim.send_owned_key(2, Key::A, false);
+        sim.send_owned_key(2, key('a'), false);
         sim.take_error();
         sim.set_output(None);
         assert_eq!(sim.status().state, ServiceState::Unavailable);
@@ -273,9 +275,9 @@ mod tests {
         assert_eq!(output.reconcile(&bindings(), [true, true, false], true), vec![(Key::Return, false)]);
         assert_eq!(output.reconcile(&bindings(), [false, true, false], true), vec![(Key::Space, true)]);
         assert_eq!(output.reconcile(&bindings(), [false, false, true], true), vec![
-            (Key::Return, true), (Key::Control, false), (Key::Q, false), (Key::Control, true),
+            (Key::Return, true), (Key::Control, false), (key('q'), false), (Key::Control, true),
         ]);
-        assert_eq!(output.reconcile(&bindings(), [false; 3], true), vec![(Key::Q, true)]);
+        assert_eq!(output.reconcile(&bindings(), [false; 3], true), vec![(key('q'), true)]);
     }
 
     #[test]

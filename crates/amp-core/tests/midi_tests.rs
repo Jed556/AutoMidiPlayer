@@ -4,6 +4,8 @@ use amp_core::{
     detect_best_scale, build_scale_pitch_classes, process_note_pitch, TimedNoteEvent,
 };
 
+fn key(c: char) -> enigo::Key { amp_core::char_to_key(c).unwrap() }
+
 #[test]
 fn test_tempo_map_basic() {
     let map = TempoMap::new(480, &[]);
@@ -30,26 +32,26 @@ fn test_tempo_map_with_changes() {
 fn test_key_mapping() {
     let mapping = NoteKeyMapping::new(KeyboardLayout::Diatonic21);
     // C4 (Middle C) -> 'a'
-    assert_eq!(mapping.get_key(60), Some(enigo::Key::A));
+    assert_eq!(mapping.get_key(60), Some(key('a')));
     // D4 -> 's'
-    assert_eq!(mapping.get_key(62), Some(enigo::Key::S));
+    assert_eq!(mapping.get_key(62), Some(key('s')));
     // C3 -> 'z'
-    assert_eq!(mapping.get_key(48), Some(enigo::Key::Z));
+    assert_eq!(mapping.get_key(48), Some(key('z')));
     // C5 -> 'q'
-    assert_eq!(mapping.get_key(72), Some(enigo::Key::Q));
+    assert_eq!(mapping.get_key(72), Some(key('q')));
 }
 
 #[test]
 fn test_diatonic15_and_drum8_layouts() {
     let sky_mapping = NoteKeyMapping::new(KeyboardLayout::Diatonic15);
-    assert_eq!(sky_mapping.get_key(60), Some(enigo::Key::Q));
-    assert_eq!(sky_mapping.get_key(62), Some(enigo::Key::W));
-    assert_eq!(sky_mapping.get_key(84), Some(enigo::Key::G));
+    assert_eq!(sky_mapping.get_key(60), Some(key('q')));
+    assert_eq!(sky_mapping.get_key(62), Some(key('w')));
+    assert_eq!(sky_mapping.get_key(84), Some(key('g')));
     assert_eq!(sky_mapping.playable_notes().len(), 15);
 
     let drum_mapping = NoteKeyMapping::new(KeyboardLayout::Drum8);
-    assert_eq!(drum_mapping.get_key(36), Some(enigo::Key::Num1));
-    assert_eq!(drum_mapping.get_key(38), Some(enigo::Key::Num2));
+    assert_eq!(drum_mapping.get_key(36), Some(key('1')));
+    assert_eq!(drum_mapping.get_key(38), Some(key('2')));
     assert_eq!(drum_mapping.playable_notes().len(), 8);
 }
 
@@ -60,9 +62,9 @@ fn test_custom_key_mapping_from_pairs() {
         (62, 'x'),
         (64, 'c'),
     ]);
-    assert_eq!(custom.get_key(60), Some(enigo::Key::Z));
-    assert_eq!(custom.get_key(62), Some(enigo::Key::X));
-    assert_eq!(custom.get_key(64), Some(enigo::Key::C));
+    assert_eq!(custom.get_key(60), Some(key('z')));
+    assert_eq!(custom.get_key(62), Some(key('x')));
+    assert_eq!(custom.get_key(64), Some(key('c')));
 }
 
 #[test]

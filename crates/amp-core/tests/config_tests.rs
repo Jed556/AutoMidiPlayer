@@ -1,8 +1,10 @@
 use amp_core::{
-    parse_key_str, scan_games, scan_keyboard_layouts,
+    char_to_key, parse_key_str, scan_games, scan_keyboard_layouts,
 };
 use enigo::Key;
 use std::fs;
+
+fn key(c: char) -> Key { char_to_key(c).unwrap() }
 
 #[test]
 fn test_parse_key_str() {
@@ -10,10 +12,10 @@ fn test_parse_key_str() {
     assert_eq!(parse_key_str("SPACE"), Some(Key::Space));
     assert_eq!(parse_key_str("enter"), Some(Key::Return));
     assert_eq!(parse_key_str("tab"), Some(Key::Tab));
-    assert_eq!(parse_key_str("a"), Some(Key::A));
-    assert_eq!(parse_key_str("A"), Some(Key::A));
-    assert_eq!(parse_key_str("1"), Some(Key::Num1));
-    assert_eq!(parse_key_str("^q"), Some(Key::Q));
+    assert_eq!(parse_key_str("a"), Some(key('a')));
+    assert_eq!(parse_key_str("A"), Some(key('a')));
+    assert_eq!(parse_key_str("1"), Some(key('1')));
+    assert_eq!(parse_key_str("^q"), Some(key('q')));
     assert_eq!(parse_key_str("!"), Some(Key::Unicode('!')));
     assert_eq!(parse_key_str(","), Some(Key::Unicode(',')));
 }
