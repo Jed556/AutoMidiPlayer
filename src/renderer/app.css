@@ -42,6 +42,18 @@
   initial-value: #000000;
 }
 
+@property --overflow-fade-left {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #000000;
+}
+
+@property --overflow-fade-right {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: transparent;
+}
+
 @property --accordion-mask {
   syntax: '<color>';
   inherits: true;

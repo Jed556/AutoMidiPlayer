@@ -23,6 +23,7 @@
   import { persistScroll } from '../actions/persistScroll';
   import GameIcon from '../components/Common/GameIcon.svelte';
   import { toastOffset } from '../actions/toastOffset';
+  import { createDropdownState } from '../ui/dropdownState.svelte';
   import { InstrumentInput, keyboardPitches } from '../utils/instrumentInput';
   import { createPianoRows, createPianoSlots, hasInGameInstrumentLayout, pianoRange, type PianoSlot } from '../utils/instrumentKeyboard';
   import { instrumentKeyRows, instrumentLayoutStyle, instrumentNotes as getInstrumentNotes } from '../../../shared/utils/instrumentLayout';
@@ -242,12 +243,52 @@
   let supportsPedals = $derived(
     selectedInstrument ? selectedInstrument.supportsSustain : true
   );
+  const chordsActive = $derived(supportsChords && playbackStore.autoChord);
+  const pedalsActive = $derived(supportsPedals && playbackStore.pedals.enabled);
 
   // ==========================================
-  // Autoplay / Scheduled Playback (Upper Right)
+  // Autoplay / Scheduled Playback (Lower Right)
   // ==========================================
+  let scheduleTrigger: HTMLButtonElement;
+  let schedulePopup: HTMLDivElement;
+  let scheduleOpen = $state(false);
+  const schedulePopupId = $props.id();
+  const scheduleDropdown = createDropdownState();
   const scheduledAction = $derived(scheduledPlaybackStore.active || scheduledPlaybackStore.executing
     ? scheduledPlaybackStore.action : playbackStore.isPlaying ? 'pause' : 'play');
+
+  function positionSchedulePopup() {
+    if (!scheduleOpen) return;
+    const rect = scheduleTrigger.getBoundingClientRect();
+    const row = scheduleTrigger.closest('.inst-bottom-bar')!.getBoundingClientRect();
+    schedulePopup.style.bottom = `${window.innerHeight - row.top + 8}px`;
+    const popupWidth = parseFloat(getComputedStyle(schedulePopup).width) || 0;
+    const maxLeft = Math.max(8, window.innerWidth - popupWidth - 8);
+    schedulePopup.style.left = `${Math.min(maxLeft, Math.max(8, rect.left + (rect.width - popupWidth) / 2))}px`;
+    schedulePopup.style.maxHeight = `${Math.max(0, row.top - 16)}px`;
+  }
+
+  function trackScheduleAnchor(node: HTMLElement) {
+    const resize = createFrameResizeObserver(positionSchedulePopup);
+    resize.observe(node);
+    return { destroy: () => resize.disconnect() };
+  }
+
+  function handleScheduleToggle(event: ToggleEvent) {
+    scheduleOpen = event.newState === 'open';
+    scheduleDropdown.isOpen = scheduleOpen;
+    positionSchedulePopup();
+  }
+
+  function handleScheduleKeyDown(event: KeyboardEvent) {
+    // Keep Space on these controls from reaching the app's playback shortcut.
+    if (event.code === 'Space') event.stopPropagation();
+  }
+
+  $effect(() => {
+    if (scheduleOpen && (!scheduleDropdown.isOpen || uiStore.activeTab !== 'instrument'
+      || uiStore.activeDialog || uiStore.gameSelectorOpen)) schedulePopup.hidePopover();
+  });
 
   function startStopScheduledTimer() {
     if (scheduledPlaybackStore.active) scheduledPlaybackStore.cancel();
@@ -278,11 +319,13 @@
       ? [{ value: midiInputStore.state.selectedPortId, label: t('instrument.midiDeviceUnavailable') }] : []),
   ]);
   const midiInputLabel = $derived(midiInputs.find(option => option.value === (midiInputStore.state.selectedPortId ?? ''))?.label ?? t('instrument.noMidiDevice'));
+  const midiInputActive = $derived(Boolean(midiInputStore.state.selectedPortId)
+    && midiInputStore.state.connected && midiInputStore.state.active);
   let midiDropdownWidth = $state(0);
   let inputPitches = $state(new Set<number>());
   const instrumentInput = new InstrumentInput(pitches => { inputPitches = pitches; });
   const inputEnabled = $derived(uiStore.activeTab === 'instrument'
-    && !uiStore.activeDialog && !uiStore.gameSelectorOpen);
+    && !uiStore.activeDialog && !uiStore.gameSelectorOpen && !scheduleOpen);
 
   onDestroy(() => {
     instrumentInput.clear();
@@ -370,7 +413,7 @@
   }
 </script>
 
-<svelte:window onkeydown={handleKeyDown} onkeyup={handleKeyUp} onblur={clearInput} />
+<svelte:window onkeydown={handleKeyDown} onkeyup={handleKeyUp} onblur={clearInput} onresize={positionSchedulePopup} />
 <svelte:document onvisibilitychange={clearInput} />
 
 {#snippet bottomLabel(label: string)}
@@ -462,73 +505,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Top Center: Nothing (Clean open space as requested) -->
-    <div class="top-center-spacer"></div>
-
-    <!-- Upper Right: Autoplay / Scheduling -->
-    <div class="scheduled-playback-card">
-      <div class="sched-header">
-        <FluentIcon name="Clock" size={13} class="sched-icon" />
-        <span class="sched-title">{t('instrument.scheduledPlayback')}</span>
-      </div>
-
-      <div class="sched-controls-row">
-        <div class="time-inputs-group">
-          <div class="time-box">
-            <NumberBox
-              bind:value={scheduledPlaybackStore.hour}
-              min={0}
-              max={23}
-              step={1}
-              disabled={scheduledPlaybackStore.active || scheduledPlaybackStore.executing}
-            />
-          </div>
-          <span class="time-colon">:</span>
-          <div class="time-box">
-            <NumberBox
-              bind:value={scheduledPlaybackStore.minute}
-              min={0}
-              max={59}
-              step={1}
-              disabled={scheduledPlaybackStore.active || scheduledPlaybackStore.executing}
-            />
-          </div>
-        </div>
-
-        <Button
-          variant="secondary"
-          compact
-          disabled={scheduledPlaybackStore.active || scheduledPlaybackStore.executing}
-          onclick={() => scheduledPlaybackStore.setToNow()}
-          title={t('instrument.setToNow')}
-        >
-          {t('instrument.now')}
-        </Button>
-
-        <Button
-          variant={scheduledPlaybackStore.active ? 'danger' : 'accent'}
-          compact
-          onclick={startStopScheduledTimer}
-          disabled={scheduledPlaybackStore.executing}
-        >
-          {scheduledPlaybackStore.active ? t('instrument.cancelTimer') : t('instrument.startTimer')}
-        </Button>
-      </div>
-
-      <div class="sched-status-row">
-        {#if scheduledPlaybackStore.active}
-          <span class="sched-countdown">
-            <span class="sched-pulse-dot"></span>
-            {t(scheduledAction === 'play' ? 'instrument.playsIn' : 'instrument.pausesIn')}: {formatCountdown(scheduledPlaybackStore.remainingSeconds)}
-          </span>
-        {:else}
-          <span class="sched-info">
-            {t(scheduledAction === 'play' ? 'instrument.schedulePlay' : 'instrument.schedulePause')} {scheduledPlaybackStore.hour.toString().padStart(2, '0')}:{scheduledPlaybackStore.minute.toString().padStart(2, '0')}
-          </span>
-        {/if}
-      </div>
-    </div>
   </div>
 
   <!-- Main Instrument Display Area -->
@@ -581,27 +557,27 @@
     </div>
   </div>
 
-  <!-- Bottom Bar: Chords & Pedals (Lower Left) | MIDI Input (Lower Right) -->
+  <!-- Bottom Bar: Chords & Pedals (Lower Left) | Scheduling & MIDI Input (Lower Right) -->
   <div class="inst-bottom-bar" bind:clientWidth={bottomBarWidth} use:toastOffset>
     <!-- Lower Left: Chords and Pedals Toggles -->
     <div class="bottom-left-controls">
       <!-- Auto Chord Toggle -->
-      <div class="control-unit" class:disabled={!supportsChords}>
+      <div class="control-unit auto-chord-unit">
         <button
           type="button"
           class="instrument-toggle-btn auto-chord-control"
-          class:enabled={playbackStore.autoChord}
+          class:enabled={chordsActive}
           disabled={!supportsChords}
           aria-label={t('instrument.autoChord')}
-          aria-pressed={playbackStore.autoChord}
+          aria-pressed={chordsActive}
           onclick={() => playbackStore.setAutoChord(!playbackStore.autoChord)}
           use:tooltip={supportsChords ? t('instrument.detectPlayChords') : t('instrument.noChordSupport')}
         >
-          <ChordIcon size={16} filled={playbackStore.autoChord} isActive={playbackStore.autoChord} />
+          <ChordIcon size={16} filled={chordsActive} isActive={chordsActive} />
           {@render bottomLabel(t('instrument.autoChord'))}
         </button>
-        {#if supportsChords && playbackStore.autoChord}
-          <div class="tolerance-box" use:tooltip={t('instrument.chordTolerance')}>
+        <GradientSweep visible={chordsActive} collapseMargin="left" marginAmount="8px">
+          <div class="tolerance-box" inert={!chordsActive} use:tooltip={t('instrument.chordTolerance')}>
             <NumberBox
               value={playbackStore.chordDetectionMilliseconds}
               onchange={(value) => playbackStore.setChordDetectionMilliseconds(value)}
@@ -611,27 +587,27 @@
               unit="ms"
             />
           </div>
-        {/if}
+        </GradientSweep>
       </div>
 
       <!-- Pedals toggle and bindings -->
-      <div class="control-unit" class:disabled={!supportsPedals}>
+      <div class="control-unit">
         <button
           type="button"
           class="instrument-toggle-btn pedal-toggle-btn"
-          class:enabled={playbackStore.pedals.enabled}
+          class:enabled={pedalsActive}
           disabled={!supportsPedals}
           aria-label={t('instrument.pedals')}
-          aria-pressed={playbackStore.pedals.enabled}
+          aria-pressed={pedalsActive}
           onclick={() => playbackStore.togglePedals()}
           use:tooltip={supportsPedals ? t('instrument.pedalBindings') : t('instrument.noPedalSupport')}
         >
           <PedalIcon
             size={15}
-            isActive={playbackStore.pedals.enabled}
-            isSoftActive={playbackStore.pedals.enabled && playbackStore.pedals.unaCorda}
-            isSostenutoActive={playbackStore.pedals.enabled && playbackStore.pedals.sostenuto}
-            isSustainActive={playbackStore.pedals.enabled && playbackStore.pedals.sustain}
+            isActive={pedalsActive}
+            isSoftActive={playbackStore.pedals.unaCorda}
+            isSostenutoActive={playbackStore.pedals.sostenuto}
+            isSustainActive={playbackStore.pedals.sustain}
             pressedColor="#1db954"
           />
           {@render bottomLabel(t('instrument.pedals'))}
@@ -650,10 +626,109 @@
       </div>
     </div>
 
-    <!-- Lower Right: MIDI Input Selector (Ghost Refresh) -->
-    <div class="bottom-right-controls">
+    <!-- Lower Right: Scheduled Playback & MIDI Input -->
+    <div class="bottom-right-controls" use:trackScheduleAnchor>
+      <!-- Scheduled Playback -->
+      <button
+        type="button"
+        class="instrument-toggle-btn scheduled-playback-btn"
+        class:enabled={scheduleOpen || scheduledPlaybackStore.active || scheduledPlaybackStore.executing}
+        bind:this={scheduleTrigger}
+        popovertarget={schedulePopupId}
+        aria-label={t('instrument.scheduledPlayback')}
+        aria-haspopup="dialog"
+        aria-expanded={scheduleOpen}
+        aria-controls={schedulePopupId}
+        onkeydown={handleScheduleKeyDown}
+        use:tooltip={t('instrument.scheduledPlayback')}
+      >
+        <FluentIcon name="Clock" size={16} filled={scheduledPlaybackStore.active || scheduledPlaybackStore.executing} />
+        {@render bottomLabel(t('instrument.schedule'))}
+      </button>
+      <div
+        class="scheduled-playback-popup"
+        bind:this={schedulePopup}
+        id={schedulePopupId}
+        popover="auto"
+        role="dialog"
+        tabindex="-1"
+        aria-label={t('instrument.scheduledPlayback')}
+        onbeforetoggle={handleScheduleToggle}
+        ontoggle={event => {
+          if (event.newState === 'open') {
+            positionSchedulePopup();
+            schedulePopup.querySelector<HTMLElement>('input:not(:disabled), button:not(:disabled)')?.focus();
+          }
+        }}
+        onkeydown={handleScheduleKeyDown}
+        use:scheduleDropdown.layer
+        use:trackScheduleAnchor
+      >
+        <div class="sched-header">
+          <FluentIcon name="Clock" size={13} class="sched-icon" />
+          <span class="sched-title">{t('instrument.scheduledPlayback')}</span>
+          {#if !scheduledPlaybackStore.active}
+            <span class="sched-info">
+              {t(scheduledAction === 'play' ? 'instrument.schedulePlay' : 'instrument.schedulePause')} {scheduledPlaybackStore.hour.toString().padStart(2, '0')}:{scheduledPlaybackStore.minute.toString().padStart(2, '0')}
+            </span>
+          {/if}
+        </div>
+
+        <div class="sched-controls-row">
+          <div class="time-inputs-group">
+            <div class="time-box">
+              <NumberBox
+                bind:value={scheduledPlaybackStore.hour}
+                min={0}
+                max={23}
+                step={1}
+                disabled={scheduledPlaybackStore.active || scheduledPlaybackStore.executing}
+              />
+            </div>
+            <span class="time-colon">:</span>
+            <div class="time-box">
+              <NumberBox
+                bind:value={scheduledPlaybackStore.minute}
+                min={0}
+                max={59}
+                step={1}
+                disabled={scheduledPlaybackStore.active || scheduledPlaybackStore.executing}
+              />
+            </div>
+          </div>
+
+          <Button
+            variant="secondary"
+            compact
+            disabled={scheduledPlaybackStore.active || scheduledPlaybackStore.executing}
+            onclick={() => scheduledPlaybackStore.setToNow()}
+            title={t('instrument.setToNow')}
+          >
+            {t('instrument.now')}
+          </Button>
+
+          <Button
+            variant={scheduledPlaybackStore.active ? 'danger' : 'accent'}
+            compact
+            onclick={startStopScheduledTimer}
+            disabled={scheduledPlaybackStore.executing}
+          >
+            {scheduledPlaybackStore.active ? t('instrument.cancelTimer') : t('instrument.startTimer')}
+          </Button>
+        </div>
+
+        {#if scheduledPlaybackStore.active}
+          <div class="sched-status-row">
+            <span class="sched-countdown">
+              <span class="sched-pulse-dot"></span>
+              {t(scheduledAction === 'play' ? 'instrument.playsIn' : 'instrument.pausesIn')}: {formatCountdown(scheduledPlaybackStore.remainingSeconds)}
+            </span>
+          </div>
+        {/if}
+      </div>
+
       <div class="midi-input-group">
-        <div class="midi-icon-label" use:tooltip={t('instrument.physicalMidiDevice')}>
+        <div class="midi-icon-label" class:connected={midiInputActive} use:tooltip={t('instrument.physicalMidiDevice')}>
           <FluentIcon name="Keyboard" size={15} class="midi-plug-icon" />
           {@render bottomLabel(t('instrument.midiInput'))}
         </div>
@@ -827,21 +902,49 @@
     color: var(--text-primary);
   }
 
-  .top-center-spacer {
-    flex: 1;
+  /* Scheduled Playback Popup */
+  .scheduled-playback-btn {
+    gap: 0;
   }
 
-  /* Scheduled Playback Card */
-  .scheduled-playback-card {
-    flex-shrink: 0;
-    display: flex;
+  .scheduled-playback-popup {
+    position: fixed;
+    inset: auto;
+    margin: 0;
+    width: max-content;
+    max-width: calc(100vw - 16px);
+    box-sizing: border-box;
     flex-direction: column;
-    gap: 5px;
-    background: var(--bg-card);
+    gap: 8px;
+    background: var(--bg-dialog, var(--bg-card));
+    color: var(--text-primary);
     border-radius: var(--radius-md);
-    padding: 8px 12px;
+    padding: 12px;
     border: none;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    box-shadow: var(--popup-shadow);
+    overflow: auto;
+    opacity: 0;
+    transform: translateY(4px) scale(0.96);
+    transform-origin: bottom center;
+    transition: opacity var(--transition-fast), transform var(--transition-fast),
+      display var(--anim-fast, 0.15s) allow-discrete, overlay var(--anim-fast, 0.15s) allow-discrete;
+  }
+
+  .scheduled-playback-popup:popover-open {
+    display: flex;
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  @starting-style {
+    .scheduled-playback-popup:popover-open {
+      opacity: 0;
+      transform: translateY(4px) scale(0.96);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .scheduled-playback-popup { transition: none; }
   }
 
   .sched-header {
@@ -864,6 +967,7 @@
 
   .sched-controls-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
   }
@@ -903,6 +1007,9 @@
   }
 
   .sched-info {
+    margin-left: auto;
+    text-align: right;
+    white-space: nowrap;
     font-size: 10.5px;
     color: var(--text-tertiary);
   }
@@ -1248,9 +1355,7 @@
     gap: 8px;
   }
 
-  .control-unit.disabled {
-    opacity: 0.5;
-  }
+  .auto-chord-unit { gap: 0; }
 
   .instrument-toggle-btn {
     display: inline-flex;
@@ -1273,7 +1378,7 @@
     white-space: nowrap;
   }
 
-  .instrument-toggle-btn.enabled {
+  .instrument-toggle-btn.enabled:not(:disabled) {
     color: var(--accent);
     opacity: 0.85;
   }
@@ -1281,10 +1386,11 @@
   .instrument-toggle-btn:is(:hover, :focus-visible):not(:disabled) { opacity: 1; }
   .instrument-toggle-btn:active:not(:disabled) { opacity: 0.5; }
   .instrument-toggle-btn:disabled {
+    color: var(--text-primary);
     opacity: 0.22;
     cursor: not-allowed;
   }
-  .instrument-toggle-btn:focus-visible {
+  .instrument-toggle-btn:focus-visible:not(:disabled) {
     outline: 2px solid var(--accent);
     outline-offset: 3px;
   }
@@ -1337,7 +1443,12 @@
     flex-shrink: 0;
   }
 
-  :global(.midi-plug-icon) {
+  .midi-icon-label :global(.midi-plug-icon) {
+    color: inherit;
+    transition: color var(--transition-fast);
+  }
+
+  .midi-icon-label.connected :global(.midi-plug-icon) {
     color: var(--accent);
   }
 

@@ -85,13 +85,13 @@
     max-width: 100%;
     overflow: hidden;
     white-space: nowrap;
-    --fade-left: #000;
-    --fade-right: transparent;
+    --overflow-fade-left: #000;
+    --overflow-fade-right: transparent;
   }
 
   .overflowing {
-    -webkit-mask-image: linear-gradient(to right, var(--fade-left), #000 min(16px, 20%), #000 max(80%, calc(100% - 24px)), var(--fade-right));
-    mask-image: linear-gradient(to right, var(--fade-left), #000 min(16px, 20%), #000 max(80%, calc(100% - 24px)), var(--fade-right));
+    -webkit-mask-image: linear-gradient(to right, var(--overflow-fade-left), #000 min(16px, 20%), #000 max(80%, calc(100% - 24px)), var(--overflow-fade-right));
+    mask-image: linear-gradient(to right, var(--overflow-fade-left), #000 min(16px, 20%), #000 max(80%, calc(100% - 24px)), var(--overflow-fade-right));
   }
 
   .track {
@@ -116,7 +116,7 @@
 
   .running.loop {
     animation: none;
-    --fade-left: transparent;
+    --overflow-fade-left: transparent;
   }
 
   .running.loop .track { animation-name: loop; }
@@ -128,9 +128,9 @@
   }
 
   @keyframes bounce-mask {
-    0%, 10%, 90%, 100% { --fade-left: #000; --fade-right: transparent; }
-    11%, 44%, 56%, 89% { --fade-left: transparent; --fade-right: transparent; }
-    45%, 55% { --fade-left: transparent; --fade-right: #000; }
+    0%, 10%, 90%, 100% { --overflow-fade-left: #000; --overflow-fade-right: transparent; }
+    18%, 37%, 63%, 82% { --overflow-fade-left: transparent; --overflow-fade-right: transparent; }
+    45%, 55% { --overflow-fade-left: transparent; --overflow-fade-right: #000; }
   }
 
   @keyframes loop {
@@ -139,10 +139,10 @@
 
   @media (prefers-reduced-motion: reduce) {
     .running, .running .track { animation: none; }
-    .running.loop { --fade-left: #000; }
+    .running.loop { --overflow-fade-left: #000; }
   }
 
   :global(.no-animations) .running,
   :global(.no-animations) .running .track { animation: none; }
-  :global(.no-animations) .running.loop { --fade-left: #000; }
+  :global(.no-animations) .running.loop { --overflow-fade-left: #000; }
 </style>

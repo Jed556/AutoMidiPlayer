@@ -8,6 +8,8 @@
   import LoopIcon from '../Icons/LoopIcon.svelte';
   import Seekbar from './Seekbar.svelte';
 
+  const pedalsActive = $derived(playbackStore.supportsPedals && playbackStore.pedals.enabled);
+
   let previewValue = $state(0);
   let isPreviewActive = $state(false);
 
@@ -71,18 +73,18 @@
         <button
           type="button"
           class="ctrl-btn icon-only pedal-btn"
-          class:pedals-on={playbackStore.pedals.enabled}
-          class:pedals-off={!playbackStore.pedals.enabled}
+          class:pedals-on={pedalsActive}
+          class:pedals-off={!pedalsActive}
           onclick={handlePedalClick}
           aria-label={playbackStore.supportsPedals ? t('player.pedalsTooltip') : (t('instrument.noPedalSupport') || 'Selected instrument does not support pedals.')}
-          aria-pressed={playbackStore.pedals.enabled}
+          aria-pressed={pedalsActive}
           disabled={!playbackStore.supportsPedals}
         >
           <PedalIcon
-            isSoftActive={playbackStore.pedals.enabled && playbackStore.pedals.unaCorda}
-            isSostenutoActive={playbackStore.pedals.enabled && playbackStore.pedals.sostenuto}
-            isSustainActive={playbackStore.pedals.enabled && playbackStore.pedals.sustain}
-            isActive={playbackStore.pedals.enabled}
+            isSoftActive={playbackStore.pedals.unaCorda}
+            isSostenutoActive={playbackStore.pedals.sostenuto}
+            isSustainActive={playbackStore.pedals.sustain}
+            isActive={pedalsActive}
             size={15}
           />
         </button>

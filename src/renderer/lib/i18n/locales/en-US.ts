@@ -424,6 +424,7 @@ export const enUS = {
     noMidiDevice: 'None',
     refreshDevices: 'Refresh MIDI devices',
     midiDevicesRefreshed: 'MIDI devices list refreshed.',
+    schedule: 'Schedule',
     scheduledPlayback: 'Scheduled Playback',
     scheduledStartTime: 'Scheduled start time:',
     startsIn: 'Starts in',
