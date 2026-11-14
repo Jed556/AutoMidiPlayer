@@ -1,6 +1,9 @@
 use rustysynth::{SoundFont, Synthesizer, SynthesizerSettings};
 use std::sync::Arc;
 
+// The output mixer owns Master Volume; banks must not add hidden attenuation.
+const INTERNAL_GAIN: f32 = 1.0;
+
 /// One synth per bank; each note starts in exactly one bank. Controllers and
 /// releases reach every synth so fallback voices retain normal MIDI semantics.
 pub(super) struct FontStack {
@@ -61,6 +64,57 @@ mod tests {
             env!("CARGO_MANIFEST_DIR")
         );
         Arc::new(SoundFont::new(&mut File::open(path).unwrap()).unwrap())
+    }
+
+    #[test]
+    fn every_bank_uses_unity_gain_before_and_after_reset() {
+        let mut stack = FontStack::new(
+            vec![font("Roland GM.sf2"), font("GeneralUser GS.sf2")],
+            &SynthesizerSettings::new(44100),
+        ).unwrap();
+        assert!(stack.synths.iter().all(|s| s.get_master_volume() == 1.0));
+        stack.note_on(0, 60, 100);
+        stack.render(&mut [0.0; 256], &mut [0.0; 256]);
+        stack.reset();
+        assert!(stack.synths.iter().all(|s| s.get_master_volume() == 1.0));
+    }
+
+    #[test]
+    fn primary_and_fallback_audio_match_a_direct_unity_gain_synth() {
+        let gm = font("GeneralUser GS.sf2");
+        let limited = limited_test_font();
+        let settings = SynthesizerSettings::new(44100);
+        for fonts in [vec![gm.clone()], vec![limited, gm.clone()]] {
+            let mut stack = FontStack::new(fonts, &settings).unwrap();
+            let mut reference = Synthesizer::new(&gm, &settings).unwrap();
+            reference.set_master_volume(1.0);
+            let mut left = [0.0; 2048];
+            let mut right = [0.0; 2048];
+            let mut expected_left = left;
+            let mut expected_right = right;
+            for _ in 0..2 {
+                for (command, a, b) in [(0xC0, 78, 0), (0xB0, 7, 80),
+                    (0xB0, 10, 20), (0xB0, 64, 127), (0x90, 88, 100)] {
+                    stack.process_midi_message(5, command, a, b);
+                    reference.process_midi_message(5, command, a, b);
+                }
+                stack.render(&mut left, &mut right);
+                reference.render(&mut expected_left, &mut expected_right);
+                assert!(left.iter().chain(&right).any(|v| v.abs() > 0.0001));
+                assert_eq!(left, expected_left);
+                assert_eq!(right, expected_right);
+                stack.note_off(5, 88);
+                reference.note_off(5, 88);
+                stack.process_midi_message(5, 0xB0, 64, 0);
+                reference.process_midi_message(5, 0xB0, 64, 0);
+                stack.render(&mut left, &mut right);
+                reference.render(&mut expected_left, &mut expected_right);
+                assert_eq!(left, expected_left);
+                assert_eq!(right, expected_right);
+                stack.reset();
+                reference.reset();
+            }
+        }
     }
 
     #[test]
@@ -166,7 +220,11 @@ impl FontStack {
     pub fn new(fonts: Vec<Arc<SoundFont>>, settings: &SynthesizerSettings) -> Result<Self, String> {
         let synths = fonts
             .iter()
-            .map(|f| Synthesizer::new(f, settings).map_err(|e| e.to_string()))
+            .map(|f| {
+                let mut synth = Synthesizer::new(f, settings).map_err(|e| e.to_string())?;
+                synth.set_master_volume(INTERNAL_GAIN);
+                Ok::<_, String>(synth)
+            })
             .collect::<Result<Vec<_>, _>>()?;
         let mut banks = [0; 16];
         banks[9] = 128;
@@ -314,6 +372,7 @@ impl FontStack {
         self.programs = [0; 16];
         for s in &mut self.synths {
             s.reset();
+            s.set_master_volume(INTERNAL_GAIN);
         }
     }
 

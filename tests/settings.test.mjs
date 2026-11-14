@@ -114,6 +114,20 @@ test('ordinary preference saves cannot overwrite native MIDI device selection wi
   assert.ok(writes.every(patch => !Object.hasOwn(patch, 'midiInputPortId')));
 });
 
+test('volume normalization defaults on, persists when disabled, and resets to on', async () => {
+  const h = await harness();
+  await h.store.init();
+  assert.equal(h.store.settings.volumeNormalization, true);
+  h.store.update('volumeNormalization', false);
+  await settle();
+  const reloaded = await harness(h.saved());
+  await reloaded.store.init();
+  assert.equal(reloaded.store.settings.volumeNormalization, false);
+  reloaded.store.resetAllDefaults();
+  await settle();
+  assert.equal(reloaded.saved().volumeNormalization, true);
+});
+
 test('song, note, hotkey and full resets restore the shared defaults without mutating them', async () => {
   const h = await harness({ defaultHoldNotes: false, defaultMergeNotes: true,
     defaultTranspose: 'Down', defaultSpeed: 2, defaultMergeToleranceMs: 300 });

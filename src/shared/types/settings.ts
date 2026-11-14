@@ -92,6 +92,7 @@ export interface AppSettings {
   minimizeToTray: boolean;
   closeToTray: boolean;
   autoEnableListenMode: boolean;
+  volumeNormalization: boolean;
   keypressMethod?: KeypressMethod;
   enableKeyUp: boolean;
   keyPressDelayMs: number;

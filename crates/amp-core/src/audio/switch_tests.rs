@@ -305,6 +305,9 @@ fn sounding_note_is_sample_identical_across_handoff_and_new_notes_use_new_font()
     let gm = font("GeneralUser GS.sf2");
     let (mut switched, tx) = engine(limited.clone());
     let (mut reference, ref_tx) = engine(limited);
+    // Compare the linear font mix; normalization intentionally depends on mix level.
+    switched.normalizer = VolumeNormalizer::new(SAMPLE_RATE, false);
+    reference.normalizer = VolumeNormalizer::new(SAMPLE_RATE, false);
     for sender in [&tx, &ref_tx] {
         send(
             sender,
@@ -364,6 +367,7 @@ fn sounding_note_is_sample_identical_across_handoff_and_new_notes_use_new_font()
         },
     );
     let (mut new_reference, new_tx) = engine(gm);
+    new_reference.normalizer = VolumeNormalizer::new(SAMPLE_RATE, false);
     send(
         &new_tx,
         AudioCommand::ProgramChange {
@@ -474,6 +478,7 @@ fn held_silent_notes_are_not_reclaimed_and_panic_and_reset_silence_every_stack()
             velocity: 100,
         },
     );
+    render(&mut engine); // Fill the short peak-protection lookahead after panic.
     assert!(render(&mut engine).iter().any(|v| v.abs() > 0.00001));
     engine.replace_fonts(stack(sf));
     send(&tx, AudioCommand::Reset);
@@ -542,6 +547,8 @@ fn handoff_restores_latest_controllers_and_applies_master_volume_to_both_stacks(
     let sf = font("Roland GM.sf2");
     let (mut switched, tx) = engine(sf.clone());
     let (mut reference, ref_tx) = engine(sf.clone());
+    switched.normalizer = VolumeNormalizer::new(SAMPLE_RATE, false);
+    reference.normalizer = VolumeNormalizer::new(SAMPLE_RATE, false);
     for sender in [&tx, &ref_tx] {
         send(
             sender,
@@ -581,19 +588,26 @@ fn handoff_restores_latest_controllers_and_applies_master_volume_to_both_stacks(
     let actual = render(&mut switched);
     let expected = render(&mut reference);
     assert_eq!(actual, expected, "controllers reach retiring voices");
+    switched.master_volume = 0.25;
+    // Let the delayed output adopt the new volume before comparing the mix.
+    render(&mut switched);
+    render(&mut reference);
     let mut fresh = stack(font("Roland GM.sf2"));
     reference.restore_channels(&mut fresh);
     switched.synth.as_mut().unwrap().note_on(0, 74, 90);
     fresh.note_on(0, 74, 90);
-    switched.master_volume = 0.25;
-    let old = render(&mut reference);
     let mut l = vec![0.0; BLOCK_SIZE];
     let mut r = l.clone();
-    fresh.render(&mut l, &mut r);
-    let mixed = render(&mut switched);
+    let mut fresh_output = Vec::with_capacity(BLOCK_SIZE * 2);
+    let mut fresh_normalizer = VolumeNormalizer::new(SAMPLE_RATE, false);
     let default_volume = reference.master_volume;
-    for i in 0..BLOCK_SIZE {
-        for (j, new) in [(i * 2, l[i]), (i * 2 + 1, r[i])] {
+    for _ in 0..4 {
+        let old = render(&mut reference);
+        fresh.render(&mut l, &mut r);
+        fresh_output.clear();
+        fresh_normalizer.process(&l, &r, 1.0, true, &mut fresh_output);
+        let mixed = render(&mut switched);
+        for (j, &new) in fresh_output.iter().enumerate() {
             assert!(
                 (mixed[j] - ((old[j] / default_volume + new) * 0.25).clamp(-1.0, 1.0)).abs()
                     < 0.000001

@@ -652,6 +652,8 @@ export const enUS = {
     synthModeFullChromatic: 'Full Chromatic (Raw)',
     synthModeFullChromaticDesc: 'Renders the complete 88-key raw MIDI notes without range limitations.',
     masterVolume: 'Master Volume',
+    volumeNormalization: 'Volume Normalization',
+    volumeNormalizationDesc: 'Balance the combined SoundFont audio, including overlapping notes, by reducing loud passages and raising quiet ones.',
 
     // Hotkeys Section
     hotkeys: 'Hotkeys',
