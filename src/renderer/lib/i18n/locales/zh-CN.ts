@@ -426,6 +426,7 @@ export const zhCN: TranslationSchema = {
     noMidiDevice: '无 (None)',
     refreshDevices: '刷新 MIDI 设备列表',
     midiDevicesRefreshed: 'MIDI 设备列表已更新。',
+    schedule: '定时',
     scheduledPlayback: '定时演奏',
     scheduledStartTime: '计划开始时间:',
     startsIn: '倒计时',

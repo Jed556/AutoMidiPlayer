@@ -4,6 +4,7 @@
   import { gameStore } from '../../state/gameStore.svelte';
   import { t } from '../../i18n';
   import AdaptiveText from '../Common/AdaptiveText.svelte';
+  import OverflowText from '../Common/OverflowText.svelte';
   import GameIcon from '../Common/GameIcon.svelte';
 
   interface Props extends HTMLButtonAttributes {
@@ -46,6 +47,9 @@
 
   let currentDisplayName = $derived(
     gameStore.activeGame?.displayName || gameStore.activeGame?.name || 'Game'
+  );
+  let currentMappingLabel = $derived(
+    `${gameStore.activeInstrument?.name || 'No Instruments'} · ${gameStore.activeLayout?.name || 'No Layouts'}`
   );
 </script>
 
@@ -90,7 +94,11 @@
         />
       </div>
       <div class="bottom-item-sub">
-        {gameStore.activeGame?.isMissing ? 'Entry Deleted' : gameStore.activeGame?.isRunning ? 'Running' : 'Target Game'}
+        <OverflowText
+          text={gameStore.activeGame?.isMissing ? 'Entry Deleted' : currentMappingLabel}
+          hoverTarget="button"
+          showTooltip={false}
+        />
       </div>
     </div>
   </button>
@@ -200,7 +208,6 @@
     color: var(--text-tertiary);
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
     line-height: 1.2;
   }
 </style>

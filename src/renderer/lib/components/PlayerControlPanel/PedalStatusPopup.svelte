@@ -53,9 +53,9 @@
     >
       <PedalIcon
         size={60}
-        isSoftActive={playbackStore.pedals.enabled && playbackStore.pedals.unaCorda}
-        isSostenutoActive={playbackStore.pedals.enabled && playbackStore.pedals.sostenuto}
-        isSustainActive={playbackStore.pedals.enabled && playbackStore.pedals.sustain}
+        isSoftActive={playbackStore.pedals.unaCorda}
+        isSostenutoActive={playbackStore.pedals.sostenuto}
+        isSustainActive={playbackStore.pedals.sustain}
         isActive={playbackStore.pedals.enabled}
       />
       <div class="status-indicator">
