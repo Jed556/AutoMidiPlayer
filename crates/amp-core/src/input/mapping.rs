@@ -369,8 +369,12 @@ pub fn parse_key_str(s: &str) -> Option<Key> {
         "shift" => Some(Key::Shift),
         "control" | "ctrl" => Some(Key::Control),
         "alt" => Some(Key::Alt),
+        #[cfg(not(windows))]
+        "option" => Some(Key::Alt),
         "capslock" | "caps_lock" => Some(Key::CapsLock),
         "meta" => Some(Key::Meta),
+        #[cfg(not(windows))]
+        "command" | "cmd" | "super" | "win" | "windows" => Some(Key::Meta),
         "arrowup" | "up" => Some(Key::UpArrow),
         "arrowdown" | "down" => Some(Key::DownArrow),
         "arrowleft" | "left" => Some(Key::LeftArrow),

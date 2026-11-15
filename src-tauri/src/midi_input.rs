@@ -41,10 +41,12 @@ enum Action {
     Select(Option<String>),
     Start,
     Stop,
+    PrepareOutput,
     Shutdown,
 }
 enum Command {
     Request(Action, mpsc::Sender<Result<InputState, String>>),
+    CancelOutputPreparation,
     #[cfg(target_os = "linux")]
     Authorized(
         u64,
@@ -52,15 +54,52 @@ enum Command {
     ),
 }
 
+/// Coalesce song and physical-input requests into one permission dialog, and
+/// reject late completions after a stop, reset, or replacement request.
+#[derive(Default)]
+struct KeyboardAuthorization {
+    epoch: u64,
+    cancel: Option<Arc<AtomicBool>>,
+}
+
+impl KeyboardAuthorization {
+    #[cfg(any(target_os = "linux", test))]
+    fn begin(&mut self) -> Option<(u64, Arc<AtomicBool>)> {
+        if self.cancel.is_some() { return None; }
+        self.epoch = self.epoch.wrapping_add(1);
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.cancel = Some(cancel.clone());
+        Some((self.epoch, cancel))
+    }
+
+    #[cfg(any(target_os = "linux", test))]
+    fn complete(&mut self, epoch: u64) -> bool {
+        if epoch != self.epoch || self.cancel.is_none() { return false; }
+        self.cancel = None;
+        true
+    }
+
+    fn cancel(&mut self) {
+        self.epoch = self.epoch.wrapping_add(1);
+        if let Some(cancel) = self.cancel.take() {
+            cancel.store(true, Ordering::Release);
+        }
+    }
+
+    fn is_pending(&self) -> bool { self.cancel.is_some() }
+}
+
 pub struct MidiInputService {
     tx: mpsc::Sender<Command>,
     state: Arc<Mutex<InputState>>,
     thread: Mutex<Option<std::thread::JoinHandle<()>>>,
     focused_windows: Arc<Mutex<HashSet<String>>>,
+    keyboard_session: Arc<AtomicBool>,
 }
 
-fn is_wayland() -> bool {
-    cfg!(target_os = "linux") && std::env::var_os("WAYLAND_DISPLAY").is_some()
+pub(crate) fn is_wayland() -> bool {
+    cfg!(target_os = "linux") && (std::env::var_os("WAYLAND_DISPLAY").is_some_and(|value| !value.is_empty())
+        || std::env::var("XDG_SESSION_TYPE").is_ok_and(|value| value.eq_ignore_ascii_case("wayland")))
 }
 
 fn ports() -> Result<Vec<Port>, String> {
@@ -102,6 +141,8 @@ impl MidiInputService {
         let focused_windows = Arc::new(Mutex::new(HashSet::from(["main".to_owned()])));
         let focused = Arc::clone(&focused_windows);
         let sender = tx.clone();
+        let keyboard_session = Arc::new(AtomicBool::new(false));
+        let worker_session = keyboard_session.clone();
         let thread = std::thread::Builder::new()
             .name("midi-input-service".into())
             .spawn(move || {
@@ -114,7 +155,10 @@ impl MidiInputService {
                     connection: None,
                     epoch: 0,
                     portal: false,
-                    authorization_cancel: None,
+                    authorization: KeyboardAuthorization::default(),
+                    pending_midi_start: false,
+                    output_waiters: Vec::new(),
+                    keyboard_session: worker_session,
                 };
                 worker.refresh();
                 let mut last_ports = Instant::now();
@@ -125,10 +169,15 @@ impl MidiInputService {
                     match rx.recv_timeout(Duration::from_millis(20)) {
                         Ok(Command::Request(Action::Shutdown, reply)) => {
                             worker.stop();
+                            worker.close_keyboard_session();
                             let _ = reply.send(Ok(worker.state.clone()));
                             break;
                         }
                         Ok(Command::Request(action, reply)) => {
+                            if matches!(action, Action::PrepareOutput) {
+                                worker.prepare_output(&sender, reply);
+                                continue;
+                            }
                             let result = match action {
                                 Action::Refresh => {
                                     worker.refresh();
@@ -148,15 +197,22 @@ impl MidiInputService {
                                     Ok(())
                                 }
                                 Action::Shutdown => unreachable!(),
+                                Action::PrepareOutput => unreachable!(),
                             };
                             if let Err(error) = &result {
                                 worker.fail(error.clone());
                             }
                             let _ = reply.send(result.map(|_| worker.state.clone()));
                         }
+                        Ok(Command::CancelOutputPreparation) => {
+                            worker.reply_output_waiters(Err("Keyboard output authorization was cancelled.".into()));
+                            if !worker.pending_midi_start && worker.authorization.is_pending() {
+                                worker.close_keyboard_session();
+                            }
+                        }
                         #[cfg(target_os = "linux")]
                         Ok(Command::Authorized(epoch, result)) => {
-                            if epoch == worker.epoch && worker.state.starting {
+                            if worker.authorization.complete(epoch) {
                                 match result {
                                     Ok(output) => {
                                     if focused.lock().map(|windows| !windows.is_empty()).unwrap_or(true)
@@ -165,19 +221,33 @@ impl MidiInputService {
                                     }
                                         worker.engine.set_keyboard_output(Some(output));
                                         worker.portal = true;
-                                        if let Err(error) = worker.connect() {
+                                        if let Err(error) = worker.engine.flush() {
+                                            worker.reply_output_waiters(Err(error.clone()));
+                                            worker.close_keyboard_session();
                                             worker.fail(error);
+                                            continue;
                                         }
+                                        worker.keyboard_session.store(true, Ordering::Release);
+                                        if worker.pending_midi_start {
+                                            worker.pending_midi_start = false;
+                                            if let Err(error) = worker.connect() {
+                                                worker.fail(error);
+                                            }
+                                        }
+                                        worker.reply_output_waiters(Ok(()));
                                     }
                                     Err(error) => {
-                                        worker.fail(error.0.detail.clone().unwrap_or_else(|| "Wayland keyboard output is unavailable".into()));
+                                        let detail = error.0.detail.clone().unwrap_or_else(|| "Wayland keyboard output is unavailable".into());
+                                        worker.fail(detail.clone());
                                         worker.engine.observe_keyboard(error.0);
+                                        worker.reply_output_waiters(Err(detail));
                                     },
                                 }
                             }
                         }
                         Err(mpsc::RecvTimeoutError::Disconnected) => {
                             worker.stop();
+                            worker.close_keyboard_session();
                             break;
                         }
                         Err(mpsc::RecvTimeoutError::Timeout) => {}
@@ -250,8 +320,7 @@ impl MidiInputService {
                         );
                     }
                     if worker.portal && snapshot.listen_mode {
-                        worker.engine.set_keyboard_output(None);
-                        worker.portal = false;
+                        worker.close_keyboard_session();
                     }
                     *shared.lock().unwrap() = worker.state.clone();
                     if previous.as_ref() != Some(&worker.state) {
@@ -266,6 +335,7 @@ impl MidiInputService {
             state,
             thread: Mutex::new(Some(thread)),
             focused_windows,
+            keyboard_session,
         }
     }
     fn request(&self, action: Action) -> Result<InputState, String> {
@@ -285,7 +355,20 @@ impl MidiInputService {
         }
     }
     pub fn has_keyboard_session(&self) -> bool {
-        self.state.lock().map(|state| state.requires_session && (state.active || state.starting)).unwrap_or(false)
+        self.keyboard_session.load(Ordering::Acquire)
+    }
+    pub fn is_app_focused(&self) -> bool {
+        self.focused_windows.lock().map(|windows| !windows.is_empty()).unwrap_or(true)
+    }
+    pub fn cancel_prepare_output(&self) {
+        let _ = self.tx.send(Command::CancelOutputPreparation);
+    }
+    /// Authorize game output independently of a physical MIDI device. Portal
+    /// permission prompts run outside both the UI and playback threads.
+    pub async fn prepare_game_output(self: &Arc<Self>) -> Result<(), String> {
+        let service = self.clone();
+        tauri::async_runtime::spawn_blocking(move || service.request(Action::PrepareOutput).map(|_| ()))
+            .await.map_err(|error| error.to_string())?
     }
     pub fn reset(&self) {
         let _ = self.request(Action::Select(None));
@@ -307,10 +390,56 @@ struct Worker {
     connection: Option<MidiInputConnection<()>>,
     epoch: u64,
     portal: bool,
-    authorization_cancel: Option<Arc<AtomicBool>>,
+    authorization: KeyboardAuthorization,
+    pending_midi_start: bool,
+    output_waiters: Vec<mpsc::Sender<Result<InputState, String>>>,
+    keyboard_session: Arc<AtomicBool>,
 }
 
 impl Worker {
+    fn reply_output_waiters(&mut self, result: Result<(), String>) {
+        for reply in self.output_waiters.drain(..) {
+            let _ = reply.send(result.clone().map(|_| self.state.clone()));
+        }
+    }
+
+    fn close_keyboard_session(&mut self) {
+        self.authorization.cancel();
+        self.keyboard_session.store(false, Ordering::Release);
+        if self.portal {
+            self.engine.set_keyboard_output(None);
+            self.portal = false;
+        }
+        self.reply_output_waiters(Err("Keyboard output authorization was cancelled.".into()));
+    }
+
+    fn prepare_output(&mut self, sender: &mpsc::Sender<Command>, reply: mpsc::Sender<Result<InputState, String>>) {
+        if !self.state.requires_session {
+            let result = self.engine.prepare_keyboard().map(|_| self.state.clone());
+            let _ = reply.send(result);
+            return;
+        }
+        if self.portal && self.engine.midi_snapshot().keyboard_available {
+            let _ = reply.send(Ok(self.state.clone()));
+            return;
+        }
+        self.output_waiters.push(reply);
+        self.authorize_keyboard(sender);
+    }
+
+    fn authorize_keyboard(&mut self, _sender: &mpsc::Sender<Command>) {
+        #[cfg(target_os = "linux")]
+        {
+            let Some((epoch, cancel)) = self.authorization.begin() else { return; };
+            let sender = _sender.clone();
+            self.engine.observe_keyboard(amp_core::diagnostics::ServiceStatus::new(amp_core::diagnostics::ServiceState::Checking));
+            std::thread::spawn(move || {
+                let output = wayland::connect(cancel);
+                let _ = sender.send(Command::Authorized(epoch, output));
+            });
+        }
+    }
+
     fn refresh(&mut self) {
         match ports() {
             Ok(ports) => {
@@ -331,19 +460,17 @@ impl Worker {
         }
     }
     fn stop(&mut self) {
-        if let Some(cancel) = self.authorization_cancel.take() {
-            cancel.store(true, Ordering::Release);
-            if self.state.starting { self.engine.observe_keyboard(amp_core::diagnostics::ServiceStatus::new(amp_core::diagnostics::ServiceState::Inactive)); }
+        self.pending_midi_start = false;
+        // An authorized portal also serves song playback. Changing or stopping
+        // a MIDI device must not revoke the song's keyboard output.
+        if self.output_waiters.is_empty() && self.authorization.is_pending() {
+            self.close_keyboard_session();
+            self.engine.observe_keyboard(amp_core::diagnostics::ServiceStatus::new(amp_core::diagnostics::ServiceState::Inactive));
         }
         self.epoch = self.epoch.wrapping_add(1);
         // Invalidate old callbacks before closing a potentially busy connection.
         self.engine.midi_stop();
         self.connection.take();
-        if self.portal {
-            if !self.engine.midi_snapshot().listen_mode { self.engine.pause(); }
-            self.engine.set_keyboard_output(None);
-            self.portal = false;
-        }
         self.state.active = false;
         self.state.starting = false;
         self.state.connected = false;
@@ -373,17 +500,13 @@ impl Worker {
         } else if self.state.requires_session {
             #[cfg(target_os = "linux")]
             {
+                if self.portal && snapshot.keyboard_available {
+                    return self.connect();
+                }
                 self.state.starting = true;
                 self.state.status = "permission".into();
-                self.engine.observe_keyboard(amp_core::diagnostics::ServiceStatus::new(amp_core::diagnostics::ServiceState::Checking));
-                let epoch = self.epoch;
-                let sender = _sender.clone();
-                let cancel = Arc::new(AtomicBool::new(false));
-                self.authorization_cancel = Some(cancel.clone());
-                std::thread::spawn(move || {
-                    let output = wayland::connect(cancel);
-                    let _ = sender.send(Command::Authorized(epoch, output));
-                });
+                self.pending_midi_start = true;
+                self.authorize_keyboard(_sender);
                 return Ok(());
             }
         } else {
@@ -451,4 +574,34 @@ pub async fn start_midi_input(app: AppHandle) -> Result<InputState, String> {
 #[tauri::command]
 pub async fn stop_midi_input(app: AppHandle) -> Result<InputState, String> {
     request(app, Action::Stop).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn concurrent_output_requests_share_one_permission_dialog() {
+        let mut authorization = KeyboardAuthorization::default();
+        let (epoch, cancel) = authorization.begin().unwrap();
+        assert!(authorization.begin().is_none());
+        assert!(!cancel.load(Ordering::Acquire));
+        assert!(authorization.complete(epoch));
+        assert!(!authorization.is_pending());
+        // A duplicate completion cannot install another backend.
+        assert!(!authorization.complete(epoch));
+    }
+
+    #[test]
+    fn stopped_authorization_cannot_replace_a_new_keyboard_session() {
+        let mut authorization = KeyboardAuthorization::default();
+        let (old_epoch, old_cancel) = authorization.begin().unwrap();
+        authorization.cancel();
+        assert!(old_cancel.load(Ordering::Acquire));
+        let (new_epoch, new_cancel) = authorization.begin().unwrap();
+        assert!(!authorization.complete(old_epoch));
+        assert!(authorization.is_pending());
+        assert!(!new_cancel.load(Ordering::Acquire));
+        assert!(authorization.complete(new_epoch));
+    }
 }

@@ -83,6 +83,54 @@ async function createPlayer({ writeQueue, readQueue, writeSongSettings, readSong
 }
 const ids = songs => songs.map(s => s.id);
 
+test('Wayland playback allows manual focus without pretending game detection is available', async () => {
+  const h = await createPlayer();
+  h.gameStore.activeGame = { id: 'sky', displayName: 'Sky', isRunning: false, requiresManualFocus: true };
+  h.player.isListenMode = false;
+  await h.player.play(h.songs[0]);
+  assert.equal(h.player.isListenMode, false);
+  assert.ok(h.playbackCalls.some(call => call[0] === 'play'));
+  assert.ok(h.notifications.some(call => call[1] === 'Switch to your game'));
+  h.player.handleGameStatusUpdate(h.gameStore.activeGame);
+  assert.equal(h.player.status, 'Playing');
+});
+
+test('output authorization errors restore playback state and a user stop wins over a late cancellation', async () => {
+  const failed = await createPlayer({ playback: { play: async () => { throw new Error('Accessibility permission required'); } } });
+  await failed.player.play(failed.songs[0]);
+  assert.equal(failed.player.status, 'Stopped');
+  assert.ok(failed.notifications.some(call => call[0] === 'error' && call[2].includes('Accessibility')));
+
+  let rejectPlay;
+  const pending = await createPlayer({ playback: { play: () => new Promise((_, reject) => { rejectPlay = reject; }) } });
+  const starting = pending.player.play(pending.songs[0]);
+  while (!rejectPlay) await Promise.resolve();
+  await pending.player.stop();
+  rejectPlay(new Error('Playback request cancelled.'));
+  await starting;
+  assert.equal(pending.player.status, 'Stopped');
+  assert.ok(pending.notifications.every(call => call[0] !== 'error'));
+});
+
+test('a rejected native mode change retains the current Listen Mode', async () => {
+  const h = await createPlayer({ playback: { setListenMode: async () => { throw new Error('Output failed'); } } });
+  await assert.rejects(h.player.setListenMode(false));
+  assert.equal(h.player.isListenMode, true);
+});
+
+test('Windows keeps the existing immediate playback and mode-update path', async () => {
+  let finishMode;
+  const h = await createPlayer({ playback: { setListenMode: () => new Promise(resolve => { finishMode = resolve; }) } });
+  h.settingsStore.isWindows = true;
+  await h.player.play(h.songs[0]);
+  assert.equal(h.player.status, 'Playing');
+  assert.deepEqual(h.playbackCalls.filter(call => call[0] === 'play'), [['play', h.songs[0].id]]);
+  const changing = h.player.setListenMode(false);
+  assert.equal(h.player.isListenMode, false, 'Windows retains the immediate mode update');
+  finishMode(true);
+  await changing;
+});
+
 test('system Play and Pause are idempotent while Toggle changes state', async () => {
   const { player, songs, playbackCalls } = await createPlayer();
   await player.setQueueList(songs.slice(0, 2));

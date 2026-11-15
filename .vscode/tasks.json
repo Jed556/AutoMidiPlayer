@@ -1,6 +1,7 @@
 {
   "version": "2.0.0",
   "options": {
+    "cwd": "${workspaceFolder}",
     "env": {
       "PATH": "${env:USERPROFILE}\\.cargo\\bin;${env:LOCALAPPDATA}\\pnpm\\bin;${env:PATH}"
     }
@@ -50,10 +51,7 @@
       "label": "tauri: build",
       "type": "shell",
       "command": "pnpm build",
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
+      "group": "build",
       "problemMatcher": ["$rustc"]
     },
     {

@@ -100,6 +100,15 @@ test('pedal edits use the layout-file API, refresh playback, and leave app setti
   assert.equal(h.mappings.length, afterReset);
 });
 
+test('manual-focus desktop capability follows native status and clears when the session changes', async () => {
+  const h = await createGameStore();
+  h.emitStatuses([{ id: 'a', isRunning: false, isFocused: false, requiresManualFocus: true }]);
+  assert.equal(h.gameStore.activeGame.requiresManualFocus, true);
+  assert.equal(h.gameStore.games[0].requiresManualFocus, true);
+  h.emitStatuses([{ id: 'a', isRunning: true, isFocused: true }]);
+  assert.equal(h.gameStore.activeGame.requiresManualFocus, false);
+});
+
 test('layout choices survive restart for each game and instrument', async () => {
   const first = await createGameStore({ a: 'lyre' });
   first.gameStore.syncActiveInstrumentMapping('lyre', 'azerty');

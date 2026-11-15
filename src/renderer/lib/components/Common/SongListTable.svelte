@@ -502,7 +502,7 @@
     const el = activeScrollEl;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    const topEdge = rect.top + 48;
+    const topEdge = rect.top + (embedInScroll ? 110 : 48);
     const bottomEdge = rect.bottom - 48;
 
     let speed = 0;
@@ -612,7 +612,7 @@
 
     if (itemTop < viewTop) {
       const targetScroll = embedInScroll && tableBodyEl
-        ? Math.max(0, itemTop + (tableBodyEl.offsetTop || 0))
+        ? Math.max(0, itemTop + (tableBodyEl.offsetTop || 0) - 100)
         : itemTop;
       el.scrollTo({ top: targetScroll, behavior: 'instant' });
     } else if (itemBottom > viewBottom) {
@@ -1335,7 +1335,7 @@
 
   .song-list-container.embedded .table-header {
     position: sticky;
-    top: 0;
+    top: var(--song-table-header-top, 0px);
     z-index: 15;
     background: var(--surface-color, #121212);
   }

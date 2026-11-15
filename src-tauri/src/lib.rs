@@ -1,8 +1,15 @@
 mod config_manager;
+#[cfg(any(not(windows), test))]
+mod desktop_open;
 mod media_controls;
 #[cfg(windows)]
 mod taskbar;
 mod midi_input;
+#[cfg(target_os = "linux")]
+mod hotkeys_wayland;
+#[cfg(any(target_os = "linux", test))]
+mod hotkey_format;
+mod playback_start;
 mod tray;
 mod system_info;
 mod process_monitor;
@@ -47,6 +54,8 @@ pub struct HotkeyBindingPayload {
     pub ctrl: bool,
     pub alt: bool,
     pub shift: bool,
+    #[serde(default)]
+    pub meta: bool,
 }
 
 pub fn format_shortcut_string(binding: &HotkeyBindingPayload) -> Option<String> {
@@ -85,6 +94,9 @@ pub fn format_shortcut_string(binding: &HotkeyBindingPayload) -> Option<String> 
     if binding.shift {
         parts.push("shift");
     }
+    if binding.meta {
+        parts.push("super");
+    }
     parts.push(normalized_key);
 
     Some(parts.join("+"))
@@ -100,25 +112,93 @@ pub fn apply_hotkeys_config(
     enabled: bool,
     bindings: &[HotkeyBindingPayload],
 ) -> Result<(), String> {
+    #[cfg(windows)]
+    return apply_windows_hotkeys_config(app, engine, enabled, bindings);
+    #[cfg(not(windows))]
+    {
+    let generation = HOTKEY_CONFIG_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
+    apply_hotkeys_config_version(app, engine, enabled, bindings, generation)
+    }
+}
+
+#[cfg(windows)]
+fn apply_windows_hotkeys_config(
+    app: &AppHandle, engine: &Arc<PlaybackEngine>, enabled: bool, bindings: &[HotkeyBindingPayload],
+) -> Result<(), String> {
     let global_shortcut = app.global_shortcut();
     let _ = global_shortcut.unregister_all();
+    if !enabled { return Ok(()); }
+    for binding in bindings {
+        let Some(shortcut_str) = format_shortcut_string(binding) else { continue; };
+        let shortcut = match shortcut_str.parse::<Shortcut>() {
+            Ok(shortcut) => shortcut,
+            Err(error) => {
+                eprintln!("[Hotkeys] Failed to parse shortcut '{}': {}", shortcut_str, error);
+                continue;
+            }
+        };
+        let action = binding.action.clone();
+        let app_handle = app.clone();
+        let engine_handle = Arc::clone(engine);
+        if let Err(error) = global_shortcut.on_shortcut(shortcut, move |_app, _sc, event| {
+            if event.state() == ShortcutState::Pressed {
+                dispatch_hotkey(&app_handle, &engine_handle, &action);
+            }
+        }) {
+            eprintln!("[Hotkeys] Failed to register shortcut '{}' for action '{}': {}", shortcut_str, binding.action, error);
+        }
+    }
+    Ok(())
+}
 
+#[cfg(not(windows))]
+static HOTKEY_CONFIG_GENERATION: AtomicU64 = AtomicU64::new(0);
+#[cfg(not(windows))]
+static NATIVE_HOTKEY_CONFIG_LOCK: Mutex<()> = Mutex::new(());
+
+#[cfg(not(windows))]
+fn apply_hotkeys_config_version(
+    app: &AppHandle,
+    engine: &Arc<PlaybackEngine>,
+    enabled: bool,
+    bindings: &[HotkeyBindingPayload],
+    generation: u64,
+) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    if midi_input::is_wayland() {
+        return app.try_state::<hotkeys_wayland::Service>()
+            .ok_or("The Wayland global shortcut service is unavailable.")?
+            .apply(enabled, bindings, generation);
+    }
+    let _configuration = NATIVE_HOTKEY_CONFIG_LOCK.lock().map_err(|_| "The global shortcut service is unavailable.")?;
+    if generation < HOTKEY_CONFIG_GENERATION.load(Ordering::Acquire) { return Ok(()); }
     if !enabled {
+        if app.try_state::<tauri_plugin_global_shortcut::GlobalShortcut<tauri::Wry>>().is_none() {
+            return Ok(());
+        }
+        app.global_shortcut().unregister_all().map_err(|error| format!("Unable to unregister hotkeys: {error}"))?;
         return Ok(());
     }
-
+    if app.try_state::<tauri_plugin_global_shortcut::GlobalShortcut<tauri::Wry>>().is_none() {
+        return Err("The desktop global hotkey service is unavailable.".into());
+    }
+    // Validate the entire configuration before removing working bindings.
+    let mut shortcuts = Vec::new();
+    let mut seen = std::collections::HashSet::new();
     for binding in bindings {
         let Some(shortcut_str) = format_shortcut_string(binding) else {
             continue;
         };
-
-        let shortcut = match shortcut_str.parse::<Shortcut>() {
-            Ok(sc) => sc,
-            Err(e) => {
-                eprintln!("[Hotkeys] Failed to parse shortcut '{}': {}", shortcut_str, e);
-                continue;
-            }
-        };
+        let shortcut = shortcut_str.parse::<Shortcut>()
+            .map_err(|error| format!("Invalid hotkey '{shortcut_str}' for '{}': {error}", binding.action))?;
+        if !seen.insert(shortcut.id()) {
+            return Err(format!("Hotkey '{shortcut_str}' is assigned more than once."));
+        }
+        shortcuts.push((binding, shortcut_str, shortcut));
+    }
+    let global_shortcut = app.global_shortcut();
+    global_shortcut.unregister_all().map_err(|error| format!("Unable to unregister hotkeys: {error}"))?;
+    for (binding, shortcut_str, shortcut) in shortcuts {
 
         let action = binding.action.clone();
         let app_handle = app.clone();
@@ -126,38 +206,49 @@ pub fn apply_hotkeys_config(
 
         let res = global_shortcut.on_shortcut(shortcut, move |_app, _sc, event| {
             if event.state() == ShortcutState::Pressed {
-                match action.as_str() {
-                    "PlayPause" => {
-                        let _ = app_handle.emit("playback:toggle_play", ());
-                    }
-                    "Next" => {
-                        let _ = app_handle.emit("playback:next", ());
-                    }
-                    "Previous" => {
-                        let _ = app_handle.emit("playback:prev", ());
-                    }
-                    "SpeedUp" => {
-                        let _ = app_handle.emit("playback:speed_up", ());
-                    }
-                    "SpeedDown" => {
-                        let _ = app_handle.emit("playback:speed_down", ());
-                    }
-                    "Panic" => {
-                        engine_handle.panic();
-                        let _ = app_handle.emit("playback:panic", ());
-                        let _ = app_handle.emit("playback:state_changed", "Stopped");
-                    }
-                    _ => {}
-                }
+                dispatch_hotkey(&app_handle, &engine_handle, &action);
             }
         });
 
         if let Err(e) = res {
-            eprintln!("[Hotkeys] Failed to register shortcut '{}' for action '{}': {}", shortcut_str, binding.action, e);
+            // A partially installed configuration would leave the settings UI
+            // claiming that unavailable actions work.
+            let _ = global_shortcut.unregister_all();
+            return Err(format!("Unable to register hotkey '{shortcut_str}' for '{}': {e}", binding.action));
         }
     }
 
     Ok(())
+}
+
+fn dispatch_hotkey(app: &AppHandle, engine: &PlaybackEngine, action: &str) {
+    let event = match action {
+        "PlayPause" => "playback:toggle_play",
+        "Next" => "playback:next",
+        "Previous" => "playback:prev",
+        "SpeedUp" => "playback:speed_up",
+        "SpeedDown" => "playback:speed_down",
+        "Panic" => {
+            #[cfg(not(windows))]
+            if let Some(state) = app.try_state::<AppState>() { cancel_pending_playback(&state); }
+            engine.panic();
+            let _ = app.emit("playback:panic", ());
+            let _ = app.emit("playback:state_changed", "Stopped");
+            return;
+        }
+        _ => return,
+    };
+    let _ = app.emit(event, ());
+}
+
+#[tauri::command]
+fn get_hotkey_bindings(app: AppHandle) -> serde_json::Value {
+    #[cfg(target_os = "linux")]
+    if let Some(service) = app.try_state::<hotkeys_wayland::Service>() {
+        return serde_json::to_value(service.bindings()).unwrap_or_else(|_| serde_json::json!([]));
+    }
+    let _ = app;
+    serde_json::json!([])
 }
 
 #[derive(serde::Serialize, Clone, Debug)]
@@ -214,6 +305,7 @@ pub struct MidiFilePayload {
 }
 
 pub struct AppState {
+    pub play_request_epoch: Arc<AtomicU64>,
     pub midi_input: Arc<midi_input::MidiInputService>,
     pub engine: Arc<PlaybackEngine>,
     pub current_song: Arc<Mutex<Option<ParsedMidi>>>,
@@ -295,6 +387,7 @@ fn read_midi_payload(
 
     // Reading Studio notes must leave the playback engine and current song alone.
     if load_for_playback {
+        cancel_pending_playback(state);
         state.engine.load_song(parsed.clone());
         *state.current_song.lock().unwrap() = Some(parsed.clone());
     }
@@ -417,20 +510,62 @@ fn read_midi_payload(
     Ok(payload)
 }
 
+#[cfg(windows)]
 #[tauri::command]
 fn play_song(state: State<AppState>) -> Result<bool, String> {
     state.engine.play();
     Ok(true)
 }
 
+#[cfg(not(windows))]
+#[tauri::command]
+async fn play_song(state: State<'_, AppState>) -> Result<bool, String> {
+    let epoch = Arc::clone(&state.play_request_epoch);
+    let request = epoch.fetch_add(1, Ordering::AcqRel).wrapping_add(1);
+    state.engine.flush()?;
+    if epoch.load(Ordering::Acquire) != request { return Err("Playback request cancelled.".into()); }
+    if !state.engine.midi_snapshot().listen_mode {
+        state.midi_input.prepare_game_output().await?;
+        #[cfg(target_os = "linux")]
+        if midi_input::is_wayland() {
+            let input = Arc::clone(&state.midi_input);
+            let epoch = Arc::clone(&epoch);
+            tauri::async_runtime::spawn_blocking(move || {
+                playback_start::wait_for_handoff(
+                    || input.is_app_focused(),
+                    || epoch.load(Ordering::Acquire) != request,
+                    std::time::Duration::from_secs(30),
+                )
+            }).await.map_err(|error| error.to_string())??;
+        }
+    }
+    if epoch.load(Ordering::Acquire) != request {
+        return Err("Playback request cancelled.".into());
+    }
+    state.engine.play();
+    Ok(true)
+}
+
+fn cancel_pending_playback(state: &AppState) {
+    #[cfg(not(windows))]
+    {
+    state.play_request_epoch.fetch_add(1, Ordering::AcqRel);
+    state.midi_input.cancel_prepare_output();
+    }
+    #[cfg(windows)]
+    let _ = state;
+}
+
 #[tauri::command]
 fn pause_song(state: State<AppState>) -> Result<bool, String> {
+    cancel_pending_playback(&state);
     state.engine.pause();
     Ok(true)
 }
 
 #[tauri::command]
 fn stop_song(state: State<AppState>) -> Result<bool, String> {
+    cancel_pending_playback(&state);
     state.engine.stop();
     Ok(true)
 }
@@ -507,18 +642,32 @@ fn set_note_processing(
 
 #[tauri::command]
 fn panic_stop(state: State<AppState>) -> Result<bool, String> {
+    cancel_pending_playback(&state);
     state.engine.panic();
     Ok(true)
 }
 
+#[cfg(windows)]
 #[tauri::command]
 fn update_global_hotkeys(
+    enabled: bool, bindings: Vec<HotkeyBindingPayload>, app: AppHandle, state: State<AppState>,
+) -> Result<bool, String> {
+    apply_hotkeys_config(&app, &state.engine, enabled, &bindings)?;
+    Ok(true)
+}
+
+#[cfg(not(windows))]
+#[tauri::command]
+async fn update_global_hotkeys(
     enabled: bool,
     bindings: Vec<HotkeyBindingPayload>,
     app: AppHandle,
-    state: State<AppState>,
+    state: State<'_, AppState>,
 ) -> Result<bool, String> {
-    apply_hotkeys_config(&app, &state.engine, enabled, &bindings)?;
+    let generation = HOTKEY_CONFIG_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
+    let engine = Arc::clone(&state.engine);
+    tauri::async_runtime::spawn_blocking(move || apply_hotkeys_config_version(&app, &engine, enabled, &bindings, generation))
+        .await.map_err(|error| error.to_string())??;
     Ok(true)
 }
 
@@ -556,7 +705,12 @@ fn detect_key_signatures(file_path: String, state: State<AppState>) -> Result<Ve
 // Phase 4: Audio Synthesizer & Listen Mode commands
 #[tauri::command]
 fn set_listen_mode(enabled: bool, state: State<AppState>) -> Result<bool, String> {
+    cancel_pending_playback(&state);
+    #[cfg(not(windows))]
+    if !enabled { state.engine.pause(); }
     state.engine.set_listen_mode(enabled);
+    #[cfg(not(windows))]
+    state.engine.flush()?;
     Ok(true)
 }
 
@@ -1608,19 +1762,12 @@ fn open_url(url: String) -> Result<(), String> {
     #[cfg(windows)]
     {
         std::process::Command::new("rundll32")
-            .args(["url.dll,FileProtocolHandler", &url])
-            .spawn()
-            .map_err(|e| format!("Failed to open URL: {}", e))?;
+            .args(["url.dll,FileProtocolHandler", &url]).spawn()
+            .map_err(|error| format!("Failed to open URL: {error}"))?;
         Ok(())
     }
     #[cfg(not(windows))]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(&url)
-            .spawn()
-            .map_err(|e| format!("Failed to open URL: {}", e))?;
-        Ok(())
-    }
+    desktop_open::open_url(&url)
 }
 
 #[tauri::command]
@@ -1632,20 +1779,14 @@ fn open_folder_in_explorer(path: Option<String>) -> Result<(), String> {
     #[cfg(windows)]
     {
         let _ = std::fs::create_dir_all(&target);
-        std::process::Command::new("explorer")
-            .arg(target.as_os_str())
-            .spawn()
-            .map_err(|e| format!("Failed to open explorer: {}", e))?;
+        std::process::Command::new("explorer").arg(target.as_os_str()).spawn()
+            .map_err(|error| format!("Failed to open explorer: {error}"))?;
         Ok(())
     }
     #[cfg(not(windows))]
     {
-        let _ = std::fs::create_dir_all(&target);
-        std::process::Command::new("xdg-open")
-            .arg(target.as_os_str())
-            .spawn()
-            .map_err(|e| format!("Failed to open folder: {}", e))?;
-        Ok(())
+        std::fs::create_dir_all(&target).map_err(|error| format!("Failed to create folder: {error}"))?;
+        desktop_open::open_path(&target)
     }
 }
 
@@ -1848,8 +1989,22 @@ pub fn run() {
             // Register dialog plugin
             app.handle().plugin(tauri_plugin_dialog::init())?;
 
-            // Register global shortcut plugin
+            // The native shortcut manager requires X11 on Linux. Its failure
+            // must not prevent audio or portal-based playback from starting.
+            #[cfg(windows)]
             app.handle().plugin(tauri_plugin_global_shortcut::Builder::new().build())?;
+            #[cfg(not(windows))]
+            if !midi_input::is_wayland() {
+                if let Err(error) = app.handle().plugin(tauri_plugin_global_shortcut::Builder::new().build()) {
+                    log::warn!("Unable to initialize global shortcuts: {error}");
+                }
+            }
+            #[cfg(target_os = "linux")]
+            if midi_input::is_wayland() {
+                if let Err(error) = hotkeys_wayland::install(app.handle()) {
+                    log::warn!("Unable to initialize Wayland global shortcuts: {error}");
+                }
+            }
             app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
             app.manage(updates::UpdateState::default());
 
@@ -1965,7 +2120,11 @@ pub fn run() {
 
                     // Register default global hotkeys matching the original WPF app (Ctrl+Alt bindings):
                     let default_bindings = default_hotkey_bindings();
-                    let _ = apply_hotkeys_config(&app.clone(), &engine, completed && defaults::value("/hotkeysEnabled"), &default_bindings);
+                    // Wayland authorization waits for the renderer to apply
+                    // saved bindings after startup; no permission prompt here.
+                    if !midi_input::is_wayland() {
+                        let _ = apply_hotkeys_config(&app, &engine, completed && defaults::value("/hotkeysEnabled"), &default_bindings);
+                    }
 
                     set_startup_stage(&app, "Loading library database\u{2026}");
                     // Initialize SQLite library database at %LocalAppData%\Jed556\AutoMIDIPlayer\AutoMidiPlayer.db
@@ -2109,6 +2268,7 @@ pub fn run() {
                     let midi_input = Arc::new(midi_input::MidiInputService::new(app.clone(), Arc::clone(&engine),
                         Arc::clone(&preferences), Arc::clone(&process_monitor)));
                     app.manage(AppState {
+                        play_request_epoch: Arc::new(AtomicU64::new(0)),
                         midi_input,
                         engine,
                         current_song: Arc::new(Mutex::new(None)),
@@ -2197,6 +2357,7 @@ pub fn run() {
             set_note_processing,
             panic_stop,
             update_global_hotkeys,
+            get_hotkey_bindings,
             // Phase 10 key modulation & detection commands
             set_key_markers,
             set_key_markers_enabled,
@@ -2294,8 +2455,17 @@ pub fn run() {
         .build(context)
         .expect("error while building tauri application")
         .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if matches!(event, tauri::RunEvent::Reopen { .. }) {
+                if let Err(error) = tray::show(app) {
+                    log::warn!("Unable to restore the application from the Dock: {error}");
+                }
+            }
             if matches!(event, tauri::RunEvent::Exit) {
+                #[cfg(target_os = "linux")]
+                hotkeys_wayland::shutdown(app);
                 if let Some(state) = app.try_state::<AppState>() {
+                    cancel_pending_playback(&state);
                     state.midi_input.shutdown();
                     state.engine.panic();
                     let _ = state.engine.flush();
@@ -2343,6 +2513,7 @@ mod tests {
             ctrl: true,
             alt: true,
             shift: false,
+            meta: false,
         };
         let s1 = format_shortcut_string(&p1).unwrap();
         assert_eq!(s1, "ctrl+alt+space");
@@ -2355,6 +2526,7 @@ mod tests {
             ctrl: true,
             alt: true,
             shift: false,
+            meta: false,
         };
         let s2 = format_shortcut_string(&p2).unwrap();
         assert_eq!(s2, "ctrl+alt+right");
@@ -2367,6 +2539,7 @@ mod tests {
             ctrl: true,
             alt: true,
             shift: false,
+            meta: false,
         };
         let s3 = format_shortcut_string(&p3).unwrap();
         assert_eq!(s3, "ctrl+alt+escape");
@@ -2379,7 +2552,24 @@ mod tests {
             ctrl: false,
             alt: false,
             shift: false,
+            meta: false,
         };
         assert!(format_shortcut_string(&p_empty).is_none());
+    }
+
+    #[test]
+    fn command_hotkeys_and_legacy_settings_are_supported() {
+        let mut binding: HotkeyBindingPayload = serde_json::from_value(serde_json::json!({
+            "action": "PlayPause", "key": "Space", "ctrl": false, "alt": false, "shift": false
+        })).unwrap();
+        assert!(!binding.meta);
+        binding.meta = true;
+        let shortcut = format_shortcut_string(&binding).unwrap();
+        assert_eq!(shortcut, "super+space");
+        assert!(shortcut.parse::<Shortcut>().is_ok());
+        for key in ["KeyA", "Digit2", "BracketLeft", "Backslash", "NumpadAdd", "Equal"] {
+            binding.key = key.into();
+            assert!(format_shortcut_string(&binding).unwrap().parse::<Shortcut>().is_ok(), "{key}");
+        }
     }
 }

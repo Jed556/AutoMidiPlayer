@@ -17,8 +17,11 @@ const normalizeRepressGapMs = (value: unknown): number => typeof value === 'numb
 
 class SettingsStore {
   settings = $state<AppSettings>(createDefaultSettings());
+  isWindows = $state(false);
   isScanningFolder = $state(false);
   isResettingHotkeys = $state(false);
+  hotkeyTriggers = $state<Record<string, string>>({});
+  private hotkeyEventsSubscribed = false;
   isResettingSongDefaults = $state(false);
   isResettingNotesDefaults = $state(false);
   isResettingAll = $state(false);
@@ -80,6 +83,9 @@ class SettingsStore {
 
   async init() {
     try {
+      if (api.system) {
+        this.isWindows = (await api.system.getSnapshot()).environment.desktopSession === 'windows';
+      }
       this.dataLocationPath = await api.settings.getDataDirectory();
       const remote = await api.settings.getSettings();
       if (remote) {
@@ -99,6 +105,13 @@ class SettingsStore {
         return;
       }
       await this.refreshAutoCorrectLayouts(remote?.autoCorrectThreshold);
+      if (!this.hotkeyEventsSubscribed) {
+        this.hotkeyEventsSubscribed = true;
+        api.settings.onHotkeyBindingsChanged?.(bindings => {
+          this.hotkeyTriggers = Object.fromEntries(bindings.map(binding => [binding.action, binding.trigger]));
+        });
+        api.settings.onHotkeyError?.(error => this.reportHotkeyError(error));
+      }
       this.syncHotkeys();
       await this.syncSongDefaults();
       updateStore.configureTimer(this.settings, false);
@@ -177,24 +190,46 @@ class SettingsStore {
     return count;
   }
 
-  syncHotkeys() {
-    if (this._isHotkeysSuspended) {
-      api.settings.updateGlobalHotkeys(false, this.settings.hotkeys).catch(console.error);
+  private hotkeyRevision = 0;
+  private lastHotkeyError = '';
+
+  private reportHotkeyError(message: string) {
+    if (this.lastHotkeyError !== message) {
+      notificationCenter.error(t('settings.toastTitleHotkeysError'), message);
+      this.lastHotkeyError = message;
+    }
+  }
+
+  async syncHotkeys() {
+    if (this.isWindows) {
+      await api.settings.updateGlobalHotkeys(!this._isHotkeysSuspended && this.settings.hotkeysEnabled,
+        this.settings.hotkeys).catch(console.error);
       return;
     }
-    api.settings.updateGlobalHotkeys(this.settings.hotkeysEnabled, this.settings.hotkeys).catch(console.error);
+    const revision = ++this.hotkeyRevision;
+    const enabled = !this._isHotkeysSuspended && this.settings.hotkeysEnabled;
+    const bindings = this.settings.hotkeys.map(binding => ({ ...binding }));
+    try {
+      await api.settings.updateGlobalHotkeys(enabled, bindings);
+      const actualBindings = await api.settings.getHotkeyBindings?.();
+      if (revision === this.hotkeyRevision) {
+        this.lastHotkeyError = '';
+        if (actualBindings) this.hotkeyTriggers = Object.fromEntries(actualBindings.map(binding => [binding.action, binding.trigger]));
+      }
+    } catch (error) {
+      if (revision === this.hotkeyRevision) this.reportHotkeyError(String(error));
+    }
   }
 
   suspendHotkeys() {
     this._isHotkeysSuspended = true;
-    api.settings.updateGlobalHotkeys(false, this.settings.hotkeys).catch(console.error);
+    return this.syncHotkeys();
   }
 
   resumeHotkeys() {
     this._isHotkeysSuspended = false;
-    if (this.settings.hotkeysEnabled) {
-      api.settings.updateGlobalHotkeys(true, this.settings.hotkeys).catch(console.error);
-    }
+    if (this.isWindows && !this.settings.hotkeysEnabled) return Promise.resolve();
+    return this.syncHotkeys();
   }
 
   private save() {
@@ -290,7 +325,7 @@ class SettingsStore {
     const list = [...this.settings.hotkeys];
     const idx = list.findIndex(h => h.action === action);
     if (idx >= 0) {
-      list[idx] = { ...list[idx], key: '', ctrl: false, alt: false, shift: false };
+      list[idx] = { ...list[idx], key: '', ctrl: false, alt: false, shift: false, meta: false };
       this.settings.hotkeys = list;
       this.save();
       this.syncHotkeys();

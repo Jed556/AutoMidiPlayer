@@ -7,12 +7,14 @@
   import FluentIcon from '../Icons/FluentIcon.svelte';
   import type { KeyBinding } from '$shared/types/settings';
   import { pedalKeyFromEvent } from '$shared/utils/pedalBindings';
+  import { hotkeyBindingFromEvent } from '$shared/utils/hotkeyBindings';
   import { settingsStore } from '../../state/settingsStore.svelte';
   import { t } from '../../i18n';
 
   interface Props {
     label: string;
     binding: T;
+    displayTrigger?: string;
     onchange: (updated: T) => void;
     onclear: () => void;
     onmeasurechips?: (width: number) => void;
@@ -20,12 +22,14 @@
     disabled?: boolean;
   }
 
-  let { label, binding, onchange, onclear, onmeasurechips, singleKey = false, disabled = false }: Props = $props();
+  let { label, binding, displayTrigger, onchange, onclear, onmeasurechips, singleKey = false, disabled = false }: Props = $props();
 
   let isEditing = $state(false);
   let tempCtrl = $state(false);
   let tempAlt = $state(false);
   let tempShift = $state(false);
+  let tempMeta = $state(false);
+  const metaLabel = /Mac|iPhone|iPad/.test(navigator.platform) ? 'Cmd' : 'Super';
   let chipsWidth = $state(0);
 
   $effect(() => {
@@ -57,10 +61,15 @@
       'Alt': 'Alt',
       'Meta': 'Win'
     };
-    return map[k] || k.toUpperCase();
+    if (k === 'Meta') return metaLabel;
+    if (/^Key[A-Z]$/.test(k)) return k.slice(3);
+    if (/^Digit[0-9]$/.test(k)) return k.slice(5);
+    const punctuation: Record<string, string> = { Minus: '-', Equal: '=', BracketLeft: '[',
+      BracketRight: ']', Backslash: '\\', Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/', Backquote: '`' };
+    return punctuation[k] || map[k] || k.toUpperCase();
   }
 
-  function startEditing() {
+  async function startEditing() {
     if (disabled) return;
     cancelActiveEdit?.();
     cancelActiveEdit = stopEditing;
@@ -68,7 +77,10 @@
     tempCtrl = false;
     tempAlt = false;
     tempShift = false;
-    settingsStore.suspendHotkeys();
+    tempMeta = false;
+    if (settingsStore.isWindows) settingsStore.suspendHotkeys();
+    else await settingsStore.suspendHotkeys();
+    if (!isEditing) return;
     window.addEventListener('keydown', handleKeyDown, true);
     window.addEventListener('keyup', handleKeyUp, true);
   }
@@ -96,7 +108,7 @@
       const key = pedalKeyFromEvent(e);
       if (key) {
         stopEditing();
-        onchange({ ...binding, key, ctrl: false, alt: false, shift: false });
+        onchange({ ...binding, key, ctrl: false, alt: false, shift: false, meta: false });
       }
       return;
     }
@@ -104,35 +116,24 @@
     tempCtrl = e.ctrlKey;
     tempAlt = e.altKey;
     tempShift = e.shiftKey;
+    tempMeta = e.metaKey;
 
-    // Ignore standalone modifier key presses
-    if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) {
+    if (settingsStore.isWindows) {
+      if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
+      let key = e.key;
+      if (e.code.startsWith('Key')) key = e.code.replace('Key', '');
+      else if (e.code.startsWith('Digit')) key = e.code.replace('Digit', '');
+      else if (e.code.startsWith('Numpad')) key = e.code;
+      else if (e.code === 'Space') key = 'Space';
+      else if (e.code.startsWith('Arrow')) key = e.code.replace('Arrow', '');
+      onchange({ ...binding, key, ctrl: tempCtrl, alt: tempAlt, shift: tempShift });
+      stopEditing();
       return;
     }
-
-    // Determine normalized key
-    let keyName = e.key;
-    if (e.code.startsWith('Key')) {
-      keyName = e.code.replace('Key', '');
-    } else if (e.code.startsWith('Digit')) {
-      keyName = e.code.replace('Digit', '');
-    } else if (e.code.startsWith('Numpad')) {
-      keyName = e.code;
-    } else if (e.code === 'Space') {
-      keyName = 'Space';
-    } else if (e.code.startsWith('Arrow')) {
-      keyName = e.code.replace('Arrow', '');
-    }
-
-    onchange({
-      ...binding,
-      key: keyName,
-      ctrl: tempCtrl,
-      alt: tempAlt,
-      shift: tempShift
-    });
-
+    const shortcut = hotkeyBindingFromEvent(e);
+    if (!shortcut) return;
     stopEditing();
+    onchange({ ...binding, ...shortcut });
   }
 
   function handleKeyUp(e: KeyboardEvent) {
@@ -140,6 +141,7 @@
     tempCtrl = e.ctrlKey;
     tempAlt = e.altKey;
     tempShift = e.shiftKey;
+    tempMeta = e.metaKey;
   }
 
   $effect(() => { if (disabled) stopEditing(); });
@@ -154,6 +156,10 @@
   <div class="key-chips-wrapper">
     {#if isEditing}
       <div class="recording-chips">
+        {#if tempMeta}
+          <span class="key-chip modifier">{metaLabel}</span>
+          <span class="chip-separator">+</span>
+        {/if}
         {#if tempCtrl}
           <span class="key-chip modifier">Ctrl</span>
           <span class="chip-separator">+</span>
@@ -168,8 +174,16 @@
         {/if}
         <span class="recording-prompt">{t('settings.pressKeysPrompt')}</span>
       </div>
+    {:else if displayTrigger}
+      <div class="chips-list" bind:clientWidth={chipsWidth}>
+        <span class="key-chip primary-key">{displayTrigger}</span>
+      </div>
     {:else if hasBinding}
       <div class="chips-list" bind:clientWidth={chipsWidth}>
+        {#if binding.meta}
+          <span class="key-chip modifier">{metaLabel}</span>
+          <span class="chip-separator">+</span>
+        {/if}
         {#if binding.ctrl}
           <span class="key-chip modifier">Ctrl</span>
           <span class="chip-separator">+</span>

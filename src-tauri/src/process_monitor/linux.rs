@@ -47,7 +47,7 @@ pub(super) fn snapshot() -> WindowSnapshot {
     let root = connection.setup().roots[screen].root;
     // XWayland may retain a stale active-window property when a native Wayland
     // window has focus. Do not report that as current foreground focus.
-    if std::env::var_os("WAYLAND_DISPLAY").is_none() {
+    if !crate::midi_input::is_wayland() {
         snapshot.foreground_pid = property(&connection, root, b"_NET_ACTIVE_WINDOW")
             .and_then(|ids| ids.first().copied())
             .and_then(|id| window_pid(&connection, id));
@@ -82,7 +82,7 @@ pub(super) fn snapshot() -> WindowSnapshot {
 }
 
 pub fn focus_window_by_pid(pid: u32) -> bool {
-    if pid == 0 || std::env::var_os("WAYLAND_DISPLAY").is_some() {
+    if pid == 0 || crate::midi_input::is_wayland() {
         return false;
     }
     let Ok((connection, screen)) = x11rb::connect(None) else {

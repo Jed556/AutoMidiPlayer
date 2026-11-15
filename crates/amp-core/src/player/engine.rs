@@ -14,6 +14,8 @@ use crate::input::{NoteKeyMapping, KeySimulator};
 use crate::audio::{AudioSynth, SynthMode};
 use enigo::Key;
 use crate::diagnostics::ServiceStatus;
+#[cfg(not(windows))]
+use crate::diagnostics::ServiceState;
 use super::live_input::{LiveInput, LiveInputSnapshot, LiveSettings, MidiMessage};
 use crate::input::simulator::KeyboardOutput;
 use super::note_timing::{is_tap, note_durations, pending_note_owners, KeyReleases, KeyPressAction, OverlapBehavior};
@@ -260,7 +262,7 @@ impl PlaybackEngine {
     pub fn keyboard_status(&self) -> ServiceStatus { self.keyboard_status.lock().unwrap_or_else(|e| e.into_inner()).clone() }
     pub fn observe_keyboard(&self, status: ServiceStatus) { let _ = self.cmd_tx.send(Command::ObserveKeyboard(status)); }
     pub fn midi_start(&self, generation: u64) { let _ = self.cmd_tx.send(Command::MidiStart(generation)); }
-    /// Wait for previously submitted cleanup without involving the UI thread.
+    /// Wait for previously submitted worker commands without involving the UI thread.
     pub fn flush(&self) -> Result<(), String> {
         let (tx, rx) = crossbeam_channel::bounded(1);
         self.cmd_tx.send(Command::Fence(tx)).map_err(|e| e.to_string())?;
@@ -474,6 +476,10 @@ fn run_playback_loop(
     let mut key_sim = KeySimulator::new();
     let mut log_played_notes = false;
     let mut midi = LiveInput::default();
+    // Keyboard failures can outlive an inactive MIDI connection. Keep them
+    // separate so recovering an output never discards a MIDI overflow error.
+    #[cfg(not(windows))]
+    let mut keyboard_error = None;
     let mut repress_gap_ms = crate::settings::defaults::value("/repressGapMs");
     let mut pending_command = None;
     let mut preview_audio = HashMap::<u8, Instant>::new();
@@ -534,13 +540,22 @@ fn run_playback_loop(
     };
 
     loop {
+        #[cfg(not(windows))]
+        let mut fence_reply = None;
+        #[cfg(not(windows))]
+        let mut keyboard_reply = None;
         // 1. Process pending commands
         // A noisy MIDI port must not starve note deadlines or UI snapshots.
         for _ in 0..256 {
             let Some(cmd) = pending_command.take().or_else(|| cmd_rx.try_recv().ok()) else { break };
             match cmd {
                 Command::ObserveKeyboard(status) => key_sim.observe(status),
-                Command::Fence(reply) => { let _ = reply.send(()); }
+                Command::Fence(reply) => {
+                    #[cfg(windows)]
+                    { let _ = reply.send(()); }
+                    #[cfg(not(windows))]
+                    { fence_reply = Some(reply); break; }
+                }
                 Command::MidiStart(generation) => midi.start(generation, &mut key_sim, &audio_synth),
                 Command::MidiStop => midi.stop(&mut key_sim, &audio_synth),
                 Command::MidiGate(allowed) => midi.gate(allowed && send_input && config_available.load(Ordering::Acquire), &mut key_sim, &audio_synth),
@@ -556,10 +571,22 @@ fn run_playback_loop(
                         overlap: overlap_behavior, pedals_enabled,
                     }, &mut key_sim, &audio_synth);
                 }
-                Command::PrepareKeyboard(reply) => { let _ = reply.send(key_sim.prepare()); }
+                Command::PrepareKeyboard(reply) => {
+                    #[cfg(windows)]
+                    { let _ = reply.send(key_sim.prepare()); }
+                    #[cfg(not(windows))]
+                    {
+                        let result = key_sim.prepare();
+                        if result.is_ok() { keyboard_error = None; }
+                        keyboard_reply = Some((reply, result));
+                        break;
+                    }
+                }
                 Command::SetKeyboard(output) => {
                     if !listen_mode { midi.clear(&mut key_sim, &audio_synth); }
                     key_sim.set_output(output);
+                    #[cfg(not(windows))]
+                    if key_sim.is_ready() { keyboard_error = None; }
                 }
                 Command::Play => {
                     if config_available.load(Ordering::Acquire) && status != PlaybackStatus::Playing && current_song.is_some() {
@@ -1024,19 +1051,65 @@ fn run_playback_loop(
         }
 
         midi.snapshot.listen_mode = listen_mode;
-        midi.snapshot.audio_available = audio_synth.is_some();
+        #[cfg(windows)]
+        { midi.snapshot.audio_available = audio_synth.is_some(); }
+        #[cfg(not(windows))]
+        { midi.snapshot.audio_available = audio_synth.as_ref()
+            .is_some_and(|synth| synth.output_status().state == ServiceState::Ready); }
         if !config_available.load(Ordering::Acquire) { midi.gate(false, &mut key_sim, &audio_synth); }
         midi.tick(Instant::now(), &mut key_sim, &audio_synth, repress_gap_ms);
         if let Some(error) = key_sim.take_error() {
             midi.stop(&mut key_sim, &audio_synth);
+            #[cfg(not(windows))]
+            if send_input && !listen_mode && status == PlaybackStatus::Playing {
+                // A missing keyboard backend cannot play the remaining game
+                // notes. Keep the current position available for permission
+                // recovery instead of silently advancing through the song.
+                status = PlaybackStatus::Paused;
+                key_sim.release_all(&all_keys);
+                if let Some(ref synth) = audio_synth { synth.all_notes_off(); }
+                active_notes.clear();
+                active_track_notes.clear();
+                active_held_notes.clear();
+                live_notes.clear();
+                key_releases.clear();
+                restore_notes = false;
+                callback(PlayerEvent::ActiveNotes(Vec::new()));
+                callback(PlayerEvent::ActiveTrackNotes(Vec::new()));
+                pedals = PedalTracker::default();
+                callback(PlayerEvent::PedalsChanged(pedals.state()));
+                *time_arc.lock().unwrap() = current_us;
+                last_sync_us = current_us;
+                callback(PlayerEvent::TimeUpdate { time_us: current_us, seek_id });
+                update_status(status, &status_arc);
+            }
             // Retire a failed backend so permission failures cannot keep
             // stopping a later Listen Mode session.
             key_sim.set_output(None);
-            midi.snapshot.error = Some(error);
+            #[cfg(windows)]
+            { midi.snapshot.error = Some(error); }
+            #[cfg(not(windows))]
+            { keyboard_error = Some(error); }
         }
-        midi.snapshot.keyboard_available = key_sim.is_ready() && midi.snapshot.error.is_none();
+        #[cfg(windows)]
+        { midi.snapshot.keyboard_available = key_sim.is_ready() && midi.snapshot.error.is_none(); }
+        #[cfg(not(windows))]
+        {
+            midi.snapshot.keyboard_available = key_sim.is_ready();
+            if midi.snapshot.keyboard_available { keyboard_error = None; }
+        }
         *keyboard_status.lock().unwrap_or_else(|e| e.into_inner()) = key_sim.status();
-        *midi_snapshot.lock().unwrap_or_else(|e| e.into_inner()) = midi.snapshot.clone();
+        #[cfg(windows)]
+        { *midi_snapshot.lock().unwrap_or_else(|e| e.into_inner()) = midi.snapshot.clone(); }
+        #[cfg(not(windows))]
+        {
+            let mut published = midi.snapshot.clone();
+            if published.error.is_none() { published.error = keyboard_error.clone(); }
+            *midi_snapshot.lock().unwrap_or_else(|e| e.into_inner()) = published;
+            // A barrier must not expose the state from the previous worker cycle.
+            if let Some(reply) = fence_reply { let _ = reply.send(()); }
+            if let Some((reply, result)) = keyboard_reply { let _ = reply.send(result); }
+        }
         let now_preview = Instant::now();
         preview_audio.retain(|&pitch, deadline| {
             if *deadline > now_preview { return true; }

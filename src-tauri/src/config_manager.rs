@@ -259,20 +259,14 @@ fn open_folder_in_explorer(path: &Path) -> Result<(), String> {
     #[cfg(windows)]
     {
         let _ = fs::create_dir_all(path);
-        std::process::Command::new("explorer")
-            .arg(path.as_os_str())
-            .spawn()
-            .map_err(|e| format!("Failed to open explorer: {}", e))?;
+        std::process::Command::new("explorer").arg(path.as_os_str()).spawn()
+            .map_err(|error| format!("Failed to open explorer: {error}"))?;
         Ok(())
     }
     #[cfg(not(windows))]
     {
-        let _ = fs::create_dir_all(path);
-        std::process::Command::new(if cfg!(target_os = "macos") { "open" } else { "xdg-open" })
-            .arg(path.as_os_str())
-            .spawn()
-            .map_err(|e| format!("Failed to open folder: {}", e))?;
-        Ok(())
+        fs::create_dir_all(path).map_err(|error| format!("Failed to create folder: {error}"))?;
+        crate::desktop_open::open_path(path)
     }
 }
 

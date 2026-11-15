@@ -19,17 +19,27 @@ fn main() {
         PathBuf::from(&args[1])
     } else {
         // Fallback to test.mid in the workspace
-        let default_path = PathBuf::from(r"..\MIDIs\test.mid");
-        if default_path.exists() {
-            default_path
-        } else {
-            let alt_path = PathBuf::from(r"C:\Users\Jed556\CodeProjects\GitHub\Games\Auto MIDI Player\MIDIs\test.mid");
-            if alt_path.exists() {
-                alt_path
-            } else {
-                eprintln!("Usage: amp-cli <path-to-midi-file>");
-                std::process::exit(1);
+        #[cfg(windows)]
+        {
+            let default_path = PathBuf::from(r"..\MIDIs\test.mid");
+            if default_path.exists() { default_path } else {
+                let alt_path = PathBuf::from(r"C:\Users\Jed556\CodeProjects\GitHub\Games\Auto MIDI Player\MIDIs\test.mid");
+                if alt_path.exists() { alt_path } else {
+                    eprintln!("Usage: amp-cli <path-to-midi-file>");
+                    std::process::exit(1);
+                }
             }
+        }
+        #[cfg(not(windows))]
+        {
+        let candidates = [
+            PathBuf::from("..").join("MIDIs").join("test.mid"),
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../MIDIs/test.mid"),
+        ];
+        candidates.into_iter().find(|path| path.is_file()).unwrap_or_else(|| {
+            eprintln!("Usage: amp-cli <path-to-midi-file>");
+            std::process::exit(1);
+        })
         }
     };
 
@@ -59,7 +69,10 @@ fn main() {
     // 3. Prepare countdown
     println!("\n------------------------------------------------");
     println!("READY TO PLAY!");
+    #[cfg(windows)]
     println!("Switch to Notepad (or in-game instrument) now!");
+    #[cfg(not(windows))]
+    println!("Switch to your in-game instrument or a text editor now!");
     println!("------------------------------------------------");
 
     for i in (1..=3).rev() {
@@ -80,7 +93,7 @@ fn main() {
     let engine = PlaybackEngine::new(
         Some(parsed),
         mapping,
-        true, // Enable Windows SendInput simulation
+        true, // Enable native keyboard simulation
         None,
         move |event| match event {
             PlayerEvent::NoteHit { note, is_on } => {
@@ -96,6 +109,11 @@ fn main() {
                 is_running_clone.store(false, Ordering::SeqCst);
             }
             PlayerEvent::StateChanged(status) => {
+                #[cfg(not(windows))]
+                if status == PlaybackStatus::Paused {
+                    eprintln!("Playback paused. Check keyboard output permissions.");
+                    is_running_clone.store(false, Ordering::SeqCst);
+                }
                 if status == PlaybackStatus::Stopped {
                     is_running_clone.store(false, Ordering::SeqCst);
                 }
@@ -104,6 +122,12 @@ fn main() {
         },
     );
 
+    #[cfg(not(windows))]
+    if let Err(error) = engine.prepare_keyboard() {
+        eprintln!("Keyboard output is unavailable: {error}");
+        eprintln!("On Wayland, use the desktop app to authorize keyboard access.");
+        return;
+    }
     engine.play();
 
     while is_running.load(Ordering::SeqCst) {

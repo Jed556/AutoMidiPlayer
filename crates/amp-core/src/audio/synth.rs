@@ -395,38 +395,76 @@ fn current_default_device_id() -> Option<cpal::DeviceId> {
         .and_then(|device| device.id().ok())
 }
 
+fn stream_error_requires_rebuild(kind: cpal::ErrorKind) -> bool {
+    #[cfg(windows)]
+    return matches!(kind, cpal::ErrorKind::DeviceNotAvailable | cpal::ErrorKind::StreamInvalidated);
+    #[cfg(not(windows))]
+    matches!(kind,
+        cpal::ErrorKind::DeviceNotAvailable | cpal::ErrorKind::StreamInvalidated
+        | cpal::ErrorKind::HostUnavailable | cpal::ErrorKind::DeviceBusy
+        | cpal::ErrorKind::ResourceExhausted | cpal::ErrorKind::BackendError)
+}
+
 impl OutputSink {
     fn open(
         engine: &Arc<Mutex<SynthEngine>>,
         control_tx: &Sender<OutputControl>,
         status: &Arc<Mutex<ServiceStatus>>,
     ) -> Result<Self, AudioError> {
-        let device = cpal::default_host()
-            .default_output_device()
-            .ok_or_else(|| AudioError::StreamInit("No default output device available".into()))?;
-        let device_id = device.id().ok();
-
         // cpal reports a default-device switch (WASAPI) or a disconnect as a stream error;
         // the stream itself stays bound to the old device, so it has to be rebuilt.
         let error_tx = control_tx.clone();
         let error_status = Arc::clone(status);
         let error_callback = move |err: cpal::Error| match err.kind() {
-            cpal::ErrorKind::DeviceNotAvailable | cpal::ErrorKind::StreamInvalidated => {
+            kind if stream_error_requires_rebuild(kind) => {
                 *error_status.lock().unwrap_or_else(|e| e.into_inner()) = ServiceStatus::with_detail(ServiceState::Reconnecting, &err);
                 log::info!("Audio output stream invalidated ({err}); reopening on default device");
                 let _ = error_tx.send(OutputControl::Rebuild);
             }
             cpal::ErrorKind::Xrun => {}
+            #[cfg(not(windows))]
+            cpal::ErrorKind::DeviceChanged => {}
             _ => log::warn!("Audio output stream error: {err}"),
         };
 
-        let mut stream = DeviceSinkBuilder::from_device(device)
-            .and_then(|builder| builder.with_error_callback(error_callback).open_sink_or_fallback())
-            .or_else(|err| {
-                log::warn!("Failed to open default audio output ({err}); trying other devices");
-                DeviceSinkBuilder::open_default_sink()
-            })
-            .map_err(|e| AudioError::StreamInit(e.to_string()))?;
+        // Keep the established WASAPI selection and fallback behavior intact.
+        #[cfg(windows)]
+        let (device_id, mut stream) = {
+            let device = cpal::default_host().default_output_device()
+                .ok_or_else(|| AudioError::StreamInit("No default output device available".into()))?;
+            let device_id = device.id().ok();
+            let stream = DeviceSinkBuilder::from_device(device)
+                .and_then(|builder| builder.with_error_callback(error_callback).open_sink_or_fallback())
+                .or_else(|err| {
+                    log::warn!("Failed to open default audio output ({err}); trying other devices");
+                    DeviceSinkBuilder::open_default_sink()
+                })
+                .map_err(|e| AudioError::StreamInit(e.to_string()))?;
+            (device_id, stream)
+        };
+        #[cfg(not(windows))]
+        let (device_id, mut stream) = {
+            let host = cpal::default_host();
+            let default_device = host.default_output_device();
+            let device_id = default_device.as_ref().and_then(|device| device.id().ok());
+            let open_device = |device| DeviceSinkBuilder::from_device(device)
+                .and_then(|builder| builder.with_error_callback(error_callback.clone()).open_sink_or_fallback());
+            let stream = default_device
+                .ok_or(rodio::DeviceSinkError::NoDevice)
+                .and_then(&open_device)
+                .or_else(|original_error| {
+                    // Keep our recovery callback on fallback streams as well. Rodio's
+                    // open_default_sink installs its own logging-only callback.
+                    log::warn!("Failed to open default audio output ({original_error}); trying other devices");
+                    host.output_devices().ok().and_then(|devices| devices
+                        .filter(|device| device.description().ok()
+                            .is_some_and(|description| description.driver() != Some("null")))
+                        .find_map(|device| open_device(device).ok()))
+                        .ok_or(original_error)
+                })
+                .map_err(|e| AudioError::StreamInit(e.to_string()))?;
+            (device_id, stream)
+        };
         stream.log_on_drop(false);
 
         let player = Player::connect_new(stream.mixer());
@@ -506,12 +544,16 @@ fn supervise_output<S>(
         // Release the old device before opening the new one.
         drop(current.take());
 
+        #[cfg(not(windows))]
+        if recovering_from_outage {
+            // Opening a sink starts its callback immediately. Clear notes queued
+            // during the outage before that callback can play them in a burst.
+            maintain_engine(true);
+        }
         match open() {
             Ok(sink) => {
-                if recovering_from_outage {
-                    // Notes queued while no device was available would otherwise all fire at once.
-                    maintain_engine(true);
-                }
+                #[cfg(windows)]
+                if recovering_from_outage { maintain_engine(true); }
                 current = Some(sink);
                 *status.lock().unwrap_or_else(|e| e.into_inner()) = ServiceStatus::new(ServiceState::Ready);
             }
@@ -535,6 +577,8 @@ pub struct AudioDevice {
 }
 
 impl AudioDevice {
+    /// On Linux and macOS, starts the synthesizer even without a usable output;
+    /// the output status reports the outage while the supervisor retries devices.
     pub fn new(initial_soundfont: Option<Arc<SoundFont>>) -> Result<Self, AudioError> {
         let (cmd_tx, cmd_rx) = unbounded::<AudioCommand>();
         let engine = Arc::new(Mutex::new(SynthEngine::new(initial_soundfont, cmd_rx)));
@@ -547,15 +591,28 @@ impl AudioDevice {
         let thread_control_tx = control_tx.clone();
         let supervisor = std::thread::Builder::new()
             .name("audio-output".into())
-            .spawn(move || match OutputSink::open(&engine, &thread_control_tx, &status) {
-                Ok(sink) => {
-                    *status.lock().unwrap_or_else(|e| e.into_inner()) = ServiceStatus::new(ServiceState::Ready);
-                    let _ = init_tx.send(Ok(()));
-                    run_output_supervisor(Some(sink), engine, thread_control_tx, control_rx, status);
-                }
-                Err(err) => {
-                    let _ = init_tx.send(Err(err));
-                }
+            .spawn(move || {
+                let current = match OutputSink::open(&engine, &thread_control_tx, &status) {
+                    Ok(sink) => {
+                        *status.lock().unwrap_or_else(|e| e.into_inner()) = ServiceStatus::new(ServiceState::Ready);
+                        Some(sink)
+                    }
+                    Err(err) => {
+                        #[cfg(windows)]
+                        {
+                            let _ = init_tx.send(Err(err));
+                            return;
+                        }
+                        #[cfg(not(windows))]
+                        {
+                            *status.lock().unwrap_or_else(|e| e.into_inner()) = ServiceStatus::with_detail(ServiceState::Unavailable, &err);
+                            log::warn!("Audio output unavailable at startup, will retry: {err}");
+                            None
+                        }
+                    }
+                };
+                let _ = init_tx.send(Ok(()));
+                run_output_supervisor(current, engine, thread_control_tx, control_rx, status);
             })
             .map_err(|e| AudioError::StreamInit(e.to_string()))?;
 

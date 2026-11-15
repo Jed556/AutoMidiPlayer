@@ -45,7 +45,7 @@ See the [Support wiki page][wiki-support] for details on supported games, instru
 5. Turn on **Listen Mode** to hear the song through your speakers first. Adjust the key, transpose, speed, and note settings as needed.
 6. To play in-game, open the game's instrument, turn Listen Mode off, and press **Play**. AMP tries to focus the selected game on Windows, macOS, and X11; losing game focus pauses playback.
 
-On **Wayland**, game output requires permission through the desktop's keyboard portal. It sends keys to the focused app and cannot identify the game, so bring the game to the foreground yourself. See [Getting Started][wiki-getting-started] for platform permissions and troubleshooting.
+On **Wayland**, game output requires permission through the desktop's Remote Desktop portal, independently of physical MIDI input. After allowing keyboard access, switch to the game within 30 seconds; song playback waits until AMP loses focus. It sends keys to the focused app and cannot identify the game. Global hotkeys use the desktop's Global Shortcuts portal and show the desktop-approved bindings in Settings. Desktops without either portal report the unavailable feature. See [Getting Started][wiki-getting-started] for platform permissions and troubleshooting.
 
 On **macOS**, the app isn't notarized, so the first launch is blocked by Gatekeeper. Open it once, then click **Open Anyway** in **System Settings → Privacy & Security** (or run `xattr -cr "/Applications/Auto MIDI Player.app"`). If game keys stop working after an update, re-enable AMP under **Privacy & Security → Accessibility**. See [First launch on macOS][wiki-macos-first-launch].
 

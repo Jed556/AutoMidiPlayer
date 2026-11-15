@@ -659,3 +659,52 @@ test('hotkey rows synchronize label width to leftmost hotkey chips position when
   assert.equal(computeHotkeyLabelWidth(200, 158), 0);
 });
 
+test('hotkey registration failures are visible once and stale permission replies cannot replace newer settings', async () => {
+  const h = await harness();
+  await h.store.init();
+  h.api.settings.updateGlobalHotkeys = async () => { throw new Error('Permission denied'); };
+  await h.store.syncHotkeys();
+  await h.store.syncHotkeys();
+  assert.equal(h.errors.length, 1);
+  assert.match(h.errors[0][1], /Permission denied/);
+
+  let rejectPending;
+  let disabled = false;
+  h.api.settings.updateGlobalHotkeys = (enabled) => enabled
+    ? new Promise((_, reject) => { rejectPending = reject; })
+    : Promise.resolve(disabled = true);
+  const pending = h.store.syncHotkeys();
+  await h.store.suspendHotkeys();
+  assert.equal(disabled, true, 'Disabling cannot wait behind a desktop permission prompt');
+  rejectPending(new Error('Old authorization cancelled'));
+  await pending;
+  assert.equal(h.errors.length, 1);
+});
+
+test('desktop-selected shortcut triggers are displayed without overwriting the requested binding', async () => {
+  const h = await harness();
+  let bindingsChanged;
+  h.api.settings.onHotkeyBindingsChanged = callback => { bindingsChanged = callback; };
+  await h.store.init();
+  const requested = JSON.parse(JSON.stringify(h.store.settings.hotkeys));
+  bindingsChanged([{ action: 'PlayPause', trigger: 'Ctrl+Alt+P' }]);
+  assert.equal(h.store.hotkeyTriggers.PlayPause, 'Ctrl+Alt+P');
+  assert.deepEqual(h.store.settings.hotkeys, requested);
+  bindingsChanged([]);
+  assert.deepEqual(h.store.hotkeyTriggers, {});
+});
+
+test('Windows hotkey sync keeps its native bindings and does not invoke a portal read', async () => {
+  const h = await harness();
+  h.store.isWindows = true;
+  const calls = [];
+  h.api.settings.updateGlobalHotkeys = async (enabled, bindings) => { calls.push([enabled, bindings]); return true; };
+  h.api.settings.getHotkeyBindings = () => { throw new Error('Windows must not read desktop portal bindings'); };
+  await h.store.syncHotkeys();
+  await h.store.suspendHotkeys();
+  await h.store.resumeHotkeys();
+  assert.deepEqual(calls.map(call => call[0]), [true, false, true]);
+  assert.ok(calls.every(call => call[1] === h.store.settings.hotkeys));
+  assert.deepEqual(h.errors, []);
+});
+

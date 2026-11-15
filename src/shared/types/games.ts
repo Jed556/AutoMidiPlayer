@@ -63,6 +63,7 @@ export interface GameStatus {
   isRunning: boolean;
   isFocused: boolean;
   pid?: number | null;
+  requiresManualFocus?: boolean;
 }
 
 export interface ConfigIssue {
@@ -80,5 +81,6 @@ export interface GameInfo extends GameDefinition {
   isRunning: boolean;
   isFocused?: boolean;
   pid?: number;
+  requiresManualFocus?: boolean;
   customExecutablePath?: string;
 }

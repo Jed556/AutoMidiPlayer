@@ -134,3 +134,60 @@ fn native_output_revocation_deactivates_input_without_another_midi_packet() {
     assert!(engine.midi_snapshot().pitches.is_empty());
     assert_eq!(engine.midi_snapshot().error.as_deref(), Some("keyboard access revoked"));
 }
+
+#[cfg(not(windows))]
+#[test]
+fn keyboard_replacement_recovers_without_restarting_a_midi_connection() {
+    struct Revoked;
+    impl KeyboardOutput for Revoked {
+        fn key(&mut self, _: OutputKey, _: bool) -> Result<(), String> { Ok(()) }
+        fn error(&self) -> Option<String> { Some("keyboard access revoked".into()) }
+    }
+    let engine = PlaybackEngine::new(None, NoteKeyMapping::new(KeyboardLayout::Diatonic21), true, None, |_| {});
+    engine.set_keyboard_output(Some(Box::new(Revoked)));
+    engine.flush().unwrap();
+    assert_eq!(engine.midi_snapshot().error.as_deref(), Some("keyboard access revoked"));
+    assert!(!engine.midi_snapshot().keyboard_available);
+
+    engine.set_keyboard_output(Some(Box::new(Output(Arc::default()))));
+    engine.flush().unwrap();
+    let snapshot = engine.midi_snapshot();
+    assert!(snapshot.keyboard_available, "a healthy song-only output must be usable after retry");
+    assert!(snapshot.error.is_none());
+    assert!(!snapshot.active, "preparing game output must not start physical MIDI input");
+    engine.prepare_keyboard().unwrap();
+    assert!(engine.midi_snapshot().keyboard_available);
+}
+
+#[cfg(not(windows))]
+#[test]
+fn keyboard_recovery_preserves_midi_errors_and_barriers_publish_output_mode() {
+    let engine = PlaybackEngine::new(None, NoteKeyMapping::new(KeyboardLayout::Diatonic21), true, None, |_| {});
+    engine.set_keyboard_output(Some(Box::new(Output(Arc::default()))));
+    engine.set_listen_mode(true);
+    engine.midi_start(1);
+    engine.flush().unwrap();
+    assert!(engine.midi_snapshot().listen_mode);
+
+    // Fill unmatched attacks without overflowing the transport queue. This
+    // stops input with a real MIDI error independently of keyboard readiness.
+    for batch in 0..33 {
+        for _ in 0..if batch == 32 { 1 } else { 128 } {
+            engine.midi_message(1, on(60));
+        }
+        engine.flush().unwrap();
+    }
+    let overflow = engine.midi_snapshot().error.expect("MIDI overflow must be reported");
+    assert!(overflow.contains("MIDI input overflow"));
+    engine.set_keyboard_output(Some(Box::new(Output(Arc::default()))));
+    engine.prepare_keyboard().unwrap();
+    assert!(engine.midi_snapshot().keyboard_available);
+    assert_eq!(engine.midi_snapshot().error.as_deref(), Some(overflow.as_str()));
+
+    for listen in [false, true, false] {
+        engine.set_listen_mode(listen);
+        engine.flush().unwrap();
+        assert_eq!(engine.midi_snapshot().listen_mode, listen,
+            "flush must publish prior mode commands before returning");
+    }
+}

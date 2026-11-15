@@ -74,6 +74,7 @@ class PlaybackStore {
   private queueRevision = 0;
   private queueReadId = 0;
   private nextAfterRemovalId: string | null = null;
+  private playRequestRevision = 0;
   private removedActiveSongId: string | null = null;
   private lastSessionSnapshot = '';
 
@@ -886,18 +887,24 @@ class PlaybackStore {
 
   async setListenMode(enabled: boolean) {
     if (this.isListenMode === enabled) return;
+    if (settingsStore.isWindows) {
+      this.isListenMode = enabled;
+      await api.playback.setListenMode(this.isListenMode);
+      return;
+    }
+    await api.playback.setListenMode(enabled);
     this.isListenMode = enabled;
-    await api.playback.setListenMode(this.isListenMode);
   }
 
   async toggleListenMode() {
     const target = !this.isListenMode;
+    const wasPlaying = this.isPlaying;
 
     // If user turns Listen Mode off while currently playing and no game is running,
     // pause immediately so auto-enable doesn't flip it back on mid-playback.
     if (!target && this.isPlaying) {
       const isGameRunning = gameStore.activeGame?.isRunning ?? false;
-      if (!isGameRunning) {
+      if (!isGameRunning && !gameStore.activeGame?.requiresManualFocus) {
         await this.setListenMode(false);
         await this.pause();
         const gameName = gameStore.activeGame?.displayName || 'Game';
@@ -915,7 +922,9 @@ class PlaybackStore {
       this.isListenMode ? 'Synthesizer audio active (keystrokes muted)' : 'Keystroke simulation active (synth muted)'
     );
 
-    if (!target && this.isPlaying) {
+    if (!settingsStore.isWindows && !target && wasPlaying) {
+      await this.play();
+    } else if (!target && this.isPlaying) {
       const isGameRunning = gameStore.activeGame?.isRunning ?? false;
       if (isGameRunning) {
         await gameStore.focusActiveGame();
@@ -932,7 +941,7 @@ class PlaybackStore {
     const gameName = activeGame?.displayName || 'Game';
 
     // Mid-playback checks when playing in Game Mode (keystroke simulation):
-    if (this.isPlaying && !this.isListenMode) {
+    if (this.isPlaying && !this.isListenMode && !activeGame.requiresManualFocus) {
       if (this._lastActiveGameRunning === true && !isRunning) {
         this.pause();
         notificationCenter.info('Playback paused', `${gameName} is not running.`);
@@ -1156,6 +1165,7 @@ class PlaybackStore {
 
   async play(song?: MidiFile) {
     if (this.isChangingSongContext) return;
+    const playRequest = ++this.playRequestRevision;
     if (gameStore.hasDeletedSelection) {
       notificationCenter.warning('Playback unavailable', gameStore.layoutDeletionTooltip);
       return;
@@ -1165,7 +1175,7 @@ class PlaybackStore {
     this.cancelSongFinish();
 
     // Check game running state if not in listen mode (matching WPF StartPlayback / HandleGameNotRunning)
-    if (!this.isListenMode) {
+    if (!this.isListenMode && !gameStore.activeGame?.requiresManualFocus) {
       const isGameRunning = gameStore.activeGame?.isRunning ?? false;
       if (!isGameRunning) {
         const gameName = gameStore.activeGame?.displayName || 'Game';
@@ -1230,11 +1240,29 @@ class PlaybackStore {
 
     if (song && !isNewSong && isPathLoaded) await this.seek(0);
 
+    // A pause/stop during a load must not restart playback after the load finishes.
+    if (!settingsStore.isWindows && playRequest !== this.playRequestRevision) return;
+    if (settingsStore.isWindows) {
+      this.status = 'Playing';
+      await api.playback.play(targetSong.id);
+      return;
+    }
+    if (!this.isListenMode && gameStore.activeGame?.requiresManualFocus) {
+      notificationCenter.info('Switch to your game', 'Allow keyboard access if prompted, then switch to the game within 30 seconds. Playback starts after AMP loses focus.');
+    }
+    const previousStatus = this.status;
     this.status = 'Playing';
-    await api.playback.play(targetSong.id);
+    try {
+      await api.playback.play(targetSong.id);
+    } catch (error) {
+      if (playRequest !== this.playRequestRevision) return;
+      if (this.status === 'Playing') this.status = previousStatus;
+      if (!String(error).includes('cancelled')) notificationCenter.error('Unable to start playback', String(error));
+    }
   }
 
   async pause() {
+    this.playRequestRevision++;
     this.cancelSongFinish();
     this.status = 'Paused';
     await api.playback.pause();
@@ -1270,6 +1298,7 @@ class PlaybackStore {
   }
 
   async stop() {
+    this.playRequestRevision++;
     this.cancelSongFinish();
     this.cancelSeekAnim();
     this.status = 'Stopped';

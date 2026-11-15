@@ -651,3 +651,72 @@ fn output_supervisor_reports_outage_recovery_and_shutdown_without_a_device() {
     worker.join().unwrap();
     assert_state(ServiceState::Inactive);
 }
+
+#[test]
+#[cfg(not(windows))]
+fn output_supervisor_recovers_from_missing_startup_device_before_playing_queued_notes() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let status = Arc::new(Mutex::new(ServiceStatus::with_detail(
+        ServiceState::Unavailable, "No output device at startup")));
+    let worker_status = status.clone();
+    let (control, receiver) = unbounded();
+    let (maintenance, observations) = unbounded();
+    let (opened, attempts) = unbounded();
+    let cleared = Arc::new(AtomicBool::new(false));
+    let cleared_before_open = cleared.clone();
+    let worker = std::thread::spawn(move || supervise_output(None::<()>, receiver, worker_status,
+        || {
+            assert!(cleared_before_open.load(Ordering::Acquire),
+                "stale notes must be cleared before a new sink starts its callback");
+            opened.send(()).unwrap();
+            Ok(())
+        },
+        |_| false,
+        |recovering| {
+            if recovering { cleared.store(true, Ordering::Release); }
+            maintenance.send(recovering).unwrap();
+        }, Duration::ZERO));
+
+    assert!(!observations.recv_timeout(Duration::from_secs(2)).unwrap(),
+        "synth commands must be processed even without an output");
+    control.send(OutputControl::Rebuild).unwrap();
+    assert!(observations.recv_timeout(Duration::from_secs(2)).unwrap());
+    attempts.recv_timeout(Duration::from_secs(2)).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while status.lock().unwrap().state != ServiceState::Ready {
+        assert!(Instant::now() < deadline);
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    assert!(status.lock().unwrap().detail.is_none());
+    control.send(OutputControl::Shutdown).unwrap();
+    worker.join().unwrap();
+    assert_eq!(status.lock().unwrap().state, ServiceState::Inactive);
+}
+
+#[test]
+#[cfg(not(windows))]
+fn output_recovery_includes_linux_server_and_backend_failures_but_preserves_live_routes() {
+    use cpal::ErrorKind;
+    for kind in [ErrorKind::DeviceNotAvailable, ErrorKind::StreamInvalidated,
+        ErrorKind::HostUnavailable, ErrorKind::DeviceBusy,
+        ErrorKind::ResourceExhausted, ErrorKind::BackendError] {
+        assert!(stream_error_requires_rebuild(kind), "must reopen after {kind}");
+    }
+    for kind in [ErrorKind::Xrun, ErrorKind::DeviceChanged, ErrorKind::RealtimeDenied] {
+        assert!(!stream_error_requires_rebuild(kind), "stream is still running after {kind}");
+    }
+}
+
+#[test]
+#[cfg(windows)]
+fn windows_output_keeps_the_existing_device_invalidation_recovery_policy() {
+    use cpal::ErrorKind;
+    for kind in [ErrorKind::DeviceNotAvailable, ErrorKind::StreamInvalidated] {
+        assert!(stream_error_requires_rebuild(kind));
+    }
+    for kind in [ErrorKind::HostUnavailable, ErrorKind::DeviceBusy,
+        ErrorKind::ResourceExhausted, ErrorKind::BackendError,
+        ErrorKind::Xrun, ErrorKind::DeviceChanged, ErrorKind::RealtimeDenied] {
+        assert!(!stream_error_requires_rebuild(kind));
+    }
+}

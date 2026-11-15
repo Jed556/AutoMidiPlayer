@@ -156,6 +156,17 @@ fn pedal_recording_named_keys_resolve_to_native_keys() {
     }
 }
 
+#[cfg(not(windows))]
+#[test]
+fn unix_modifier_names_resolve_to_native_keys() {
+    for (binding, key) in [
+        ("Option", Key::Alt), ("Command", Key::Meta), ("Cmd", Key::Meta),
+        ("Super", Key::Meta), ("Windows", Key::Meta),
+    ] {
+        assert_eq!(parse_key_stroke(binding), Some(KeyStroke::plain(key)), "{binding}");
+    }
+}
+
 #[test]
 fn pigstep_regression_preserves_playable_pitches_with_smart_off() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

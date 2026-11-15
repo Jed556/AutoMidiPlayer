@@ -336,10 +336,13 @@ export function createAppApi(): AppWindowApi {
         return selection ? (Array.isArray(selection) ? selection[0] ?? null : selection) : null;
       },
       browseGameExecutable: async () => {
+        if (!isTauriEnvironment) return null;
         const { open } = await import('@tauri-apps/plugin-dialog');
+        const snapshot = await invokeTauri<SystemSnapshot>('System', 'get_system_snapshot', undefined);
         const selection = await open({
           multiple: false,
-          filters: [{ name: 'Game Executable', extensions: ['exe'] }],
+          filters: snapshot.environment.desktopSession === 'windows'
+            ? [{ name: 'Game Executable', extensions: ['exe'] }] : undefined,
         });
         return Array.isArray(selection) ? selection[0] ?? null : selection;
       },
@@ -358,6 +361,9 @@ export function createAppApi(): AppWindowApi {
       getAppVersion: () => invokeTauri<string>('Version', 'get_app_version', undefined),
       updateGlobalHotkeys: (enabled, bindings) =>
         invokeTauri<boolean>('Hotkeys', 'update_global_hotkeys', { enabled, bindings }),
+      onHotkeyBindingsChanged: (callback) => listenTauri('hotkeys:bindings_changed', callback),
+      getHotkeyBindings: () => invokeTauri('Hotkeys', 'get_hotkey_bindings', undefined),
+      onHotkeyError: (callback) => listenTauri('hotkeys:error', callback),
       updateSongDefaults: (defaults, applyToExisting) =>
         invokeTauri<boolean>('Settings', 'update_song_defaults', { defaults, applyToExisting }),
     },

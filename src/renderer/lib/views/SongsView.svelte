@@ -303,12 +303,12 @@
     uiStore.openDialog('edit', song);
   }
 
-  // Track scroll position to transition sticky table header from transparent to solid
+  // Track scroll position to transition sticky headers from transparent to solid
   let isScrolled = $state(false);
 
   function handleViewScroll(e: Event) {
     const el = e.currentTarget as HTMLElement;
-    isScrolled = el.scrollTop > 200;
+    isScrolled = el.scrollTop > 140;
   }
 </script>
 
@@ -487,6 +487,8 @@
 
 <style>
   :global(.songs-view) {
+    --action-bar-height: 64px;
+    --song-table-header-top: var(--action-bar-height);
     height: 100%;
     width: 100%;
     position: relative;
@@ -774,12 +776,16 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    height: var(--action-bar-height, 64px);
+    box-sizing: border-box;
     padding: 12px 20px;
     background: transparent;
     flex-shrink: 0;
     gap: 16px;
-    position: relative;
-    z-index: 1;
+    position: sticky;
+    top: 0;
+    z-index: 16;
+    transition: background-color var(--anim-normal, 0.20s) ease;
   }
 
   .action-left {
@@ -791,6 +797,14 @@
   /* Raise the containing stacking context above the sticky song header too. */
   .action-bar.sort-menu-open {
     z-index: 2147483646; /* TooltipHost uses 2147483647. */
+  }
+
+  :global(.songs-view:not(.is-scrolled)) .action-bar {
+    background: transparent;
+  }
+
+  :global(.songs-view.is-scrolled) .action-bar {
+    background: var(--surface-color, #121212);
   }
 
   .action-right {
@@ -845,6 +859,10 @@
 
   .play-all-btn:active {
     transform: scale(0.97);
+  }
+
+  :global(.songs-view .song-list-container.embedded .table-header) {
+    top: var(--action-bar-height, 64px);
   }
 
   :global(.songs-view:not(.is-scrolled) .song-list-container.embedded .table-header) {

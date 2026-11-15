@@ -4,6 +4,12 @@ use std::time::{Duration, Instant};
 use super::mapping::KeyStroke;
 use crate::diagnostics::{ServiceState, ServiceStatus};
 
+#[cfg(any(target_os = "linux", test))]
+fn wayland_session(display: Option<&std::ffi::OsStr>, session_type: Option<&std::ffi::OsStr>) -> bool {
+    display.is_some_and(|value| !value.is_empty())
+        || session_type.is_some_and(|value| value.to_string_lossy().eq_ignore_ascii_case("wayland"))
+}
+
 /// Keep physical pedal holds separate from timed note taps. Several MIDI
 /// channels (or pedals sharing a binding) can own the same held game key.
 #[derive(Default)]
@@ -94,11 +100,22 @@ impl KeySimulator {
     }
 
     pub fn prepare(&mut self) -> Result<(), String> {
+        #[cfg(windows)]
         if self.output.is_some() { return Ok(()); }
+        #[cfg(not(windows))]
+        if let Some(output) = &self.output {
+            // A created backend can lose its permission or portal session.
+            // In particular, CGEventPost does not report Accessibility denial.
+            if let Some(error) = output.error() {
+                self.observation = ServiceStatus::with_detail(output.failure_state(), &error);
+                return Err(error);
+            }
+            return Ok(());
+        }
         #[cfg(target_os = "linux")]
-        if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+        if wayland_session(std::env::var_os("WAYLAND_DISPLAY").as_deref(), std::env::var_os("XDG_SESSION_TYPE").as_deref()) {
             self.observation = ServiceStatus::new(ServiceState::PermissionRequired);
-            return Err("Wayland keyboard output requires an authorized MIDI input session.".into());
+            return Err("Wayland keyboard output requires an authorized desktop keyboard session.".into());
         }
         self.output = Some(Box::new(EnigoOutput(Enigo::new(&Settings::default()).map_err(|error| {
             let state = if matches!(error, enigo::NewConError::NoPermission) { ServiceState::PermissionRequired } else { ServiceState::Unavailable };
@@ -115,6 +132,10 @@ impl KeySimulator {
     pub fn set_output(&mut self, output: Option<Box<dyn KeyboardOutput>>) {
         self.release_everything();
         self.output = output;
+        // Failed releases belong to the retired backend. A replacement must
+        // not inherit ownership for keys that it has never pressed.
+        #[cfg(not(windows))]
+        for keys in &mut self.owners { keys.clear(); }
         self.error = None;
         if self.output.is_some() { self.observation = ServiceStatus::new(ServiceState::Ready); }
         else if self.observation.state == ServiceState::Ready { self.observation = ServiceStatus::new(ServiceState::Inactive); }
@@ -134,10 +155,16 @@ impl KeySimulator {
     }
 
     pub fn is_ready(&self) -> bool {
-        self.output.as_ref().is_some_and(|output| output.error().is_none())
+        #[cfg(windows)]
+        { self.output.as_ref().is_some_and(|output| output.error().is_none()) }
+        #[cfg(not(windows))]
+        {
+        self.error.is_none() && self.output.as_ref().is_some_and(|output| output.error().is_none())
+        }
     }
 
     // 0: song notes, 1: song pedals, 2: live notes, 3: live pedals, 4: previews.
+    #[cfg(windows)]
     pub fn send_owned_key(&mut self, source: usize, key: Key, up: bool) {
         if up {
             if !self.owners[source].remove(&key) { return; }
@@ -147,6 +174,33 @@ impl KeySimulator {
         if self.owners.iter().enumerate().any(|(i, keys)| i != source && keys.contains(&key)) { return; }
         let result = self.prepare().and_then(|_| self.output.as_mut().unwrap().key(key, up));
         if let Err(error) = result { self.error = Some(error); }
+    }
+
+    #[cfg(not(windows))]
+    pub fn send_owned_key(&mut self, source: usize, key: Key, up: bool) {
+        if up && !self.owners[source].contains(&key) { return; }
+        let shared = self.owners.iter().enumerate().any(|(i, keys)| i != source && keys.contains(&key));
+        if shared {
+            if up { self.owners[source].remove(&key); }
+            else { self.owners[source].insert(key); }
+            return;
+        }
+        let result = if up {
+            // Revocation blocks new presses, but cleanup should still attempt
+            // a key-up on the backend that owns the hold.
+            self.output.as_mut().map_or(Ok(()), |output| output.key(key, true))
+        } else {
+            self.prepare().and_then(|_| self.output.as_mut().unwrap().key(key, false))
+        };
+        match result {
+            Ok(()) => {
+                if up { self.owners[source].remove(&key); }
+                else { self.owners[source].insert(key); }
+            }
+            // Keep failed releases owned so stop/retirement can retry them.
+            // Failed presses must not suppress another source's key-down.
+            Err(error) => self.error = Some(error),
+        }
     }
 
     pub fn release_source(&mut self, source: usize) {
@@ -211,6 +265,50 @@ mod tests {
     fn key(c: char) -> Key { char_to_key(c).unwrap() }
 
     #[test]
+    fn wayland_detection_ignores_empty_display_and_accepts_session_type() {
+        use std::ffi::OsStr;
+        assert!(!wayland_session(None, None));
+        assert!(!wayland_session(Some(OsStr::new("")), Some(OsStr::new("x11"))));
+        assert!(wayland_session(Some(OsStr::new("wayland-0")), None));
+        assert!(wayland_session(None, Some(OsStr::new("Wayland"))));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_preserves_existing_backend_prepare_and_failure_ownership() {
+        use std::sync::{Arc, Mutex};
+        struct Output(Arc<Mutex<Vec<(Key, bool)>>>);
+        impl KeyboardOutput for Output {
+            fn key(&mut self, key: Key, up: bool) -> Result<(), String> {
+                self.0.lock().unwrap().push((key, up));
+                if up { Ok(()) } else { Err("output failed".into()) }
+            }
+        }
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let mut sim = KeySimulator::new();
+        sim.set_output(Some(Box::new(Output(events.clone()))));
+        let key = key('a');
+        sim.send_owned_key(0, key, false);
+        assert!(sim.owners[0].contains(&key));
+        assert!(sim.is_ready(), "Windows readiness retains its backend health semantics");
+        sim.send_owned_key(2, key, false);
+        assert_eq!(*events.lock().unwrap(), [(key, false)]);
+        sim.release_source(0);
+        sim.release_source(2);
+        assert_eq!(*events.lock().unwrap(), [(key, false), (key, true)]);
+        assert_eq!(sim.take_error().as_deref(), Some("output failed"));
+
+        struct Revoked;
+        impl KeyboardOutput for Revoked {
+            fn key(&mut self, _: Key, _: bool) -> Result<(), String> { Ok(()) }
+            fn error(&self) -> Option<String> { Some("unavailable".into()) }
+        }
+        sim.set_output(Some(Box::new(Revoked)));
+        assert!(sim.prepare().is_ok(), "Windows keeps existing-backend preparation unchanged");
+        assert!(!sim.is_ready());
+    }
+
+    #[test]
     fn source_release_preserves_other_keys_and_reports_output_failure() {
         use std::sync::{Arc, Mutex};
         struct Output(Arc<Mutex<Vec<(Key, bool)>>>);
@@ -260,6 +358,95 @@ mod tests {
         sim.observe(ServiceStatus::new(ServiceState::PermissionRequired));
         assert_eq!(sim.status().state, ServiceState::PermissionRequired);
         assert!(sim.output.is_none());
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn prepare_rejects_revoked_permissions_without_sending_native_events() {
+        struct Revoked;
+        impl KeyboardOutput for Revoked {
+            fn key(&mut self, _: Key, _: bool) -> Result<(), String> {
+                panic!("revoked output must not receive key events");
+            }
+            fn error(&self) -> Option<String> { Some("keyboard permission revoked".into()) }
+            fn failure_state(&self) -> ServiceState { ServiceState::PermissionRequired }
+        }
+        let mut sim = KeySimulator::new();
+        sim.set_output(Some(Box::new(Revoked)));
+        assert!(!sim.is_ready());
+        assert_eq!(sim.prepare().unwrap_err(), "keyboard permission revoked");
+        assert_eq!(sim.status().state, ServiceState::PermissionRequired);
+        sim.send_owned_key(2, key('a'), false);
+        assert_eq!(sim.take_error().as_deref(), Some("keyboard permission revoked"));
+        assert!(sim.owners[2].is_empty());
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn failed_press_does_not_claim_a_key_or_suppress_another_source() {
+        use std::sync::{Arc, Mutex};
+        struct Output(Arc<Mutex<Vec<(Key, bool)>>>);
+        impl KeyboardOutput for Output {
+            fn key(&mut self, key: Key, up: bool) -> Result<(), String> {
+                let mut events = self.0.lock().unwrap();
+                events.push((key, up));
+                if events.len() == 1 { Err("temporary output failure".into()) }
+                else { Ok(()) }
+            }
+        }
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let mut sim = KeySimulator::new();
+        sim.set_output(Some(Box::new(Output(events.clone()))));
+        let key = key('a');
+        sim.send_owned_key(0, key, false);
+        assert!(!sim.is_ready());
+        assert!(sim.owners[0].is_empty());
+        sim.send_owned_key(2, key, false);
+        sim.release_source(2);
+        assert_eq!(*events.lock().unwrap(), [(key, false), (key, false), (key, true)]);
+        assert_eq!(sim.take_error().as_deref(), Some("temporary output failure"));
+        assert!(sim.is_ready());
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn failed_release_is_retried_before_backend_replacement() {
+        use std::sync::{Arc, Mutex};
+        struct Output(Arc<Mutex<Vec<(Key, bool)>>>);
+        impl KeyboardOutput for Output {
+            fn key(&mut self, key: Key, up: bool) -> Result<(), String> {
+                let mut events = self.0.lock().unwrap();
+                events.push((key, up));
+                if events.len() == 2 { Err("temporary release failure".into()) }
+                else { Ok(()) }
+            }
+        }
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let mut sim = KeySimulator::new();
+        sim.set_output(Some(Box::new(Output(events.clone()))));
+        let key = key('a');
+        sim.send_owned_key(0, key, false);
+        sim.release_source(0);
+        assert!(sim.owners[0].contains(&key));
+        sim.set_output(None);
+        assert_eq!(*events.lock().unwrap(), [(key, false), (key, true), (key, true)]);
+        assert!(sim.owners.iter().all(HashSet::is_empty));
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn replacement_does_not_inherit_unreleased_keys_from_the_old_backend() {
+        struct Disconnected;
+        impl KeyboardOutput for Disconnected {
+            fn key(&mut self, _: Key, up: bool) -> Result<(), String> {
+                if up { Err("disconnected".into()) } else { Ok(()) }
+            }
+        }
+        let mut sim = KeySimulator::new();
+        sim.set_output(Some(Box::new(Disconnected)));
+        sim.send_owned_key(0, key('a'), false);
+        sim.set_output(None);
+        assert!(sim.owners.iter().all(HashSet::is_empty));
     }
 
     fn bindings() -> [Option<KeyStroke>; 3] {

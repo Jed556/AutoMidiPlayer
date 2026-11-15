@@ -2,7 +2,7 @@ import type { MidiFile } from './midi.js';
 import type { PlaybackStatus } from './playback.js';
 import type { MediaControlAction, MediaControlsSnapshot } from './mediaControls.js';
 import type { GameInfo, GameStatus, GameConfigState, KeyboardLayoutConfig } from './games.js';
-import type { AppSettings, PedalBindings } from './settings.js';
+import type { AppSettings, HotkeyBinding, DesktopHotkeyBinding, PedalBindings } from './settings.js';
 import type { OnlineMidiItem } from './onlineMidi.js';
 
 /** Native Tauri backend API exposed to the renderer. */
@@ -221,7 +221,10 @@ export interface SettingsApi {
   openFolderInExplorer: (path?: string) => Promise<boolean>;
   openUrl: (url: string) => Promise<boolean>;
   getAppVersion: () => Promise<string>;
-  updateGlobalHotkeys: (enabled: boolean, bindings: any[]) => Promise<boolean>;
+  updateGlobalHotkeys: (enabled: boolean, bindings: HotkeyBinding[]) => Promise<boolean>;
+  getHotkeyBindings?: () => Promise<DesktopHotkeyBinding[]>;
+  onHotkeyBindingsChanged?: (callback: (bindings: DesktopHotkeyBinding[]) => void) => () => void;
+  onHotkeyError?: (callback: (error: string) => void) => () => void;
   updateSongDefaults: (defaults: any, applyToExisting?: OnboardingSongDefaultsApplication) => Promise<boolean>;
   browseGameExecutable: () => Promise<string | null>;
   browseSoundFont: () => Promise<string | null>;

@@ -659,7 +659,7 @@ export const zhCN: TranslationSchema = {
 
     // Hotkeys Section
     hotkeys: '全局快捷键',
-    hotkeysSubtext: '全局快捷键在应用处于后台时依然有效。快捷键必须包含至少一个修饰键（Ctrl、Alt 或 Shift）。',
+    hotkeysSubtext: '支持 Command/Super、Ctrl、Alt 和 Shift。在 Wayland 中，请在桌面授权对话框中允许快捷键；桌面可能更改组合，实际组合显示在下方。',
     enableHotkeys: '启用全局快捷键',
     enableHotkeysTooltip: '开启后，即使主界面处于最小化或后台失焦状态，快捷键依然能够响应控制。',
     resetHotkeys: '恢复所有快捷键默认绑定',
@@ -886,6 +886,7 @@ export const zhCN: TranslationSchema = {
     toastTitleSongReset: '预设已重置',
     toastSongResetSuccess: '新歌曲预设已恢复为初始默认值。',
     toastTitleHotkeysReset: '快捷键已重置',
+    toastTitleHotkeysError: '快捷键不可用',
     toastHotkeysResetSuccess: '所有全局快捷键已恢复为出厂预设按键。',
     toastTitleBrowse: '浏览文件夹',
     toastBrowseFolder: '请选择存放 MIDI 文件的文件夹。',

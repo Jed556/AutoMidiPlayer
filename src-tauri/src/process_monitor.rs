@@ -53,6 +53,7 @@ pub struct GameStatusPayload {
     pub is_running: bool,
     pub is_focused: bool,
     pub pid: Option<u32>,
+    pub requires_manual_focus: bool,
 }
 
 #[derive(Default)]
@@ -93,6 +94,12 @@ impl ProcessMonitor {
             .get("gameLocations")
             .and_then(|value| serde_json::from_value(value.clone()).ok())
             .unwrap_or_default();
+        // Resolve application bundles when preferences change, rather than
+        // reading their metadata on every process-status poll.
+        #[cfg(not(windows))]
+        for location in self.locations.values_mut() {
+            *location = normalize_game_location(location);
+        }
     }
 
     pub fn check_statuses(&mut self) -> Vec<GameStatusPayload> {
@@ -127,9 +134,16 @@ impl ProcessMonitor {
         self.targets
             .iter()
             .map(|target| {
+                #[cfg(windows)]
+                let location = self.locations.get(&target.id);
+                // Settings use display names. Retain ID-keyed preferences
+                // written by older clients and custom integrations.
+                #[cfg(not(windows))]
+                let location = self.locations.get(&target.display_name)
+                    .or_else(|| self.locations.get(&target.id));
                 status_for_target(
                     target,
-                    self.locations.get(&target.id).map(String::as_str),
+                    location.map(String::as_str),
                     &processes,
                     &windows,
                 )
@@ -149,6 +163,20 @@ fn normalize_executable(value: &str) -> String {
     name.strip_suffix(".exe").unwrap_or(&name).to_owned()
 }
 
+#[cfg(not(windows))]
+fn normalize_game_location(value: &str) -> String {
+    let path = value.trim().trim_matches('"').trim_end_matches(['/', '\\']);
+    let name = normalize_executable(path);
+    let Some(bundle_name) = name.strip_suffix(".app") else { return name };
+    #[cfg(target_os = "macos")]
+    if let Some(executable) = platform::bundle_executable(std::path::Path::new(path)) {
+        return normalize_executable(&executable.to_string_lossy());
+    }
+    // Also support portable preferences and unavailable bundles whose binary
+    // uses the conventional bundle name.
+    bundle_name.to_owned()
+}
+
 fn status_for_target(
     target: &GameProcessTarget,
     location: Option<&str>,
@@ -166,7 +194,10 @@ fn status_for_target(
         names.extend(["robloxplayerbeta".into(), "robloxplayer".into()]);
     }
     if let Some(location) = location {
+        #[cfg(windows)]
         names.push(normalize_executable(location));
+        #[cfg(not(windows))]
+        names.push(normalize_game_location(location));
     }
     names.retain(|name| !name.is_empty());
     let titles: Vec<_> = target
@@ -193,6 +224,7 @@ fn status_for_target(
         is_running: pid.is_some(),
         is_focused: pid.is_some() && pid == windows.foreground_pid,
         pid,
+        requires_manual_focus: crate::midi_input::is_wayland(),
     }
 }
 
@@ -289,6 +321,12 @@ mod tests {
             .pid,
             Some(1)
         );
+        #[cfg(not(windows))]
+        assert_eq!(
+            status_for_target(&target(&[], &[]), Some("/Applications/Custom.app/"), &processes, &windows).pid,
+            Some(1),
+            "a selected application bundle should match its conventional executable"
+        );
         assert_eq!(
             status_for_target(
                 &target(&["Roblox Game Client"], &[]),
@@ -306,10 +344,27 @@ mod tests {
     #[test]
     fn detects_real_process_and_clears_removed_targets_and_locations() {
         let mut monitor = ProcessMonitor::new(vec![target(&[], &[])]);
-        monitor.set_locations(
-            &serde_json::json!({"gameLocations": {"game": std::env::current_exe().unwrap()}}),
-        );
-        assert!(monitor.check_statuses()[0].is_running);
+        #[cfg(windows)]
+        {
+            monitor.set_locations(
+                &serde_json::json!({"gameLocations": {"game": std::env::current_exe().unwrap()}}),
+            );
+            assert!(monitor.check_statuses()[0].is_running);
+        }
+        #[cfg(not(windows))]
+        {
+            for key in ["Game", "game"] {
+                monitor.set_locations(
+                    &serde_json::json!({"gameLocations": {(key): std::env::current_exe().unwrap()}}),
+                );
+                assert!(monitor.check_statuses()[0].is_running, "configured location key: {key}");
+            }
+            monitor.set_locations(&serde_json::json!({"gameLocations": {
+                "Game": "missing-custom-game", "game": std::env::current_exe().unwrap()
+            }}));
+            assert!(!monitor.check_statuses()[0].is_running,
+                "the current display-name preference must override a stale ID preference");
+        }
         monitor.set_locations(&serde_json::json!({}));
         assert!(!monitor.check_statuses()[0].is_running);
         monitor.set_targets(vec![]);

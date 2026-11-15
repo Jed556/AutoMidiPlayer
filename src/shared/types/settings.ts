@@ -63,11 +63,17 @@ export interface KeyBinding {
   ctrl: boolean;
   alt: boolean;
   shift: boolean;
+  meta?: boolean;
 }
 
 export interface HotkeyBinding extends KeyBinding {
   action: 'PlayPause' | 'Next' | 'Previous' | 'SpeedUp' | 'SpeedDown' | 'Panic';
   label: string;
+}
+
+export interface DesktopHotkeyBinding {
+  action: string;
+  trigger: string;
 }
 
 export interface PedalBindings {

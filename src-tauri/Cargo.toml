@@ -1,6 +1,6 @@
 [package]
 name = "auto-midi-player"
-version = "8.13.3"
+version = "8.13.4"
 description = "MIDI auto player for games"
 authors = ["Jed556 <jguiriba11@gmail.com>"]
 license = "GPL-3.0-or-later"
@@ -25,7 +25,8 @@ serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 regex = "1.11"
 chrono = { version = "0.4", features = ["serde"] }
-tauri = { version = "2.12.4", features = ["protocol-asset", "tray-icon"] }
+# The Windows tray callback workaround uses tray-icon's native window API.
+tauri = { version = "~2.12.4", features = ["protocol-asset", "tray-icon"] }
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-updater = "2"
@@ -47,7 +48,7 @@ windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging", "W
 [target.'cfg(target_os = "linux")'.dependencies]
 x11rb = "0.14"
 # ashpd's remote_desktop module imports screencast types; no screen sources are requested.
-ashpd = { version = "0.14", default-features = false, features = ["tokio", "remote_desktop", "screencast"] }
+ashpd = { version = "0.14", default-features = false, features = ["tokio", "remote_desktop", "screencast", "global_shortcuts"] }
 tokio = { version = "1", features = ["rt", "time", "sync", "macros"] }
 xkeysym = "0.2"
 futures-util = "0.3"

@@ -137,6 +137,7 @@ class GameStore {
       game.isRunning = status?.isRunning ?? false;
       game.isFocused = status?.isFocused ?? false;
       game.pid = status?.pid ?? undefined;
+      game.requiresManualFocus = status?.requiresManualFocus ?? false;
     }
     // Sync activeGame
     const activeGame = this.activeGame;
@@ -145,6 +146,7 @@ class GameStore {
       activeGame.isRunning = activeMatch?.isRunning ?? false;
       activeGame.isFocused = activeMatch?.isFocused ?? false;
       activeGame.pid = activeMatch?.pid ?? undefined;
+      activeGame.requiresManualFocus = activeMatch?.requiresManualFocus ?? false;
     }
     this.notifyStatusListeners(statuses);
   }

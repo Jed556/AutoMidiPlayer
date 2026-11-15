@@ -668,6 +668,7 @@
                     <KeyEditControl
                       label={hotkey.label}
                       binding={hotkey}
+                      displayTrigger={settingsStore.hotkeyTriggers[hotkey.action]}
                       onchange={(updated) => settingsStore.updateHotkey(hotkey.action, updated)}
                       onclear={() => {
                         delete hotkeyChipsWidths[hotkey.action];

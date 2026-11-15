@@ -657,7 +657,7 @@ export const enUS = {
 
     // Hotkeys Section
     hotkeys: 'Hotkeys',
-    hotkeysSubtext: 'Hotkeys work even when the app is not in focus. Requires at least one modifier key (Ctrl, Alt, Shift).',
+    hotkeysSubtext: 'Supports Command/Super, Ctrl, Alt, and Shift. On Wayland, allow shortcuts in the desktop permission dialog; the desktop may choose a different binding, shown below.',
     enableHotkeys: 'Enable hotkeys',
     enableHotkeysTooltip: 'When enabled, hotkeys work even when the app is not focused',
     resetHotkeys: 'Reset all hotkeys to defaults',
@@ -884,6 +884,7 @@ export const enUS = {
     toastTitleSongReset: 'Song Defaults Reset',
     toastSongResetSuccess: 'New song defaults restored to defaults.',
     toastTitleHotkeysReset: 'Hotkeys Reset',
+    toastTitleHotkeysError: 'Hotkeys unavailable',
     toastHotkeysResetSuccess: 'All hotkeys restored to factory bindings.',
     toastTitleBrowse: 'Browse Folder',
     toastBrowseFolder: 'Select a directory containing MIDI files.',

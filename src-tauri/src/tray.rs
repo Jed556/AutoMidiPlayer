@@ -1,4 +1,7 @@
 //! Keep the webview and playback runtime alive while the main window is hidden.
+#[cfg(windows)]
+mod windows;
+
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use amp_core::settings::defaults;
@@ -84,7 +87,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     let icon = app
         .default_window_icon()
         .ok_or(tauri::Error::AssetNotFound("window icon".into()))?;
-    TrayIconBuilder::with_id(ID)
+    let tray = TrayIconBuilder::with_id(ID)
         .icon(icon.clone())
         .tooltip("Auto MIDI Player")
         .menu(&menu)
@@ -143,6 +146,14 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
             }
         })
         .build(app)?;
+    #[cfg(windows)]
+    if let Err(error) = windows::allow_shell_callbacks(&tray) {
+        // Do not hide the app behind a tray icon that cannot receive clicks.
+        app.remove_tray_by_id(ID);
+        return Err(error);
+    }
+    #[cfg(not(windows))]
+    let _ = tray;
     app.manage(TrayState {
         exit_requested: AtomicBool::new(false),
         chinese: AtomicBool::new(chinese),
