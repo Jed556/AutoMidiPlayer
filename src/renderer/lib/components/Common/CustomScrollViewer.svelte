@@ -16,6 +16,7 @@
     fadeHeight?: number;       // Height of the fade zone in px (default 36)
     fadeRampDistance?: number; // Scroll distance in px to reach maximum fade (default 32)
     showScrollbar?: boolean;   // Whether to show the scrollbar (default true)
+    overlayScrollbar?: boolean; // Draw the scrollbar over content without reserving a gutter.
     scrollContainer?: HTMLDivElement; // Bindable ref to the scrollable element
     persistenceKey?: string;
     onscroll?: (e: Event) => void;
@@ -41,6 +42,7 @@
     fadeHeight = 36,
     fadeRampDistance = 32,
     showScrollbar = true,
+    overlayScrollbar = false,
     scrollContainer = $bindable(),
     persistenceKey,
     onscroll: externalOnScroll,
@@ -59,6 +61,47 @@
   let topFadeOpacity = $state(0);
   let bottomFadeOpacity = $state(0);
   let scrollbarWidth = $state(0);
+  const viewportId = $props.id();
+  let viewportHeight = $state(0);
+  let contentHeight = $state(0);
+  let scrollPosition = $state(0);
+  let dragOffset: number | null = null;
+  let scrollRange = $derived(Math.max(0, contentHeight - viewportHeight));
+  let thumbHeight = $derived(Math.min(viewportHeight, Math.max(24, viewportHeight * viewportHeight / Math.max(1, contentHeight))));
+  let thumbTop = $derived(scrollRange > 0 ? scrollPosition / scrollRange * (viewportHeight - thumbHeight) : 0);
+
+  function moveOverlayThumb(event: PointerEvent) {
+    if (dragOffset === null || !internalScrollEl) return;
+    const rail = event.currentTarget as HTMLElement;
+    const travel = viewportHeight - thumbHeight;
+    internalScrollEl.scrollTop = travel > 0
+      ? (event.clientY - rail.getBoundingClientRect().top - dragOffset) / travel * scrollRange : 0;
+  }
+
+  function startOverlayDrag(event: PointerEvent) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const rail = event.currentTarget as HTMLElement;
+    dragOffset = event.target === rail ? thumbHeight / 2
+      : event.clientY - rail.getBoundingClientRect().top - thumbTop;
+    rail.setPointerCapture(event.pointerId);
+    moveOverlayThumb(event);
+  }
+
+  function handleOverlayKey(event: KeyboardEvent) {
+    if (!internalScrollEl) return;
+    const targets: Record<string, number> = {
+      ArrowUp: scrollPosition - 40, ArrowDown: scrollPosition + 40,
+      PageUp: scrollPosition - viewportHeight, PageDown: scrollPosition + viewportHeight,
+      Home: 0, End: scrollRange,
+    };
+    if (event.key in targets) {
+      event.preventDefault();
+      event.stopPropagation();
+      internalScrollEl.scrollTop = targets[event.key];
+    }
+  }
 
   // Update bindable prop
   $effect(() => {
@@ -79,8 +122,11 @@
 
     const { scrollTop, scrollHeight, clientHeight, offsetWidth, clientWidth } = internalScrollEl;
     const maxScroll = scrollHeight - clientHeight;
+    viewportHeight = clientHeight;
+    contentHeight = scrollHeight;
+    scrollPosition = scrollTop;
     const measuredBar = offsetWidth - clientWidth;
-    scrollbarWidth = showScrollbar ? (measuredBar > 0 ? measuredBar : (maxScroll > 1 ? 8 : 0)) : 0;
+    scrollbarWidth = showScrollbar && !overlayScrollbar ? (measuredBar > 0 ? measuredBar : (maxScroll > 1 ? 8 : 0)) : 0;
 
     if (maxScroll <= 1) {
       topFadeOpacity = 0;
@@ -141,7 +187,21 @@
       updateScrollFade();
     });
     observer.observe(internalScrollEl);
-    return () => observer.disconnect();
+    // Content can grow without resizing the fixed-height viewport.
+    function observeChildren() {
+      if (!internalScrollEl) return;
+      for (const child of internalScrollEl.children) observer.observe(child);
+      updateScrollFade();
+    }
+    if (!overlayScrollbar) return () => observer.disconnect();
+    observeChildren();
+    const mutations = new MutationObserver(() => {
+      observer.disconnect();
+      if (internalScrollEl) observer.observe(internalScrollEl);
+      observeChildren();
+    });
+    mutations.observe(internalScrollEl, { childList: true, subtree: true });
+    return () => { observer.disconnect(); mutations.disconnect(); };
   });
 
   // Mask stop values for pure alpha clipping:
@@ -189,7 +249,8 @@
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
     class="scroll-content {contentClass}"
-    class:hide-scrollbar={!showScrollbar}
+    class:hide-scrollbar={!showScrollbar || overlayScrollbar}
+    id={viewportId}
     bind:this={internalScrollEl}
     role="region"
     tabindex="-1"
@@ -212,6 +273,33 @@
       {@render children()}
     {/if}
   </div>
+  {#if overlayScrollbar && showScrollbar && scrollRange > 1}
+    <div
+      class="overlay-scrollbar"
+      role="scrollbar"
+      tabindex="0"
+      aria-label="Scroll content"
+      aria-controls={viewportId}
+      aria-orientation="vertical"
+      aria-valuemin={0}
+      aria-valuemax={scrollRange}
+      aria-valuenow={scrollPosition}
+      onpointerdown={startOverlayDrag}
+      onpointermove={moveOverlayThumb}
+      onpointerup={(event) => { dragOffset = null; (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId); }}
+      onlostpointercapture={() => { dragOffset = null; }}
+      onkeydown={handleOverlayKey}
+      onwheel={(event) => {
+        if (!internalScrollEl) return;
+        event.preventDefault();
+        const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewportHeight : 1;
+        internalScrollEl.scrollTop += event.deltaY * unit;
+        externalOnWheel?.(event);
+      }}
+    >
+      <div class="overlay-scrollbar-thumb" style:height={`${thumbHeight}px`} style:transform={`translateY(${thumbTop}px)`}></div>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -243,5 +331,31 @@
 
   .scroll-content.hide-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+
+  .overlay-scrollbar {
+    position: absolute;
+    inset: 0 0 0 auto;
+    width: 8px;
+    z-index: 20;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .overlay-scrollbar-thumb {
+    width: 8px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--text-primary) 25%, transparent);
+  }
+
+  .overlay-scrollbar:hover .overlay-scrollbar-thumb,
+  .overlay-scrollbar:focus-visible .overlay-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-primary) 45%, transparent);
+  }
+
+  .overlay-scrollbar:focus-visible {
+    outline: 1px solid var(--accent-color);
+    outline-offset: -1px;
+    border-radius: 4px;
   }
 </style>

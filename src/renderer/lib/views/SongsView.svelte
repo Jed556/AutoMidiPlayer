@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy, untrack } from 'svelte';
+  import { cubicInOut } from 'svelte/easing';
   import { playbackStore } from '../state/playbackStore.svelte';
   import { libraryStore } from '../state/libraryStore.svelte';
   import { uiStore } from '../state/uiStore.svelte';
@@ -9,6 +10,7 @@
   import { t } from '../i18n';
   import type { MidiFile } from '$shared/types/midi';
   import { replaceVisibleSongOrder, sortLibrarySongs } from '../utils/libraryOrdering';
+  import { scaleFade } from '../utils/transitions';
   import FluentIcon from '../components/Icons/FluentIcon.svelte';
   import ExpandableSearchBox from '../components/Common/ExpandableSearchBox.svelte';
   import PlayPauseIcon from '../components/Icons/PlayPauseIcon.svelte';
@@ -43,6 +45,7 @@
 
   // Filter / Sort flyout state
   let sortMenuOpen = $state(false);
+  let sortMenuExiting = $state(false);
 
   let sortOptions = $derived([
     { value: 'custom', label: t('songs.sortCustom') },
@@ -312,6 +315,7 @@
 <svelte:window onclick={() => { sortMenuOpen = false; }} />
 
 <CustomScrollViewer
+  overlayScrollbar={true}
   persistenceKey={`songs:${libraryStore.selectedPlaylistId}`}
   class="songs-view {isScrolled ? 'is-scrolled' : ''}"
   contentClass="songs-view-content"
@@ -383,7 +387,7 @@
   </div>
 
   <!-- Action Bar: icon-only playback, search & filter buttons -->
-  <div class="action-bar" class:sort-menu-open={sortMenuOpen}>
+  <div class="action-bar" class:sort-menu-open={sortMenuOpen || sortMenuExiting}>
     <div class="action-left">
       <button
         type="button"
@@ -421,11 +425,18 @@
           title={t('songs.sort')}
         >
           <span class="filter-label">{currentSortLabel}</span>
-          <FluentIcon name="List" size={16} />
+          <FluentIcon name="List" size={12} />
         </button>
 
         {#if sortMenuOpen}
-          <div class="sort-menu" role="menu">
+          <div
+            class="sort-menu"
+            role="menu"
+            transition:scaleFade={{ start: 0.94, easing: cubicInOut }}
+            onintrostart={() => { sortMenuExiting = false; }}
+            onoutrostart={() => { sortMenuExiting = true; }}
+            onoutroend={() => { sortMenuExiting = false; }}
+          >
             <div class="sort-menu-header">{t('songs.sort')}</div>
             {#each sortOptions as opt}
               <button
@@ -440,6 +451,7 @@
               </button>
             {/each}
             {#if uiStore.songsSortMode !== 'custom'}
+              <div class="sort-menu-divider" role="separator"></div>
               <button class="sort-menu-option" class:selected={uiStore.songsSortDirection === 'asc'}
                 onclick={() => { uiStore.songsSortDirection = 'asc'; sortMenuOpen = false; }}>
                 <span>{t('songs.sortAscending')}</span>
@@ -721,7 +733,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: #ffffff;
+    color: var(--text-primary);
     opacity: 0.9;
     margin-bottom: 4px;
   }
@@ -731,7 +743,7 @@
     font-weight: 800;
     letter-spacing: -0.04em;
     line-height: 1.05;
-    color: #ffffff;
+    color: var(--text-primary);
     margin: 0 0 10px 0;
     padding-right: 8px;
     user-select: text;
@@ -743,13 +755,13 @@
     align-items: center;
     gap: 6px;
     font-size: 13.5px;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
     font-weight: 500;
   }
 
   .meta-item.bold {
     font-weight: 600;
-    color: #ffffff;
+    color: var(--text-primary);
   }
 
   .meta-dot {
@@ -880,6 +892,7 @@
   /* Sort dropdown flyout menu */
   .sort-menu {
     position: absolute;
+    transform-origin: top right;
     top: calc(100% + 4px);
     right: 0;
     background: var(--bg-dialog, var(--card-bg, #27272A));
@@ -901,6 +914,12 @@
     color: var(--text-tertiary);
     padding: 6px 10px 4px 10px;
     letter-spacing: 0.05em;
+  }
+
+  .sort-menu-divider {
+    height: 1px;
+    margin: 4px 10px;
+    background: var(--divider-color);
   }
 
   .sort-menu-option {

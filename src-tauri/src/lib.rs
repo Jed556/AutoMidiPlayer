@@ -1,5 +1,7 @@
 mod config_manager;
 mod media_controls;
+#[cfg(windows)]
+mod taskbar;
 mod midi_input;
 mod tray;
 mod system_info;
@@ -1850,6 +1852,12 @@ pub fn run() {
             app.handle().plugin(tauri_plugin_global_shortcut::Builder::new().build())?;
             app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
             app.manage(updates::UpdateState::default());
+
+            // Native thumbnail controls are optional when the shell supports them.
+            #[cfg(windows)]
+            if let Err(error) = taskbar::install(app.handle()) {
+                log::warn!("Unable to initialize taskbar controls: {error}");
+            }
 
             // Tray failure must leave normal minimize/close behavior available.
             if let Err(error) = tray::install(app.handle()) {

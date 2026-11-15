@@ -40,7 +40,7 @@
   "theme": "Dark",
   "accentColor": "#1DB954",
   "smoothScrolling": true,
-  "minimizeToTray": true,
+  "minimizeToTray": false,
   "closeToTray": false,
   "autoEnableListenMode": true,
   "volumeNormalization": true,

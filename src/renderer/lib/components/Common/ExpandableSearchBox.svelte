@@ -59,9 +59,6 @@
   <!-- A fractional grid track moves toolbar neighbors without scaling text or icons. -->
   <div class="search-size" aria-hidden="true"></div>
   <div class="search-surface" aria-hidden="true"></div>
-  <svg class="search-outline" aria-hidden="true">
-    <rect width="100%" height="100%" rx="15.5" pathLength="1" />
-  </svg>
 
   <button
     type="button"
@@ -142,46 +139,28 @@
   }
 
   .search-surface {
-    background: var(--control-fill, rgba(255, 255, 255, 0.1));
-    opacity: 0;
-    transition: opacity calc(var(--search-beat) * 1.25) ease;
+    /* Paint the fill and continuous border together, without translucent layers. */
+    box-sizing: border-box;
+    background: color-mix(in srgb, var(--bg-primary) 92%, var(--text-primary));
+    border: 1px solid color-mix(in srgb, var(--bg-primary) 65%, var(--text-primary));
+    visibility: hidden;
+    transition: visibility 0s linear calc(var(--search-beat) * 1.25),
+      background-color calc(var(--search-beat) * 1.25) ease,
+      border-color calc(var(--search-beat) * 1.25) ease;
     pointer-events: none;
   }
 
   .expanded .search-surface {
-    opacity: 1;
+    visibility: visible;
+    transition-delay: 0s;
   }
 
   .expanded:focus-within .search-surface {
     background: var(--control-fill-hover, rgba(255, 255, 255, 0.18));
   }
 
-  .search-outline {
-    position: absolute;
-    inset: 0.5px;
-    width: calc(100% - 1px);
-    height: 31px;
-    overflow: visible;
-    fill: none;
-    stroke: var(--text-secondary);
-    stroke-width: 1;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity calc(var(--search-beat) * 1.25) ease;
-  }
-
-  .search-outline rect {
-    stroke-dasharray: 1;
-    stroke-dashoffset: 1;
-    transition: stroke-dashoffset calc(var(--search-beat) * 1.25) var(--search-ease);
-  }
-
-  .expanded .search-outline { opacity: 0.55; }
-  .expanded .search-outline rect { stroke-dashoffset: 0; }
-
-  .expanded:has(input:focus-visible) .search-outline {
-    stroke: var(--accent-color);
-    opacity: 0.85;
+  .expanded:has(input:focus-visible) .search-surface {
+    border-color: var(--accent-color);
   }
 
   .search-trigger {

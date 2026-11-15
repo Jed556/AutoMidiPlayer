@@ -694,19 +694,11 @@
       const endPct = getPercent(area.to);
       const areaWidthPct = Math.max(0, endPct - startPct);
 
-      let filledPct = 0;
-      if (value > area.from) {
-        const currentWithinArea = Math.min(value, area.to);
-        const fillEndPct = getPercent(currentWithinArea);
-        filledPct = Math.max(0, fillEndPct - startPct);
-      }
-
       return {
         from: area.from,
         to: area.to,
         startPct,
         widthPct: areaWidthPct,
-        filledPct,
         color: area.color || 'var(--accent-color, #1DB954)',
         className: area.className
       };
@@ -1183,13 +1175,15 @@
           <div class="slider-groove">
             <!-- Filled Track Bar(s) (supports custom area colors and transitions) -->
             {#if areaSegments}
-              {#each areaSegments as seg (seg.from)}
-                <!-- Keep empty segments mounted so mute/unmute can animate through zero. -->
-                <div
-                  class="slider-fill {seg.className || ''}"
-                  style={`${vertical ? `bottom: ${seg.startPct}%; height: ${seg.filledPct}%;` : `left: ${seg.startPct}%; width: ${seg.filledPct}%;`} background-color: ${seg.color};`}
-                ></div>
-              {/each}
+              <!-- Reveal fixed color areas together so changes cross boundaries without gaps. -->
+              <div class="slider-area-fill">
+                {#each areaSegments as seg (seg.from)}
+                  <div
+                    class="slider-fill {seg.className || ''}"
+                    style={`${vertical ? `bottom: ${seg.startPct}%; height: ${seg.widthPct}%;` : `left: ${seg.startPct}%; width: ${seg.widthPct}%;`} background-color: ${seg.color};`}
+                  ></div>
+                {/each}
+              </div>
             {:else}
               <div class="slider-fill" style={vertical ? `height: ${progressPercent}%;` : `width: ${progressPercent}%;`}></div>
             {/if}
@@ -1447,6 +1441,17 @@
     transition: width var(--slider-duration, 200ms) cubic-bezier(0.1, 0.9, 0.2, 1);
   }
 
+  /* One animated reveal keeps adjacent color areas connected across value changes. */
+  .slider-area-fill {
+    position: absolute;
+    inset: 0;
+    clip-path: inset(0 calc(100% - var(--slider-thumb-position)) 0 0 round 2px);
+  }
+
+  .slider-area-fill .slider-fill {
+    border-radius: 0;
+  }
+
   /* Transparent thumb wrapper; only the accent dot paints a surface. */
   .slider-thumb {
     position: absolute;
@@ -1693,6 +1698,7 @@
   .is-vertical.is-seekbar .slider-rail { mask-image: none; }
   .is-vertical .slider-groove { inset: 0 10px; }
   .is-vertical .slider-fill { top: auto; width: 4px; transition-property: height; }
+  .is-vertical .slider-area-fill { clip-path: inset(calc(100% - var(--slider-thumb-position)) 0 0 0 round 2px); }
   .is-vertical .slider-thumb { top: auto; left: 50%; transform: translate(-50%, 50%); transition-property: bottom, transform; }
   .is-vertical .step-pip { top: auto; left: 50%; transform: translate(-50%, 50%); }
   .is-vertical .area-divider { top: auto; left: 50%; width: 8px; height: 2px; transform: translate(-50%, 50%); }

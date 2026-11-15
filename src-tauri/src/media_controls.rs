@@ -41,7 +41,7 @@ enum Status {
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(tag = "action", rename_all = "camelCase")]
-enum Action {
+pub(crate) enum Action {
     Play,
     Pause,
     Toggle,
@@ -137,6 +137,9 @@ fn duration(seconds: f64) -> Duration {
 }
 
 fn sync(app: &AppHandle, snapshot: Snapshot) -> Result<(), String> {
+    #[cfg(windows)]
+    crate::taskbar::sync(app, matches!(snapshot.status, Status::Playing),
+        snapshot.duration_seconds > 0.0 || !snapshot.title.is_empty());
     // A missing desktop D-Bus session must not prevent the player from starting.
     // Try once per app launch so an unavailable service doesn't flood the log.
     if !INITIALIZED.with(|initialized| initialized.replace(true)) {

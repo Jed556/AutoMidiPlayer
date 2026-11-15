@@ -1074,6 +1074,7 @@
     </div>
   {:else}
     <CustomScrollViewer
+      overlayScrollbar={true}
       persistenceKey={isQueue ? 'queue' : undefined}
       class="table-body-viewer"
       contentClass="table-body"

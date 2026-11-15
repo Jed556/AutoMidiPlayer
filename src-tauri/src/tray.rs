@@ -237,8 +237,8 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn independent_preferences_keep_default_close_as_exit() {
-        assert!(should_hide(&json!({}), "minimizeToTray", true, false));
+    fn independent_preferences_default_to_not_hiding() {
+        assert!(!should_hide(&json!({}), "minimizeToTray", true, false));
         assert!(!should_hide(&json!({}), "closeToTray", true, false));
         let settings = json!({ "minimizeToTray": false, "closeToTray": true });
         assert!(!should_hide(&settings, "minimizeToTray", true, false));

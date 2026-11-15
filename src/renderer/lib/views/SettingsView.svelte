@@ -570,7 +570,7 @@
               <div class="volume-slider-row">
                 <button
                   type="button"
-                  class="vol-mute-btn"
+                  class="vol-mute-btn theme-ghost-button"
                   onclick={handleToggleVolumeMute}
                   aria-label={playbackStore.volume === 0 ? 'Unmute' : 'Mute'}
                   title={playbackStore.volume === 0 ? 'Unmute' : 'Mute'}
@@ -2366,27 +2366,12 @@
   }
 
   .vol-mute-btn {
-    background: transparent;
-    border: none;
-    color: var(--text-primary);
-    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 6px;
     border-radius: 4px;
     flex-shrink: 0;
-    transition: opacity var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
-  }
-
-  .vol-mute-btn:hover {
-    background: var(--control-fill-hover, rgba(255, 255, 255, 0.08));
-    color: var(--accent-color, var(--accent, #1DB954));
-  }
-
-  .vol-mute-btn:focus-visible {
-    outline: 2px solid var(--accent-color, #1DB954);
-    outline-offset: 2px;
   }
 
   .volume-slider-wrap {
