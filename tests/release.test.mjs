@@ -1,12 +1,61 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, cpSync, rmSync } from 'node:fs';
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, cpSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { generateKeyPairSync, sign, createHash } from 'node:crypto';
 import { releaseVersion, nextReleaseVersion, replaceCargoVersion, renderNotes, mergeManifests, platforms, sha256, verifyUpdaterSignature } from '../scripts/release-lib.mjs';
+
+test('native package workflow removes empty Apple credentials and preserves signing keys and platform arguments', t => {
+  let bash = 'bash';
+  if (process.platform === 'win32') {
+    const git = spawnSync('git', ['--exec-path'], { encoding: 'utf8' });
+    const gitRoot = git.status === 0 ? resolve(git.stdout.trim(), '../../..') : '';
+    bash = gitRoot && [join(gitRoot, 'bin/bash.exe'), join(gitRoot, 'usr/bin/bash.exe')].find(existsSync);
+  }
+  if (!bash || spawnSync(bash, ['--version']).status !== 0) {
+    t.skip('Requires Bash (Git for Windows Bash on Windows) to exercise the workflow shell.');
+    return;
+  }
+  const workflow = readFileSync(new URL('../.github/workflows/release.yml', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
+  const step = workflow.split('      - name: Build native packages\n')[1]?.split('\n      - ')[0];
+  const run = step?.match(/        run: \|\n([\s\S]*)/)?.[1].replace(/^          /gm, '');
+  assert.ok(run, 'Native package build shell must exist in the release workflow');
+  const apple = ['APPLE_CERTIFICATE', 'APPLE_CERTIFICATE_PASSWORD', 'APPLE_SIGNING_IDENTITY', 'APPLE_ID', 'APPLE_PASSWORD', 'APPLE_TEAM_ID'];
+  const tauri = {
+    TAURI_SIGNING_PRIVATE_KEY: 'test updater key', TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'test updater password',
+    AMP_UPDATER_PUBLIC_KEY: 'test updater public key',
+  };
+  const names = [...apple, ...Object.keys(tauri)];
+  const inspect = `const names = ${JSON.stringify(names)}; console.log(JSON.stringify({ env: Object.fromEntries(names.filter(name => Object.hasOwn(process.env, name)).map(name => [name, process.env[name]])), args: process.argv.slice(1) }));`;
+  const script = `pnpm() { "$AMP_TEST_NODE" -e '${inspect}' "$@"; }\n${run}`;
+  const empty = Object.fromEntries(apple.map(name => [name, '']));
+  const configured = Object.fromEntries(apple.map(name => [name, `test ${name} $value !`]));
+  for (const [os, target, bundles, credentials] of [
+    ['macOS', 'aarch64-apple-darwin', 'app,dmg', empty],
+    ['macOS', 'x86_64-apple-darwin', 'app,dmg', {}],
+    ['macOS', 'aarch64-apple-darwin', 'app,dmg', configured],
+    ['Linux', 'x86_64-unknown-linux-gnu', 'appimage,deb', empty],
+    ['Windows', 'x86_64-pc-windows-msvc', 'nsis', empty],
+  ]) {
+    const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !names.includes(name.toUpperCase()) && name.toUpperCase() !== 'BASH_ENV'));
+    const result = spawnSync(bash, ['--noprofile', '--norc', '-s'], {
+      input: script, encoding: 'utf8', env: {
+        ...env, ...tauri, ...credentials, RUNNER_OS: os, TARGET: target, BUNDLES: bundles,
+        AMP_TEST_NODE: process.execPath.replaceAll('\\', '/'), MSYS2_ARG_CONV_EXCL: '*',
+      },
+    });
+    assert.equal(result.status, 0, `${os}: ${result.error || result.stderr}`);
+    const observed = JSON.parse(result.stdout);
+    assert.deepEqual(observed.env, { ...tauri, ...(os === 'macOS' && credentials === empty ? {} : credentials) }, os);
+    assert.deepEqual(observed.args, [
+      'tauri', 'build', '--target', target, '--bundles', bundles, '--config', 'dist/release-config.json',
+      ...(os === 'Windows' ? ['--config', 'dist/signing.json'] : []), '--', '--locked',
+    ], os);
+  }
+});
 
 test('release versions reject ambiguous tags, legacy versions and command-like input', () => {
   for (const value of ['8.1.0', 'v8.1.0', '8.1.0-beta.2']) assert.equal(releaseVersion(value), value.replace(/^v/, ''));

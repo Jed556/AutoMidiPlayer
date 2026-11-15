@@ -238,6 +238,13 @@ jobs:
           set -euo pipefail
           args=(--target "$TARGET" --bundles "$BUNDLES" --config dist/release-config.json)
           if [ "$RUNNER_OS" = Windows ]; then args+=(--config dist/signing.json); fi
+          if [ "$RUNNER_OS" = macOS ]; then
+            # Missing secrets become empty env vars. Tauri treats them as supplied,
+            # importing an empty certificate and overriding the ad-hoc identity.
+            for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+              if [ -z "${!name:-}" ]; then unset "$name"; fi
+            done
+          fi
           pnpm tauri build "${args[@]}" -- --locked
       - name: Test native code
         run: cargo test --workspace --lib --locked
