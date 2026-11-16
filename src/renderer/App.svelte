@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick, untrack } from 'svelte';
   import { telemetry } from './lib/infrastructure/telemetry';
+  import { logger } from './lib/infrastructure/logger';
   import { startRuntime } from './lib/backend/startupGate';
   import { startupProgress, nativeStartupProgress } from './lib/backend/startupProgress';
   import { libraryStore } from './lib/state/libraryStore.svelte';
@@ -48,7 +49,10 @@
     telemetry.init();
     const updateCheck = settingsStore.settings.autoCheckUpdates
       ? updateStore.checkForUpdates(false) : Promise.resolve();
-    await playbackStore.initialize(status => { startupStatus = status; });
+    await playbackStore.initialize(status => {
+      startupStatus = status;
+      void logger.info(`Startup stage: ${status}`, 'startup');
+    });
     await midiInputStore.init();
     startupStatus = 'startup.view';
     if (currentTab !== 'discover' && currentTab !== 'new-playlist') await loadView(currentTab);

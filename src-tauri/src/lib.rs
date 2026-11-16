@@ -894,10 +894,13 @@ fn md5_hash(input: &str) -> u64 {
 
 // Library & Persistence commands
 #[tauri::command]
-fn get_library_songs(context: Option<SongSettingsContext>, state: State<AppState>) -> Result<Vec<SongRecord>, String> {
-    let songs = state.db.get_all_songs().map_err(|e| e.to_string())?;
-    let songs = state.db.available_songs(songs)?;
-    state.db.resolve_song_settings(songs, context.as_ref()).map_err(|e| e.to_string())
+async fn get_library_songs(context: Option<SongSettingsContext>, state: State<'_, AppState>) -> Result<Vec<SongRecord>, String> {
+    let db = Arc::clone(&state.db);
+    tauri::async_runtime::spawn_blocking(move || {
+        let songs = db.get_all_songs().map_err(|e| e.to_string())?;
+        let songs = db.available_songs(songs)?;
+        db.resolve_song_settings(songs, context.as_ref()).map_err(|e| e.to_string())
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -1359,8 +1362,10 @@ fn exclude_library_songs(ids: Vec<String>, state: State<AppState>, app: AppHandl
 }
 
 #[tauri::command]
-fn get_library_file_issues(state: State<AppState>) -> Result<Vec<LibraryFileIssue>, String> {
-    state.db.get_file_issues()
+async fn get_library_file_issues(state: State<'_, AppState>) -> Result<Vec<LibraryFileIssue>, String> {
+    let db = Arc::clone(&state.db);
+    tauri::async_runtime::spawn_blocking(move || db.get_file_issues())
+        .await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -1374,13 +1379,16 @@ fn resolve_library_file_issue(path: String, action: FileIssueAction, state: Stat
 }
 
 #[tauri::command]
-fn get_playlists(state: State<AppState>) -> Result<Vec<PlaylistRecord>, String> {
-    let mut playlists = state.db.get_playlists().map_err(|e| e.to_string())?;
-    for playlist in &mut playlists {
-        let songs = state.db.get_playlist_songs(&playlist.id).map_err(|e| e.to_string())?;
-        playlist.song_count = state.db.available_songs(songs)?.len();
-    }
-    Ok(playlists)
+async fn get_playlists(state: State<'_, AppState>) -> Result<Vec<PlaylistRecord>, String> {
+    let db = Arc::clone(&state.db);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut playlists = db.get_playlists().map_err(|e| e.to_string())?;
+        for playlist in &mut playlists {
+            let songs = db.get_playlist_songs(&playlist.id).map_err(|e| e.to_string())?;
+            playlist.song_count = db.available_songs(songs)?.len();
+        }
+        Ok(playlists)
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -1432,14 +1440,17 @@ fn remove_from_playlist(
 }
 
 #[tauri::command]
-fn get_playlist_songs(
+async fn get_playlist_songs(
     playlist_id: String,
     context: Option<SongSettingsContext>,
-    state: State<AppState>,
+    state: State<'_, AppState>,
 ) -> Result<Vec<SongRecord>, String> {
-    let songs = state.db.get_playlist_songs(&playlist_id).map_err(|e| e.to_string())?;
-    let songs = state.db.available_songs(songs)?;
-    state.db.resolve_song_settings(songs, context.as_ref()).map_err(|e| e.to_string())
+    let db = Arc::clone(&state.db);
+    tauri::async_runtime::spawn_blocking(move || {
+        let songs = db.get_playlist_songs(&playlist_id).map_err(|e| e.to_string())?;
+        let songs = db.available_songs(songs)?;
+        db.resolve_song_settings(songs, context.as_ref()).map_err(|e| e.to_string())
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -1556,9 +1567,12 @@ fn reorder_queue(
 
 // Phase 8: Game Process & Instrument Mapping commands
 #[tauri::command]
-fn get_game_statuses(state: State<AppState>) -> Result<Vec<GameStatusPayload>, String> {
-    let mut pm = state.process_monitor.lock().map_err(|e| e.to_string())?;
-    Ok(pm.check_statuses())
+async fn get_game_statuses(state: State<'_, AppState>) -> Result<Vec<GameStatusPayload>, String> {
+    let monitor = Arc::clone(&state.process_monitor);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut pm = monitor.lock().map_err(|e| e.to_string())?;
+        Ok(pm.check_statuses())
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
