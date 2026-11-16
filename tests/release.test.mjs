@@ -30,7 +30,7 @@ test('native package workflow removes empty Apple credentials and preserves sign
   };
   const names = [...apple, ...Object.keys(tauri)];
   const inspect = `const names = ${JSON.stringify(names)}; console.log(JSON.stringify({ env: Object.fromEntries(names.filter(name => Object.hasOwn(process.env, name)).map(name => [name, process.env[name]])), args: process.argv.slice(1) }));`;
-  const script = `pnpm() { "$AMP_TEST_NODE" -e '${inspect}' "$@"; }\n${run}`;
+  const script = `node() { "$AMP_TEST_NODE" -e '${inspect}' "$@"; }\n${run}`;
   const empty = Object.fromEntries(apple.map(name => [name, '']));
   const configured = Object.fromEntries(apple.map(name => [name, `test ${name} $value !`]));
   for (const [os, target, bundles, credentials] of [
@@ -51,7 +51,7 @@ test('native package workflow removes empty Apple credentials and preserves sign
     const observed = JSON.parse(result.stdout);
     assert.deepEqual(observed.env, { ...tauri, ...(os === 'macOS' && credentials === empty ? {} : credentials) }, os);
     assert.deepEqual(observed.args, [
-      'tauri', 'build', '--target', target, '--bundles', bundles, '--config', 'dist/release-config.json',
+      'scripts/build-native-packages.mjs', '--target', target, '--bundles', bundles, '--config', 'dist/release-config.json',
       ...(os === 'Windows' ? ['--config', 'dist/signing.json'] : []), '--', '--locked',
     ], os);
   }

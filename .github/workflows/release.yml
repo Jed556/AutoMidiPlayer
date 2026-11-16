@@ -108,7 +108,7 @@ jobs:
       - name: Verify release tooling
         env:
           GIT_CLIFF_BIN: ${{ runner.temp }}/git-cliff/bin/git-cliff
-        run: node --test tests/release.test.mjs
+        run: node --test tests/release.test.mjs tests/native-packages.test.mjs
       - uses: actions/download-artifact@v8
         with:
           name: dependency-notices
@@ -245,7 +245,7 @@ jobs:
               if [ -z "${!name:-}" ]; then unset "$name"; fi
             done
           fi
-          pnpm tauri build "${args[@]}" -- --locked
+          node scripts/build-native-packages.mjs "${args[@]}" -- --locked
       - name: Test native code
         run: cargo test --workspace --lib --locked
       - name: Stage and verify release packages

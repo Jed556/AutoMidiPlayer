@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir, mkdtemp, cp, readdir, stat } from 'node:fs/
 import { resolve, join, basename } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { documents, releaseVersion, mergeManifests, sha256, verifyUpdaterSignature } from './release-lib.mjs';
+import { detachDmg } from './build-native-packages.mjs';
 
 const [command, input, target] = process.argv.slice(2);
 const version = releaseVersion(input);
@@ -44,7 +45,7 @@ async function inspectPackage(path, suffix) {
   } else if (suffix === '.dmg') {
     execFileSync('hdiutil', ['attach', '-readonly', '-nobrowse', '-mountpoint', inspection, path]);
     try { await verifyDocuments(inspection); }
-    finally { execFileSync('hdiutil', ['detach', inspection]); }
+    finally { await detachDmg(inspection); }
     return;
   }
   await verifyDocuments(inspection);
