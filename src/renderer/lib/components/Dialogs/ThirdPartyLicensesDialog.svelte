@@ -3,12 +3,19 @@
   import { uiStore } from '../../state/uiStore.svelte';
   import { loadOpenSourceLicenses, type LicenseInfo } from '../../data/aboutData';
   import FluentIcon from '../Icons/FluentIcon.svelte';
+  import Button from '../Common/Button.svelte';
   import ContentDialog from './ContentDialog.svelte';
   import { t } from '../../i18n';
 
   let licenses = $state<LicenseInfo[]>([]);
+  let primaryLicenses = $state<LicenseInfo[]>([]);
+  let showAll = $state(uiStore.dialogData?.showAll === true);
+  let visibleLicenses = $derived(showAll ? licenses : primaryLicenses);
   onMount(() => {
-    void loadOpenSourceLicenses().then(items => { licenses = items; });
+    void Promise.all([loadOpenSourceLicenses(), loadOpenSourceLicenses(true)]).then(([primary, all]) => {
+      primaryLicenses = primary;
+      licenses = all;
+    });
   });
 
   let currentLicense = $derived.by<LicenseInfo | null>(() => {
@@ -48,6 +55,21 @@
   showCloseButton={true}
   onClose={() => uiStore.closeDialog()}
 >
+  {#snippet topRight()}
+    {#if !selectedLicense}
+      <Button
+        variant="ghost"
+        size="icon"
+        icon="Script16"
+        iconSize={16}
+        active={showAll}
+        pressed={showAll}
+        title={showAll ? t('about.showDirectLicenses') : t('about.showAllLicenses')}
+        onclick={() => { showAll = !showAll; }}
+      />
+    {/if}
+  {/snippet}
+
   {#if selectedLicense}
     <div class="license-text-container">
       {#if selectedLicense.url}
@@ -62,7 +84,7 @@
     </div>
   {:else}
     <div class="licenses-list">
-      {#each licenses as item (`${item.name}@${item.version}`)}
+      {#each visibleLicenses as item (`${item.name}@${item.version}`)}
         <button class="license-item-btn" onclick={() => selectItem(item)}>
           <div class="license-row">
             <span class="lib-name">{item.name} {item.version}</span>

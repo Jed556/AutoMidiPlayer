@@ -98,6 +98,8 @@ const FLUENT_ICONS = [
   { symbol: 'ReadingList', base: 'reading_list' },
   { symbol: 'Reorder', base: 'reorder' },
   { symbol: 'ScanDash', base: 'scan_dash' },
+  { symbol: 'Script', base: 'script' },
+  { symbol: 'Script16', base: 'script', size: 16 },
   { symbol: 'Search', base: 'search' },
   { symbol: 'Settings', base: 'settings' },
   { symbol: 'ShieldCheckmark', base: 'shield_checkmark' },
@@ -123,8 +125,8 @@ const FLUENT_ICONS = [
 
 const fluentFiles = fs.existsSync(fluentDir) ? fs.readdirSync(fluentDir) : [];
 
-function findBestFluentFile(baseName, variant) {
-  const sizes = [24, 20, 16, 28, 32, 12, 48];
+function findBestFluentFile(baseName, variant, preferredSize) {
+  const sizes = preferredSize ? [preferredSize, 24, 20, 16, 28, 32, 12, 48] : [24, 20, 16, 28, 32, 12, 48];
   for (const s of sizes) {
     const candidate = `${baseName}_${s}_${variant}.svg`;
     if (fluentFiles.includes(candidate)) return candidate;
@@ -137,8 +139,8 @@ const iconRegistry = {};
 
 // 1. Process Fluent System Icons (Consolidated outlined + filled)
 for (const item of FLUENT_ICONS) {
-  const regFile = findBestFluentFile(item.base, 'regular');
-  const fillFile = findBestFluentFile(item.base, 'filled');
+  const regFile = findBestFluentFile(item.base, 'regular', item.size);
+  const fillFile = findBestFluentFile(item.base, 'filled', item.size);
 
   if (!regFile && !fillFile) {
     console.warn(`Warning: Could not find SVG for ${item.symbol} (${item.base})`);

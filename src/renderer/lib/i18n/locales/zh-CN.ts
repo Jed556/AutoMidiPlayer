@@ -576,6 +576,8 @@ export const zhCN: TranslationSchema = {
     forkSuffix: ' v4.0.5，后独立拆分并重新设计，以支持更多游戏虚拟乐器并加入更加丰富的演奏功能。衷心感谢原作者的开创性贡献！',
     contributors: '贡献者',
     openSourceLicenses: '开源许可证',
+    showAllLicenses: '显示所有许可证',
+    showDirectLicenses: '显示直接依赖项和鸣谢',
     disclaimer: '版权所有：© miHoYo Co., Ltd.、© XD Inc.、© thatgamecompany, Inc.、© Roblox Corporation 及完美世界旗下 © Hotta Studio。本项目与米哈游、心动、thatgamecompany、Roblox 或 Hotta Studio 无任何从属关系。',
   },
   settings: {

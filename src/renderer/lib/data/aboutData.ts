@@ -35,6 +35,7 @@ export const ABOUT_LINKS: AboutLink[] = [
   }
 ];
 
-export async function loadOpenSourceLicenses() {
-  return (await import('./licenseData')).OPEN_SOURCE_LICENSES;
+export async function loadOpenSourceLicenses(includeTransitive = false) {
+  const data = await import('./licenseData');
+  return includeTransitive ? data.OPEN_SOURCE_LICENSES : data.PRIMARY_OPEN_SOURCE_LICENSES;
 }

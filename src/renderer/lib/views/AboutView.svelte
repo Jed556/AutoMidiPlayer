@@ -180,6 +180,10 @@
         {/each}
       </div>
 
+      <button type="button" class="all-licenses-button accent-link" onclick={() => uiStore.openDialog('licenses', { showAll: true })}>
+        {t('about.showAllLicenses')}
+      </button>
+
       <p class="disclaimer-text">
         {t('about.disclaimer')}
       </p>
@@ -512,6 +516,17 @@
   }
 
   /* Disclaimer Text */
+  .all-licenses-button {
+    align-self: flex-start;
+    margin-top: 14px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
   .disclaimer-text {
     font-size: 12.5px;
     line-height: 1.6;

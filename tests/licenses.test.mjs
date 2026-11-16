@@ -42,7 +42,7 @@ test('About and its dialog share the Markdown-derived library list and current a
   const source = readFileSync(new URL('../src/renderer/lib/data/licenseData.ts', import.meta.url), 'utf8');
   assert.match(source, /THIRD-PARTY-LICENSES\.md\?raw/);
   assert.match(source, /parseLicenseMarkdown\(licenseMarkdown\)/);
-  assert.match(source, /import \{ version \} from .*package\.json/);
+  assert.match(source, /import \{ version, dependencies \} from .*package\.json/);
   assert.doesNotMatch(source, /DryWetMIDI|WPF UI|version: '7\./);
   const about = readFileSync(new URL('../src/renderer/lib/data/aboutData.ts', import.meta.url), 'utf8');
   assert.match(about, /await import\('\.\/licenseData'\)/);

@@ -574,6 +574,8 @@ export const enUS = {
     forkSuffix: ' v4.0.5 and later detached into its own repository to enable multi-game support and features that do not fit the original Genshin Impact-only design. Huge thanks for the original work!',
     contributors: 'Contributors',
     openSourceLicenses: 'Open Source Licenses',
+    showAllLicenses: 'Show all licenses',
+    showDirectLicenses: 'Show direct dependencies and credits',
     disclaimer: 'All rights reserved by © miHoYo Co., Ltd., © XD Inc., © thatgamecompany, Inc., © Roblox Corporation, and © Hotta Studio, a Perfect World company. Not affiliated with miHoYo, XD, thatgamecompany, Roblox, or Hotta Studio.',
   },
   settings: {
