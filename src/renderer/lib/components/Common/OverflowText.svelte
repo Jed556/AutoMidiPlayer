@@ -87,6 +87,8 @@
     white-space: nowrap;
     --overflow-fade-left: #000;
     --overflow-fade-right: transparent;
+    transition: --overflow-fade-left var(--anim-duration, 0.25s) cubic-bezier(0.16, 1, 0.3, 1),
+                --overflow-fade-right var(--anim-duration, 0.25s) cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .overflowing {
@@ -138,10 +140,12 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .overflow-text { transition: none; }
     .running, .running .track { animation: none; }
     .running.loop { --overflow-fade-left: #000; }
   }
 
+  :global(.no-animations) .overflow-text { transition: none; }
   :global(.no-animations) .running,
   :global(.no-animations) .running .track { animation: none; }
   :global(.no-animations) .running.loop { --overflow-fade-left: #000; }

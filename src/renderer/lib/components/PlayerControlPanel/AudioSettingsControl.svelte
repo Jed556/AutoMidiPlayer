@@ -517,10 +517,10 @@
       data-tooltip-disabled={volumeMenuOpen || isAnyMenuOpen ? 'true' : undefined}
       onclick={(e) => {
         e.stopPropagation();
-        tooltipManager.hide();
         if (isVolumeInline) {
           toggleMute();
         } else {
+          tooltipManager.hide();
           volumeDropdown.isOpen = !volumeMenuOpen;
         }
       }}

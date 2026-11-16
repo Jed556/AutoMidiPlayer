@@ -19,6 +19,10 @@
   function cancelMorph() {
     animations.forEach(animation => animation.cancel());
     animations = [];
+    if (content) {
+      content.style.maskImage = '';
+      content.style.webkitMaskImage = '';
+    }
     outgoing?.remove();
     outgoing = null;
   }
@@ -57,12 +61,50 @@
           { transform: `scale(${before.width / after.width}, ${before.height / after.height})` },
           { transform: 'scale(1, 1)' }
         ], timing));
-        // Clip both labels to the animated surface, including during a shrink.
-        // Negative insets let the outgoing label use the previous box's size.
-        animations.push(content.animate([
-          { clipPath: `inset(0px ${after.width - before.width}px ${after.height - before.height}px 0px)` },
-          { clipPath: 'inset(0px 0px 0px 0px)' }
-        ], timing));
+        if (before.width !== after.width) {
+          const fadeWidth = 20;
+          const p0 = before.width;
+          const p1 = after.width;
+          const p018 = p0 + (p1 - p0) * 0.18;
+          const p082 = p0 + (p1 - p0) * 0.82;
+
+          const k0 = `linear-gradient(to right, rgba(0, 0, 0, 1) 0px, rgba(0, 0, 0, 1) ${Math.max(0, Math.round(p0 - fadeWidth))}px, rgba(0, 0, 0, 1) ${Math.round(p0)}px, rgba(0, 0, 0, 1) 100%)`;
+          const k1 = `linear-gradient(to right, rgba(0, 0, 0, 1) 0px, rgba(0, 0, 0, 1) ${Math.max(0, Math.round(p018 - fadeWidth))}px, rgba(0, 0, 0, 0) ${Math.round(p018)}px, rgba(0, 0, 0, 0) 100%)`;
+          const k2 = `linear-gradient(to right, rgba(0, 0, 0, 1) 0px, rgba(0, 0, 0, 1) ${Math.max(0, Math.round(p082 - fadeWidth))}px, rgba(0, 0, 0, 0) ${Math.round(p082)}px, rgba(0, 0, 0, 0) 100%)`;
+          const k3 = `linear-gradient(to right, rgba(0, 0, 0, 1) 0px, rgba(0, 0, 0, 1) ${Math.max(0, Math.round(p1 - fadeWidth))}px, rgba(0, 0, 0, 1) ${Math.round(p1)}px, rgba(0, 0, 0, 1) 100%)`;
+
+          try {
+            content.style.webkitMaskImage = k0;
+            content.style.maskImage = k0;
+
+            const maskAnim = content.animate([
+              { offset: 0.0, maskImage: k0, webkitMaskImage: k0 },
+              { offset: 0.18, maskImage: k1, webkitMaskImage: k1 },
+              { offset: 0.82, maskImage: k2, webkitMaskImage: k2 },
+              { offset: 1.0, maskImage: k3, webkitMaskImage: k3 }
+            ], timing);
+            animations.push(maskAnim);
+
+            void maskAnim.finished.then(() => {
+              if (content) {
+                content.style.maskImage = '';
+                content.style.webkitMaskImage = '';
+              }
+            }).catch(() => {});
+          } catch {
+            animations.push(content.animate([
+              { clipPath: `inset(0px ${Math.max(0, after.width - before.width)}px 0px 0px)` },
+              { clipPath: 'inset(0px 0px 0px 0px)' }
+            ], timing));
+          }
+        }
+
+        if (after.height !== before.height) {
+          animations.push(content.animate([
+            { clipPath: `inset(0px 0px ${after.height - before.height}px 0px)` },
+            { clipPath: 'inset(0px 0px 0px 0px)' }
+          ], timing));
+        }
 
         if (oldLabel && (oldLabel.textContent !== label.textContent || oldLabel.className !== label.className)) {
           outgoing = oldLabel;
@@ -239,19 +281,24 @@
     font-weight: 500;
     line-height: 1.35;
     letter-spacing: -0.01em;
-    white-space: normal;
-    overflow-wrap: anywhere;
+    white-space: nowrap;
   }
 
   .amp-tooltip-box.is-pedals {
     border-radius: 8px;
+    white-space: normal;
   }
 
   .amp-tooltip-content {
     position: relative;
     min-width: 0;
     max-height: max(0px, calc(100vh - 24px));
-    clip-path: inset(0);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .amp-tooltip-content.is-pedals {
+    white-space: normal;
   }
 
   .amp-tooltip-label {
@@ -260,6 +307,8 @@
     overflow: hidden;
     padding: 4px 10px;
     box-sizing: border-box;
+    white-space: nowrap;
+    width: max-content;
   }
 
   .amp-tooltip-pedal-card {

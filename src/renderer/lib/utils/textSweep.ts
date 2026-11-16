@@ -7,7 +7,7 @@ export function animateTextSweep(
   previousWidth = previous.offsetWidth,
 ): Animation[] {
   previous.setAttribute('aria-hidden', 'true');
-  previous.style.cssText = `position:absolute;left:0;top:0;width:${previousWidth}px;pointer-events:none;`;
+  previous.style.cssText = `position:absolute;left:0;top:0;width:${previousWidth}px;white-space:nowrap;pointer-events:none;`;
   content.appendChild(previous);
 
   const prevHeight = previous.offsetHeight;

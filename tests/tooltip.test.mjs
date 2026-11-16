@@ -381,5 +381,39 @@ test('OverflowText configures CSS transition to fade in and out gradient clipper
   assert.match(source, /:global\(\.no-animations\)\s*\.overflow-text \{ transition: none; \}/);
 });
 
+test('clicking toggle button in dialogs preserves tooltip and morphs text while still hovered', async t => {
+  const h = await harness(t);
+  const node = target({ left: 800, right: 832, top: 40, bottom: 72, width: 32, height: 32 });
+  const action = h.tooltip(node, 'Show direct dependencies and credits');
+  h.activate(node, 'Show direct dependencies and credits', {}, { clientX: 816, clientY: 56 });
+  assert.equal(h.manager.isVisible, true);
+  assert.equal(h.manager.options.text, 'Show direct dependencies and credits');
+
+  // Pointer down & focusin when pressing the button
+  h.dispatch('pointerdown', { target: node, clientX: 816, clientY: 56 });
+  h.dispatch('focusin', { target: node });
+
+  // Click event and action update to toggled text while still hovered
+  h.dispatch('click', { target: node, clientX: 816, clientY: 56 });
+  action.update('Show all licenses');
+
+  await Promise.resolve();
+  h.frame();
+
+  assert.equal(h.manager.isVisible, true);
+  assert.equal(h.manager.options.text, 'Show all licenses');
+  assert.equal(h.manager.morphContent, true);
+
+  // Still visible after handoff timeout
+  await new Promise(resolve => setTimeout(resolve, 150));
+  assert.equal(h.manager.isVisible, true);
+
+  // Moving pointer away from button dismisses tooltip
+  node.dispatch('mouseleave', { target: node, relatedTarget: null });
+  await new Promise(resolve => setTimeout(resolve, 150));
+  assert.equal(h.manager.isVisible, false);
+});
+
+
 
 

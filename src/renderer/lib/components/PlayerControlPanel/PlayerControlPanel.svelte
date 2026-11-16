@@ -3,15 +3,11 @@
   import MainPlaybackControl from './MainPlaybackControl.svelte';
   import AudioSettingsControl from './AudioSettingsControl.svelte';
   import { uiStore } from '../../state/uiStore.svelte';
-  import { tooltipManager } from '../../ui/tooltipManager.svelte';
 </script>
 
 <footer
   class="player-control-panel"
   data-tooltip-disabled={uiStore.isBottomPickerActive ? 'true' : undefined}
-  onclickcapture={() => {
-    tooltipManager.hide();
-  }}
 >
   <SongInfoControl />
   <MainPlaybackControl />

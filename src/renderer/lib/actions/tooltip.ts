@@ -64,17 +64,23 @@ export function tooltip(node: HTMLElement, param: TooltipParam) {
     }
   }
 
-  function handleMouseLeave() {
-    tooltipManager.hideAfterUpdate(false, node);
+  function handleMouseLeave(e: MouseEvent) {
+    const related = e.relatedTarget as HTMLElement | null;
+    if (related && node.contains(related)) return;
+    tooltipManager.hide(false);
   }
 
   function handleFocus() {
+    if (tooltipManager.isCurrentTarget(node) && tooltipManager.isVisible) {
+      return;
+    }
     if (hasContent(currentOptions)) {
       tooltipManager.show(node, currentOptions!);
     }
   }
 
   function handleBlur() {
+    if (tooltipManager.isPointerOverTarget(node)) return;
     tooltipManager.hideAfterUpdate(false, node);
   }
 
@@ -95,10 +101,11 @@ export function tooltip(node: HTMLElement, param: TooltipParam) {
         node.removeAttribute('title');
       }
       syncAttributes(currentOptions);
-      if (tooltipManager.isCurrentTarget(node) && hasContent(currentOptions)) {
-        tooltipManager.updateOptionsAfterUpdate(node, currentOptions!);
-      }
-      if (!hasContent(currentOptions)) {
+      if (hasContent(currentOptions)) {
+        if (tooltipManager.isCurrentTarget(node) || tooltipManager.isPointerOverTarget(node)) {
+          tooltipManager.updateOptionsAfterUpdate(node, currentOptions!);
+        }
+      } else {
         tooltipManager.hideAfterUpdate(true, node);
       }
     },

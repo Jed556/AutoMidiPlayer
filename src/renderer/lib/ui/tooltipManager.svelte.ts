@@ -39,6 +39,7 @@ class TooltipManager {
   defaultPosition = $state<TooltipPosition>('top');
 
   private currentTarget: HTMLElement | null = null;
+  private activeGlobalTarget: HTMLElement | null = null;
   private targetRevision = 0;
   private enterTimeout: any = null;
   private exitTimeout: any = null;
@@ -53,6 +54,43 @@ class TooltipManager {
 
   isCurrentTarget(el: HTMLElement | null): boolean {
     return this.currentTarget === el;
+  }
+
+  isPointerOverTarget(target: HTMLElement | null = this.currentTarget): boolean {
+    if (!target || typeof window === 'undefined') return false;
+    if (target.isConnected === false) return false;
+
+    try {
+      if (typeof target.matches === 'function' && target.matches(':hover')) {
+        return true;
+      }
+    } catch {
+      // In case matches(':hover') is not supported in the environment
+    }
+
+    const { x, y } = this.lastMousePos;
+    if (x === 0 && y === 0) return false;
+
+    if (typeof target.getBoundingClientRect === 'function') {
+      const rect = target.getBoundingClientRect();
+      if (
+        x >= rect.left - 2 &&
+        x <= rect.right + 2 &&
+        y >= rect.top - 2 &&
+        y <= rect.bottom + 2
+      ) {
+        return true;
+      }
+    }
+
+    if (typeof document !== 'undefined' && typeof document.elementFromPoint === 'function') {
+      const el = document.elementFromPoint(x, y);
+      if (el && (target === el || target.contains?.(el))) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   setFollowCursor(val: boolean) {
@@ -73,9 +111,20 @@ class TooltipManager {
     // Action updates can run during Svelte rendering, just like focusout.
     const revision = this.targetRevision;
     queueMicrotask(() => {
-      if (this.currentTarget !== target || this.targetRevision !== revision) return;
+      if ((this.currentTarget !== target && !this.isPointerOverTarget(target)) || this.targetRevision !== revision) return;
+      this.currentTarget = target;
+      if (this.handoffTimeout) {
+        clearTimeout(this.handoffTimeout);
+        this.handoffTimeout = null;
+      }
+      if (this.exitTimeout) {
+        clearTimeout(this.exitTimeout);
+        this.exitTimeout = null;
+      }
+      this.isRendered = true;
+      this.isVisible = true;
       if (options.text !== this.options.text || options.contentType !== this.options.contentType) {
-        this.morphContent = this.isVisible;
+        this.morphContent = true;
         this.contentRevision++;
       }
       this.options = options;
@@ -101,6 +150,15 @@ class TooltipManager {
       this.hide();
       return;
     }
+    if (this.handoffTimeout) {
+      clearTimeout(this.handoffTimeout);
+      this.handoffTimeout = null;
+    }
+    if (this.exitTimeout) {
+      clearTimeout(this.exitTimeout);
+      this.exitTimeout = null;
+    }
+    this.isVisible = true;
     if (text === this.options.text) return;
     this.morphContent = this.isVisible;
     this.contentRevision++;
@@ -130,7 +188,7 @@ class TooltipManager {
     }
 
     this.targetRevision++;
-    this.pointerTriggered = Boolean(mouseEvent);
+    this.pointerTriggered = mouseEvent ? true : this.isPointerOverTarget(target);
     if (mouseEvent) {
       this.lastMousePos = { x: mouseEvent.clientX, y: mouseEvent.clientY };
     }
@@ -192,7 +250,10 @@ class TooltipManager {
     // render pass. Wait until it finishes before updating the tooltip state.
     const revision = this.targetRevision;
     queueMicrotask(() => {
-      if (this.currentTarget === target && this.targetRevision === revision) this.hide(immediate);
+      if (this.currentTarget === target && this.targetRevision === revision) {
+        if (!immediate && this.isPointerOverTarget(target)) return;
+        this.hide(immediate);
+      }
     });
   }
 
@@ -209,6 +270,10 @@ class TooltipManager {
     if (this.handoffTimeout) clearTimeout(this.handoffTimeout);
     this.handoffTimeout = null;
 
+    if (immediate) {
+      this.activeGlobalTarget = null;
+    }
+
     if (!immediate && this.isVisible) {
       this.handoffTimeout = setTimeout(() => {
         this.handoffTimeout = null;
@@ -221,8 +286,8 @@ class TooltipManager {
   }
 
   private dismiss(immediate = false) {
-
     this.currentTarget = null;
+    this.activeGlobalTarget = null;
     this.isVisible = false;
 
     const isOff =
@@ -448,9 +513,6 @@ class TooltipManager {
     if (this.globalInitialized || typeof window === 'undefined') return;
     this.globalInitialized = true;
 
-    let activeGlobalTarget: HTMLElement | null = null;
-    let clickSuppressedTarget: HTMLElement | null = null;
-
     // Helper to immediately strip title from element and store in data-amp-tooltip
     const processTitleElement = (el: HTMLElement) => {
       if (!el || !el.hasAttribute || !el.hasAttribute('title')) return;
@@ -464,7 +526,7 @@ class TooltipManager {
         el.removeAttribute('title');
 
         // If this element is currently hovered, reactively update the active tooltip text!
-        if (this.currentTarget === el || activeGlobalTarget === el) {
+        if (this.currentTarget === el || this.activeGlobalTarget === el) {
           this.updateCurrentText(title);
         }
       }
@@ -492,18 +554,18 @@ class TooltipManager {
                 if (isDisabled) {
                   if (
                     this.currentTarget === el ||
-                    activeGlobalTarget === el ||
+                    this.activeGlobalTarget === el ||
                     (this.currentTarget && el.contains(this.currentTarget)) ||
-                    (activeGlobalTarget && el.contains(activeGlobalTarget))
+                    (this.activeGlobalTarget && el.contains(this.activeGlobalTarget))
                   ) {
                     this.hide();
-                    activeGlobalTarget = null;
+                    this.activeGlobalTarget = null;
                   }
                 }
               } else if (m.attributeName === 'data-tooltip-follow' ||
                          m.attributeName === 'data-tooltip-position' || m.attributeName === 'data-position') {
                 const el = m.target as HTMLElement;
-                if (this.currentTarget === el && activeGlobalTarget === el) {
+                if (this.currentTarget === el && this.activeGlobalTarget === el) {
                   const followAttr = el.getAttribute('data-tooltip-follow');
                   this.options = {
                     ...this.options,
@@ -539,47 +601,23 @@ class TooltipManager {
     }
 
     // 3. Track mouse movement
-    window.addEventListener(
-      'mousemove',
-      (e: MouseEvent) => {
-        this.updateMousePosition(e);
-      },
-      { capture: true, passive: true }
-    );
+    const trackPointer = (e: MouseEvent | PointerEvent) => {
+      this.updateMousePosition(e);
+    };
+    window.addEventListener('mousemove', trackPointer, { capture: true, passive: true });
+    window.addEventListener('pointerdown', trackPointer, { capture: true, passive: true });
+    window.addEventListener('pointerup', trackPointer, { capture: true, passive: true });
 
-    // 4. Global click listener: when user clicks a button, handle bottom controls click suppression & hide, or check for updated tooltip text
+    // 4. Global click listener: when user clicks a button, check for updated tooltip text
     window.addEventListener(
       'click',
       (e: MouseEvent) => {
+        this.updateMousePosition(e);
         const raw = e.target as HTMLElement | null;
-        const bottomPanel = raw?.closest?.('.player-control-panel');
-        if (bottomPanel) {
-          this.hide();
-          activeGlobalTarget = null;
-          const clickedControl = raw?.closest?.(
-            'button, [data-amp-tooltip], [data-tooltip], [title], .pill-btn, .ctrl-btn, .play-main-btn'
-          ) as HTMLElement | null;
-
-          if (clickedControl) {
-            clickSuppressedTarget = clickedControl;
-            const clearClickSuppression = () => {
-              if (clickSuppressedTarget === clickedControl) {
-                clickSuppressedTarget = null;
-              }
-              clickedControl.removeEventListener('mouseleave', clearClickSuppression);
-              clickedControl.removeEventListener('pointerleave', clearClickSuppression);
-              clickedControl.removeEventListener('blur', clearClickSuppression);
-            };
-            clickedControl.addEventListener('mouseleave', clearClickSuppression, { once: true });
-            clickedControl.addEventListener('pointerleave', clearClickSuppression, { once: true });
-            clickedControl.addEventListener('blur', clearClickSuppression, { once: true });
-          }
-          return;
-        }
 
         requestAnimationFrame(() => {
-          const target = this.currentTarget || activeGlobalTarget;
-          if (!target) return;
+          const target = this.currentTarget || this.activeGlobalTarget || (raw?.closest?.('button, [data-amp-tooltip], [data-tooltip], [title]') as HTMLElement | null);
+          if (!target || !this.isPointerOverTarget(target)) return;
           if (target.hasAttribute('title')) {
             processTitleElement(target);
           } else if (target.hasAttribute('data-amp-tooltip')) {
@@ -600,31 +638,21 @@ class TooltipManager {
         const raw = e.target as HTMLElement | null;
         if (!raw) return;
 
-        // If this element was just clicked in the bottom controls, prevent tooltip from showing while pointer stays on it
-        if (
-          clickSuppressedTarget &&
-          (raw === clickSuppressedTarget ||
-            clickSuppressedTarget.contains(raw) ||
-            raw.closest?.('button, [data-amp-tooltip], [data-tooltip], [title], .pill-btn, .ctrl-btn, .play-main-btn') === clickSuppressedTarget)
-        ) {
-          return;
-        }
-
         // Check if target or any ancestor explicitly disables tooltips
         const disabledParent = raw.closest?.('[data-tooltip-disabled="true"], [data-tooltip-disabled=""]');
         if (disabledParent) {
-          if (activeGlobalTarget) {
+          if (this.activeGlobalTarget) {
             this.hide();
-            activeGlobalTarget = null;
+            this.activeGlobalTarget = null;
           }
           return;
         }
 
         const target = raw.closest?.('[title], [data-amp-tooltip], [data-tooltip]') as HTMLElement | null;
         if (!target) {
-          if (activeGlobalTarget) {
+          if (this.activeGlobalTarget) {
             this.hide();
-            activeGlobalTarget = null;
+            this.activeGlobalTarget = null;
           }
           return;
         }
@@ -635,9 +663,9 @@ class TooltipManager {
           target.getAttribute('data-tooltip-disabled') === '' ||
           Boolean(target.closest?.('[data-tooltip-disabled="true"], [data-tooltip-disabled=""]'))
         ) {
-          if (activeGlobalTarget) {
+          if (this.activeGlobalTarget) {
             this.hide();
-            activeGlobalTarget = null;
+            this.activeGlobalTarget = null;
           }
           return;
         }
@@ -647,8 +675,8 @@ class TooltipManager {
         // Strip native title if present
         processTitleElement(target);
 
-        if (target === activeGlobalTarget) return;
-        activeGlobalTarget = target;
+        if (target === this.activeGlobalTarget) return;
+        this.activeGlobalTarget = target;
 
         let text = target.getAttribute('data-amp-tooltip') || target.getAttribute('data-tooltip') || '';
         const contentType = (target.getAttribute('data-tooltip-content') as any) || 'text';
@@ -684,12 +712,12 @@ class TooltipManager {
     window.addEventListener(
       'mouseout',
       (e: MouseEvent) => {
-        if (!activeGlobalTarget) return;
+        if (!this.activeGlobalTarget) return;
         const related = e.relatedTarget as HTMLElement | null;
-        if (related && activeGlobalTarget.contains(related)) return;
+        if (related && this.activeGlobalTarget.contains(related)) return;
 
-        this.hideAfterUpdate(false, activeGlobalTarget);
-        activeGlobalTarget = null;
+        this.hide(false);
+        this.activeGlobalTarget = null;
       },
       true
     );
@@ -701,10 +729,7 @@ class TooltipManager {
         const target = (e.target as HTMLElement | null)?.closest?.('[data-amp-tooltip], [data-tooltip], [title]') as HTMLElement | null;
         if (!target) return;
 
-        if (
-          clickSuppressedTarget &&
-          (target === clickSuppressedTarget || clickSuppressedTarget.contains(target))
-        ) {
+        if (this.isCurrentTarget(target) && this.isVisible) {
           return;
         }
 
@@ -735,6 +760,7 @@ class TooltipManager {
     window.addEventListener(
       'focusout',
       () => {
+        if (this.isPointerOverTarget(this.currentTarget)) return;
         this.hideAfterUpdate();
       },
       true
