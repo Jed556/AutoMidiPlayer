@@ -64,18 +64,29 @@ async function harness(t) {
   };
 }
 
-function target(rect = { left: 100, right: 200, top: 100, bottom: 130, width: 100, height: 30 }, attributes = {}) {
+function target(rect = { left: 100, right: 200, top: 100, bottom: 130, width: 100, height: 30 }, attributes = {}, parent = null) {
+  const listeners = new Map();
   return {
     getAttribute: name => attributes[name] ?? null,
     hasAttribute: name => name in attributes,
     setAttribute(name, value) { attributes[name] = value; },
     removeAttribute(name) { delete attributes[name]; },
     closest(selector) {
-      return selector.includes('[title]') && ['title', 'data-tooltip', 'data-amp-tooltip'].some(key => key in attributes) ? this : null;
+      if (selector.includes('[title]') && ['title', 'data-tooltip', 'data-amp-tooltip'].some(key => key in attributes)) return this;
+      if (parent) return parent.closest(selector);
+      return null;
     },
     contains(node) { return node === this; },
-    addEventListener() {},
-    removeEventListener() {},
+    addEventListener(name, cb) {
+      if (!listeners.has(name)) listeners.set(name, new Set());
+      listeners.get(name).add(cb);
+    },
+    removeEventListener(name, cb) {
+      listeners.get(name)?.delete(cb);
+    },
+    dispatch(name, e = {}) {
+      for (const cb of listeners.get(name) ?? []) cb(e);
+    },
     getBoundingClientRect: () => rect,
   };
 }
@@ -286,4 +297,89 @@ test('lower left song info control anchors title and artist tooltips to visible 
   assert.match(source, /\.title-text,\s*\.artist-text\s*\{[^}]*width:\s*fit-content/);
   assert.match(source, /\.info-stack\s*:global\(\.overflow-text\)\s*\{[^}]*width:\s*fit-content/);
 });
+
+test('toggling or updating a hovered control preserves the tooltip without disappearing', async t => {
+  const h = await harness(t);
+  const node = target();
+  const action = h.tooltip(node, 'Initial Text');
+  h.activate(node, 'Initial Text', {}, { clientX: 150, clientY: 115 });
+  h.manager.updatePosition();
+  assert.equal(h.manager.isVisible, true);
+  assert.equal(h.manager.options.text, 'Initial Text');
+
+  // Simulate focusout and mouseout that can occur during click re-rendering while pointer stays on target
+  h.dispatch('focusout');
+  h.dispatch('mouseout', { target: node, relatedTarget: null });
+  action.update('Updated Text');
+
+  await Promise.resolve();
+  h.frame();
+
+  assert.equal(h.manager.isVisible, true);
+  assert.equal(h.manager.options.text, 'Updated Text');
+
+  // Verify that any pending handoff timer does not dismiss the active tooltip while hovering
+  await new Promise(resolve => setTimeout(resolve, 150));
+  assert.equal(h.manager.isVisible, true);
+});
+
+test('moving pointer away from hovered control dismisses the tooltip', async t => {
+  const h = await harness(t);
+  const node = target();
+  const action = h.tooltip(node, 'Hover Text');
+  h.activate(node, 'Hover Text', {}, { clientX: 150, clientY: 115 });
+  assert.equal(h.manager.isVisible, true);
+
+  // When pointer leaves the node
+  node.dispatch('mouseleave', { relatedTarget: null });
+  await new Promise(resolve => setTimeout(resolve, 150));
+  assert.equal(h.manager.isVisible, false);
+});
+
+test('clicking bottom panel controls preserves tooltip and updates text when still hovered', async t => {
+  const h = await harness(t);
+  const panel = { closest: sel => sel.includes('player-control-panel') ? panel : null };
+  const node = target({ left: 100, right: 200, top: 100, bottom: 130, width: 100, height: 30 }, { title: 'Play' }, panel);
+  h.dispatch('mouseover', { target: node, clientX: 150, clientY: 115 });
+  h.activate(node, 'Play', {}, { clientX: 150, clientY: 115 });
+  assert.equal(h.manager.isVisible, true);
+  assert.equal(h.manager.options.text, 'Play');
+
+  // Control is toggled on click, title attribute changes to Pause
+  node.setAttribute('title', 'Pause');
+  h.dispatch('click', { target: node, clientX: 150, clientY: 115 });
+  h.frame();
+
+  assert.equal(h.manager.isVisible, true);
+  assert.equal(h.manager.options.text, 'Pause');
+
+  await new Promise(resolve => setTimeout(resolve, 150));
+  assert.equal(h.manager.isVisible, true);
+});
+
+test('TooltipHost prevents word wrap and animates gradient clipper with fade in and fade out', () => {
+  const source = readFileSync(new URL('../src/renderer/lib/components/Common/TooltipHost.svelte', import.meta.url), 'utf8');
+  assert.match(source, /\.amp-tooltip-box\s*\{[^}]*white-space:\s*nowrap/);
+  assert.match(source, /\.amp-tooltip-content\s*\{[^}]*white-space:\s*nowrap/);
+  assert.match(source, /\.amp-tooltip-label\s*\{[^}]*white-space:\s*nowrap/);
+  assert.match(source, /\.amp-tooltip-label\s*\{[^}]*width:\s*max-content/);
+
+  // Verifies 4-stop gradient keyframes with fade-in and fade-out
+  assert.match(source, /offset:\s*0\.0,\s*maskImage:\s*k0/);
+  assert.match(source, /offset:\s*0\.18,\s*maskImage:\s*k1/);
+  assert.match(source, /offset:\s*0\.82,\s*maskImage:\s*k2/);
+  assert.match(source, /offset:\s*1\.0,\s*maskImage:\s*k3/);
+  assert.match(source, /const k0 = `linear-gradient\(to right, rgba\(0, 0, 0, 1\) 0px/);
+  assert.match(source, /const k3 = `linear-gradient\(to right, rgba\(0, 0, 0, 1\) 0px/);
+});
+
+test('OverflowText configures CSS transition to fade in and out gradient clipper on hover', () => {
+  const source = readFileSync(new URL('../src/renderer/lib/components/Common/OverflowText.svelte', import.meta.url), 'utf8');
+  assert.match(source, /transition:\s*--overflow-fade-left/);
+  assert.match(source, /--overflow-fade-right/);
+  assert.match(source, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.overflow-text \{ transition: none; \}/);
+  assert.match(source, /:global\(\.no-animations\)\s*\.overflow-text \{ transition: none; \}/);
+});
+
+
 

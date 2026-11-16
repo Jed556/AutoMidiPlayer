@@ -164,7 +164,9 @@ For platform prerequisites, package formats, and custom game or instrument defin
 ## Contributing
 
 Please read [CONTRIBUTING.md](CONTRIBUTING.md).  
-For adding notes, instruments, games, or keyboard mappings, see [Getting Started][wiki-getting-started]
+For adding notes, instruments, games, or keyboard mappings, see [Getting Started][wiki-getting-started].
+
+Use conventional commit messages so the versioning workflow can assign a version to each eligible commit on `rewrite-experimental` and `main`. It amends the version files into those commits, preserving author and committer dates while changing commit SHAs. See [Commit Messages and Versioning](CONTRIBUTING.md#commit-messages-and-versioning) for bump rules, previews, and how to sync your local branch after the bot runs.
 
 # Special Thanks
 

@@ -1,642 +1,403 @@
-import { readFile, writeFile, appendFile, unlink } from 'node:fs/promises';
+import { readFile, writeFile, appendFile, unlink, mkdtemp, rm } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { releaseVersion, nextReleaseVersion, replaceCargoVersion } from './release-lib.mjs';
 
 process.chdir(fileURLToPath(new URL('../', import.meta.url)));
 
 const SUMMARY_FILE = fileURLToPath(new URL('../.bump-summary.json', import.meta.url));
-
-const run = (command, args, options = {}) => execFileSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], ...options }).trim();
-const git = (...args) => run('git', args);
+export const VERSION_FILES = ['package.json', 'src-tauri/tauri.conf.json', 'src-tauri/Cargo.toml', 'Cargo.lock'];
+export const OPTIONAL_VERSION_FILE = 'src-tauri/Cargo.lock';
+const rawGit = (args, options = {}) => execFileSync('git', args, {
+  encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], ...options,
+});
+const git = (...args) => rawGit(args).trim();
+const text = path => readFile(path, 'utf8');
 const existsRef = ref => {
   try { return git('rev-parse', '--verify', `${ref}^{commit}`); } catch { return null; }
 };
 const isAncestor = (ancestor, descendant) => {
   try { git('merge-base', '--is-ancestor', ancestor, descendant); return true; } catch { return false; }
 };
-const text = path => readFile(path, 'utf8');
 
 export function isBotOrSkipCommit(message) {
-  if (!message) return true;
-  if (/\[(skip ci|ci skip)\]/i.test(message)) return true;
-  if (/^chore(?:\((?:version|release)\))?:\s*(?:bump|release)/i.test(message)) return true;
-  if (/^chore\((?:version|release)\):/i.test(message)) return true;
-  return false;
+  return !message || /\[(skip ci|ci skip)\]/i.test(message)
+    || /^chore(?:\((?:version|release)\))?:\s*(?:bump|release)/i.test(message)
+    || /^chore\((?:version|release)\):/i.test(message);
 }
 
 export function parseCliArgs(argv = process.argv.slice(2)) {
-  const flags = new Set();
-  const positional = [];
-  for (const arg of argv) {
-    if (arg.startsWith('--')) flags.add(arg);
-    else if (arg.trim()) positional.push(arg.trim());
-  }
-
+  const flags = new Set(argv.filter(arg => arg.startsWith('--')));
+  const positional = argv.filter(arg => !arg.startsWith('--')).map(arg => arg.trim()).filter(Boolean);
   const subcommands = new Set(['analyze', 'evaluate', 'apply', 'write', 'commit', 'push', 'summary']);
-  let command = 'all';
+  let command = subcommands.has(positional[0]?.toLowerCase()) ? positional.shift().toLowerCase() : 'all';
+  if (command === 'evaluate') command = 'analyze';
+  if (command === 'write') command = 'apply';
   let targetVersion = null;
-
-  if (positional.length > 0 && subcommands.has(positional[0].toLowerCase())) {
-    command = positional.shift().toLowerCase();
-    if (command === 'evaluate') command = 'analyze';
-    if (command === 'write') command = 'apply';
+  if (['apply', 'commit', 'push'].includes(command) && /^v?\d+\.\d+\.\d+/.test(positional[0] || '')) {
+    targetVersion = releaseVersion(positional.shift());
   }
-
-  let before = positional[0] || null;
-  let after = positional[1] || null;
-
-  if ((command === 'apply' || command === 'commit' || command === 'push') && before && /^v?\d+\.\d+\.\d+/.test(before)) {
-    targetVersion = releaseVersion(before);
-    before = null;
-    after = null;
-  }
-
   return {
-    command,
-    targetVersion,
-    before,
-    after,
-    commit: flags.has('--commit') || command === 'commit' || command === 'push',
+    command, targetVersion, before: positional[0] || null, after: positional[1] || null,
+    commit: flags.has('--commit') || flags.has('--push') || ['commit', 'push'].includes(command),
     push: flags.has('--push') || command === 'push',
     dryRun: flags.has('--dry-run') || flags.has('--preview'),
     strictPush: flags.has('--strict-push'),
   };
 }
 
-export function findLastBumpCommit(targetAfter = 'HEAD') {
-  // 1. Look for the most recent chore(version): or chore(release): commit reachable from targetAfter
-  try {
-    const output = git('log', '--grep=^chore(version):\\|^chore(release):\\|^chore:\\s*bump\\|^chore:\\s*release', '-n', '1', '--format=%H', targetAfter);
-    if (output) return output;
-  } catch {}
-
-  // 2. Look for the most recent stable tag reachable from targetAfter
-  try {
-    const tags = git('tag', '--merged', targetAfter, '--sort=-version:refname').split('\n')
-      .map(t => t.trim())
-      .filter(t => /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(t) && Number(t.slice(1).split('.')[0]) >= 8);
-    if (tags[0]) {
-      const tagCommit = git('rev-parse', `${tags[0]}^{commit}`);
-      if (tagCommit) return tagCommit;
-    }
-  } catch {}
-
-  // 3. Look for the most recent commit that changed the version in package.json
-  try {
-    const pkgVersionCommit = git('log', '-n', '1', '--format=%H', '-S', '"version"', targetAfter, '--', 'package.json');
-    if (pkgVersionCommit) return pkgVersionCommit;
-  } catch {}
-
-  return null;
-}
-
 export function getVersionAtCommit(commitRef) {
   if (!commitRef) return null;
-  try {
-    const content = git('show', `${commitRef}:package.json`);
-    const parsed = JSON.parse(content);
-    return releaseVersion(parsed.version);
-  } catch {
-    return null;
-  }
+  try { return releaseVersion(JSON.parse(git('show', `${commitRef}:package.json`)).version); } catch { return null; }
 }
 
 export function getCommitBumpType(message) {
-  if (!message) return 0;
-  const header = /^([a-z][a-z0-9-]*)(?:\([^\r\n()]+\))?(!)?:[ \t]+\S[^\r\n]*/i.exec(message);
+  const header = /^([a-z][a-z0-9-]*)(?:\([^\r\n()]+\))?(!)?:[ \t]+\S[^\r\n]*/i.exec(message || '');
   if (!header) return 0;
-  const type = header[1].toLowerCase();
-  if (header[2] || /^BREAKING[ -]CHANGE:[ \t]+\S/m.test(message)) return 3; // Major
-  if (type === 'feat') return 2; // Minor
-  if (['fix', 'perf', 'ref', 'refactor', 'ui'].includes(type)) return 1; // Patch
-  return 0; // None (docs, chore, ci, deps, etc.)
+  if (header[2] || /^BREAKING[ -]CHANGE:[ \t]+\S/m.test(message)) return 3;
+  if (header[1].toLowerCase() === 'feat') return 2;
+  return ['fix', 'perf', 'ref', 'refactor', 'ui'].includes(header[1].toLowerCase()) ? 1 : 0;
 }
 
 export function formatCommitType(type) {
-  switch (type) {
-    case 3: return '🔴 MAJOR';
-    case 2: return '🟡 MINOR';
-    case 1: return '🟢 PATCH';
-    default: return '⚪ IGNORED';
-  }
+  return ['⚪ IGNORED', '🟢 PATCH', '🟡 MINOR', '🔴 MAJOR'][type] || '⚪ IGNORED';
 }
 
 export function resolveChronologicalVersion(baseVersion, commits) {
-  let [major, minor, patch] = releaseVersion(baseVersion)
-    .split('-')[0]
-    .split('.')
-    .map(v => BigInt(v));
-
-  let hasBump = false;
-
-  // Group commits by date (YYYY-MM-DD) or session
-  const dateGroups = new Map();
+  let version = releaseVersion(baseVersion);
+  let bumped = false;
   for (const commit of commits) {
     const message = typeof commit === 'string' ? commit : commit.message;
     if (isBotOrSkipCommit(message)) continue;
-    const type = getCommitBumpType(message);
-    if (type === 0) continue; // Skip non-bumpable commits like docs/chore
-
-    const dateKey = (typeof commit === 'object' && commit.date) ? commit.date : 'default';
-    if (!dateGroups.has(dateKey)) dateGroups.set(dateKey, []);
-    dateGroups.get(dateKey).push({ message, type });
+    const next = nextReleaseVersion(version, [message]);
+    if (next) { version = next; bumped = true; }
   }
+  return bumped ? version : null;
+}
 
-  // Process each date's commits in chronological order
-  for (const [, group] of dateGroups) {
-    let dateHadMajor = false;
-    let dateHadMinor = false;
-    let dateHadPatchAfterMinorOrMajor = false;
-    let dateHadPatchBefore = false;
+export function findLastBumpCommit(targetAfter = 'HEAD') {
+  // A published tag is a boundary: never rewrite it or its ancestors.
+  let taggedCommit = null;
+  try {
+    const tag = git('describe', '--tags', '--abbrev=0', '--first-parent', '--match', 'v[0-9]*', targetAfter);
+    releaseVersion(tag);
+    taggedCommit = existsRef(tag);
+  } catch {}
 
-    let sawMajor = false;
-    let sawMinor = false;
-
-    for (const commit of group) {
-      if (commit.type === 3) {
-        sawMajor = true;
-        sawMinor = false;
-        dateHadMajor = true;
-        dateHadMinor = false;
-        dateHadPatchAfterMinorOrMajor = false;
-      } else if (commit.type === 2) {
-        sawMinor = true;
-        dateHadMinor = true;
-        dateHadPatchAfterMinorOrMajor = false;
-      } else if (commit.type === 1) {
-        if (sawMajor || sawMinor) {
-          dateHadPatchAfterMinorOrMajor = true;
-        } else {
-          dateHadPatchBefore = true;
-        }
-      }
-    }
-
-    if (dateHadMajor) {
-      major += 1n;
-      minor = 0n;
-      patch = 0n;
-      hasBump = true;
-      if (dateHadPatchAfterMinorOrMajor) {
-        patch += 1n;
-      }
-    } else if (dateHadMinor) {
-      minor += 1n;
-      patch = 0n;
-      hasBump = true;
-      if (dateHadPatchAfterMinorOrMajor) {
-        patch += 1n;
-      }
-    } else if (dateHadPatchBefore) {
-      patch += 1n;
-      hasBump = true;
-    }
+  // Compare actual versions; -S '"version"' only finds changes in occurrence count.
+  const changes = git('log', '--first-parent', '--format=%H', targetAfter, '--', 'package.json').split('\n').filter(Boolean);
+  for (const sha of changes) {
+    if (taggedCommit && isAncestor(sha, taggedCommit)) return taggedCommit;
+    const version = getVersionAtCommit(sha);
+    if (!version) continue;
+    const parent = existsRef(`${sha}^1`);
+    if (version === getVersionAtCommit(parent)) continue;
+    const message = git('show', '-s', '--format=%B', sha);
+    // Re-evaluate the last amended code commit too, so reruns are idempotent and
+    // an amended fix/feat classification can be corrected against its parent.
+    if (parent && !isBotOrSkipCommit(message) && getCommitBumpType(message)) return parent;
+    return sha; // Initial version, explicit manual version, or legacy bump commit.
   }
+  return taggedCommit;
+}
 
-  if (!hasBump) return null;
-  return `${major}.${minor}.${patch}`;
+function resolveBaseline(before, after, options = {}) {
+  if (options.strictPush && before && !/^0+$/.test(before) && existsRef(before) && isAncestor(before, after)) return before;
+  return findLastBumpCommit(after) || (before && existsRef(before) && isAncestor(before, after) ? before : existsRef(`${after}^1`));
 }
 
 function parseLogOutput(raw) {
-  if (!raw) return [];
-  const entries = raw.split('\0').map(e => e.trim()).filter(Boolean);
-  return entries.map(entry => {
-    const parts = entry.split('\x1f');
-    if (parts.length >= 4) {
-      return {
-        sha: parts[0],
-        timestamp: Number(parts[1]) || 0,
-        isoDate: parts[2],
-        date: parts[2]?.slice(0, 10) || 'unknown',
-        message: parts.slice(3).join('\x1f').trim(),
-      };
-    }
-    return { sha: '', timestamp: 0, isoDate: '', date: 'unknown', message: entry };
+  return raw.split('\0').map(entry => entry.trim()).filter(Boolean).map(entry => {
+    const [sha, timestamp, isoDate, ...message] = entry.split('\x1f');
+    return { sha, timestamp: Number(timestamp), isoDate, date: isoDate.slice(0, 10), message: message.join('\x1f').trim() };
   });
 }
 
-export async function collectCommitObjects(before, after, options = {}) {
-  const isZeroSha = sha => !sha || /^0+$/.test(sha);
-  const targetAfter = after || 'HEAD';
-
-  // 1. Check for unbumped commits since the last version bump / change
-  if (!options.strictPush) {
-    const lastBump = findLastBumpCommit(targetAfter);
-    if (lastBump && isAncestor(lastBump, targetAfter)) {
-      const targetSha = git('rev-parse', `${targetAfter}^{commit}`);
-      if (lastBump === targetSha) return [];
-
-      const output = git('log', '--reverse', '--format=%H%x1f%ct%x1f%cI%x1f%B%x00', `${lastBump}..${targetAfter}`);
-      const objects = parseLogOutput(output);
-      if (objects.length > 0) return objects;
-    }
-  }
-
-  // 2. If a valid before SHA is provided and is an ancestor of targetAfter
-  if (before && !isZeroSha(before) && existsRef(before)) {
-    if (isAncestor(before, targetAfter)) {
-      const output = git('log', '--reverse', '--format=%H%x1f%ct%x1f%cI%x1f%B%x00', `${before}..${targetAfter}`);
-      return parseLogOutput(output);
-    }
-  }
-
-  // 3. If running in GitHub Actions with GITHUB_EVENT_PATH
-  if (process.env.GITHUB_EVENT_PATH) {
-    try {
-      const event = JSON.parse(await text(process.env.GITHUB_EVENT_PATH));
-      if (Array.isArray(event.commits) && event.commits.length > 0) {
-        return event.commits.map(c => ({
-          sha: c.id || '',
-          timestamp: c.timestamp ? Math.floor(new Date(c.timestamp).getTime() / 1000) : 0,
-          isoDate: c.timestamp || '',
-          date: c.timestamp ? c.timestamp.slice(0, 10) : 'unknown',
-          message: c.message?.trim() || '',
-        }));
-      }
-    } catch {}
-  }
-
-  // 4. Fallback: inspect target commit
-  try {
-    const single = git('log', '-1', '--format=%H%x1f%ct%x1f%cI%x1f%B%x00', targetAfter);
-    return parseLogOutput(single);
-  } catch {
-    return [];
-  }
+export async function collectCommitObjects(before, after = 'HEAD', options = {}) {
+  const target = existsRef(after || 'HEAD');
+  if (!target) throw new Error(`Commit not found: ${after || 'HEAD'}`);
+  const baseline = resolveBaseline(before, target, options);
+  // Topological order ensures that parents are rewritten before their children,
+  // even when commit timestamps are out of order or the push includes merges.
+  return parseLogOutput(git('log', '--reverse', '--topo-order', '--format=%H%x1f%ct%x1f%cI%x1f%B%x00',
+    baseline ? `${baseline}..${target}` : target));
 }
 
-// Retain collectCommitMessages for backward compatibility
 export async function collectCommitMessages(before, after, options = {}) {
-  const objects = await collectCommitObjects(before, after, options);
-  return objects.map(o => o.message);
+  return (await collectCommitObjects(before, after, options)).map(commit => commit.message);
+}
+
+function versionContents(path, source, version) {
+  if (path.endsWith('.json')) {
+    const updated = source.replace(/("version"\s*:\s*")[^"]+(")/, (_, prefix, suffix) => `${prefix}${version}${suffix}`);
+    if (JSON.parse(updated).version !== version) throw new Error(`Failed to update ${path} to ${version}`);
+    return updated;
+  }
+  return replaceCargoVersion(source, 'auto-midi-player', version);
+}
+
+export function versionEntries(sha, version) {
+  const entries = rawGit(['ls-tree', '-z', sha, '--', ...VERSION_FILES, OPTIONAL_VERSION_FILE])
+    .split('\0').filter(Boolean).map(entry => {
+      const [metadata, path] = entry.split('\t');
+      const [mode, type, blob] = metadata.split(' ');
+      if (type !== 'blob' || mode === '120000') throw new Error(`Expected a regular version file: ${path}`);
+      const source = rawGit(['cat-file', 'blob', blob]);
+      return { path, mode, blob, source, updated: versionContents(path, source, version) };
+    });
+  for (const path of VERSION_FILES) {
+    if (!entries.some(entry => entry.path === path)) throw new Error(`Missing version file at ${sha}: ${path}`);
+  }
+  return entries;
 }
 
 export async function bumpVersionFiles(nextVersion) {
-  for (const path of ['package.json', 'src-tauri/tauri.conf.json']) {
-    const source = await text(path);
-    await writeFile(path, source.replace(/("version"\s*:\s*")[^"]+(")/, (_, prefix, suffix) => `${prefix}${nextVersion}${suffix}`));
+  const version = releaseVersion(nextVersion);
+  const files = [...VERSION_FILES];
+  try { await text(OPTIONAL_VERSION_FILE); files.push(OPTIONAL_VERSION_FILE); } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
   }
-
-  const cargoPaths = ['src-tauri/Cargo.toml', 'Cargo.lock'];
-  try {
-    await text('src-tauri/Cargo.lock');
-    cargoPaths.push('src-tauri/Cargo.lock');
-  } catch {}
-
-  for (const path of cargoPaths) {
-    const source = await text(path);
-    await writeFile(path, replaceCargoVersion(source, 'auto-midi-player', nextVersion));
-  }
-
-  // Validate that all target files were updated
-  for (const path of ['package.json', 'src-tauri/tauri.conf.json']) {
-    if (JSON.parse(await text(path)).version !== nextVersion) {
-      throw new Error(`Failed to update ${path} to ${nextVersion}`);
-    }
-  }
-  for (const path of cargoPaths) {
-    const source = await text(path);
-    if (replaceCargoVersion(source, 'auto-midi-player', nextVersion) !== source) {
-      throw new Error(`Failed to update ${path} to ${nextVersion}`);
-    }
-  }
-
-  return ['package.json', 'src-tauri/tauri.conf.json', ...cargoPaths];
-}
-
-export function commitBump(nextVersion, files) {
-  try { git('config', 'user.name'); } catch { git('config', 'user.name', 'github-actions[bot]'); }
-  try { git('config', 'user.email'); } catch { git('config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'); }
-
-  git('add', '--', ...files);
-  git('commit', '-m', `chore(version): bump to v${nextVersion} [skip ci]`);
-}
-
-export function pushWithRetry(branch, retries = 3) {
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      git('push', 'origin', `HEAD:refs/heads/${branch}`);
-      return;
-    } catch (err) {
-      if (attempt === retries) throw err;
-      console.warn(`Push failed (attempt ${attempt}/${retries}), rebasing on origin/${branch}...`);
-      git('fetch', 'origin', branch);
-      git('rebase', `origin/${branch}`);
-    }
-  }
+  const updates = await Promise.all(files.map(async path => ({ path, updated: versionContents(path, await text(path), version) })));
+  for (const { path, updated } of updates) await writeFile(path, updated);
+  return files;
 }
 
 export async function saveSummary(data) {
-  try {
-    await writeFile(SUMMARY_FILE, JSON.stringify(data, null, 2), 'utf8');
-  } catch (err) {
-    console.warn('Warning: Could not save summary state:', err.message);
-  }
+  await writeFile(SUMMARY_FILE, JSON.stringify(data, null, 2), 'utf8');
 }
 
 export async function loadSummary() {
-  try {
-    if (!existsSync(SUMMARY_FILE)) return null;
-    return JSON.parse(await readFile(SUMMARY_FILE, 'utf8'));
-  } catch {
+  try { return JSON.parse(await text(SUMMARY_FILE)); } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
     return null;
   }
 }
 
 export async function analyzeStep(options, before, after) {
-  const headMsg = process.env.HEAD_COMMIT_MESSAGE;
-  const headAuthor = process.env.HEAD_COMMIT_AUTHOR;
+  const afterSha = existsRef(after || 'HEAD');
+  if (!afterSha) throw new Error(`Commit not found: ${after || 'HEAD'}`);
+  const baseline = resolveBaseline(before, afterSha, options);
+  const baselineVersion = getVersionAtCommit(baseline) || getVersionAtCommit(afterSha);
+  if (!baselineVersion) throw new Error('No valid rewrite version found in package.json');
+  const currentVersion = getVersionAtCommit(afterSha);
+  const branch = process.env.BRANCH_NAME || git('branch', '--show-current');
+  const commits = await collectCommitObjects(before, afterSha, options);
 
-  console.log('='.repeat(80));
   console.log('🔍 [STEP] Analyzing Push & Commits for Version Bump');
-  console.log('='.repeat(80));
-
-  const branch = process.env.BRANCH_NAME || git('branch', '--show-current') || 'rewrite-experimental';
-  console.log(`Branch:                  ${branch}`);
-  console.log(`Before SHA:              ${before || '(initial)'}`);
-  console.log(`After SHA:               ${after || 'HEAD'}`);
-
-  if ((headMsg && isBotOrSkipCommit(headMsg)) || (headAuthor && headAuthor.toLowerCase().includes('github-actions'))) {
-    console.log(`ℹ️ Bot or [skip ci] commit detected on HEAD: "${headMsg ? headMsg.split('\n')[0] : ''}" by ${headAuthor || 'bot'}`);
-    console.log(`ℹ️ Skipping version bump evaluation to prevent automated loops.`);
-    if (process.env.GITHUB_OUTPUT) {
-      await appendFile(process.env.GITHUB_OUTPUT, `bumped=false\nreason=bot_or_skip_ci\n`);
-    }
-    await saveSummary({
-      branch,
-      status: 'skipped',
-      reason: 'Automated bot commit or [skip ci] marker detected',
-      commits: [],
-    });
-    return { bumped: false, reason: 'bot_or_skip_ci' };
-  }
-
-  const commits = await collectCommitObjects(before, after, options);
-  const candidateCommits = commits.filter(c => !isBotOrSkipCommit(c.message));
-
-  const pkg = JSON.parse(await text('package.json'));
-  const currentVersion = releaseVersion(pkg.version);
-
-  const targetAfter = after || 'HEAD';
-  const lastBump = findLastBumpCommit(targetAfter);
-  const baselineVersion = (lastBump && isAncestor(lastBump, targetAfter))
-    ? (getVersionAtCommit(lastBump) || currentVersion)
-    : currentVersion;
-
-  console.log(`Current version:         ${currentVersion}`);
-  console.log(`Baseline version:        ${baselineVersion} (at ${lastBump ? lastBump.slice(0, 7) : 'repo baseline'})`);
-  console.log(`Total commits in range:  ${commits.length}`);
-  console.log(`Candidate commits:       ${candidateCommits.length}`);
-  console.log('-'.repeat(80));
-  console.log('📋 Commit Evaluation Audit:');
-
-  const auditList = [];
-  for (let i = 0; i < commits.length; i++) {
-    const c = commits[i];
-    const isBot = isBotOrSkipCommit(c.message);
-    const bumpType = isBot ? 0 : getCommitBumpType(c.message);
-    const typeLabel = isBot ? '⚪ BOT/SKIP' : formatCommitType(bumpType);
-    const shortSha = c.sha ? c.sha.slice(0, 7) : '       ';
-    const date = c.date || 'unknown   ';
-    const firstLine = (c.message || '').split('\n')[0].slice(0, 60);
-    console.log(`  [${i + 1}/${commits.length}] ${shortSha} ${date} | ${typeLabel.padEnd(12)} | ${firstLine}`);
-    auditList.push({
-      index: i + 1,
-      sha: shortSha,
-      date,
-      typeLabel,
-      message: firstLine,
-    });
-  }
-  console.log('-'.repeat(80));
-
-  if (candidateCommits.length === 0) {
-    if (currentVersion !== baselineVersion) {
-      console.log(`Force-push / commit change detected: restoring version ${currentVersion} -> ${baselineVersion}`);
-      if (process.env.GITHUB_OUTPUT) {
-        await appendFile(process.env.GITHUB_OUTPUT, `bumped=true\ntarget_version=${baselineVersion}\nprevious_version=${currentVersion}\nreason=force_push_restore\n`);
-      }
-      await saveSummary({
-        branch,
-        status: 'bumped',
-        previousVersion: currentVersion,
-        targetVersion: baselineVersion,
-        reason: 'Force-push / commit rewrite restored baseline version',
-        commits: auditList,
-      });
-      return { bumped: true, version: baselineVersion, previousVersion: currentVersion };
-    }
-
-    console.log(`No eligible commits to evaluate (no version bump required) across ${commits.length} pushed commit(s). Current version: ${currentVersion}`);
-    if (process.env.GITHUB_OUTPUT) {
-      await appendFile(process.env.GITHUB_OUTPUT, `bumped=false\ntarget_version=${currentVersion}\nprevious_version=${currentVersion}\nreason=no_eligible_commits\n`);
-    }
-    await saveSummary({
-      branch,
-      status: 'no_bump',
-      currentVersion,
-      reason: 'All commits are maintenance or non-bumpable (e.g. docs, chore)',
-      commits: auditList,
-    });
-    return { bumped: false, version: currentVersion, previousVersion: currentVersion };
-  }
-
-  const targetVersion = resolveChronologicalVersion(baselineVersion, candidateCommits) || baselineVersion;
-  if (targetVersion === currentVersion) {
-    console.log(`Version is already at ${targetVersion}. No version bump required for ${candidateCommits.length} commit(s).`);
-    if (process.env.GITHUB_OUTPUT) {
-      await appendFile(process.env.GITHUB_OUTPUT, `bumped=false\ntarget_version=${currentVersion}\nprevious_version=${currentVersion}\nreason=already_at_target\n`);
-    }
-    await saveSummary({
-      branch,
-      status: 'no_bump',
-      currentVersion,
-      reason: `Version is already up to date at ${currentVersion}`,
-      commits: auditList,
-    });
-    return { bumped: false, version: currentVersion, previousVersion: currentVersion };
-  }
-
-  console.log(`Bumping version: ${currentVersion} -> ${targetVersion} (from ${candidateCommits.length} commit(s))`);
-  if (process.env.GITHUB_OUTPUT) {
-    await appendFile(process.env.GITHUB_OUTPUT, `bumped=true\ntarget_version=${targetVersion}\nprevious_version=${currentVersion}\ncommit_count=${candidateCommits.length}\nreason=bump_required\n`);
-  }
-  await saveSummary({
-    branch,
-    status: 'bumped',
-    previousVersion: currentVersion,
-    targetVersion,
-    reason: `Conventional bump from ${candidateCommits.length} commit(s)`,
-    commits: auditList,
+  console.log(`Branch: ${branch}\nBaseline: ${baselineVersion} (${baseline || 'initial'})\nAfter SHA: ${afterSha}`);
+  let version = baselineVersion;
+  let bumped = false;
+  const plan = commits.map((commit, index) => {
+    const skip = isBotOrSkipCommit(commit.message);
+    const bumpType = skip ? 0 : getCommitBumpType(commit.message);
+    version = skip ? version : nextReleaseVersion(version, [commit.message]) || version;
+    const changed = versionEntries(commit.sha, version).some(entry => entry.source !== entry.updated);
+    bumped ||= changed;
+    const typeLabel = skip ? '⚪ BOT/SKIP' : formatCommitType(bumpType);
+    console.log(`  ${commit.sha.slice(0, 7)} ${typeLabel} → ${version} | ${commit.message.split('\n')[0]}`);
+    return { ...commit, index: index + 1, typeLabel, version, changed };
   });
 
-  return { bumped: true, version: targetVersion, previousVersion: currentVersion };
+  const reason = bumped ? 'Per-commit versions need amendment' : 'No version bump required; all commit versions are current';
+  console.log(bumped ? `Bumping version: ${currentVersion} -> ${version}; amending individual commits` : reason);
+  const summary = {
+    branch, status: bumped ? 'planned' : 'no_bump', before, afterSha, baseline,
+    baselineVersion, previousVersion: currentVersion, currentVersion,
+    targetVersion: version, reason, commits: plan,
+  };
+  await saveSummary(summary);
+  if (process.env.GITHUB_OUTPUT) {
+    await appendFile(process.env.GITHUB_OUTPUT,
+      `bumped=${bumped}\ntarget_version=${version}\nprevious_version=${currentVersion}\ncommit_count=${commits.length}\n`);
+  }
+  return { bumped, version, previousVersion: currentVersion };
+}
+
+function assertCleanCheckout(expectedHead) {
+  if (git('rev-parse', 'HEAD') !== expectedHead) throw new Error('HEAD changed since analysis; analyze the current checkout again.');
+  if (git('status', '--porcelain', '--untracked-files=no')) {
+    throw new Error('Commit amendment requires a clean index and working tree. Commit or stash tracked changes first.');
+  }
+}
+
+function commitIdentity(headers, kind) {
+  const match = new RegExp(`^${kind} (.*) <([^>]+)> (\\d+ [+-]\\d{4})$`, 'm').exec(headers);
+  if (!match) throw new Error(`Missing ${kind} identity in commit`);
+  const prefix = `GIT_${kind.toUpperCase()}`;
+  return { [`${prefix}_NAME`]: match[1], [`${prefix}_EMAIL`]: match[2], [`${prefix}_DATE`]: `@${match[3]}` };
+}
+
+export function onlyVersionDifferences(before, after) {
+  const allowed = new Set([...VERSION_FILES, OPTIONAL_VERSION_FILE]);
+  const changed = rawGit(['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', before, after]).split('\0').filter(Boolean);
+  if (changed.some(path => !allowed.has(path))) return false;
+  // Mask only our package's own version. Dependency changes, formatting,
+  // file additions/deletions, and modes must survive a history rewrite.
+  const originals = versionEntries(before, '8.0.0');
+  const updated = versionEntries(after, '8.0.0');
+  return originals.length === updated.length && originals.every(entry => updated.some(other =>
+    other.path === entry.path && other.mode === entry.mode && other.updated === entry.updated));
+}
+
+export async function buildAmendedHistory(summary) {
+  const temporary = await mkdtemp(join(tmpdir(), 'amp-bump-index-'));
+  const env = { ...process.env, GIT_INDEX_FILE: join(temporary, 'index') };
+  const rewritten = new Map();
+  const commits = [];
+  try {
+    for (const commit of summary.commits) {
+      const source = rawGit(['cat-file', 'commit', commit.sha]);
+      const separator = source.indexOf('\n\n');
+      const headers = source.slice(0, separator);
+      const message = source.slice(separator + 2);
+      const tree = /^tree (\w+)$/m.exec(headers)[1];
+      const parents = [...headers.matchAll(/^parent (\w+)$/gm)].map(match => match[1]);
+      const newParents = [...new Set(parents.map(parent => rewritten.get(parent) || parent))];
+      if (commit.drop) {
+        if (parents.length !== 1 || !onlyVersionDifferences(parents[0], commit.sha)) {
+          throw new Error(`Refusing to drop ${commit.sha}: it contains changes beyond version strings or is a merge`);
+        }
+        rewritten.set(commit.sha, newParents[0]);
+        commits.push({ ...commit, amendedSha: newParents[0] });
+        console.log(`  ${commit.sha.slice(0, 7)}: removed obsolete version-only commit`);
+        continue;
+      }
+      gitWithIndex(['read-tree', tree]);
+      for (const entry of versionEntries(commit.sha, commit.version)) {
+        if (entry.source === entry.updated) continue;
+        const blob = rawGit(['hash-object', '-w', '--stdin'], { input: entry.updated }).trim();
+        gitWithIndex(['update-index', '--cacheinfo', entry.mode, blob, entry.path]);
+      }
+      const newTree = gitWithIndex(['write-tree']);
+      let newSha = commit.sha;
+      if (newTree !== tree || parents.some((parent, index) => parent !== newParents[index])) {
+        // Build from each original snapshot instead of cherry-picking: version
+        // changes in later commits cannot conflict, and merge parents survive.
+        newSha = rawGit(['commit-tree', newTree, ...newParents.flatMap(parent => ['-p', parent]), '--no-gpg-sign'], {
+          input: message,
+          env: { ...process.env, ...commitIdentity(headers, 'author'), ...commitIdentity(headers, 'committer') },
+        }).trim();
+      }
+      rewritten.set(commit.sha, newSha);
+      commits.push({ ...commit, amendedSha: newSha });
+      console.log(`  ${commit.sha.slice(0, 7)} → ${newSha.slice(0, 7)}: v${commit.version}`);
+    }
+    return { ...summary, status: 'prepared', amendedHead: rewritten.get(summary.afterSha) || summary.afterSha, commits };
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
+
+  function gitWithIndex(args) { return rawGit(args, { env }).trim(); }
+}
+
+export async function amendCommits(summary) {
+  assertCleanCheckout(summary.afterSha);
+  const updated = await buildAmendedHistory(summary);
+  assertCleanCheckout(summary.afterSha);
+  if (updated.amendedHead !== summary.afterSha) {
+    git('read-tree', '-m', '-u', summary.afterSha, updated.amendedHead);
+    try {
+      rawGit(['update-ref', '-m', 'amend per-commit versions', 'HEAD', updated.amendedHead, summary.afterSha], {
+        env: { ...process.env, GIT_COMMITTER_NAME: 'github-actions[bot]', GIT_COMMITTER_EMAIL: '41898282+github-actions[bot]@users.noreply.github.com' },
+      });
+    } catch (error) {
+      git('read-tree', '-m', '-u', updated.amendedHead, summary.afterSha);
+      throw error;
+    }
+  }
+  updated.status = 'amended';
+  await saveSummary(updated);
+  return updated;
+}
+
+export function pushWithLease(branch, expectedSha) {
+  git('check-ref-format', `refs/heads/${branch}`);
+  if (!/^[a-f0-9]{40,64}$/i.test(expectedSha)) throw new Error('Original branch SHA is required for a leased push');
+  // Never rebase or update the lease after a rejection: a newer push must be
+  // analyzed separately, otherwise its commits could be lost or misversioned.
+  git('push', `--force-with-lease=refs/heads/${branch}:${expectedSha}`, 'origin', `HEAD:refs/heads/${branch}`);
 }
 
 export async function applyStep(targetVersion) {
-  let ver = targetVersion;
-  if (!ver) {
-    const summary = await loadSummary();
-    ver = summary?.targetVersion;
-  }
-  if (!ver) {
-    throw new Error('Target version must be specified for apply step');
-  }
-
-  console.log('='.repeat(80));
-  console.log(`✏️ [STEP] Applying Version Bump to Project Files: v${ver}`);
-  console.log('='.repeat(80));
-
-  const updatedFiles = await bumpVersionFiles(ver);
-  for (const file of updatedFiles) {
-    console.log(`  ✓ Updated ${file} -> ${ver}`);
-  }
-  console.log(`Verification: All ${updatedFiles.length} version files successfully synchronized to v${ver}.`);
-  return updatedFiles;
+  const version = targetVersion || (await loadSummary())?.targetVersion;
+  if (!version) throw new Error('Target version must be specified for apply step');
+  console.log(`✏️ [STEP] Applying Version Bump to Project Files: v${version}`);
+  return await bumpVersionFiles(version);
 }
 
 export async function pushStep(targetVersion, options = {}) {
-  let ver = targetVersion;
-  if (!ver) {
-    const summary = await loadSummary();
-    ver = summary?.targetVersion;
+  let summary = await loadSummary();
+  if (!summary) {
+    await analyzeStep(options, options.before || process.env.BEFORE_SHA, options.after || process.env.AFTER_SHA);
+    summary = await loadSummary();
   }
-  if (!ver) {
-    const pkg = JSON.parse(await text('package.json'));
-    ver = releaseVersion(pkg.version);
+  if (targetVersion && targetVersion !== summary.targetVersion) throw new Error('Target version does not match the analyzed per-commit plan');
+  const push = options.push || options.command === 'push';
+  if (push) {
+    git('check-ref-format', `refs/heads/${summary.branch}`);
+    const remoteSha = git('ls-remote', '--heads', 'origin', `refs/heads/${summary.branch}`).split(/\s/)[0];
+    if (remoteSha !== summary.afterSha) throw new Error('Remote branch changed since this push; refusing to overwrite newer commits.');
   }
-
-  console.log('='.repeat(80));
-  console.log(`🚀 [STEP] Committing and Pushing Version Bump: v${ver}`);
-  console.log('='.repeat(80));
-
-  const files = ['package.json', 'src-tauri/tauri.conf.json', 'src-tauri/Cargo.toml', 'Cargo.lock'];
-  try {
-    await text('src-tauri/Cargo.lock');
-    files.push('src-tauri/Cargo.lock');
-  } catch {}
-
-  commitBump(ver, files);
-  console.log(`Committed: chore(version): bump to v${ver} [skip ci]`);
-
-  if (options.push || options.command === 'push') {
-    const branch = process.env.BRANCH_NAME || git('branch', '--show-current');
-    if (!branch || branch.startsWith('-')) throw new Error('Valid branch name required for push');
-
-    console.log(`  Pushing to origin/${branch}...`);
-    pushWithRetry(branch);
-    console.log(`  ✓ Pushed to origin/${branch}`);
+  if (summary.status === 'planned') summary = await amendCommits(summary);
+  if (summary.status === 'amended' && push) {
+    assertCleanCheckout(summary.amendedHead);
+    pushWithLease(summary.branch, summary.afterSha);
+    summary.status = 'pushed';
+    await saveSummary(summary);
+    console.log(`✓ Pushed amended commits to origin/${summary.branch}`);
   }
+  return summary;
 }
 
 export async function summaryStep() {
   const summary = await loadSummary();
-  if (!summary) {
-    console.log('No version bump summary data available.');
-    return;
+  if (!summary) return;
+  const escapeCell = value => String(value ?? '').replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ');
+  const statuses = { planned: 'Amendments planned', amended: 'Commits amended locally', pushed: 'Amended commits pushed', no_bump: 'No bump required', preview: 'Preview only' };
+  let md = '## 🏷️ Auto Version Bumper Summary\n\n';
+  md += '| Property | Value |\n| :--- | :--- |\n';
+  md += `| Branch | ${escapeCell(summary.branch)} |\n`;
+  md += `| Version Transition | \`${summary.previousVersion}\` → **\`${summary.targetVersion}\`** |\n`;
+  md += `| Status | ${statuses[summary.status] || summary.status} |\n`;
+  md += `| Reason | ${escapeCell(summary.reason)} |\n\n`;
+  md += '| # | Original commit | Amended commit | Classification | Version | Description |\n';
+  md += '| :-: | :---: | :---: | :--- | :--- | :--- |\n';
+  for (const commit of summary.commits) {
+    md += `| ${commit.index} | \`${commit.sha.slice(0, 7)}\` | ${commit.amendedSha ? `\`${commit.amendedSha.slice(0, 7)}\`` : '—'} | ${commit.typeLabel} | \`${commit.version}\` | ${escapeCell(commit.message.split('\n')[0])} |\n`;
   }
-
-  console.log('='.repeat(80));
-  console.log('📊 [SUMMARY] Version Bumper Execution Summary');
-  console.log('='.repeat(80));
-
-  const escapeMarkdownTableCell = (value) => String(value)
-    .replace(/\\/g, '\\\\')
-    .replace(/\|/g, '\\|');
-
-  let md = `## 🏷️ Auto Version Bumper Summary\n\n`;
-  md += `| Property | Value |\n`;
-  md += `| :--- | :--- |\n`;
-  md += `| **Branch** | \`${summary.branch || 'unknown'}\` |\n`;
-
-  if (summary.status === 'bumped') {
-    md += `| **Version Transition** | \`${summary.previousVersion}\` → **\`${summary.targetVersion}\`** |\n`;
-    md += `| **Status** | 🚀 **Bump Applied & Pushed** |\n`;
-  } else if (summary.status === 'skipped') {
-    md += `| **Status** | ⏩ **Skipped** |\n`;
-  } else {
-    md += `| **Current Version** | \`${summary.currentVersion}\` |\n`;
-    md += `| **Status** | ℹ️ **No Bump Required** |\n`;
-  }
-  md += `| **Reason** | ${summary.reason || 'N/A'} |\n`;
-  md += `| **Commits Checked** | ${summary.commits?.length || 0} |\n\n`;
-
-  if (summary.commits && summary.commits.length > 0) {
-    md += `### 📋 Commit Evaluation Audit\n\n`;
-    md += `| # | Commit | Date | Classification | Description |\n`;
-    md += `| :-: | :---: | :---: | :---: | :--- |\n`;
-    for (const c of summary.commits) {
-      md += `| ${c.index} | \`${c.sha}\` | ${c.date} | ${c.typeLabel} | ${escapeMarkdownTableCell(c.message)} |\n`;
-    }
-  }
-
-  console.log(md);
-
-  if (process.env.GITHUB_STEP_SUMMARY) {
-    await appendFile(process.env.GITHUB_STEP_SUMMARY, `${md}\n`);
-    console.log('✓ Successfully wrote summary to $GITHUB_STEP_SUMMARY');
-  }
-
-  try {
-    if (existsSync(SUMMARY_FILE)) {
-      await unlink(SUMMARY_FILE);
-    }
-  } catch {}
+  console.log(`📊 [SUMMARY] Version Bumper Execution Summary\n${md}`);
+  if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, `${md}\n`);
+  await unlink(SUMMARY_FILE);
 }
 
 export async function main(argv = process.argv.slice(2)) {
   const options = parseCliArgs(argv);
   const before = options.before || process.env.BEFORE_SHA || null;
   const after = options.after || process.env.AFTER_SHA || null;
-
-  if (options.command === 'analyze') {
-    return await analyzeStep(options, before, after);
+  if (options.command === 'summary') return await summaryStep();
+  if (options.command === 'analyze') return await analyzeStep(options, before, after);
+  if (options.dryRun && ['apply', 'commit', 'push'].includes(options.command)) {
+    throw new Error('Use --preview with the default command to preview per-commit amendments.');
   }
+  if (options.command === 'apply') return await applyStep(options.targetVersion);
+  if (['commit', 'push'].includes(options.command)) return await pushStep(options.targetVersion, options);
 
-  if (options.command === 'apply') {
-    return await applyStep(options.targetVersion);
-  }
-
-  if (options.command === 'commit' || options.command === 'push') {
-    return await pushStep(options.targetVersion, options);
-  }
-
-  if (options.command === 'summary') {
-    return await summaryStep();
-  }
-
-  // Unified flow (for backward compatibility and CLI execution)
   const result = await analyzeStep(options, before, after);
-
   if (result.bumped) {
     if (options.dryRun) {
-      console.log(`Dry-run enabled. Skipping file changes and commit.`);
-      if (process.env.GITHUB_OUTPUT) {
-        await appendFile(process.env.GITHUB_OUTPUT, `bumped=true\nversion=${result.version}\nprevious_version=${result.previousVersion}\n`);
-      }
-      await summaryStep();
-      return { bumped: true, version: result.version, previousVersion: result.previousVersion, dryRun: true };
-    }
-
-    const updatedFiles = await applyStep(result.version);
-    if (options.commit) {
+      await saveSummary({ ...await loadSummary(), status: 'preview' });
+    } else if (options.commit) {
       await pushStep(result.version, options);
+    } else {
+      await applyStep(result.version);
     }
   }
-
-  if (process.env.GITHUB_OUTPUT) {
-    await appendFile(process.env.GITHUB_OUTPUT, `bumped=${result.bumped}\nversion=${result.version || result.currentVersion}\nprevious_version=${result.previousVersion || result.currentVersion}\n`);
-  }
-
   await summaryStep();
-  return result;
+  return { ...result, dryRun: options.dryRun };
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  main().catch(err => {
-    console.error(err);
-    process.exit(1);
-  });
+  main().catch(error => { console.error(error); process.exitCode = 1; });
 }

@@ -23,7 +23,57 @@ Adding a game, instrument, or keyboard layout? Edit the bundled JSON under `src-
 3. Run the checks relevant to your change and mention the results. For UI changes, screenshots help; for playback or input changes, say which game, OS, or MIDI device you tried.
 4. Keep generated builds, caches, personal settings, MIDI collections, and personal SoundFonts out of the pull request.
 
-Release versions are managed by the project's scripts and workflows. You don't need to bump the version just to open a pull request unless a maintainer asks.
+Release versions are managed by the project's scripts and workflows. You don't need to bump the version just to open a pull request unless a maintainer asks. Use the commit conventions below so the workflow can determine the appropriate version.
+
+## Commit Messages and Versioning
+
+Use the format `type: description` or `type(scope): description`. For squash merges, the final squash commit message determines the bump, so use the same format for your pull request title.
+
+| Commit | Version change |
+| --- | --- |
+| A conventional commit with `!` before `:`, such as `feat!: replace the settings format`, or a `BREAKING CHANGE:` / `BREAKING-CHANGE:` line in its body | Major |
+| `feat:` | Minor |
+| `fix:`, `perf:`, `ref:`, `refactor:`, `ui:` | Patch |
+| Other types, such as `docs:`, `chore:`, `ci:`, `build:`, `deps:`, and `test:`, or an unprefixed message | Inherit the current version; no increment unless a conventional commit declares a breaking change |
+
+The [Bump Version workflow](.github/workflows/bump_version.yml) runs on pushes to `rewrite-experimental` and `main`. Each eligible commit advances the version independently, including commits in the same push or on the same day. For example, starting at `8.0.0`:
+
+```text
+fix: release held notes on pause   -> 8.0.1
+fix: handle device disconnection  -> 8.0.2
+docs: clarify MIDI input setup   -> 8.0.2
+feat: add a new instrument        -> 8.1.0
+fix: correct its note mapping     -> 8.1.1
+```
+
+The workflow writes each commit's version into `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `Cargo.lock`, and `src-tauri/Cargo.lock` when present. It amends those commits instead of adding a separate `chore(version)` commit. Commit messages, authors, and both author and committer dates, including timezone offsets, are preserved. Rewritten commits have new SHAs and lose existing commit signatures. Push and Actions-run times are separate from the dates stored in commits.
+
+Commits marked `[skip ci]` or `[ci skip]`, and version/release automation commits, are ignored for version increments. Avoid skip markers on changes that need a bump. Version assignment does not publish a release; release packaging and tags are handled separately.
+
+Preview the calculation locally without changing version files or rewriting commits:
+
+```bash
+pnpm version:preview
+```
+
+### Sync After an Automated Amendment
+
+If you push directly to a managed branch, wait for the workflow to finish before continuing work on that branch. The bot pushes with a lease against the original tip, so it refuses to overwrite a newer push. Maintainers must configure branch rules to allow the workflow's force pushes.
+
+Save the exact tip you are pushing on an unused backup branch. For example, on `rewrite-experimental`:
+
+```bash
+git branch codex/backup-before-version-amend
+git push origin HEAD:rewrite-experimental
+
+# After the Bump Version workflow finishes:
+git fetch origin
+git rebase --onto origin/rewrite-experimental codex/backup-before-version-amend rewrite-experimental
+```
+
+Commit or stash uncommitted edits before rebasing. This moves the local branch onto the amended history and replays only commits made after the saved push tip, if any. Rebasing those additional local commits can change their committer dates. Keep the backup until you have checked the result, and use a fresh backup name for each push. See Git's [upstream rebase recovery guidance](https://git-scm.com/docs/git-rebase#_recovering_from_upstream_rebase) for more detail.
+
+Historical removal of old version-only bump commits is a separate maintainer operation using [backfill-versions.mjs](scripts/backfill-versions.mjs). That tool prepares and verifies a replacement history, saves the original history on a backup branch, and checks that non-version contents and existing staged/working edits are preserved before applying it. It does not push to a remote.
 
 ## Check Your Changes
 

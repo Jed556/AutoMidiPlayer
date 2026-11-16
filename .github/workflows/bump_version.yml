@@ -15,12 +15,14 @@ permissions:
 
 jobs:
   bump:
+    if: github.event.deleted == false
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          ref: ${{ github.event.after }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
@@ -31,29 +33,26 @@ jobs:
       - name: Analyze commits & evaluate version bump
         id: evaluate
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BEFORE_SHA: ${{ github.event.before }}
           AFTER_SHA: ${{ github.event.after }}
-          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-          HEAD_COMMIT_AUTHOR: ${{ github.event.head_commit.author.name }}
           BRANCH_NAME: ${{ github.ref_name }}
         run: |
           node scripts/bump-version.mjs analyze "$BEFORE_SHA" "$AFTER_SHA"
 
-      - name: Apply version bump to project files
-        id: apply
+      - name: Amend each commit with its version
+        id: amend
         if: steps.evaluate.outputs.bumped == 'true'
         run: |
-          node scripts/bump-version.mjs apply "${{ steps.evaluate.outputs.target_version }}"
+          node scripts/bump-version.mjs commit
 
-      - name: Commit and push bumped version
-        id: commit_push
+      # GITHUB_TOKEN pushes do not trigger another workflow run. Keep the
+      # original commit messages; no [skip ci] marker or bump commit is needed.
+      # Branch rules must allow this workflow to force-push amended history.
+      - name: Push amended history with an explicit lease
+        id: push
         if: steps.evaluate.outputs.bumped == 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH_NAME: ${{ github.ref_name }}
         run: |
-          node scripts/bump-version.mjs push "${{ steps.evaluate.outputs.target_version }}"
+          node scripts/bump-version.mjs push
 
       - name: Publish version bumper summary
         if: always()
