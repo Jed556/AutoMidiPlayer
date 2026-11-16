@@ -16,6 +16,7 @@
   import PlayPauseIcon from '../components/Icons/PlayPauseIcon.svelte';
   import SongListTable from '../components/Common/SongListTable.svelte';
   import CustomScrollViewer from '../components/Common/CustomScrollViewer.svelte';
+  import GradientSweep from '../components/Common/GradientSweep.svelte';
 
   let isInitialMount = $state(true);
 
@@ -310,6 +311,11 @@
     const el = e.currentTarget as HTMLElement;
     isScrolled = el.scrollTop > 140;
   }
+
+  function scrollToTop() {
+    const behavior = animationStore.isOff ? 'instant' : 'smooth';
+    scrollContainerEl?.scrollTo({ top: 0, behavior });
+  }
 </script>
 
 <svelte:window onclick={() => { sortMenuOpen = false; }} />
@@ -400,6 +406,29 @@
           <PlayPauseIcon playing={isPlaylistPlaying} size={16} />
         </span>
       </button>
+
+      <GradientSweep
+        visible={isScrolled}
+        direction="horizontal"
+        anchor="left"
+        gradientLength="24px"
+        collapseMargin="left"
+        marginAmount="14px"
+        overflowVisibleOnComplete={false}
+        class="sticky-title-sweep"
+      >
+        <span
+          class="sticky-playlist-title"
+          class:is-scrolled={isScrolled}
+          role="button"
+          tabindex="0"
+          onclick={scrollToTop}
+          onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') scrollToTop(); }}
+          title={currentPlaylist?.title || t('nav.songs')}
+        >
+          {currentPlaylist?.title || t('nav.songs')}
+        </span>
+      </GradientSweep>
     </div>
 
     <!-- Right: Ghost Import, Ghost Refresh, Ghost Search, Ghost Filter -->
@@ -791,7 +820,59 @@
   .action-left {
     display: flex;
     align-items: center;
-    gap: 12px;
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  :global(.sticky-title-sweep) {
+    min-width: 0;
+    max-width: 100%;
+    align-items: center;
+  }
+
+  .sticky-playlist-title {
+    display: block;
+    font-size: clamp(18px, 2.2vw, 24px);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: clamp(140px, 45vw, 480px);
+    user-select: none;
+    cursor: pointer;
+    transform: translateX(18px);
+    transition: transform var(--anim-normal, 0.25s) cubic-bezier(0.16, 1, 0.3, 1),
+                color var(--anim-normal, 0.20s) ease;
+  }
+
+  .sticky-playlist-title.is-scrolled {
+    transform: translateX(0);
+  }
+
+  .sticky-playlist-title:hover {
+    color: var(--accent-color, #1db954);
+  }
+
+  .sticky-playlist-title:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sticky-playlist-title {
+      transform: none !important;
+      transition: none !important;
+    }
+  }
+
+  :global(.no-animations) .sticky-playlist-title {
+    transform: none !important;
+    transition: none !important;
   }
 
   /* Raise the containing stacking context above the sticky song header too. */
