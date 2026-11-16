@@ -120,7 +120,7 @@ function createTempRepo(t, initialVersion = '8.0.0') {
   writeFileSync(join(directory, 'Cargo.lock'), `version = 4\n\n[[package]]\nname = "amp-core"\nversion = "0.1.0"\n\n[[package]]\nname = "auto-midi-player"\nversion = "${initialVersion}"\n`);
 
   const git = (...args) => execFileSync('git', args, { cwd: directory, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-  git('init', '-b', 'rewrite-experimental');
+  git('init', '-b', 'main');
   git('config', 'user.name', 'Test User');
   git('config', 'user.email', 'test@example.com');
   git('add', '.');
@@ -129,7 +129,7 @@ function createTempRepo(t, initialVersion = '8.0.0') {
   const runBumpWithEnv = (env, ...args) => spawnSync(process.execPath, ['scripts/bump-version.mjs', ...args], {
     cwd: directory,
     encoding: 'utf8',
-    env: { ...process.env, GITHUB_TOKEN: '', GITHUB_EVENT_PATH: '', BEFORE_SHA: '', AFTER_SHA: '', HEAD_COMMIT_MESSAGE: '', HEAD_COMMIT_AUTHOR: '', BRANCH_NAME: 'rewrite-experimental', ...env },
+    env: { ...process.env, GITHUB_TOKEN: '', GITHUB_EVENT_PATH: '', BEFORE_SHA: '', AFTER_SHA: '', HEAD_COMMIT_MESSAGE: '', HEAD_COMMIT_AUTHOR: '', BRANCH_NAME: 'main', ...env },
   });
   const runBump = (...args) => runBumpWithEnv({}, ...args);
 
@@ -283,7 +283,7 @@ test('multi-step workflow subcommands (analyze -> apply -> summary) execute sequ
   const analyzeRes = spawnSync(process.execPath, ['scripts/bump-version.mjs', 'analyze', baseSha, featSha], {
     cwd: directory,
     encoding: 'utf8',
-    env: { ...process.env, GITHUB_OUTPUT: githubOutput, GITHUB_STEP_SUMMARY: stepSummary, BRANCH_NAME: 'rewrite-experimental' },
+    env: { ...process.env, GITHUB_OUTPUT: githubOutput, GITHUB_STEP_SUMMARY: stepSummary, BRANCH_NAME: 'main' },
   });
   assert.equal(analyzeRes.status, 0, analyzeRes.stderr);
   assert.ok(analyzeRes.stdout.includes('🔍 [STEP] Analyzing Push & Commits for Version Bump'));
@@ -337,7 +337,7 @@ test('a skipped or bot-authored HEAD does not hide eligible earlier commits', t 
       GITHUB_OUTPUT: githubOutput,
       HEAD_COMMIT_MESSAGE: 'docs: update help [skip ci]',
       HEAD_COMMIT_AUTHOR: 'github-actions[bot]',
-      BRANCH_NAME: 'rewrite-experimental',
+      BRANCH_NAME: 'main',
     },
   });
 
@@ -442,7 +442,7 @@ test('rewriting preserves merge parents, messages, metadata, and original file s
   writeFileSync(join(directory, 'feature.txt'), 'feature content\n');
   git('add', 'feature.txt');
   git('commit', '-m', 'feat: branch feature', '-m', 'Preserve this body exactly.');
-  git('switch', 'rewrite-experimental');
+  git('switch', 'main');
   git('merge', '--no-ff', 'feature', '-m', 'Merge feature');
   const original = git('rev-list', '--reverse', '--topo-order', `${base}..HEAD`).split('\n');
   const result = runBump(base, 'HEAD', '--commit');
@@ -503,7 +503,7 @@ function addRemote(directory, git) {
   const remote = join(directory, 'remote.git');
   git('init', '--bare', remote);
   git('remote', 'add', 'origin', remote);
-  git('push', 'origin', 'HEAD:refs/heads/rewrite-experimental');
+  git('push', 'origin', 'HEAD:refs/heads/main');
   return remote;
 }
 
@@ -523,7 +523,7 @@ test('workflow analyze -> commit -> push publishes amended history using the ori
   assert.notEqual(tip, original);
   assertVersionAt(git, 'HEAD^', '8.0.1');
   assertVersionAt(git, 'HEAD', '8.0.2');
-  assert.equal(git('--git-dir', remote, 'rev-parse', 'refs/heads/rewrite-experimental'), tip);
+  assert.equal(git('--git-dir', remote, 'rev-parse', 'refs/heads/main'), tip);
   assert.equal(git('rev-list', '--count', `${base}..HEAD`), '2');
   const summary = runBump('summary');
   assert.equal(summary.status, 0, summary.stderr);
@@ -539,7 +539,7 @@ test('stale pushes and explicit leases protect concurrent remote commits', t => 
   assert.equal(runBump('commit').status, 0);
   const amended = git('rev-parse', 'HEAD');
   const concurrent = git('commit-tree', `${original}^{tree}`, '-p', original, '-m', 'fix: concurrent push');
-  git('push', 'origin', `${concurrent}:refs/heads/rewrite-experimental`);
+  git('push', 'origin', `${concurrent}:refs/heads/main`);
   const result = runBump('push');
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /Remote branch changed/);
@@ -547,10 +547,10 @@ test('stale pushes and explicit leases protect concurrent remote commits', t => 
 
   // Exercise the final atomic lease check too, independent of the preflight.
   const lease = spawnSync(process.execPath, ['--input-type=module', '-e',
-    `import { pushWithLease } from './scripts/bump-version.mjs'; pushWithLease('rewrite-experimental', '${original}');`],
+    `import { pushWithLease } from './scripts/bump-version.mjs'; pushWithLease('main', '${original}');`],
   { cwd: directory, encoding: 'utf8' });
   assert.notEqual(lease.status, 0);
-  assert.equal(git('--git-dir', remote, 'rev-parse', 'refs/heads/rewrite-experimental'), concurrent);
+  assert.equal(git('--git-dir', remote, 'rev-parse', 'refs/heads/main'), concurrent);
   assert.equal(git('rev-parse', 'HEAD'), amended);
   const summary = runBump('summary');
   assert.match(summary.stdout, /Commits amended locally/);
@@ -560,7 +560,7 @@ test('stale pushes and explicit leases protect concurrent remote commits', t => 
 function backfillRunner(directory) {
   return (...args) => spawnSync(process.execPath, ['scripts/backfill-versions.mjs', ...args], {
     cwd: directory, encoding: 'utf8',
-    env: { ...process.env, GITHUB_EVENT_PATH: '', BEFORE_SHA: '', AFTER_SHA: '', BRANCH_NAME: 'rewrite-experimental' },
+    env: { ...process.env, GITHUB_EVENT_PATH: '', BEFORE_SHA: '', AFTER_SHA: '', BRANCH_NAME: 'main' },
   });
 }
 

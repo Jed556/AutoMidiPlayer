@@ -6,7 +6,7 @@ Please follow our [Code of Conduct](CODE_OF_CONDUCT.md) in all project interacti
 
 ## Get Set Up
 
-The current desktop rewrite lives on **`rewrite-experimental`** and uses Svelte 5, Tauri v2, and Rust. Follow [Build from Source](README.md#build-from-source) for prerequisites and commands, or see the Wiki's [Getting Started](https://github.com/Jed556/AutoMidiPlayer/wiki/Getting-Started) for platform details and configuration examples.
+AMP uses Svelte 5, Tauri v2, and Rust, with development on **`main`**. Follow [Build from Source](README.md#build-from-source) for prerequisites and commands, or see the Wiki's [Getting Started](https://github.com/Jed556/AutoMidiPlayer/wiki/Getting-Started) for platform details and configuration examples.
 
 The main pieces are:
 
@@ -36,7 +36,7 @@ Use the format `type: description` or `type(scope): description`. For squash mer
 | `fix:`, `perf:`, `ref:`, `refactor:`, `ui:` | Patch |
 | Other types, such as `docs:`, `chore:`, `ci:`, `build:`, `deps:`, and `test:`, or an unprefixed message | Inherit the current version; no increment unless a conventional commit declares a breaking change |
 
-The [Bump Version workflow](.github/workflows/bump_version.yml) runs on pushes to `rewrite-experimental` and `main`. Each eligible commit advances the version independently, including commits in the same push or on the same day. For example, starting at `8.0.0`:
+The [Bump Version workflow](.github/workflows/bump_version.yml) runs on pushes to `main`. Each eligible commit advances the version independently, including commits in the same push or on the same day. For example, starting at `8.0.0`:
 
 ```text
 fix: release held notes on pause   -> 8.0.1
@@ -60,15 +60,15 @@ pnpm version:preview
 
 If you push directly to a managed branch, wait for the workflow to finish before continuing work on that branch. The bot pushes with a lease against the original tip, so it refuses to overwrite a newer push. Maintainers must configure branch rules to allow the workflow's force pushes.
 
-Save the exact tip you are pushing on an unused backup branch. For example, on `rewrite-experimental`:
+Save the exact tip you are pushing on an unused backup branch. For example, on `main`:
 
 ```bash
 git branch codex/backup-before-version-amend
-git push origin HEAD:rewrite-experimental
+git push origin HEAD:main
 
 # After the Bump Version workflow finishes:
 git fetch origin
-git rebase --onto origin/rewrite-experimental codex/backup-before-version-amend rewrite-experimental
+git rebase --onto origin/main codex/backup-before-version-amend main
 ```
 
 Commit or stash uncommitted edits before rebasing. This moves the local branch onto the amended history and replays only commits made after the saved push tip, if any. Rebasing those additional local commits can change their committer dates. Keep the backup until you have checked the result, and use a fresh backup name for each push. See Git's [upstream rebase recovery guidance](https://git-scm.com/docs/git-rebase#_recovering_from_upstream_rebase) for more detail.

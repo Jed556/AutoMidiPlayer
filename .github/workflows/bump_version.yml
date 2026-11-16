@@ -3,19 +3,20 @@ name: Bump Version
 on:
   push:
     branches:
-      - rewrite-experimental
       - main
 
 concurrency:
-  group: bump-version-${{ github.ref_name }}
+  # An App-authenticated push starts workflows. Keep its skipped run from
+  # cancelling the source run while that run is finishing its push/summary.
+  group: bump-version-${{ github.ref_name }}-${{ github.actor == format('{0}[bot]', vars.VERSION_BUMP_APP_SLUG) && 'bot' || 'source' }}
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   bump:
-    if: github.event.deleted == false
+    if: github.event.deleted == false && github.actor != format('{0}[bot]', vars.VERSION_BUMP_APP_SLUG)
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
@@ -23,7 +24,8 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.after }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # Push authentication is configured separately with the App token.
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -39,19 +41,58 @@ jobs:
         run: |
           node scripts/bump-version.mjs analyze "$BEFORE_SHA" "$AFTER_SHA"
 
+      - name: Check versioning App configuration
+        if: steps.evaluate.outputs.bumped == 'true'
+        env:
+          VERSION_BUMP_APP_ID: ${{ vars.VERSION_BUMP_APP_ID }}
+          VERSION_BUMP_APP_SLUG: ${{ vars.VERSION_BUMP_APP_SLUG }}
+          VERSION_BUMP_APP_PRIVATE_KEY: ${{ secrets.VERSION_BUMP_APP_PRIVATE_KEY }}
+        run: |
+          node --input-type=module <<'JS'
+          const required = ['VERSION_BUMP_APP_ID', 'VERSION_BUMP_APP_SLUG', 'VERSION_BUMP_APP_PRIVATE_KEY'];
+          const missing = required.filter(name => !process.env[name]?.trim());
+          if (missing.length) throw new Error(`Configure ${missing.join(', ')} before amending versions. See CONTRIBUTING.md#versioning-bot-setup-maintainers.`);
+          JS
+
+      - name: Create repository-scoped versioning App token
+        id: app_token
+        if: steps.evaluate.outputs.bumped == 'true'
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.VERSION_BUMP_APP_ID }}
+          private-key: ${{ secrets.VERSION_BUMP_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          # Required when a rewritten commit contains workflow-file changes.
+          permission-workflows: write
+
+      - name: Verify versioning App identity
+        if: steps.evaluate.outputs.bumped == 'true'
+        env:
+          EXPECTED_APP_SLUG: ${{ vars.VERSION_BUMP_APP_SLUG }}
+          ACTUAL_APP_SLUG: ${{ steps.app_token.outputs.app-slug }}
+        run: |
+          test "$ACTUAL_APP_SLUG" = "$EXPECTED_APP_SLUG" || {
+            echo '::error::VERSION_BUMP_APP_SLUG does not match the configured GitHub App.'
+            exit 1
+          }
+
       - name: Amend each commit with its version
         id: amend
         if: steps.evaluate.outputs.bumped == 'true'
         run: |
           node scripts/bump-version.mjs commit
 
-      # GITHUB_TOKEN pushes do not trigger another workflow run. Keep the
-      # original commit messages; no [skip ci] marker or bump commit is needed.
-      # Branch rules must allow this workflow to force-push amended history.
+      # Other CI workflows run on the App's amended commit; the job-level actor
+      # guard skips this bumper's own push without changing commit messages.
       - name: Push amended history with an explicit lease
         id: push
         if: steps.evaluate.outputs.bumped == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
         run: |
+          gh auth setup-git
           node scripts/bump-version.mjs push
 
       - name: Publish version bumper summary

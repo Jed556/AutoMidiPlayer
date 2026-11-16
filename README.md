@@ -110,7 +110,7 @@ Live input works with Listen Mode or game output, including note velocity and su
 
 ### Still in Progress
 
-**Discover (online MIDI)** and **New Playlist** currently not implemented yet in the rewrite. You can checkout Discover in the legacy app.
+**Discover (online MIDI)** and **New Playlist** are not implemented yet. Discover is available in the legacy app.
 
 ## About
 
@@ -144,7 +144,7 @@ For setup details, feature walkthroughs, safety notes, and troubleshooting, use 
 ### Build and run
 
 ```bash
-git clone --branch rewrite-experimental https://github.com/Jed556/AutoMidiPlayer.git
+git clone --branch main https://github.com/Jed556/AutoMidiPlayer.git
 cd AutoMidiPlayer
 
 # Install frontend dependencies
@@ -166,7 +166,7 @@ For platform prerequisites, package formats, and custom game or instrument defin
 Please read [CONTRIBUTING.md](CONTRIBUTING.md).  
 For adding notes, instruments, games, or keyboard mappings, see [Getting Started][wiki-getting-started].
 
-Use conventional commit messages so the versioning workflow can assign a version to each eligible commit on `rewrite-experimental` and `main`. It amends the version files into those commits, preserving author and committer dates while changing commit SHAs. See [Commit Messages and Versioning](CONTRIBUTING.md#commit-messages-and-versioning) for bump rules, previews, and how to sync your local branch after the bot runs.
+Use conventional commit messages so the versioning workflow can assign a version to each eligible commit on `main`. It amends the version files into those commits, preserving author and committer dates while changing commit SHAs. See [Commit Messages and Versioning](CONTRIBUTING.md#commit-messages-and-versioning) for bump rules, previews, and how to sync your local branch after the bot runs.
 
 # Special Thanks
 
@@ -185,7 +185,7 @@ Special thanks to **[Lunaferlone](https://github.com/Lunaferlone)** for helping 
 <br/>
 
 > [!IMPORTANT]
-> This README and the Wiki describe the desktop rewrite on **`rewrite-experimental`**, built with Svelte 5, Tauri v2, and Rust. Older releases use the previous C#/WPF app and have different features and setup steps.
+> Older releases use the legacy C#/WPF app and have different features and setup steps.
 
 > [!NOTE]
 > I don't have knowledge about music theory, if you find any issues with note mappings or transpositions, please open an issue or PR. Thank you! 💖
