@@ -49,6 +49,9 @@ On **Wayland**, game output requires permission through the desktop's Remote Des
 
 On **macOS**, the app isn't notarized, so the first launch is blocked by Gatekeeper. Open it once, then click **Open Anyway** in **System Settings → Privacy & Security** (or run `xattr -cr "/Applications/Auto MIDI Player.app"`). If game keys stop working after an update, re-enable AMP under **Privacy & Security → Accessibility**. See [First launch on macOS][wiki-macos-first-launch].
 
+> [!NOTE]
+> macOS and Linux support should work in theory, however it isn't tested due to my system's limitations, so help in testing would be appreciated!
+
 Here's where the main controls live. The annotated screenshots use the current interface with **AMP Demo** data and no connected MIDI device; your library and available instruments may look different.
 
 ![Annotated Instrument page showing instrument selection, pedals, scheduling, and MIDI input](https://raw.githubusercontent.com/wiki/Jed556/AutoMidiPlayer/Assets/Screenshots/rewrite-instrument-annotated.svg)
@@ -186,6 +189,9 @@ Special thanks to **[Lunaferlone](https://github.com/Lunaferlone)** for helping 
 
 > [!IMPORTANT]
 > Older releases use the legacy C#/WPF app and have different features and setup steps.
+
+> [!NOTE]
+> macOS and Linux support should work in theory, however it isn't tested due to my system's limitations, so help in testing would be appreciated!
 
 > [!NOTE]
 > I don't have knowledge about music theory, if you find any issues with note mappings or transpositions, please open an issue or PR. Thank you! 💖
