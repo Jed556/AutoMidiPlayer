@@ -102,6 +102,18 @@ impl ProcessMonitor {
         }
     }
 
+    /// Reuse configured aliases and executable preferences for native game input.
+    pub fn process_names_for_game(&self, game_id: &str) -> Vec<String> {
+        let Some(target) = self.targets.iter().find(|target| target.id == game_id) else { return Vec::new() };
+        let mut names = target.process_names.clone();
+        #[cfg(windows)]
+        let location = self.locations.get(&target.id);
+        #[cfg(not(windows))]
+        let location = self.locations.get(&target.display_name).or_else(|| self.locations.get(&target.id));
+        if let Some(location) = location { names.push(location.clone()); }
+        names
+    }
+
     pub fn check_statuses(&mut self) -> Vec<GameStatusPayload> {
         // Linux's comm name is truncated to 15 bytes. Read exe and argv[0] too
         // for long native executable names and Wine/Proton executable paths.

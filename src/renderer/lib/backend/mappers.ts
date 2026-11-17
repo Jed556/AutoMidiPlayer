@@ -68,8 +68,12 @@ export interface RawLoadedBundle {
     layoutStyle?: InstrumentLayoutStyle;
     keys?: KeyMatrix<number>;
     notes?: number[];
-    supportedLayouts?: string[];
-    chordPads?: Array<{ name: string; pitchClasses: number[] }>;
+    keyboardLayouts?: string[];
+    chordLayouts?: string[];
+    fretLayouts?: string[];
+    guitar?: { tuning: number[]; fretCount: number };
+    chords?: Array<{ name: string; pitchClasses: number[] }>;
+    chordMode?: 'pads' | 'wheel';
     supportsPedals?: boolean;
     supportsChords?: boolean;
     subfolder?: string;
@@ -329,7 +333,7 @@ export function loadedBundleToGameInfo(
   const layouts = Object.values(normalizedLayouts);
 
   for (const instrument of bundle.instruments || []) {
-    for (const layoutId of instrument.supportedLayouts || []) {
+    for (const layoutId of [...instrument.keyboardLayouts ?? [], ...instrument.chordLayouts ?? [], ...instrument.fretLayouts ?? []]) {
       const layout = normalizedLayouts[layoutId.toLowerCase()] || layouts.find((candidate) =>
         candidate.id.toLowerCase() === layoutId.toLowerCase() ||
         candidate.name.toLowerCase() === layoutId.toLowerCase(),
@@ -346,10 +350,14 @@ export function loadedBundleToGameInfo(
     layoutStyle: instrument.layoutStyle,
     keys: instrument.keys,
     notes: instrumentNotes(instrument),
-    supportedLayouts: instrument.supportedLayouts || [],
-    chordPads: instrument.chordPads || [],
+    keyboardLayouts: instrument.keyboardLayouts || [],
+    chordLayouts: instrument.chordLayouts || [],
+    fretLayouts: instrument.fretLayouts || [],
+    guitar: instrument.guitar,
+    chords: instrument.chords || [],
+    chordMode: instrument.chordMode ?? 'pads',
     supportsPedals: instrument.supportsPedals ?? false,
-    supportsChords: instrument.supportsChords ?? Boolean(instrument.chordPads?.length),
+    supportsChords: instrument.supportsChords ?? Boolean(instrument.chords?.length),
     supportsSustain: instrument.supportsPedals ?? false,
     subfolder: instrument.subfolder,
     filePath: instrument.filePath,

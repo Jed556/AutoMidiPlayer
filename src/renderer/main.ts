@@ -1,6 +1,7 @@
 // Keep this entry independent of Svelte, app styles, telemetry and player code.
 // Vite must not compile that module graph before the splash window can appear.
 import { setBackendReady } from './lib/backend/startupGate';
+import { prepareConfigurationStartup } from './lib/backend/configurationStartup';
 import { startupProgress, nativeStartupProgress } from './lib/backend/startupProgress';
 import type { UpdateResume } from '../shared/types/update';
 
@@ -9,6 +10,7 @@ interface StartupStatus {
   ready: boolean;
   error: string | null;
   updateResume: UpdateResume | null;
+  configurationReviewRequired: boolean | null;
 }
 
 function bindBootWindowControls(
@@ -71,6 +73,18 @@ async function start() {
 
   // Give the visible HTML splash a frame before requesting the application.
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  if (isDesktop) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    // This lightweight file check runs before either the native player or App is initialized.
+    initialStatus = await prepareConfigurationStartup({
+      initialStatus,
+      readStatus: () => invoke<StartupStatus>('get_startup_status'),
+      onStatus: showBackendStatus,
+      review: async () => { await (await import('./configurationReview')).reviewConfigurations(); },
+      getSettings: () => invoke<{ onboardingCompleted?: boolean }>('get_app_settings'),
+      startRuntime: () => invoke('start_runtime'),
+    });
+  }
   // Compile/load the frontend concurrently with native audio, DB and game setup.
   // Mount only after AppState is available to all normal application commands.
   const backendReady = isDesktop ? waitForBackend(initialStatus) : Promise.resolve();

@@ -235,7 +235,8 @@ pub fn clear_data_files() -> Result<(), String> {
 }
 
 fn clear_data_files_with(root: &Path, recycle: impl FnOnce(&[PathBuf]) -> Result<(), String>) -> Result<(), String> {
-    for path in [root.to_path_buf(), root.join("cache"), root.join("OnlineMidi"), root.join("cache/discover")] {
+    for path in [root.to_path_buf(), root.join("cache"), root.join("OnlineMidi"), root.join("cache/discover"),
+        root.join("configuration-state.json"), root.join(".bundled-defaults.json"), root.join("ConfigBackups")] {
         match fs::symlink_metadata(&path) {
             Ok(meta) if is_link(&meta) => return Err(format!("Cannot clear linked app storage: {}", path.display())),
             Ok(_) => {},
@@ -243,7 +244,7 @@ fn clear_data_files_with(root: &Path, recycle: impl FnOnce(&[PathBuf]) -> Result
             Err(error) => return Err(error.to_string()),
         }
     }
-    let paths = ["OnlineMidi", "cache/discover", "cache/.discover-last-clean"].map(|name| root.join(name));
+    let paths = ["OnlineMidi", "cache/discover", "cache/.discover-last-clean", "configuration-state.json", ".bundled-defaults.json", "ConfigBackups"].map(|name| root.join(name));
     let paths: Vec<_> = paths.into_iter().filter(|path| path.exists()).collect();
     // Recycle only fixed application-owned paths, never targets from settings.
     if !paths.is_empty() { recycle(&paths)?; }
@@ -261,10 +262,11 @@ mod tests {
     use std::time::Duration;
 
     #[test]
-    fn clear_data_only_recycles_downloads_and_discover_cache() {
+    fn clear_data_recycles_payloads_and_configuration_review_data() {
         let root = std::env::temp_dir().join(format!("amp-clear-{}-{}", std::process::id(),
             SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
         for path in ["OnlineMidi/song.mid", "cache/discover/preview.mid", "cache/.discover-last-clean",
+            "configuration-state.json", ".bundled-defaults.json", "ConfigBackups/review/KeyboardLayouts/old.json",
             "cache/update/installer.exe", "SoundFonts/custom.sf2", "EBWebView/Default/data",
             "logs/app.log", "Legacy/old.db", "AutoMidiPlayer.db", "settings.json"] {
             let file = root.join(path);
@@ -272,7 +274,8 @@ mod tests {
             fs::write(file, b"kept").unwrap();
         }
         clear_data_files_with(&root, |paths| {
-            assert_eq!(paths, [root.join("OnlineMidi"), root.join("cache/discover"), root.join("cache/.discover-last-clean")]);
+            assert_eq!(paths, [root.join("OnlineMidi"), root.join("cache/discover"), root.join("cache/.discover-last-clean"),
+                root.join("configuration-state.json"), root.join(".bundled-defaults.json"), root.join("ConfigBackups")]);
             for path in paths {
                 if path.is_dir() { fs::remove_dir_all(path).unwrap(); }
                 else { fs::remove_file(path).unwrap(); }
@@ -281,6 +284,9 @@ mod tests {
         }).unwrap();
         assert!(!root.join("OnlineMidi").exists());
         assert!(!root.join("cache/discover").exists());
+        assert!(!root.join("configuration-state.json").exists());
+        assert!(!root.join(".bundled-defaults.json").exists());
+        assert!(!root.join("ConfigBackups").exists());
         for path in ["cache/update/installer.exe", "SoundFonts/custom.sf2", "EBWebView/Default/data",
             "logs/app.log", "Legacy/old.db", "AutoMidiPlayer.db", "settings.json"] {
             assert_eq!(fs::read(root.join(path)).unwrap(), b"kept");

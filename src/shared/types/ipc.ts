@@ -1,7 +1,7 @@
 import type { MidiFile } from './midi.js';
 import type { PlaybackStatus } from './playback.js';
 import type { MediaControlAction, MediaControlsSnapshot } from './mediaControls.js';
-import type { GameInfo, GameStatus, GameConfigState, KeyboardLayoutConfig } from './games.js';
+import type { GameInfo, GameStatus, GameConfigState, KeyboardLayoutConfig, DefaultConfigUpdates, DefaultConfigChoice } from './games.js';
 import type { AppSettings, HotkeyBinding, DesktopHotkeyBinding, PedalBindings } from './settings.js';
 import type { OnlineMidiItem } from './onlineMidi.js';
 
@@ -24,6 +24,12 @@ export interface PedalState {
   unaCorda: boolean;
 }
 
+export interface ChordWheelState {
+  page: number | null;
+  busy: boolean;
+  error: string | null;
+}
+
 export interface PlaybackApi {
   onMediaControl: (callback: (action: MediaControlAction) => void) => () => void;
   syncMediaControls: (snapshot: MediaControlsSnapshot) => Promise<void>;
@@ -40,6 +46,10 @@ export interface PlaybackApi {
   setListenMode: (enabled: boolean) => Promise<boolean>;
   setNoteTiming: (holdNotes: boolean, tapThresholdMs: number) => Promise<boolean>;
   setNoteProcessing: (mergeNotes: boolean, mergeToleranceMs: number, autoChord: boolean, chordDetectionMilliseconds: number) => Promise<boolean>;
+  getChordWheelState: () => Promise<ChordWheelState>;
+  setGuitarMode: (mode: 'chords' | 'frets') => Promise<boolean>;
+  setChordWheelPage: (page: number, send: boolean) => Promise<boolean>;
+  onChordWheelState: (callback: (state: ChordWheelState) => void) => () => void;
   setKeyMarkers: (markers: any[]) => Promise<boolean>;
   setKeyMarkersEnabled: (enabled: boolean) => Promise<boolean>;
   detectKeySignatures: (filePath: string) => Promise<any[]>;
@@ -163,6 +173,8 @@ export interface QueueApi {
 
 export interface GamesApi {
   getConfigs: () => Promise<GameConfigState>;
+  getDefaultConfigUpdates: () => Promise<DefaultConfigUpdates>;
+  resolveDefaultConfigUpdates: (choices: DefaultConfigChoice[], duplicateChoices: DefaultConfigChoice[]) => Promise<DefaultConfigUpdates>;
   onConfigsChanged: (callback: () => void) => Promise<() => void>;
   getGames: () => Promise<GameInfo[]>;
   getActiveGame: () => Promise<GameInfo>;

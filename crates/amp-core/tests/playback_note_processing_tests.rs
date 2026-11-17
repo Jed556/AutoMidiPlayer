@@ -53,7 +53,7 @@ fn mapping() -> NoteKeyMapping {
     NoteKeyMapping::from_pairs(KeyboardLayout::Diatonic21,
         &[(60, 'a'), (64, 'd'), (65, 'f'), (67, 'g'), (69, 'h')])
         .with_chord_bindings(vec![ChordPad {
-            pitch_classes: vec![0, 4, 7], stroke: parse_key_stroke("q").unwrap(),
+            pitch_classes: vec![0, 4, 7], binding: amp_core::input::mapping::ChordBinding::Key(parse_key_stroke("q").unwrap()), bass_pitch_class: None,
         }])
 }
 
@@ -183,6 +183,23 @@ fn a_cross_track_chord_taps_one_pad_and_keeps_constituent_note_glow() {
     assert_eq!(onsets, vec![60, 64, 67]);
     wait(|| h.engine.get_status() == PlaybackStatus::Stopped);
     assert_eq!(h.count("q", false), 1, "source note offs cannot retrigger a pad");
+}
+
+#[test]
+fn separate_genshin_chord_layout_detects_midi_chords_without_note_bindings() {
+    let h = Harness::new(triad(67, 0, 300_000));
+    let instrument = serde_json::from_str(include_str!(
+        "../../../src-tauri/resources/defaults/Games/Genshin Impact/Instruments/Strings/UkuleleChords.json"
+    )).unwrap();
+    let layout = serde_json::from_str(include_str!(
+        "../../../src-tauri/resources/defaults/KeyboardLayouts/Genshin_QWERTY_Chords.json"
+    )).unwrap();
+    h.engine.set_mapping(NoteKeyMapping::from_pairs(KeyboardLayout::Diatonic21, &[]).with_chord_pads(&instrument, &layout));
+    h.engine.set_note_processing(settings(false, true));
+    h.run_to_end();
+    assert_eq!(h.count("q", false), 1);
+    assert_eq!(h.count("q", true), 1);
+    for binding in ["a", "d", "g"] { assert_eq!(h.count(binding, false), 0); }
 }
 
 #[test]

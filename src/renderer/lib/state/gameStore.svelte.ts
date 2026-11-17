@@ -1,7 +1,7 @@
-import type { GameInfo, GameStatus, GameConfigState, InstrumentConfig } from '../../../shared/types/games.js';
+import type { GameInfo, GameStatus, GameConfigState, InstrumentConfig, InstrumentInputMode } from '../../../shared/types/games.js';
 import type { SongSettingsContext } from '../../../shared/types/ipc.js';
 import type { PedalBindings } from '../../../shared/types/settings.js';
-import { instrumentKeyPairs } from '../../../shared/utils/instrumentLayout.js';
+import { instrumentKeyPairs, instrumentLayoutIds } from '../../../shared/utils/instrumentLayout.js';
 import { api } from '../backend/index.js';
 import { notificationCenter } from '../ui/notificationCenter.svelte';
 
@@ -33,10 +33,39 @@ class GameStore {
     return this.getGameLayout(this.activeGame);
   }
 
+  get activeInputMode(): InstrumentInputMode { return this.getInputMode(this.activeGame); }
+
+  getInputMode(game: GameInfo | null, instrument = this.getGameInstrument(game)): InstrumentInputMode {
+    if (!game || !instrument) return 'keyboard';
+    const key = `${game.id}/${instrument.id}`;
+    const saved = this.selectedLayoutIds[`${key}/mode`] as InstrumentInputMode | undefined;
+    if (saved && instrumentLayoutIds(instrument, saved).length) return saved;
+    const layout = this.selectedLayoutIds[key];
+    return (['keyboard', 'chords', 'frets'] as const).find(mode =>
+      layout && instrumentLayoutIds(instrument, mode).includes(layout))
+      ?? (['keyboard', 'chords', 'frets'] as const).find(mode => instrumentLayoutIds(instrument, mode).length) ?? 'keyboard';
+  }
+
+  async setInputMode(mode: InstrumentInputMode) {
+    const game = this.activeGame;
+    const instrument = this.activeInstrument;
+    if (!game || !instrument || !instrumentLayoutIds(instrument, mode).length || mode === this.activeInputMode) return;
+    const previous = this.activeInputMode;
+    if (game.isRunning && previous !== 'keyboard' && mode !== 'keyboard') {
+      if (!await api.playback.setGuitarMode(mode)) throw new Error('Unable to change the game guitar mode.');
+    }
+    this.selectedLayoutIds[`${game.id}/${instrument.id}/mode`] = mode;
+    await api.settings.updateSettings({ selectedLayoutIds: { ...this.selectedLayoutIds } });
+    await this.syncActiveInstrumentMapping();
+  }
+
   getGameLayout(game: GameInfo | null, instrument = this.getGameInstrument(game)) {
     if (!game || !instrument) return null;
-    const layouts = this.getInstrumentLayouts(instrument, game);
-    const selected = this.selectedLayoutIds[`${game.id}/${instrument.id}`];
+    const mode = this.getInputMode(game, instrument);
+    const layouts = this.getInstrumentLayouts(instrument, game, mode);
+    const key = `${game.id}/${instrument.id}`;
+    const selected = this.selectedLayoutIds[`${key}/${mode}`] ??
+      (instrumentLayoutIds(instrument, mode).includes(this.selectedLayoutIds[key]) ? this.selectedLayoutIds[key] : undefined);
     if (selected) return layouts.find(layout => layout.id === selected) ?? null;
     return layouts.find(layout => layout.id === game.defaultLayout || layout.name === game.defaultLayout) ?? layouts[0] ?? null;
   }
@@ -50,7 +79,7 @@ class GameStore {
     const game = this.activeGame;
     const instrument = this.activeInstrument;
     return this.isInstrumentMissing || Boolean(game && instrument
-      && instrument.supportedLayouts?.length && this.selectedLayoutIds[`${game.id}/${instrument.id}`] && !this.activeLayout);
+      && instrumentLayoutIds(instrument, this.activeInputMode).length && !this.activeLayout);
   }
 
   get hasDeletedSelection() {
@@ -259,9 +288,9 @@ class GameStore {
     this.applyGameStatuses(this.latestStatuses);
   }
 
-  getInstrumentLayouts(instrument: InstrumentConfig | null, game = this.activeGame) {
-    const supported = instrument?.supportedLayouts ?? [];
-    return (game?.layouts ?? []).filter(layout => layout.keys.length > 0 && supported.some(id =>
+  getInstrumentLayouts(instrument: InstrumentConfig | null, game = this.activeGame, mode: InstrumentInputMode | 'all' = this.getInputMode(game, instrument)) {
+    const supported = instrumentLayoutIds(instrument, mode);
+    return (game?.layouts ?? []).filter(layout => (layout.keys.length > 0 || layout.chordKeys?.length || layout.chordWheel?.positions.length || layout.fretboard?.stringKeys.length) && supported.some(id =>
       id.toLowerCase() === layout.id.toLowerCase() || id.toLowerCase() === layout.name.toLowerCase()));
   }
 
@@ -300,24 +329,32 @@ class GameStore {
     }
     this.publishSettingsContext();
 
-    const layouts = this.getInstrumentLayouts(inst);
+    const layouts = this.getInstrumentLayouts(inst, this.activeGame, 'all');
     const selectionKey = `${this.activeGame.id}/${inst.id}`;
     const previousLayoutId = this.selectedLayoutIds[selectionKey];
-    if (!inst.supportedLayouts?.length) delete this.selectedLayoutIds[selectionKey];
+    if (!instrumentLayoutIds(inst, 'all').length) delete this.selectedLayoutIds[selectionKey];
     const explicitLayout = layouts.find(l => l.id === layoutId || l.name === layoutId);
-    if (explicitLayout) this.selectedLayoutIds[selectionKey] = explicitLayout.id;
+    if (explicitLayout) {
+      const mode = ([this.activeInputMode, 'keyboard', 'chords', 'frets'] as const).find(mode => instrumentLayoutIds(inst, mode).some(id => id.toLowerCase() === explicitLayout.id.toLowerCase()))!;
+      this.selectedLayoutIds[`${selectionKey}/mode`] = mode;
+      this.selectedLayoutIds[`${selectionKey}/${mode}`] = explicitLayout.id;
+      this.selectedLayoutIds[selectionKey] = explicitLayout.id;
+    }
     const targetLayout = this.activeLayout;
-    if (targetLayout) this.selectedLayoutIds[selectionKey] = targetLayout.id;
+    if (targetLayout) {
+      this.selectedLayoutIds[selectionKey] = targetLayout.id;
+      this.selectedLayoutIds[`${selectionKey}/${this.activeInputMode}`] = targetLayout.id;
+    }
     if (explicitLayout && this.selectedLayoutIds[selectionKey] !== previousLayoutId) {
       void api.settings.updateSettings({ selectedLayoutIds: { ...this.selectedLayoutIds } }).catch(console.error);
     }
 
     const keyPairs = instrumentKeyPairs(inst, targetLayout);
 
-    const effectiveLayoutName = keyPairs.length ? targetLayout!.id : '';
+    const effectiveLayoutName = keyPairs.length || targetLayout?.chordWheel?.positions.length || targetLayout?.fretboard?.stringKeys.length || targetLayout?.chordKeys?.length ? targetLayout!.id : '';
     const configPaths = [this.activeGame.filePath, inst.filePath, targetLayout?.filePath]
       .filter((path): path is string => Boolean(path));
-    api.games.setGameInstrumentMapping(effectiveLayoutName, keyPairs, configPaths.length ? configPaths : undefined).catch(console.error);
+    return api.games.setGameInstrumentMapping(effectiveLayoutName, keyPairs, configPaths.length ? configPaths : undefined).catch(console.error);
   }
 }
 

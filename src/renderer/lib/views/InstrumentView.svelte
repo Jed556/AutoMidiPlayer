@@ -26,8 +26,12 @@
   import { createDropdownState } from '../ui/dropdownState.svelte';
   import { InstrumentInput, keyboardPitches } from '../utils/instrumentInput';
   import { createPianoRows, createPianoSlots, hasInGameInstrumentLayout, pianoRange, type PianoSlot } from '../utils/instrumentKeyboard';
-  import { instrumentKeyRows, instrumentLayoutStyle, instrumentNotes as getInstrumentNotes } from '../../../shared/utils/instrumentLayout';
+  import { guitarNotes, instrumentChordMode, instrumentKeyRows, instrumentLayoutStyle, instrumentNotes as getInstrumentNotes } from '../../../shared/utils/instrumentLayout';
   import InstrumentLayout from '../components/Instrument/InstrumentLayout.svelte';
+  import GuitarLayout from '../components/Instrument/GuitarLayout.svelte';
+  import ChordPadsLayout from '../components/Instrument/ChordPadsLayout.svelte';
+  import type { InstrumentInputMode } from '../../../shared/types/games';
+  import ChordWheelControls from '../components/Instrument/ChordWheelControls.svelte';
 
   let bottomBarWidth = $state(0);
   const showBottomLabels = $derived(bottomBarWidth >= 700);
@@ -50,6 +54,8 @@
   let selectedInstrument = $derived(
     gameStore.activeGame?.instruments?.find(i => i.id === selectedInstrumentId) || null
   );
+  const inputModes = $derived((['keyboard', 'chords', 'frets'] as InstrumentInputMode[]).filter(mode =>
+    (mode === 'keyboard' ? selectedInstrument?.keyboardLayouts : mode === 'chords' ? selectedInstrument?.chordLayouts : selectedInstrument?.fretLayouts)?.length));
 
   let compactStage = $state(uiStore.instrumentCompactStage);
   const initialWidth = typeof window !== 'undefined' ? Math.max(720, Math.min(1600, window.innerWidth - 88)) : 720;
@@ -236,9 +242,25 @@
     selectedLayoutId = gameStore.activeLayout?.id ?? '';
   });
 
-  let supportsChords = $derived(
-    selectedInstrument ? selectedInstrument.supportsChords : false
-  );
+  const chordMode = $derived(instrumentChordMode(selectedInstrument, gameStore.activeLayout));
+  let supportsChords = $derived(chordMode !== null);
+  const supportsFrets = $derived(Boolean(selectedInstrument?.guitar && selectedInstrument.fretLayouts?.length));
+  let modePending = $state(false);
+  async function selectInputMode(mode: InstrumentInputMode) {
+    if (modePending || playbackStore.isPlaying) return;
+    modePending = true;
+    try { await gameStore.setInputMode(mode); }
+    catch (error) { notificationCenter.error(t('common.error'), String(error)); }
+    finally { modePending = false; }
+  }
+  const wheelLayout = $derived(gameStore.activeLayout?.chordWheel ? gameStore.activeLayout :
+    gameStore.activeGame?.layouts.find(layout => layout.id === gameStore.activeLayout?.fretboard?.wheelLayout));
+  const displayWheel = $derived(wheelLayout?.chordWheel ? { ...wheelLayout.chordWheel,
+    pageCount: gameStore.activeInputMode === 'frets' ? Math.ceil((selectedInstrument?.guitar?.fretCount ?? 24) / wheelLayout.chordWheel.positions.length) + 1 : wheelLayout.chordWheel.pageCount } : null);
+  const wheelItems = $derived(gameStore.activeInputMode === 'frets' ? [
+    ...Array.from({ length: selectedInstrument?.guitar?.fretCount ?? 24 }, (_, index) => ({ name: String(index + 1), pitchClasses: [] })),
+    { name: t('instrument.guitarOpen'), pitchClasses: [] },
+  ] : selectedInstrument?.chords ?? []);
 
   let supportsPedals = $derived(
     selectedInstrument ? selectedInstrument.supportsSustain : true
@@ -340,7 +362,7 @@
   const selectedGameLayout = $derived(
     gameStore.activeGame?.layouts?.find(layout => layout.id === selectedLayoutId) ?? null
   );
-  const instrumentNotes = $derived(getInstrumentNotes(selectedInstrument));
+  const instrumentNotes = $derived(gameStore.activeInputMode === 'frets' ? guitarNotes(selectedInstrument) : getInstrumentNotes(selectedInstrument));
   const layoutStyle = $derived(instrumentLayoutStyle(selectedInstrument));
   const mappedRows = $derived(instrumentKeyRows(selectedInstrument, selectedGameLayout));
   const mappedKeys = $derived(mappedRows.flat().filter(key => key !== null));
@@ -508,6 +530,20 @@
   </div>
 
   <!-- Main Instrument Display Area -->
+  {#if inputModes.length > 1}
+    <div class="instrument-input-modes" role="group" aria-label={t('instrument.inputMode')}>
+      {#each inputModes as mode}
+        <button type="button" class="theme-ghost-button" class:selected={gameStore.activeInputMode === mode}
+          disabled={modePending || playbackStore.isPlaying}
+          aria-pressed={gameStore.activeInputMode === mode} onclick={() => selectInputMode(mode)}>
+          {t(`instrument.guitarMode_${mode}`)}
+        </button>
+      {/each}
+    </div>
+  {/if}
+  {#if displayWheel && gameStore.activeInputMode !== 'keyboard'}
+    <ChordWheelControls wheel={displayWheel} pads={wheelItems} fretMode={gameStore.activeInputMode === 'frets'} />
+  {/if}
   <div class="inst-stage-viewer" use:fitInstrumentStage={{ game: showGame, piano: showPiano, hasGame: hasInGameLayout, maxWidth: stageMaxWidth, duration: animationStore.durationMs }}>
     <div class="stage-selector" role="group" aria-label="Instrument views">
       {#if hasInGameLayout}
@@ -530,7 +566,13 @@
     <div class="stage-slot game-slot" inert={!showGame}>
     <div class="game-stage">
     {#if hasInGameLayout}
-      <InstrumentLayout {layoutStyle} rows={mappedRows} activePitches={litPitches} onplay={triggerKey} />
+      {#if gameStore.activeInputMode === 'chords' && chordMode === 'pads' && selectedInstrument}
+        <ChordPadsLayout chords={selectedInstrument.chords ?? []} bindings={gameStore.activeLayout?.chordKeys ?? []} activePitches={litPitches} onpreview={pitches => pitches.forEach(triggerKey)} />
+      {:else if layoutStyle === 'guitar' && selectedInstrument && gameStore.activeInputMode !== 'keyboard'}
+        <GuitarLayout instrument={selectedInstrument} mode={gameStore.activeInputMode} activePitches={litPitches} />
+      {:else}
+        <InstrumentLayout {layoutStyle} rows={mappedRows} activePitches={litPitches} onplay={triggerKey} />
+      {/if}
     {/if}
 
     </div>
@@ -591,6 +633,13 @@
       </div>
 
       <!-- Pedals toggle and bindings -->
+      {#if supportsFrets}
+        <button type="button" class="instrument-toggle-btn" class:enabled={gameStore.activeInputMode === 'frets'}
+          disabled={modePending || playbackStore.isPlaying} aria-pressed={gameStore.activeInputMode === 'frets'}
+          onclick={() => selectInputMode(gameStore.activeInputMode === 'frets' ? 'chords' : 'frets')} use:tooltip={t('instrument.guitarSharedFret')}>
+          <FluentIcon name="MusicNote2" size={16} />{@render bottomLabel(t('instrument.guitarMode_frets'))}
+        </button>
+      {/if}
       <div class="control-unit">
         <button
           type="button"
@@ -768,6 +817,10 @@
 </div>
 
 <style>
+  .instrument-input-modes { display: flex; gap: 4px; margin: 0 28px 12px; }
+  .instrument-input-modes button { padding: 7px 14px; border: 1px solid transparent; border-radius: var(--radius-sm); font: inherit; font-size: 12px; color: var(--text-secondary); }
+  .instrument-input-modes button.selected { color: var(--text-primary); background: var(--bg-tertiary); border-color: var(--border-subtle); }
+  .instrument-input-modes button:disabled { opacity: .45; cursor: default; }
   .instrument-view {
     display: flex;
     flex-direction: column;

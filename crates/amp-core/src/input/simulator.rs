@@ -1,8 +1,21 @@
 use enigo::{Direction, Enigo, Key, Keyboard, Settings};
-use std::collections::HashSet;
+#[cfg(windows)]
+use enigo::{Mouse, Coordinate, Button};
+use super::{chord_wheel::{ChordWheelOutput, WheelButton}, config::ChordWheelConfigJson};
+use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 use super::mapping::KeyStroke;
 use crate::diagnostics::{ServiceState, ServiceStatus};
+
+#[cfg(any(windows, test))]
+fn matches_game_process(path: &str, processes: &[String]) -> bool {
+    fn normalized(value: &str) -> String {
+        let name = value.trim().trim_matches('"').rsplit(['/', '\\']).next().unwrap_or("").to_lowercase();
+        name.strip_suffix(".exe").unwrap_or(&name).to_string()
+    }
+    let actual = normalized(path);
+    !actual.is_empty() && processes.iter().any(|process| normalized(process) == actual)
+}
 
 #[cfg(any(target_os = "linux", test))]
 fn wayland_session(display: Option<&std::ffi::OsStr>, session_type: Option<&std::ffi::OsStr>) -> bool {
@@ -52,6 +65,9 @@ pub struct KeySimulator {
     pressed_keys: HashSet<Key>,
     last_press_time: Option<Instant>,
     pedals: PedalOutput,
+    wheel: ChordWheelOutput,
+    wheel_context: Option<String>,
+    wheel_pages: HashMap<String, Option<usize>>,
 }
 
 /// One backend owns the physical keyboard. Wayland supplies a portal backend;
@@ -60,9 +76,20 @@ pub trait KeyboardOutput: Send {
     fn key(&mut self, key: Key, up: bool) -> Result<(), String>;
     fn error(&self) -> Option<String> { None }
     fn failure_state(&self) -> ServiceState { ServiceState::Unavailable }
+    fn wheel_move(&mut self, _processes: &[String], _point: [u16; 2]) -> Result<(), String> {
+        Err("Chord wheel mouse output is currently supported on Windows only.".into())
+    }
+    fn wheel_button(&mut self, _button: WheelButton, _up: bool) -> Result<(), String> {
+        Err("Chord wheel mouse output is unavailable.".into())
+    }
+    fn wheel_focused(&self) -> bool { false }
 }
 
-struct EnigoOutput(Enigo);
+struct EnigoOutput {
+    enigo: Enigo,
+    #[cfg(windows)]
+    wheel_window: Option<usize>,
+}
 #[cfg(target_os = "macos")]
 #[link(name = "ApplicationServices", kind = "framework")]
 extern "C" { fn AXIsProcessTrusted() -> bool; }
@@ -74,7 +101,51 @@ impl KeyboardOutput for EnigoOutput {
         ServiceState::Unavailable
     }
     fn key(&mut self, key: Key, up: bool) -> Result<(), String> {
-        self.0.key(key, if up { Direction::Release } else { Direction::Press }).map_err(|e| e.to_string())
+        self.enigo.key(key, if up { Direction::Release } else { Direction::Press }).map_err(|e| e.to_string())
+    }
+    #[cfg(windows)]
+    fn wheel_move(&mut self, processes: &[String], point: [u16; 2]) -> Result<(), String> {
+        use windows_sys::Win32::{Foundation::{CloseHandle, POINT, RECT}, Graphics::Gdi::ClientToScreen,
+            System::Threading::{OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION},
+            UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId, GetClientRect}};
+        // SAFETY: all output pointers refer to live stack buffers. Process handles
+        // are closed immediately; the foreground HWND is used only for this call.
+        let (window, x, y) = unsafe {
+            let window = GetForegroundWindow();
+            let mut pid = 0;
+            GetWindowThreadProcessId(window, &mut pid);
+            let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+            if handle.is_null() { return Err("Focus the game window before chord playback.".into()); }
+            let mut name = [0u16; 32768];
+            let mut length = name.len() as u32;
+            let found = QueryFullProcessImageNameW(handle, 0, name.as_mut_ptr(), &mut length);
+            CloseHandle(handle);
+            let path = String::from_utf16_lossy(&name[..length.min(name.len() as u32) as usize]);
+            if found == 0 || !matches_game_process(&path, processes) {
+                return Err("Focus the selected game window before chord playback.".into());
+            }
+            let mut rect = RECT::default();
+            let mut origin = POINT::default();
+            if GetClientRect(window, &mut rect) == 0 || ClientToScreen(window, &mut origin) == 0
+                || rect.right <= 0 || rect.bottom <= 0 { return Err("Cannot locate the game area.".into()); }
+            (window as usize, origin.x + ((rect.right - 1) as i64 * point[0] as i64 / 1000) as i32,
+                origin.y + ((rect.bottom - 1) as i64 * point[1] as i64 / 1000) as i32)
+        };
+        self.wheel_window = Some(window);
+        self.enigo.move_mouse(x, y, Coordinate::Abs).map_err(|e| e.to_string())
+    }
+    #[cfg(windows)]
+    fn wheel_focused(&self) -> bool {
+        // SAFETY: GetForegroundWindow has no arguments or ownership transfer.
+        self.wheel_window.is_some_and(|window| unsafe {
+            windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow() as usize == window
+        })
+    }
+    #[cfg(windows)]
+    fn wheel_button(&mut self, button: WheelButton, up: bool) -> Result<(), String> {
+        if !up && !self.wheel_focused() { return Err("The game lost focus; chord playback was paused.".into()); }
+        self.enigo.button(match button { WheelButton::Left => Button::Left, WheelButton::Right => Button::Right },
+            if up { Direction::Release } else { Direction::Press }).map_err(|e| e.to_string())
     }
     fn error(&self) -> Option<String> {
         #[cfg(target_os = "macos")]
@@ -96,6 +167,9 @@ impl KeySimulator {
             pressed_keys: HashSet::new(),
             last_press_time: None,
             pedals: PedalOutput::default(),
+            wheel: ChordWheelOutput::default(),
+            wheel_context: None,
+            wheel_pages: HashMap::new(),
         }
     }
 
@@ -117,14 +191,14 @@ impl KeySimulator {
             self.observation = ServiceStatus::new(ServiceState::PermissionRequired);
             return Err("Wayland keyboard output requires an authorized desktop keyboard session.".into());
         }
-        self.output = Some(Box::new(EnigoOutput(Enigo::new(&Settings::default()).map_err(|error| {
+        self.output = Some(Box::new(EnigoOutput { enigo: Enigo::new(&Settings::default()).map_err(|error| {
             let state = if matches!(error, enigo::NewConError::NoPermission) { ServiceState::PermissionRequired } else { ServiceState::Unavailable };
             self.observation = ServiceStatus::with_detail(state, &error);
             #[cfg(target_os = "macos")]
             { format!("Keyboard output is unavailable: {error}. Enable Auto MIDI Player in System Settings > Privacy & Security > Accessibility, then press Start again.") }
             #[cfg(not(target_os = "macos"))]
             { error.to_string() }
-        })?)));
+        })?, #[cfg(windows)] wheel_window: None }));
         self.observation = ServiceStatus::new(ServiceState::Ready);
         Ok(())
     }
@@ -132,6 +206,7 @@ impl KeySimulator {
     pub fn set_output(&mut self, output: Option<Box<dyn KeyboardOutput>>) {
         self.release_everything();
         self.output = output;
+        self.wheel.retire();
         // Failed releases belong to the retired backend. A replacement must
         // not inherit ownership for keys that it has never pressed.
         #[cfg(not(windows))]
@@ -209,6 +284,7 @@ impl KeySimulator {
     }
 
     pub fn release_everything(&mut self) {
+        self.cancel_wheel();
         for source in 0..5 { self.release_source(source); }
         self.pressed_keys.clear();
         self.pedals.clear();
@@ -244,10 +320,67 @@ impl KeySimulator {
 
     /// Releases all currently held physical keys to ensure keys never get stuck
     pub fn release_all(&mut self, _all_keys: &[Key]) {
+        self.cancel_wheel();
         self.release_source(0);
         self.release_source(1);
         self.pressed_keys.clear();
         self.pedals.clear();
+    }
+
+    pub fn prepare_wheel(&mut self, config: &ChordWheelConfigJson, processes: &[String], index: usize, owner: usize) {
+        let result = self.prepare().and_then(|_| self.wheel.prepare(self.output.as_mut().unwrap().as_mut(),
+            config, processes, Some(index), index / config.positions.len(), Some(owner), Instant::now()));
+        if let Err(error) = result { self.cancel_wheel(); self.error = Some(error); }
+    }
+
+    pub fn strum_wheel(&mut self, owner: usize, hold_ms: u64) {
+        let result = self.output.as_mut().ok_or_else(|| "Mouse output is unavailable".to_string())
+            .and_then(|output| self.wheel.strum(output.as_mut(), owner, hold_ms, Instant::now()));
+        if let Err(error) = result { self.cancel_wheel(); self.error = Some(error); }
+    }
+    pub fn pluck_wheel(&mut self, owner: usize, strokes: &[KeyStroke], hold_ms: u64) {
+        let result = self.output.as_mut().ok_or_else(|| "String output is unavailable".to_string())
+            .and_then(|output| self.wheel.pluck(output.as_mut(), owner, strokes, hold_ms, Instant::now()));
+        if let Err(error) = result { self.cancel_wheel(); self.error = Some(error); }
+    }
+
+    pub fn wheel_preparation_ms(&self, config: &ChordWheelConfigJson, index: usize) -> u64 { self.wheel.preparation_ms(config, index) }
+    pub fn wheel_ready(&self, owner: usize) -> bool { self.wheel.ready(owner, Instant::now()) }
+    pub fn wheel_state(&self) -> super::chord_wheel::ChordWheelState { self.wheel.state() }
+    pub fn set_wheel_context(&mut self, context: Option<String>) {
+        if let Some(context) = context {
+            if self.wheel_context.as_ref().is_some_and(|previous| previous != &context) {
+                self.cancel_wheel();
+                if let Some(previous) = &self.wheel_context { self.wheel_pages.insert(previous.clone(), self.wheel.state().page); }
+                if let Some(Some(page)) = self.wheel_pages.get(&context) { self.wheel.assume_page(*page); }
+                else { self.wheel.forget_page(); }
+            }
+            self.wheel_context = Some(context);
+        }
+    }
+    pub fn set_wheel_page(&mut self, config: &ChordWheelConfigJson, processes: &[String], page: usize, send: bool) -> Result<(), String> {
+        if page >= config.page_count { return Err("Chord page is unavailable".into()); }
+        if self.wheel.is_active() { return Err("The chord wheel is busy".into()); }
+        if !send { self.wheel.assume_page(page); return Ok(()); }
+        self.prepare()?;
+        let result = self.wheel.prepare(self.output.as_mut().unwrap().as_mut(), config, processes, None, page, None, Instant::now());
+        if let Err(error) = &result { self.cancel_wheel(); self.error = Some(error.clone()); }
+        result
+    }
+
+    pub fn tick_wheel(&mut self) {
+        if let Some(output) = &mut self.output {
+            if let Err(error) = self.wheel.tick(output.as_mut(), Instant::now()) {
+                self.cancel_wheel(); self.error = Some(error);
+            }
+        }
+    }
+
+    pub fn wheel_active(&self) -> bool { self.wheel.is_active() }
+    pub fn cancel_wheel(&mut self) {
+        if let Some(output) = &mut self.output {
+            if let Err(error) = self.wheel.cancel(output.as_mut()) { self.error = Some(error); }
+        }
     }
 }
 
@@ -263,6 +396,30 @@ mod tests {
     use crate::input::{char_to_key, parse_key_stroke};
 
     fn key(c: char) -> Key { char_to_key(c).unwrap() }
+
+    #[test]
+    fn wheel_process_target_accepts_game_aliases_and_custom_executable_paths() {
+        let names = vec!["GameMain".into(), "Alternate.EXE".into(), "C:\\Games\\CustomGame.exe".into()];
+        assert!(matches_game_process("C:\\Game\\GAMEMAIN.EXE", &names));
+        assert!(matches_game_process("alternate.exe", &names));
+        assert!(matches_game_process("D:\\Other\\CustomGame.EXE", &names));
+        assert!(!matches_game_process("unrelated.exe", &names));
+        assert!(!matches_game_process("GameMain.exe", &[]));
+    }
+
+    #[test]
+    fn wheel_page_state_is_scoped_to_its_game_and_layout_context() {
+        let mut simulator = KeySimulator::new();
+        simulator.set_wheel_context(Some("game-a/wheel".into()));
+        simulator.wheel.assume_page(2);
+        simulator.set_wheel_context(None); // The same game switches to keyboard mode.
+        simulator.set_wheel_context(Some("game-a/wheel".into()));
+        assert_eq!(simulator.wheel_state().page, Some(2));
+        simulator.set_wheel_context(Some("game-b/wheel".into()));
+        assert_eq!(simulator.wheel_state().page, None);
+        simulator.set_wheel_context(Some("game-a/wheel".into()));
+        assert_eq!(simulator.wheel_state().page, Some(2));
+    }
 
     #[test]
     fn wayland_detection_ignores_empty_display_and_accepts_session_type() {

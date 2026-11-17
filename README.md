@@ -64,10 +64,12 @@ Here's where the main controls live. The annotated screenshots use the current i
 * **Smart transpose and Auto Correct** - Help notes fit instruments with limited ranges or missing sharps and flats. You can also choose Up, Down, or Ignore transposition.
 * **Hold Notes and Tap Threshold** - Choose between short key taps and held notes, or tap short notes while holding longer ones.
 * **Merge Notes** - Join repeated notes of the same pitch when they overlap or fall within your chosen gap. Try it on songs where repeated taps sound too busy.
-* **Auto Chord** - Match groups of notes to built-in chord keys on instruments that support them, such as Genshin's Ukulele and Lingering Euphonia.
+* **Auto Chord** - Match groups of notes to built-in chord keys on instruments that support them, such as Genshin's Ukulele and Lingering Euphonia, or select and strum NTE's guitar chord wheel.
 * **Pedals and layouts** - Use sustain, sostenuto, and soft pedals where supported. Edit pedal bindings for the selected keyboard layout, and choose from QWERTY, QWERTZ, AZERTY, Dvorak, and other available mappings.
 
 Every game's instrument behaves a little differently. Preview your changes, then try a short section in-game to find what sounds best.
+
+NTE's **Guitar** has separate Keyboard, Chords, and Frets controls, including 24 wheel chords and frets 0–24 with automatic paging. Its guitar display shows six strings and a string/fret readout. See the [NTE guitar setup guide](docs/nte-guitar.md) and [instrument JSON schema](docs/instrument-configuration.md).
 
 ### Listen Before You Play
 

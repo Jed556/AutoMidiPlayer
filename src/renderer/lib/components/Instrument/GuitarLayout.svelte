@@ -1,0 +1,74 @@
+<script lang="ts">
+  import type { InstrumentConfig, InstrumentInputMode } from '../../../../shared/types/games';
+  import { guitarVoicing, guitarChord } from '../../utils/guitarLayout';
+  import { noteName } from '../../utils/instrumentKeyboard';
+  import { t } from '../../i18n';
+
+  let { instrument, activePitches, mode }: { instrument: InstrumentConfig; activePitches: Set<number>; mode: InstrumentInputMode } = $props();
+  const tuning = $derived(instrument.guitar?.tuning ?? []);
+  const count = $derived(instrument.guitar?.fretCount ?? 24);
+  const positions = $derived(guitarVoicing(instrument, activePitches));
+  const chord = $derived(guitarChord(instrument, activePitches));
+  const activeCells = $derived(new Set(positions.map(position => `${position.string}/${position.fret}`)));
+  const activeFrets = $derived(new Map(positions.map(position => [position.string, position.fret])));
+</script>
+
+<section class="guitar-layout" aria-label={t('instrument.guitarView')}>
+  <div class="guitar-heading">
+    <span class="guitar-title">{t(mode === 'chords' ? 'instrument.chordWheel' : 'instrument.fretboard')}</span>
+    <span class="guitar-status" aria-live="polite">{mode === 'chords' ? chord ?? t('instrument.guitarWaiting') : positions.length ? t('instrument.guitarFret', { fret: positions[0].fret }) : t('instrument.guitarWaiting')}</span>
+  </div>
+  {#if mode === 'chords'}
+    <div class="guitar-chords" aria-label={t('instrument.chordWheelAvailableChords')}>
+      {#each instrument.chords ?? [] as item}<span class:active={chord === item.name}>{item.name}</span>{/each}
+    </div>
+  {/if}
+  <div class="fret-scroll" tabindex="0" role="region" aria-label={t('instrument.fretboard')}>
+    <div class="fret-grid" style:grid-template-columns={`48px repeat(${count + 1}, minmax(28px, 1fr))`}>
+      <span class="string-header">{t('instrument.guitarString')}</span>
+      {#each Array.from({ length: count + 1 }, (_, fret) => fret) as fret}<span class="fret-number" class:marked={[3, 5, 7, 9, 12, 15, 17, 19, 21, 24].includes(fret)}>{fret}</span>{/each}
+      {#each tuning as open, string}
+        <span class="string-label">{string + 1}<small>{noteName(open)}</small></span>
+        {#each Array.from({ length: count + 1 }, (_, fret) => fret) as fret}
+          <span class="fret-cell" class:nut={fret === 0} class:active={activeCells.has(`${string}/${fret}`)} title={`${noteName(open + fret)} · ${t('instrument.guitarFret', { fret })}`}>
+            {#if activeCells.has(`${string}/${fret}`)}<span class="finger">{fret}</span>{/if}
+          </span>
+        {/each}
+      {/each}
+    </div>
+  </div>
+  <div class="tab-strip" aria-label={t('instrument.guitarTabPreview')}>
+    <span class="tab-title">{t('instrument.guitarTabPreview')}</span>
+    {#each tuning as open, string}<span class="tab-string"><small>{noteName(open)}</small><b>{activeFrets.get(string) ?? '—'}</b></span>{/each}
+  </div>
+  <p class="guitar-hint">{mode === 'frets' && activePitches.size && !positions.length ? t('instrument.guitarUnplayable') : t('instrument.guitarSharedFret')}</p>
+</section>
+
+<style>
+  .guitar-layout { width: 100%; max-width: 960px; padding: 16px 0; }
+  .guitar-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+  .guitar-title { color: var(--text-primary); font-size: 14px; font-weight: 600; }
+  .guitar-status { font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .guitar-chords { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+  .guitar-chords > span { padding: 5px 9px; border-radius: var(--radius-sm); color: var(--text-secondary); background: var(--bg-tertiary); font-size: 12px; }
+  .guitar-chords > span.active { background: var(--accent); color: white; }
+  .fret-scroll { width: 100%; overflow-x: auto; padding-bottom: 8px; }
+  .fret-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .fret-grid { display: grid; min-width: 760px; }
+  .fret-number, .string-header { padding: 4px 0 8px; text-align: center; font-size: 10px; color: var(--text-tertiary); }
+  .fret-number.marked { color: var(--text-primary); font-weight: 600; }
+  .string-header { text-align: left; }
+  .string-label { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-primary); }
+  .string-label small { color: var(--text-tertiary); font-size: 9px; }
+  .fret-cell { position: relative; display: grid; place-items: center; height: 36px; border-right: 1px solid var(--border-subtle); }
+  .fret-cell::before { content: ''; position: absolute; left: 0; right: 0; height: 1px; background: var(--text-tertiary); opacity: .4; }
+  .fret-cell.nut { border-right: 3px solid var(--text-secondary); }
+  .finger { position: relative; display: grid; place-items: center; width: 24px; height: 24px; background: var(--accent); color: white; border-radius: 50%; font-size: 10px; font-weight: 600; }
+  .tab-strip { display: flex; align-items: center; gap: 16px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-subtle); }
+  .tab-title { margin-right: auto; font-size: 11px; color: var(--text-secondary); }
+  .tab-string { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 22px; font-family: var(--font-mono, monospace); }
+  .tab-string small { font-size: 9px; color: var(--text-tertiary); }
+  .tab-string b { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+  .guitar-hint { margin: 14px 0 0; font-size: 11px; color: var(--text-tertiary); }
+  @media (max-width: 600px) { .tab-strip { gap: 8px; } .guitar-heading { align-items: flex-start; } }
+</style>

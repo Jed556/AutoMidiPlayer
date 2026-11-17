@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import { compileModule } from 'svelte/compiler';
+import { normalizeKeyboardLayout, instrumentNotes } from '../src/shared/utils/instrumentLayout.ts';
 
 const source = stripTypeScriptTypes(readFileSync(new URL('../src/renderer/lib/state/gameStore.svelte.ts', import.meta.url), 'utf8'), { mode: 'transform' })
   .replace('../../../shared/utils/instrumentLayout.js', new URL('../src/shared/utils/instrumentLayout.ts', import.meta.url).href);
@@ -16,13 +17,14 @@ async function createGameStore(selectedInstrumentIds = {}, configureGames = () =
   const stopped = [];
   const mappingSources = [];
   const pedalWrites = [];
+  const modeChanges = [];
   let pedalWriteError;
   let onConfigsChanged;
   let onStatusChanged;
   let readStatuses = async () => initialStatuses;
   const games = ['a', 'b'].map(id => ({ id, displayName: id, defaultInstrument: 'piano',
-    instruments: [{ id: 'lyre', name: 'Lyre', notes: [60, 62], supportedLayouts: ['qwerty', 'azerty'] },
-      { id: 'piano', name: 'Piano', notes: [60, 61], supportedLayouts: ['qwerty', 'azerty'] }],
+    instruments: [{ id: 'lyre', name: 'Lyre', notes: [60, 62], keyboardLayouts: ['qwerty', 'azerty'] },
+      { id: 'piano', name: 'Piano', notes: [60, 61], keyboardLayouts: ['qwerty', 'azerty'] }],
     layouts: [{ id: 'qwerty', name: 'QWERTY', keys: ['A', 'S'] }, { id: 'azerty', name: 'AZERTY', keys: ['Q', 'S'] }],
   }));
   configureGames(games);
@@ -54,7 +56,7 @@ async function createGameStore(selectedInstrumentIds = {}, configureGames = () =
       setActiveGame: async () => true,
       setGameInstrumentMapping: async (layout, pairs, paths) => { mappings.push([layout, pairs]); mappingSources.push(paths); return true; },
     },
-    playback: { stop: async () => { stopped.push(true); return true; } },
+    playback: { setGuitarMode: async mode => { modeChanges.push(mode); return true; }, stop: async () => { stopped.push(true); return true; } },
     songs: { setSettingsContext: context => contexts.push(context) },
     settings: {
       getSettings: async () => ({ selectedInstrumentIds, selectedLayoutIds }),
@@ -70,7 +72,7 @@ async function createGameStore(selectedInstrumentIds = {}, configureGames = () =
   const { gameStore } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
   delete globalThis[key];
   await gameStore.init();
-  return { gameStore, contexts, settingsWrites, mappings, notifications, stopped, mappingSources, pedalWrites,
+  return { gameStore, contexts, settingsWrites, mappings, notifications, stopped, mappingSources, pedalWrites, modeChanges,
     failPedalWrite(error) { pedalWriteError = error; },
     setSnapshot(value) { snapshot = value; },
     setReader(reader) { readConfigs = reader; },
@@ -127,7 +129,7 @@ test('layout choices survive restart for each game and instrument', async () => 
 test('native mappings use the instrument matrix and preserve null positions and shifted bindings', async () => {
   const { mappings } = await createGameStore({}, games => {
     games[0].instruments[1] = { id: 'piano', name: 'Piano', layoutStyle: 'heartopia',
-      keys: [[72, null, 73], [60, 61]], supportedLayouts: ['qwerty'] };
+      keys: [[72, null, 73], [60, 61]], keyboardLayouts: ['qwerty'] };
     games[0].layouts[0] = { id: 'qwerty', name: 'QWERTY', keys: ['q', 'Q', 'a', 'A'],
       keyRows: [['q', null, 'Q'], ['a', 'A']] };
   });
@@ -212,7 +214,7 @@ test('game summaries respect instrument compatibility, game defaults and deleted
   second.defaultLayout = 'AZERTY';
   assert.equal(gameStore.getGameInstrument(second).id, 'lyre');
   assert.equal(gameStore.getGameLayout(second).id, 'azerty');
-  second.instruments[0].supportedLayouts = ['qwerty'];
+  second.instruments[0].keyboardLayouts = ['qwerty'];
   assert.equal(gameStore.getGameLayout(second).id, 'qwerty');
   gameStore.setActiveGame('b');
   gameStore.setActiveGame('a');
@@ -299,12 +301,12 @@ test('live updates preserve selections, refresh notes and keys, and handle remov
 
 test('instruments without supported layouts never use another instrument layout', async () => {
   const { gameStore, mappings } = await createGameStore();
-  gameStore.activeInstrument.supportedLayouts = [];
+  gameStore.activeInstrument.keyboardLayouts = [];
   gameStore.syncActiveInstrumentMapping();
   assert.deepEqual(gameStore.getInstrumentLayouts(gameStore.activeInstrument), []);
   assert.deepEqual(mappings.at(-1), ['', []]);
   assert.equal(gameStore.isLayoutMissing, false, 'An unassigned layout uses No Layouts, not a deletion warning');
-  gameStore.activeInstrument.supportedLayouts = ['missing'];
+  gameStore.activeInstrument.keyboardLayouts = ['missing'];
   gameStore.syncActiveInstrumentMapping();
   assert.deepEqual(mappings.at(-1), ['', []]);
 });
@@ -433,4 +435,59 @@ test('manual reload reports unsuccessful validation instead of claiming success'
   assert.equal(await harness.gameStore.reloadConfigs(), false);
   harness.setSnapshot({ games: JSON.parse(JSON.stringify(harness.gameStore.games)), issues: [] });
   assert.equal(await harness.gameStore.reloadConfigs(), true);
+});
+
+test('guitar input groups retain separate layouts and only explicit chord/fret changes toggle the game', async () => {
+  const configure = games => {
+    games[0].isRunning = true;
+    Object.assign(games[0].instruments[1], { chordLayouts: ['wheel-a', 'wheel-b'], fretLayouts: ['frets'],
+      guitar: { tuning: [64, 59, 55, 50, 45, 40], fretCount: 24 } });
+    games[0].layouts.push(...['wheel-a', 'wheel-b'].map(id => ({ id, name: id, keys: [], chordWheel: { positions: [[693, 255]] } })),
+      { id: 'frets', name: 'Frets', keys: [], fretboard: { stringKeys: ['6', '5', '4', '3', '2', '1'], wheelLayout: 'wheel-a', modeKey: 'z' } });
+  };
+  const h = await createGameStore({}, configure, [{ id: 'a', isRunning: true, isFocused: false }]);
+  await h.gameStore.setInputMode('chords');
+  await h.gameStore.syncActiveInstrumentMapping(undefined, 'wheel-b');
+  await h.gameStore.setInputMode('frets');
+  assert.equal(h.gameStore.activeLayout.id, 'frets');
+  await h.gameStore.setInputMode('chords');
+  assert.equal(h.gameStore.activeLayout.id, 'wheel-b');
+  assert.deepEqual(h.modeChanges, ['frets', 'chords']);
+  const saved = h.settingsWrites.findLast(write => write.selectedLayoutIds).selectedLayoutIds;
+  const restored = await createGameStore({}, configure, [], saved);
+  assert.equal(restored.gameStore.activeInputMode, 'chords');
+  assert.equal(restored.gameStore.activeLayout.id, 'wheel-b');
+  assert.deepEqual(restored.modeChanges, []);
+});
+
+test('mouse-only chord layouts remain selectable and synchronize without chromatic key pairs', async () => {
+  const h = await createGameStore({}, games => {
+    games[0].instruments.push({ id: 'chords', name: 'Guitar (Chords)', notes: [60, 64, 67], keyboardLayouts: ['nte-wheel'] });
+    games[0].layouts.push({ id: 'nte-wheel', name: 'Chord Wheel', keys: [], chordWheel: { positions: [[693, 255]] } });
+  });
+  h.gameStore.syncActiveInstrumentMapping('chords');
+  assert.equal(h.gameStore.activeLayout.id, 'nte-wheel');
+  assert.deepEqual(h.mappings.at(-1), ['nte-wheel', []]);
+});
+
+test('separate Genshin chord entries select chord controls automatically and keep distinct settings contexts', async () => {
+  const readDefault = path => JSON.parse(readFileSync(new URL(`../src-tauri/resources/defaults/${path}`, import.meta.url), 'utf8'));
+  const h = await createGameStore({}, games => {
+    games[0].instruments = ['Ukulele', 'UkuleleChords', 'LingeringEuphonia', 'LingeringEuphoniaChords'].map(file => {
+      const instrument = readDefault(`Games/Genshin Impact/Instruments/Strings/${file}.json`);
+      return { ...instrument, notes: instrumentNotes(instrument) };
+    });
+    games[0].layouts = ['Genshin_QWERTY_Melody', 'Genshin_QWERTY_Chords'].map(id =>
+      normalizeKeyboardLayout(readDefault(`KeyboardLayouts/${id}.json`)));
+  });
+  for (const id of ['ukulele', 'ukulele-chords', 'lingering-euphonia', 'lingering-euphonia-chords']) {
+    await h.gameStore.syncActiveInstrumentMapping(id);
+    const chords = id.endsWith('-chords');
+    assert.equal(h.gameStore.activeInstrument.id, id);
+    assert.equal(h.gameStore.activeInputMode, chords ? 'chords' : 'keyboard');
+    assert.equal(h.gameStore.activeLayout.id, chords ? 'Genshin_QWERTY_Chords' : 'Genshin_QWERTY_Melody');
+    assert.equal(h.mappings.at(-1)[1].length, chords ? 0 : 14);
+    assert.equal(h.contexts.at(-1).instrumentId, id);
+  }
+  assert.deepEqual(h.modeChanges, []);
 });

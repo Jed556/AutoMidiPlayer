@@ -74,6 +74,14 @@ pub fn scan_layouts_checked(dir: &Path) -> (HashMap<String, KeyboardLayoutJson>,
             issue(&mut issues, &path, "Layout name and key bindings must not be empty");
             continue;
         }
+        if layout.chord_wheel.as_ref().is_some_and(|wheel| !wheel.is_valid()) {
+            issue(&mut issues, &path, "Chord wheel requires positions between 0 and 1000 and delays between 1 and 1000 ms");
+            continue;
+        }
+        if layout.fretboard.as_ref().is_some_and(|fret| !fret.is_valid()) {
+            issue(&mut issues, &path, "Fret bindings require string keys, a wheel layout reference, and a mode key");
+            continue;
+        }
         let id = layout.id.to_lowercase();
         for alias in [&id, &stem] {
             if let Some(first) = aliases.get(alias) {
@@ -84,6 +92,14 @@ pub fn scan_layouts_checked(dir: &Path) -> (HashMap<String, KeyboardLayoutJson>,
         }
         layouts.insert(id, layout.clone());
         layouts.entry(stem).or_insert(layout);
+    }
+    for layout in layouts.values() {
+        if let Some(fret) = &layout.fretboard {
+            if !layouts.get(&fret.wheel_layout.to_lowercase()).is_some_and(|wheel| wheel.chord_wheel.is_some()) {
+                issue(&mut issues, Path::new(layout.file_path.as_deref().unwrap_or("")),
+                    format!("Fret wheel layout '{}' is missing or has no chordWheel bindings", fret.wheel_layout));
+            }
+        }
     }
     (layouts, issues)
 }
@@ -115,6 +131,14 @@ pub fn scan_games_checked(dir: &Path) -> (Vec<LoadedGameBundle>, Vec<ConfigIssue
                 let path = entry.path();
                 if !entry.file_type().is_file() || !is_json(path) { continue; }
                 let Some(mut inst) = read::<InstrumentConfigJson>(path, &mut issues) else { continue; };
+                if inst.guitar.as_ref().is_some_and(|guitar| !guitar.is_valid()) {
+                    issue(&mut issues, path, "Guitar tuning and fret count must produce valid MIDI pitches on one to six strings");
+                    continue;
+                }
+                if !inst.fret_layouts.is_empty() && inst.guitar.is_none() {
+                    issue(&mut issues, path, "Fret layouts require guitar tuning and fret count");
+                    continue;
+                }
                 if inst.keys.as_ref().is_some_and(|rows| rows.is_empty() || rows.iter().any(|row| row.is_empty()) || inst.notes.is_empty()) {
                     issue(&mut issues, path, "Instrument keys must contain non-empty rows and at least one MIDI note");
                     continue;

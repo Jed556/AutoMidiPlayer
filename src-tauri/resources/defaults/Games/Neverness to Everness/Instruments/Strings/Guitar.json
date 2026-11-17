@@ -3,11 +3,41 @@
   "name": "Guitar",
   "category": "Strings",
   "type": "chromatic36",
-  "layoutStyle": "genshin",
+  "layoutStyle": "guitar",
+  "guitar": { "tuning": [64, 59, 55, 50, 45, 40], "fretCount": 24 },
   "keys": [
     [76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87],
     [64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75],
     [52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63]
   ],
-  "supportedLayouts": ["NTE_QWERTY_Guitar"]
+  "keyboardLayouts": ["NTE_QWERTY_Guitar"],
+  "chordLayouts": ["NTE_Chord_Wheel"],
+  "fretLayouts": ["NTE_Fret_Wheel"],
+  "chordMode": "wheel",
+  "chords": [
+    {"name":"G","pitchClasses":[2,7,11]},
+    {"name":"Am","pitchClasses":[0,4,9]},
+    {"name":"Bm","pitchClasses":[2,6,11]},
+    {"name":"C","pitchClasses":[0,4,7]},
+    {"name":"D","pitchClasses":[2,6,9]},
+    {"name":"Em","pitchClasses":[4,7,11]},
+    {"name":"Cmaj7","pitchClasses":[0,4,7,11]},
+    {"name":"C7","pitchClasses":[0,4,7,10]},
+    {"name":"Cm7","pitchClasses":[0,3,7,10]},
+    {"name":"G7","pitchClasses":[2,5,7,11]},
+    {"name":"C9","pitchClasses":[0,2,4,7,10]},
+    {"name":"Cm9","pitchClasses":[0,2,3,7,10]},
+    {"name":"C5","pitchClasses":[0,7]},
+    {"name":"D5","pitchClasses":[2,9]},
+    {"name":"G5","pitchClasses":[2,7]},
+    {"name":"A5","pitchClasses":[4,9]},
+    {"name":"Cmaj9","pitchClasses":[0,2,4,7,11]},
+    {"name":"Cadd9","pitchClasses":[0,2,4,7]},
+    {"name":"G/B","pitchClasses":[2,7,11],"bassPitchClass":11},
+    {"name":"Am7/G","pitchClasses":[0,4,7,9],"bassPitchClass":7},
+    {"name":"D/F#","pitchClasses":[2,6,9],"bassPitchClass":6},
+    {"name":"F/A","pitchClasses":[0,5,9],"bassPitchClass":9},
+    {"name":"A","pitchClasses":[1,4,9]},
+    {"name":"Dm","pitchClasses":[2,5,9]}
+  ]
 }

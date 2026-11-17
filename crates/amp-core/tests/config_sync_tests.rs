@@ -24,7 +24,7 @@ impl Drop for TestDirectory {
 }
 
 const GAME: &str = r#"{"id":"NTE","displayName":"Neverness to Everness"}"#;
-const INSTRUMENT: &str = r#"{"id":"guitar","name":"Guitar","notes":[60,61],"supportedLayouts":["qwerty"]}"#;
+const INSTRUMENT: &str = r#"{"id":"guitar","name":"Guitar","notes":[60,61],"keyboardLayouts":["qwerty"]}"#;
 const LAYOUT: &str = r#"{"id":"qwerty","name":"QWERTY","keys":["a","Enter"]}"#;
 
 #[test]
@@ -89,13 +89,13 @@ fn all_bundled_defaults_pass_validation() {
     assert!(game_issues.is_empty(), "{game_issues:#?}");
     assert!(layout_issues.is_empty(), "{layout_issues:#?}");
     assert!(!games.is_empty() && !layouts.is_empty());
-    assert_eq!(layouts.len(), 23);
+    assert_eq!(layouts.len(), 26);
     for game in &games {
         if let Some(id) = &game.config.default_layout {
             assert!(layouts.contains_key(&id.to_lowercase()), "missing game default {id}");
         }
         for instrument in &game.instruments {
-            for id in &instrument.supported_layouts {
+            for id in instrument.all_layouts() {
                 assert!(layouts.contains_key(&id.to_lowercase()), "missing instrument layout {id}");
             }
         }

@@ -11,6 +11,7 @@ use crate::midi::{
     detect::KeyChangeMarker,
 };
 use crate::input::{NoteKeyMapping, KeySimulator};
+use crate::input::mapping::ChordBinding;
 use crate::audio::{AudioSynth, SynthMode};
 use enigo::Key;
 use crate::diagnostics::ServiceStatus;
@@ -19,7 +20,7 @@ use crate::diagnostics::ServiceState;
 use super::live_input::{LiveInput, LiveInputSnapshot, LiveSettings, MidiMessage};
 use crate::input::simulator::KeyboardOutput;
 use super::note_timing::{is_tap, note_durations, pending_note_owners, KeyReleases, KeyPressAction, OverlapBehavior};
-use super::note_processing::{NoteProcessingSettings, ChordNote, merge_notes, detect_chords};
+use super::note_processing::{NoteProcessingSettings, ChordNote, merge_notes, detect_chords, detect_frets};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum PlaybackStatus {
@@ -141,9 +142,12 @@ pub enum PlayerEvent {
     NoteHit { note: u8, is_on: bool },
     StateChanged(PlaybackStatus),
     Finished,
+    ChordWheelChanged(crate::input::chord_wheel::ChordWheelState),
 }
 
 enum Command {
+    GetChordWheelState(Sender<crate::input::chord_wheel::ChordWheelState>),
+    SetChordWheelPage(usize, bool, Sender<Result<(), String>>),
     ObserveKeyboard(ServiceStatus),
     Fence(Sender<()>),
     MidiStart(u64),
@@ -200,6 +204,16 @@ pub struct PlaybackEngine {
 }
 
 impl PlaybackEngine {
+    pub fn chord_wheel_state(&self) -> Result<crate::input::chord_wheel::ChordWheelState, String> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        self.cmd_tx.send(Command::GetChordWheelState(tx)).map_err(|e| e.to_string())?;
+        rx.recv_timeout(Duration::from_secs(2)).map_err(|e| e.to_string())
+    }
+    pub fn set_chord_wheel_page(&self, page: usize, send: bool) -> Result<(), String> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        self.cmd_tx.send(Command::SetChordWheelPage(page, send, tx)).map_err(|e| e.to_string())?;
+        rx.recv_timeout(Duration::from_secs(2)).map_err(|e| e.to_string())?
+    }
     pub fn new<F>(
         initial_song: Option<ParsedMidi>,
         mapping: NoteKeyMapping,
@@ -474,6 +488,7 @@ fn run_playback_loop(
     midi_overflow: Arc<AtomicBool>,
 ) {
     let mut key_sim = KeySimulator::new();
+    key_sim.set_wheel_context(mapping.wheel_context());
     let mut log_played_notes = false;
     let mut midi = LiveInput::default();
     // Keyboard failures can outlive an inactive MIDI connection. Keep them
@@ -533,6 +548,9 @@ fn run_playback_loop(
     let mut all_keys = mapping.all_keys();
     let (mut min_pitch, mut max_pitch) = mapping.pitch_range();
     let mut playable_notes = mapping.playable_notes().to_vec();
+    let mut wheel_attacks: Vec<(usize, u64, usize)> = Vec::new();
+    let mut wheel_starting = true;
+    let mut wheel_state = key_sim.wheel_state();
 
     let update_status = |new_status: PlaybackStatus, status_arc: &Arc<Mutex<PlaybackStatus>>| {
         *status_arc.lock().unwrap() = new_status;
@@ -549,6 +567,14 @@ fn run_playback_loop(
         for _ in 0..256 {
             let Some(cmd) = pending_command.take().or_else(|| cmd_rx.try_recv().ok()) else { break };
             match cmd {
+                Command::GetChordWheelState(reply) => { let _ = reply.send(key_sim.wheel_state()); }
+                Command::SetChordWheelPage(page, send, reply) => {
+                    let result = if !config_available.load(Ordering::Acquire) { Err("The instrument configuration is unavailable.".into()) }
+                        else if status == PlaybackStatus::Playing { Err("Pause playback before changing the page manually.".into()) }
+                        else if let Some(config) = mapping.chord_wheel() { key_sim.set_wheel_page(config, mapping.game_process_names(), page, send) }
+                        else { Err("Select an instrument with a chord wheel first.".into()) };
+                    let _ = reply.send(result);
+                }
                 Command::ObserveKeyboard(status) => key_sim.observe(status),
                 Command::Fence(reply) => {
                     #[cfg(windows)]
@@ -609,6 +635,7 @@ fn run_playback_loop(
                             callback(PlayerEvent::PedalsChanged(pedals.state()));
                         }
                         status = PlaybackStatus::Playing;
+                        wheel_starting = true;
                         restore_notes = true;
                         last_instant = Instant::now();
                         update_status(status, &status_arc);
@@ -659,6 +686,7 @@ fn run_playback_loop(
                     update_status(status, &status_arc);
                 }
                 Command::Seek(target_us, request_id) => {
+                    wheel_starting = true;
                     if request_id < seek_id {
                         continue;
                     }
@@ -716,6 +744,7 @@ fn run_playback_loop(
                 }
                 Command::SetTrackMuted(track_idx, muted) => {
                     rebuild_chords = true;
+                    key_sim.cancel_wheel();
                     if muted {
                         muted_tracks.insert(track_idx);
                         let owners: Vec<_> = live_notes.iter()
@@ -770,6 +799,7 @@ fn run_playback_loop(
                             || ((note_processing.merge_notes || settings.merge_notes)
                                 && note_processing.merge_tolerance_ms != settings.merge_tolerance_ms);
                         rebuild_chords = true;
+                        key_sim.cancel_wheel();
                         note_processing = settings;
                     }
                 }
@@ -806,6 +836,7 @@ fn run_playback_loop(
                     }
                 }
                 Command::LoadSong(new_song) => {
+                    wheel_starting = true;
                     chord_notes.clear();
                     triggered_chords.clear();
                     rebuild_notes = note_processing.merge_notes;
@@ -878,6 +909,7 @@ fn run_playback_loop(
                     return;
                 }
                 Command::SetListenMode(enabled) => {
+                    wheel_starting = true;
                     if listen_mode != enabled { midi.clear(&mut key_sim, &audio_synth); }
                     listen_mode = enabled;
                     if let Some(ref synth) = audio_synth {
@@ -926,6 +958,7 @@ fn run_playback_loop(
                 }
                 Command::SetTrackVolume(track_idx, vol) => {
                     rebuild_chords = true;
+                    key_sim.cancel_wheel();
                     track_volumes.insert(track_idx, vol.clamp(0.0, 1.0));
                     if let Some(ref synth) = audio_synth {
                         synth.set_track_volume(track_idx, vol);
@@ -939,9 +972,11 @@ fn run_playback_loop(
                     }
                 }
                 Command::SetMapping(new_mapping) => {
+                    wheel_starting = true;
                     rebuild_chords = true;
                     midi.clear(&mut key_sim, &audio_synth);
                     key_sim.release_all(&all_keys);
+                    key_sim.set_wheel_context(new_mapping.wheel_context());
                     key_releases.clear();
                     active_held_notes.clear();
                     live_notes.clear();
@@ -1020,26 +1055,29 @@ fn run_playback_loop(
             }
         }
         if rebuild_chords {
+            key_sim.cancel_wheel();
             rebuild_chords = false;
             // A pad attack replaces the whole chord. Keep its remaining members
             // suppressed if controls change between their staggered onsets.
             let frozen: Vec<_> = chord_notes.iter().map(|note|
                 note.filter(|note| triggered_chords.contains(&note.chord_id))).collect();
             let next_chord_id = frozen.iter().flatten().map(|note| note.chord_id + 1).max().unwrap_or(0);
-            let mut planned = if note_processing.auto_chord && !mapping.chord_pads().is_empty() {
-                current_song.as_ref().map(|song| detect_chords(
-                    &song.events, mapping.chord_pads(), note_processing.chord_detection_milliseconds,
-                    |index, event| frozen.get(index).is_none_or(Option::is_none)
+            let mut planned = current_song.as_ref().map(|song| {
+                let enabled = |index: usize, event: &crate::midi::TimedNoteEvent| frozen.get(index).is_none_or(Option::is_none)
                         && !muted_tracks.contains(&event.track_index)
-                        && ((event.velocity as f32) * track_volumes.get(&event.track_index).copied().unwrap_or(1.0)).round() > 0.0,
-                    |pitch, time_us| {
+                        && ((event.velocity as f32) * track_volumes.get(&event.track_index).copied().unwrap_or(1.0)).round() > 0.0;
+                let transform = |pitch, time_us: u64| {
                         let marker = key_markers_enabled.then(|| get_active_marker(&key_markers, (time_us + 10_000) / 1000)).flatten();
                         process_note_pitch(pitch, marker.map(|m| m.key_offset).unwrap_or(key_offset),
                             marker.and_then(|m| m.transpose).unwrap_or(transpose_mode),
                             min_pitch, max_pitch, &playable_notes)
-                    },
-                )).unwrap_or_default()
-            } else { Vec::new() };
+                    };
+                if let (Some(frets), Some(wheel)) = (mapping.frets(), mapping.chord_wheel()) {
+                    detect_frets(&song.events, frets, wheel.positions.len(), 0, enabled, transform)
+                } else if note_processing.auto_chord && !mapping.chord_pads().is_empty() {
+                    detect_chords(&song.events, mapping.chord_pads(), note_processing.chord_detection_milliseconds, enabled, transform)
+                } else { Vec::new() }
+            }).unwrap_or_default();
             for note in planned.iter_mut().flatten() { note.chord_id += next_chord_id; }
             if frozen.iter().any(Option::is_some) {
                 planned.resize(frozen.len(), None);
@@ -1048,6 +1086,10 @@ fn run_playback_loop(
                 }
             }
             chord_notes = planned;
+            wheel_attacks = current_song.as_ref().map(|song| chord_notes.iter().enumerate().filter_map(|(index, note)| {
+                match note { Some(ChordNote { binding: ChordBinding::Wheel(slot) | ChordBinding::Frets { slot, .. }, trigger: true, .. }) =>
+                    Some((index, song.events[index].time_us, *slot)), _ => None }
+            }).collect()).unwrap_or_default();
         }
 
         midi.snapshot.listen_mode = listen_mode;
@@ -1058,10 +1100,16 @@ fn run_playback_loop(
             .is_some_and(|synth| synth.output_status().state == ServiceState::Ready); }
         if !config_available.load(Ordering::Acquire) { midi.gate(false, &mut key_sim, &audio_synth); }
         midi.tick(Instant::now(), &mut key_sim, &audio_synth, repress_gap_ms);
+        key_sim.tick_wheel();
         if let Some(error) = key_sim.take_error() {
+            if mapping.chord_wheel().is_some() {
+                let mut state = key_sim.wheel_state();
+                state.error = Some(error.clone());
+                callback(PlayerEvent::ChordWheelChanged(state));
+            }
             midi.stop(&mut key_sim, &audio_synth);
-            #[cfg(not(windows))]
-            if send_input && !listen_mode && status == PlaybackStatus::Playing {
+            if (cfg!(not(windows)) || mapping.chord_wheel().is_some())
+                && send_input && !listen_mode && status == PlaybackStatus::Playing {
                 // A missing keyboard backend cannot play the remaining game
                 // notes. Keep the current position available for permission
                 // recovery instead of silently advancing through the song.
@@ -1090,6 +1138,11 @@ fn run_playback_loop(
             { midi.snapshot.error = Some(error); }
             #[cfg(not(windows))]
             { keyboard_error = Some(error); }
+        }
+        let next_wheel_state = key_sim.wheel_state();
+        if wheel_state != next_wheel_state {
+            wheel_state = next_wheel_state;
+            callback(PlayerEvent::ChordWheelChanged(wheel_state.clone()));
         }
         #[cfg(windows)]
         { midi.snapshot.keyboard_available = key_sim.is_ready() && midi.snapshot.error.is_none(); }
@@ -1160,6 +1213,10 @@ fn run_playback_loop(
 
         // 2. If not playing, sleep coarse and continue
         if status != PlaybackStatus::Playing {
+            if key_sim.wheel_active() {
+                sleeper.sleep(Duration::from_millis(1));
+                continue;
+            }
             let wait = key_releases.next_deadline()
                 .map(|deadline| deadline.saturating_duration_since(Instant::now()))
                 .unwrap_or(Duration::from_millis(15));
@@ -1177,6 +1234,27 @@ fn run_playback_loop(
             }
         };
 
+        if send_input && !listen_mode && (note_processing.auto_chord || mapping.frets().is_some()) {
+            if let Some(config) = mapping.chord_wheel() {
+                let next = wheel_attacks.get(wheel_attacks.partition_point(|(index, _, _)| *index < event_idx));
+                if let Some(&(owner, at_us, slot)) = next {
+                    let budget_us = key_sim.wheel_preparation_ms(config, slot) * 1000;
+                    let until_us = (at_us.saturating_sub(current_us) as f64 / speed) as u64;
+                    if until_us <= budget_us && !key_sim.wheel_active() {
+                        key_sim.prepare_wheel(config, mapping.game_process_names(), slot, owner);
+                    }
+                    // Starting and seeking get preparation time before the song
+                    // clock runs. Later page changes must fit between attacks.
+                    if wheel_starting && until_us <= budget_us && !key_sim.wheel_ready(owner) {
+                        sleeper.sleep(Duration::from_millis(1));
+                        last_instant = Instant::now();
+                        continue;
+                    }
+                }
+            }
+        }
+        wheel_starting = false;
+
         // Chase held source notes only once playback is running. A stopped or
         // paused seek remains silent, and ordinary ticks never scan old events.
         let mut restored_owners: VecDeque<_> = if restore_notes {
@@ -1186,6 +1264,10 @@ fn run_playback_loop(
 
         // 3. Check if song finished
         if event_idx >= song.events.len() && control_idx >= song.control_events.len() {
+            if key_sim.wheel_active() {
+                sleeper.sleep(Duration::from_millis(1));
+                continue;
+            }
             // A tap may outlast its MIDI note, including the final note in the song.
             if let Some(deadline) = next_note_deadline(&key_releases, &live_notes) {
                 pending_command = cmd_rx.recv_timeout(deadline.saturating_duration_since(Instant::now()).min(Duration::from_millis(10))).ok();
@@ -1225,8 +1307,15 @@ fn run_playback_loop(
                 let release_wait = next_note_deadline(&key_releases, &live_notes)
                     .map(|deadline| deadline.saturating_duration_since(Instant::now()).as_micros() as u64)
                     .unwrap_or(10_000);
-                let chunk_us = real_wait_us.min(10_000).min(release_wait);
-                pending_command = cmd_rx.recv_timeout(Duration::from_micros(chunk_us)).ok();
+                let chunk_us = real_wait_us.min(if key_sim.wheel_active() { 1_000 } else { 10_000 }).min(release_wait);
+                if key_sim.wheel_active() {
+                    // Windows channel timeouts can round a 1ms wait up to a
+                    // system timer tick. Use the transport's precise sleeper
+                    // while preparing the shared mouse so waits do not pile up.
+                    sleeper.sleep(Duration::from_micros(chunk_us));
+                } else {
+                    pending_command = cmd_rx.recv_timeout(Duration::from_micros(chunk_us)).ok();
+                }
                 let elapsed = last_instant.elapsed();
                 last_instant = Instant::now();
                 current_us += (elapsed.as_micros() as f64 * speed).round() as u64;
@@ -1323,7 +1412,10 @@ fn run_playback_loop(
                     let chord_pad = chord.is_some_and(|note| note.trigger && !restoring);
                     let mapped_stroke = match chord {
                         // Pads are one timed attack, never retriggered by a historical seek/resume.
-                        Some(note) => (note.trigger && !restoring).then_some(note.stroke),
+                        Some(note) => match note.binding {
+                            ChordBinding::Key(stroke) => (note.trigger && !restoring).then_some(stroke),
+                            ChordBinding::Wheel(_) | ChordBinding::Frets { .. } => None,
+                        },
                         None => mapped_note.and_then(|n| mapping.get_stroke(n)),
                     };
                     let mapped_key = mapped_stroke.map(|stroke| stroke.key);
@@ -1363,6 +1455,16 @@ fn run_playback_loop(
                             }
                         }
                     } else if send_input {
+                        if let Some(chord) = chord.filter(|note| note.trigger && !restoring) {
+                            triggered_chords.insert(chord.chord_id);
+                            if matches!(chord.binding, ChordBinding::Wheel(_)) {
+                                key_sim.strum_wheel(owner_index, tap_duration_ms);
+                            } else if let (ChordBinding::Frets { strings, .. }, Some(frets)) = (chord.binding, mapping.frets()) {
+                                let strokes: Vec<_> = frets.string_strokes.iter().enumerate()
+                                    .filter_map(|(index, &stroke)| (strings & (1 << index) != 0).then_some(stroke)).collect();
+                                key_sim.pluck_wheel(owner_index, &strokes, tap_duration_ms);
+                            }
+                        }
                         if let Some(stroke) = mapped_stroke {
                             if let Some(chord) = chord.filter(|note| note.trigger && !restoring) {
                                 triggered_chords.insert(chord.chord_id);
