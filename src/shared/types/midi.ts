@@ -89,7 +89,6 @@ export interface MidiFile {
   holdNotes: boolean;
   tapThresholdMs: number;
   disabledTracks?: string | null;
-  autoChord?: boolean;
   chordDetectionMilliseconds?: number;
   enableKeyChangeMarkers?: boolean;
   dateAdded: string;

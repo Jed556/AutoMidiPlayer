@@ -77,7 +77,7 @@ const layout = name => normalizeKeyboardLayout(JSON.parse(readFileSync(new URL(`
 
 test('shared chord detection uses the instrument mode and its selected layout bindings', () => {
   const guitar = instrument('Neverness to Everness/Instruments/Strings/Guitar.json');
-  const ukulele = instrument('Genshin Impact/Instruments/Strings/UkuleleChords.json');
+  const ukulele = instrument('Genshin Impact/Instruments/Strings/Ukulele.json');
   assert.equal(instrumentChordMode(guitar, layout('NTE_Chord_Wheel')), 'wheel');
   assert.equal(instrumentChordMode(guitar, layout('NTE_QWERTY_Guitar')), null);
   const pads = layout('Genshin_QWERTY_Chords');
@@ -92,23 +92,20 @@ test('shared chord detection uses the instrument mode and its selected layout bi
   assert.equal(instrumentChordMode(ukulele, { ...pads, chordKeys: [] }), null);
 });
 
-test('Genshin melody and chord instruments have distinct controls and retain their pitch set', () => {
+test('Genshin stringed instruments combine keyboard and chord modes in a single definition', () => {
   for (const file of ['Ukulele', 'LingeringEuphonia']) {
-    const melody = instrument(`Genshin Impact/Instruments/Strings/${file}.json`);
-    const chords = instrument(`Genshin Impact/Instruments/Strings/${file}Chords.json`);
-    assert.equal(chords.id, `${melody.id}-chords`);
-    assert.equal(chords.name, `${melody.name} (Chords)`);
-    assert.deepEqual(chords.notes, melody.notes);
-    assert.equal(chords.keys, undefined);
-    assert.deepEqual(chords.keyboardLayouts, []);
-    assert.deepEqual(chords.chordLayouts, ['Genshin_QWERTY_Chords']);
-    assert.deepEqual(melody.keyboardLayouts, ['Genshin_QWERTY_Melody']);
-    assert.deepEqual(melody.chordLayouts, []);
-    assert.equal(melody.chords, undefined);
-    assert.equal(instrumentChordMode(melody, layout('Genshin_QWERTY_Chords')), null);
-    assert.equal(instrumentChordMode(chords, layout('Genshin_QWERTY_Chords')), 'pads');
-    assert.deepEqual(instrumentKeyPairs(chords, layout('Genshin_QWERTY_Chords')), []);
-    assert.deepEqual(chords.chords.map(chord => chord.name), ['C', 'Dm', 'Em', 'F', 'G', 'Am', 'G7']);
+    const inst = instrument(`Genshin Impact/Instruments/Strings/${file}.json`);
+    assert.equal(inst.notes.length, 14);
+    assert.equal(inst.keys.length, 2);
+    assert.deepEqual(inst.keyboardLayouts, ['Genshin_QWERTY_Melody']);
+    assert.deepEqual(inst.chordLayouts, ['Genshin_QWERTY_Chords']);
+    assert.deepEqual(inst.fretLayouts, []);
+    assert.equal(inst.chordMode, 'pads');
+    assert.equal(instrumentChordMode(inst, layout('Genshin_QWERTY_Melody')), null);
+    assert.equal(instrumentChordMode(inst, layout('Genshin_QWERTY_Chords')), 'pads');
+    assert.equal(instrumentKeyPairs(inst, layout('Genshin_QWERTY_Melody')).length, 14);
+    assert.deepEqual(instrumentKeyPairs(inst, layout('Genshin_QWERTY_Chords')), []);
+    assert.deepEqual(inst.chords.map(chord => chord.name), ['C', 'Dm', 'Em', 'F', 'G', 'Am', 'G7']);
   }
 });
 

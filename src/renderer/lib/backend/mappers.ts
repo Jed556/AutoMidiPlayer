@@ -26,7 +26,6 @@ export interface RawSongRecord {
   imagePath?: string;
   cachedDurationMs?: number;
   cachedNativeBpm?: number;
-  autoChord?: boolean;
   chordDetectionMilliseconds?: number;
   keyChanges?: string;
   enableKeyChangeMarkers?: boolean;
@@ -154,7 +153,6 @@ export function songRecordToMidiFile(record: RawSongRecord): MidiFile {
     holdNotes: record.holdNotes ?? DEFAULT_APP_SETTINGS.defaultHoldNotes,
     tapThresholdMs: record.tapThresholdMs ?? DEFAULT_APP_SETTINGS.defaultTapThresholdMs,
     disabledTracks: record.disabledTracks ?? null,
-    autoChord: record.autoChord ?? DEFAULT_APP_SETTINGS.defaultAutoChord,
     chordDetectionMilliseconds: record.chordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds,
     enableKeyChangeMarkers: record.enableKeyChangeMarkers ?? DEFAULT_APP_SETTINGS.defaultEnableKeyChangeMarkers,
     dateAdded: record.dateAdded || new Date().toISOString(),
@@ -292,7 +290,6 @@ export function loadedMidiToMidiFile(raw: RawLoadedMidiFile | MidiFile): MidiFil
     holdNotes: typeof source.holdNotes === 'boolean' ? source.holdNotes : DEFAULT_APP_SETTINGS.defaultHoldNotes,
     tapThresholdMs: Number(source.tapThresholdMs ?? DEFAULT_APP_SETTINGS.defaultTapThresholdMs),
     disabledTracks: typeof source.disabledTracks === 'string' ? source.disabledTracks : null,
-    autoChord: typeof source.autoChord === 'boolean' ? source.autoChord : DEFAULT_APP_SETTINGS.defaultAutoChord,
     chordDetectionMilliseconds: Number(source.chordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds),
     enableKeyChangeMarkers: typeof source.enableKeyChangeMarkers === 'boolean' ? source.enableKeyChangeMarkers : DEFAULT_APP_SETTINGS.defaultEnableKeyChangeMarkers,
     dateAdded: String(source.dateAdded ?? new Date().toISOString()),

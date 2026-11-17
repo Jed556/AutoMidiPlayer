@@ -7,7 +7,6 @@ use crate::{input::mapping::{ChordBinding, ChordPad, FretMapping}, midi::TimedNo
 pub struct NoteProcessingSettings {
     pub merge_notes: bool,
     pub merge_tolerance_ms: u64,
-    pub auto_chord: bool,
     pub chord_detection_milliseconds: u64,
 }
 
@@ -16,7 +15,6 @@ impl Default for NoteProcessingSettings {
         Self {
             merge_notes: crate::settings::defaults::value("/defaultMergeNotes"),
             merge_tolerance_ms: crate::settings::defaults::value("/defaultMergeToleranceMs"),
-            auto_chord: crate::settings::defaults::value("/defaultAutoChord"),
             chord_detection_milliseconds: crate::settings::defaults::value("/defaultChordDetectionMilliseconds"),
         }
     }

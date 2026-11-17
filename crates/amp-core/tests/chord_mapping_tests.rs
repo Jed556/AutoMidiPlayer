@@ -5,7 +5,7 @@ use amp_core::{
 
 fn bundled() -> (InstrumentConfigJson, KeyboardLayoutJson) {
     let instrument = serde_json::from_str(include_str!(
-        "../../../src-tauri/resources/defaults/Games/Genshin Impact/Instruments/Strings/UkuleleChords.json"
+        "../../../src-tauri/resources/defaults/Games/Genshin Impact/Instruments/Strings/Ukulele.json"
     )).unwrap();
     let layout = serde_json::from_str(include_str!(
         "../../../src-tauri/resources/defaults/KeyboardLayouts/Genshin_QWERTY_Chords.json"
@@ -14,7 +14,7 @@ fn bundled() -> (InstrumentConfigJson, KeyboardLayoutJson) {
 }
 
 fn melody_mapping(instrument: &InstrumentConfigJson, layout: &KeyboardLayoutJson) -> NoteKeyMapping {
-    // Retain coverage of custom combined mappings independently of the split defaults.
+    // Retain coverage of custom combined mappings independently of the split mode layouts.
     let melody: KeyboardLayoutJson = serde_json::from_str(include_str!(
         "../../../src-tauri/resources/defaults/KeyboardLayouts/Genshin_QWERTY_Melody.json"
     )).unwrap();
@@ -51,7 +51,7 @@ fn bundled_ukulele_maps_all_seven_pads_without_changing_notes_or_pedals() {
 }
 
 #[test]
-fn genshin_chord_only_layout_preserves_detection_pitches_without_melody_output() {
+fn genshin_chord_layout_preserves_detection_pitches_without_melody_output() {
     let layout: KeyboardLayoutJson = serde_json::from_str(include_str!(
         "../../../src-tauri/resources/defaults/KeyboardLayouts/Genshin_QWERTY_Chords.json"
     )).unwrap();
@@ -60,18 +60,20 @@ fn genshin_chord_only_layout_preserves_detection_pitches_without_melody_output()
     )).unwrap();
     assert!(layout.keys.is_empty());
     assert!(melody.chord_keys.is_none());
-    for source in [include_str!("../../../src-tauri/resources/defaults/Games/Genshin Impact/Instruments/Strings/UkuleleChords.json"),
-        include_str!("../../../src-tauri/resources/defaults/Games/Genshin Impact/Instruments/Strings/LingeringEuphoniaChords.json")] {
+    for source in [include_str!("../../../src-tauri/resources/defaults/Games/Genshin Impact/Instruments/Strings/Ukulele.json"),
+        include_str!("../../../src-tauri/resources/defaults/Games/Genshin Impact/Instruments/Strings/LingeringEuphonia.json")] {
         let instrument: InstrumentConfigJson = serde_json::from_str(source).unwrap();
-        assert!(instrument.keyboard_layouts.is_empty());
-        assert!(instrument.keys.is_none());
+        assert_eq!(instrument.keyboard_layouts, [melody.id.clone()]);
         assert_eq!(instrument.chord_layouts, [layout.id.clone()]);
-        let mapping = NoteKeyMapping::from_pairs(KeyboardLayout::Diatonic21, &[]).with_chord_pads(&instrument, &layout);
-        assert_eq!(mapping.chord_pads().len(), 7);
-        assert_eq!(mapping.pitch_range(), (48, 71));
-        assert_eq!(mapping.playable_notes().len(), 14);
-        assert!(instrument.notes.iter().all(|pitch| mapping.get_stroke(*pitch).is_none()));
-        assert!(melody_mapping(&instrument, &melody).with_chord_pads(&instrument, &melody).chord_pads().is_empty());
+        assert!(instrument.keys.is_some());
+        let chord_mapping = NoteKeyMapping::from_pairs(KeyboardLayout::Diatonic21, &[]).with_chord_pads(&instrument, &layout);
+        assert_eq!(chord_mapping.chord_pads().len(), 7);
+        assert_eq!(chord_mapping.pitch_range(), (48, 71));
+        assert_eq!(chord_mapping.playable_notes().len(), 14);
+        assert!(instrument.notes.iter().all(|pitch| chord_mapping.get_stroke(*pitch).is_none()));
+        let melody_only = melody_mapping(&instrument, &melody).with_chord_pads(&instrument, &melody);
+        assert!(melody_only.chord_pads().is_empty());
+        assert!(instrument.notes.iter().all(|pitch| melody_only.get_stroke(*pitch).is_some()));
     }
 }
 

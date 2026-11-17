@@ -470,24 +470,34 @@ test('mouse-only chord layouts remain selectable and synchronize without chromat
   assert.deepEqual(h.mappings.at(-1), ['nte-wheel', []]);
 });
 
-test('separate Genshin chord entries select chord controls automatically and keep distinct settings contexts', async () => {
+test('Genshin stringed instruments support Keyboard and Chords modes under a single instrument entry', async () => {
   const readDefault = path => JSON.parse(readFileSync(new URL(`../src-tauri/resources/defaults/${path}`, import.meta.url), 'utf8'));
   const h = await createGameStore({}, games => {
-    games[0].instruments = ['Ukulele', 'UkuleleChords', 'LingeringEuphonia', 'LingeringEuphoniaChords'].map(file => {
+    games[0].instruments = ['Ukulele', 'LingeringEuphonia'].map(file => {
       const instrument = readDefault(`Games/Genshin Impact/Instruments/Strings/${file}.json`);
       return { ...instrument, notes: instrumentNotes(instrument) };
     });
     games[0].layouts = ['Genshin_QWERTY_Melody', 'Genshin_QWERTY_Chords'].map(id =>
       normalizeKeyboardLayout(readDefault(`KeyboardLayouts/${id}.json`)));
   });
-  for (const id of ['ukulele', 'ukulele-chords', 'lingering-euphonia', 'lingering-euphonia-chords']) {
+  for (const id of ['ukulele', 'lingering-euphonia']) {
     await h.gameStore.syncActiveInstrumentMapping(id);
-    const chords = id.endsWith('-chords');
     assert.equal(h.gameStore.activeInstrument.id, id);
-    assert.equal(h.gameStore.activeInputMode, chords ? 'chords' : 'keyboard');
-    assert.equal(h.gameStore.activeLayout.id, chords ? 'Genshin_QWERTY_Chords' : 'Genshin_QWERTY_Melody');
-    assert.equal(h.mappings.at(-1)[1].length, chords ? 0 : 14);
+    assert.equal(h.gameStore.activeInputMode, 'keyboard');
+    assert.equal(h.gameStore.activeLayout.id, 'Genshin_QWERTY_Melody');
+    assert.equal(h.mappings.at(-1)[1].length, 14);
     assert.equal(h.contexts.at(-1).instrumentId, id);
+
+    await h.gameStore.setInputMode('chords');
+    assert.equal(h.gameStore.activeInputMode, 'chords');
+    assert.equal(h.gameStore.activeLayout.id, 'Genshin_QWERTY_Chords');
+    assert.equal(h.mappings.at(-1)[1].length, 0);
+    assert.equal(h.contexts.at(-1).instrumentId, id);
+
+    await h.gameStore.setInputMode('keyboard');
+    assert.equal(h.gameStore.activeInputMode, 'keyboard');
+    assert.equal(h.gameStore.activeLayout.id, 'Genshin_QWERTY_Melody');
+    assert.equal(h.mappings.at(-1)[1].length, 14);
   }
   assert.deepEqual(h.modeChanges, []);
 });

@@ -625,7 +625,6 @@ fn set_note_timing(hold_notes: bool, tap_threshold_ms: u64, state: State<AppStat
 fn set_note_processing(
     merge_notes: bool,
     merge_tolerance_ms: u64,
-    auto_chord: bool,
     chord_detection_milliseconds: u64,
     state: State<AppState>,
 ) -> Result<bool, String> {
@@ -636,7 +635,7 @@ fn set_note_processing(
         return Err("Chord detection tolerance must be between 0 and 1000 ms".into());
     }
     state.engine.set_note_processing(amp_core::player::NoteProcessingSettings {
-        merge_notes, merge_tolerance_ms, auto_chord, chord_detection_milliseconds,
+        merge_notes, merge_tolerance_ms, chord_detection_milliseconds,
     });
     Ok(true)
 }

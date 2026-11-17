@@ -160,7 +160,6 @@ impl Harness {
         engine.set_note_processing(NoteProcessingSettings {
             merge_notes: false,
             merge_tolerance_ms: 25,
-            auto_chord: true,
             chord_detection_milliseconds: 30,
         });
         engine.flush().unwrap();
@@ -259,7 +258,6 @@ fn fret_mode_plucks_exact_strings_at_open_twelfth_and_twenty_fourth_frets() {
     for (pitches, bindings, page) in [(&[40, 45][..], &["1", "2"][..], 4),
         (&[71, 76][..], &["5", "6"][..], 1), (&[88][..], &["6"][..], 3)] {
         let h = Harness::new_mode(notes(0, pitches), true);
-        h.engine.set_note_processing(NoteProcessingSettings { auto_chord: false, ..NoteProcessingSettings::default() });
         h.engine.play();
         h.wait("fret plucks", || bindings.iter().all(|binding| h.count(Input::Key(parse_key_stroke(binding).unwrap().key, false)) == 1));
         h.wait("fret completion", || h.engine.get_status() == PlaybackStatus::Stopped);

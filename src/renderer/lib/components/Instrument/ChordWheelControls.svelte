@@ -105,7 +105,7 @@
 
 <style>
   .chord-wheel-controls {
-    flex: 0 0 auto; margin: 0 28px 8px; padding: 12px 16px;
+    flex: 0 0 auto; margin: 12px 28px 8px; padding: 12px 16px;
     border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
     background: var(--bg-secondary);
   }

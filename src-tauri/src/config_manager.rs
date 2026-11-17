@@ -332,8 +332,13 @@ mod tests {
         manager.reload();
         assert!(manager.issues.is_empty(), "{:?}", manager.issues);
         let genshin = manager.games.iter().find(|game| game.config.id == "Genshin Impact").unwrap();
-        assert!(genshin.instruments.iter().any(|instrument| instrument.id == "ukulele-chords"));
-        assert!(genshin.instruments.iter().any(|instrument| instrument.id == "lingering-euphonia-chords"));
+        for id in ["ukulele", "lingering-euphonia"] {
+            let instrument = genshin.instruments.iter().find(|instrument| instrument.id == id).unwrap();
+            assert!(instrument.supports_keyboard_layout("Genshin_QWERTY_Melody"));
+            assert!(instrument.supports_chord_layout("Genshin_QWERTY_Chords"));
+            assert!(!instrument.chords.is_empty());
+        }
+        assert!(!genshin.instruments.iter().any(|instrument| instrument.id == "ukulele-chords" || instrument.id == "lingering-euphonia-chords"));
         assert_eq!(fs::read(&layout_path).unwrap(), original);
         let duplicate_path = manager.layouts_dir.join("newer-layout.json");
         fs::write(&duplicate_path, &original).unwrap();

@@ -36,7 +36,6 @@ class PlaybackStore {
   tapThresholdMs = $state<number>(DEFAULT_APP_SETTINGS.defaultTapThresholdMs);
   mergeNotes = $state<boolean>(DEFAULT_APP_SETTINGS.defaultMergeNotes);
   mergeToleranceMs = $state<number>(DEFAULT_APP_SETTINGS.defaultMergeToleranceMs);
-  autoChord = $state<boolean>(DEFAULT_APP_SETTINGS.defaultAutoChord);
   chordDetectionMilliseconds = $state<number>(DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds);
   enableKeyChangeMarkers = $state<boolean>(DEFAULT_APP_SETTINGS.defaultEnableKeyChangeMarkers);
   isShuffled = $state<boolean>(DEFAULT_UI_PREFERENCES.playback.isShuffled);
@@ -481,7 +480,6 @@ class PlaybackStore {
       this.tapThresholdMs = settingsStore.settings.defaultTapThresholdMs;
       this.mergeNotes = settingsStore.settings.defaultMergeNotes ?? DEFAULT_APP_SETTINGS.defaultMergeNotes;
       this.mergeToleranceMs = settingsStore.settings.defaultMergeToleranceMs ?? DEFAULT_APP_SETTINGS.defaultMergeToleranceMs;
-      this.autoChord = settingsStore.settings.defaultAutoChord ?? DEFAULT_APP_SETTINGS.defaultAutoChord;
       this.chordDetectionMilliseconds = settingsStore.settings.defaultChordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds;
     }
     this.currentTimeSeconds = restoredSong ? Math.min(saved.positionSeconds, this.durationSeconds) : 0;
@@ -609,7 +607,6 @@ class PlaybackStore {
       mergeMilliseconds: this.mergeToleranceMs,
       holdNotes: this.holdNotes,
       tapThresholdMs: this.tapThresholdMs,
-      autoChord: this.autoChord,
       chordDetectionMilliseconds: this.chordDetectionMilliseconds,
       enableKeyChangeMarkers: this.enableKeyChangeMarkers,
     };
@@ -679,7 +676,6 @@ class PlaybackStore {
     }
     this.tapThresholdMs = song.tapThresholdMs ?? DEFAULT_APP_SETTINGS.defaultTapThresholdMs;
     void this.syncNoteTiming();
-    this.autoChord = song.autoChord ?? DEFAULT_APP_SETTINGS.defaultAutoChord;
     this.chordDetectionMilliseconds = song.chordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds;
     // A preview selection must not reprocess the previously loaded native song.
     // Play reapplies these settings after the selected file has loaded.
@@ -793,7 +789,7 @@ class PlaybackStore {
     // Controls and Edit can update a preview before its file replaces the engine song.
     if (isTauri && (!this.activeSong || this._currentLoadedPath !== this.activeSong.filePath)) return Promise.resolve(true);
     return api.playback.setNoteProcessing(this.mergeNotes, this.mergeToleranceMs,
-      this.autoChord, this.chordDetectionMilliseconds)
+      this.chordDetectionMilliseconds)
       .catch(error => notificationCenter.error('Unable to update note processing', String(error)));
   }
 
@@ -802,15 +798,6 @@ class PlaybackStore {
     this.tapThresholdMs = value;
     if (this.activeSong) this.activeSong.tapThresholdMs = value;
     void this.syncNoteTiming();
-    this.scheduleAutoSaveSongSettings();
-  }
-
-  setAutoChord(val: boolean) {
-    this.autoChord = val;
-    if (this.activeSong) {
-      this.activeSong.autoChord = val;
-    }
-    void this.syncNoteProcessing();
     this.scheduleAutoSaveSongSettings();
   }
 
@@ -1534,7 +1521,6 @@ class PlaybackStore {
       await this.syncNoteTiming();
       this.mergeNotes = song.mergeNotes ?? DEFAULT_APP_SETTINGS.defaultMergeNotes;
       this.mergeToleranceMs = song.mergeToleranceMs ?? DEFAULT_APP_SETTINGS.defaultMergeToleranceMs;
-      this.autoChord = song.autoChord ?? DEFAULT_APP_SETTINGS.defaultAutoChord;
       this.chordDetectionMilliseconds = song.chordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds;
       await this.syncNoteProcessing();
       this.enableKeyChangeMarkers = song.enableKeyChangeMarkers ?? DEFAULT_APP_SETTINGS.defaultEnableKeyChangeMarkers;

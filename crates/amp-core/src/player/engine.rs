@@ -1074,7 +1074,7 @@ fn run_playback_loop(
                     };
                 if let (Some(frets), Some(wheel)) = (mapping.frets(), mapping.chord_wheel()) {
                     detect_frets(&song.events, frets, wheel.positions.len(), 0, enabled, transform)
-                } else if note_processing.auto_chord && !mapping.chord_pads().is_empty() {
+                } else if !mapping.chord_pads().is_empty() {
                     detect_chords(&song.events, mapping.chord_pads(), note_processing.chord_detection_milliseconds, enabled, transform)
                 } else { Vec::new() }
             }).unwrap_or_default();
@@ -1234,7 +1234,7 @@ fn run_playback_loop(
             }
         };
 
-        if send_input && !listen_mode && (note_processing.auto_chord || mapping.frets().is_some()) {
+        if send_input && !listen_mode && (!mapping.chord_pads().is_empty() || mapping.frets().is_some()) {
             if let Some(config) = mapping.chord_wheel() {
                 let next = wheel_attacks.get(wheel_attacks.partition_point(|(index, _, _)| *index < event_idx));
                 if let Some(&(owner, at_us, slot)) = next {

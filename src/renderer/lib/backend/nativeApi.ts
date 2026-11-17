@@ -49,7 +49,6 @@ function serializeSongSettings(song: MidiFile) {
     mergeMilliseconds: song.mergeToleranceMs ?? DEFAULT_APP_SETTINGS.defaultMergeToleranceMs,
     holdNotes: song.holdNotes,
     tapThresholdMs: song.tapThresholdMs ?? DEFAULT_APP_SETTINGS.defaultTapThresholdMs,
-    autoChord: song.autoChord ?? DEFAULT_APP_SETTINGS.defaultAutoChord,
     chordDetectionMilliseconds: song.chordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds,
     enableKeyChangeMarkers: song.enableKeyChangeMarkers ?? DEFAULT_APP_SETTINGS.defaultEnableKeyChangeMarkers,
   };
@@ -142,8 +141,8 @@ export function createAppApi(): AppWindowApi {
       setTrackVolume: (trackIndex, volume) => invokeTauri<boolean>('Playback', 'set_track_volume', { trackIndex, volume }),
       setListenMode: (enabled) => invokeTauri<boolean>('Playback', 'set_listen_mode', { enabled }),
       setNoteTiming: (holdNotes, tapThresholdMs) => invokeTauri<boolean>('Playback', 'set_note_timing', { holdNotes, tapThresholdMs }),
-      setNoteProcessing: (mergeNotes, mergeToleranceMs, autoChord, chordDetectionMilliseconds) =>
-        invokeTauri<boolean>('Playback', 'set_note_processing', { mergeNotes, mergeToleranceMs, autoChord, chordDetectionMilliseconds }),
+      setNoteProcessing: (mergeNotes, mergeToleranceMs, chordDetectionMilliseconds) =>
+        invokeTauri<boolean>('Playback', 'set_note_processing', { mergeNotes, mergeToleranceMs, chordDetectionMilliseconds }),
       getChordWheelState: () => invokeTauri<ChordWheelState>('Playback', 'get_chord_wheel_state', undefined),
       setGuitarMode: (mode) => invokeTauri<boolean>('Playback', 'set_guitar_mode', { mode }),
       setChordWheelPage: (page, send) => invokeTauri<boolean>('Playback', 'set_chord_wheel_page', { page, send }),

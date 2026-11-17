@@ -39,7 +39,6 @@ fn test_library_schema_and_crud() {
         image_path: None,
         cached_duration_ms: Some(60000),
         cached_native_bpm: Some(120.0),
-        auto_chord: None,
         chord_detection_milliseconds: None,
         key_changes: None,
         enable_key_change_markers: Some(true),
@@ -67,7 +66,6 @@ fn test_library_schema_and_crud() {
         speed: Some(1.25),
         hold_notes: Some(true),
         tap_threshold_ms: Some(100),
-        auto_chord: Some(true),
         chord_detection_milliseconds: Some(45),
         enable_key_change_markers: Some(true),
     };
@@ -104,7 +102,7 @@ fn test_library_schema_and_crud() {
         title: "Edited details".into(), artist: "".into(), album: "".into(),
         base_key: None, key: -3, transpose: 3, bpm: None, speed: 1.5,
         merge_notes: true, merge_milliseconds: 175, hold_notes: true, tap_threshold_ms: 0,
-        auto_chord: false, enable_key_change_markers: true,
+        enable_key_change_markers: true,
         date_added: "2026-10-22T02:00:00Z".into(),
     };
     db.update_song_details("test-song-1", &details, None).unwrap();
@@ -182,10 +180,8 @@ fn test_legacy_database_migration() {
                 ImagePath TEXT,
                 CachedDurationMs INTEGER,
                 CachedNativeBpm REAL,
-                AutoChord INTEGER,
                 ChordDetectionMilliseconds INTEGER,
                 KeyChanges TEXT,
-                DetectChordPads INTEGER,
                 EnableKeyChangeMarkers INTEGER
             );",
             [],
@@ -320,7 +316,6 @@ fn test_queue_persistence_and_reorder() {
             image_path: None,
             cached_duration_ms: Some(60000),
             cached_native_bpm: Some(120.0),
-            auto_chord: None,
             chord_detection_milliseconds: None,
             key_changes: None,
             enable_key_change_markers: Some(true),
