@@ -57,7 +57,8 @@ export async function cleanupDmgImages(cwd, target, run = runMetadata, remove = 
   // to JSON. plistlib reads them; select only the fields needed for cleanup.
   const converted = await run('python3', ['-c', `
 import json, plistlib, sys
-info = plistlib.load(sys.stdin.buffer)
+# Buffer piped stdin because Python 3.10's plistlib.load seeks during format detection.
+info = plistlib.loads(sys.stdin.buffer.read())
 json.dump({"images": [{
     "image-path": image.get("image-path"),
     "system-entities": [{"dev-entry": entity.get("dev-entry")} for entity in image.get("system-entities", [])],
