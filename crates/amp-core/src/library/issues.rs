@@ -47,17 +47,19 @@ impl LibraryDatabase {
 
     pub fn get_file_issues(&self) -> Result<Vec<LibraryFileIssue>, String> {
         let states = self.file_states()?;
-        let known: HashSet<_> = states.iter().map(|issue| issue.path.clone()).collect();
+        let mut known: HashSet<_> = states.iter().map(|issue| issue.path.clone()).collect();
         let songs = self.get_all_songs().map_err(|e| e.to_string())?;
+        let mut seen = HashSet::new();
         let mut issues: Vec<_> = states.into_iter().filter_map(|issue| {
             let exists = Path::new(&issue.path).is_file();
             if exists { return (issue.kind != FileIssueKind::Missing).then_some(issue); }
             if issue.kind == FileIssueKind::Excluded { return None; }
             songs.iter().find(|song| song.path == issue.path)
                 .map(|song| LibraryFileIssue::for_song(song, FileIssueKind::Missing))
-        }).collect();
+        }).filter(|issue| seen.insert(issue.path.clone())).collect();
         for song in songs {
-            if song.is_missing && !known.contains(&song.path) {
+            // Legacy databases may contain multiple Songs rows pointing to the same missing path.
+            if song.is_missing && known.insert(song.path.clone()) && seen.insert(song.path.clone()) {
                 issues.push(LibraryFileIssue::for_song(&song, FileIssueKind::Missing));
             }
         }
@@ -132,6 +134,11 @@ pub fn resolve_file_issue(db: &LibraryDatabase, path: &str, action: FileIssueAct
         }
         (FileIssueAction::Forget, FileIssueKind::Missing) => {
             if let Some(id) = &issue.song_id { db.delete_song(id).map_err(|e| e.to_string())?; }
+            for song in db.get_all_songs().map_err(|e| e.to_string())? {
+                if song.path == path && song.is_missing {
+                    db.delete_song(&song.id).map_err(|e| e.to_string())?;
+                }
+            }
             db.clear_file_issue(path)?;
         }
         (FileIssueAction::Forget, FileIssueKind::Invalid) => {

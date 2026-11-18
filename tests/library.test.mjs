@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import { compileModule } from 'svelte/compiler';
-import { groupDuplicateFiles } from '../src/renderer/lib/utils/fileIssueGroups.ts';
+import { dedupeIssuesByKind, groupDuplicateFiles } from '../src/renderer/lib/utils/fileIssueGroups.ts';
 import { getMarkerNoteDisplay } from '../src/renderer/lib/utils/musicConstants.ts';
 
 const duplicateIssue = (path, songId, relatedPath) => ({
@@ -45,6 +45,18 @@ test('duplicate cards use the related path when a library record is unavailable'
   assert.equal(groups[0].title, 'one');
   assert.equal(groups[0].copies.length, 3);
   assert.deepEqual(groups[0].copies[0], { path: '/music/one.mid', name: 'one.mid', isCurrent: true });
+});
+
+test('dedupeIssuesByKind keeps one entry per path within a conflict category', () => {
+  const issues = [
+    { kind: 'missing', path: 'C:\\MIDIs\\Missing.mid', songId: 'song-1', relatedPath: null, title: 'Missing', details: null },
+    { kind: 'missing', path: 'C:\\MIDIs\\Missing.mid', songId: 'song-2', relatedPath: null, title: 'Missing', details: null },
+    { kind: 'invalid', path: 'C:\\MIDIs\\Missing.mid', songId: null, relatedPath: null, title: 'Missing', details: 'Bad header' },
+    { kind: 'missing', path: 'C:\\MIDIs\\Other.mid', songId: 'song-3', relatedPath: null, title: 'Other', details: null },
+  ];
+  const missing = dedupeIssuesByKind(issues, 'missing');
+  assert.deepEqual(missing.map(issue => issue.songId), ['song-1', 'song-3']);
+  assert.equal(dedupeIssuesByKind(issues, 'invalid').length, 1);
 });
 
 let harnessId = 0;
