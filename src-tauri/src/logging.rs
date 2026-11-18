@@ -94,21 +94,22 @@ pub fn get_errors_log_path() -> PathBuf {
     get_logs_dir().join(LogChannel::Errors.file_name())
 }
 
-/// Returns the application distribution type ("development", "net-install", or "portable")
+/// Returns the application distribution type ("development", "install", or "portable")
 pub fn get_distribution_type() -> &'static str {
-    if cfg!(debug_assertions) {
-        "development"
-    } else {
-        // Check if running from an installed directory vs portable
-        if let Ok(current_exe) = std::env::current_exe() {
-            if let Some(parent) = current_exe.parent() {
-                if parent.join("resources").exists() || parent.join("unins000.exe").exists() {
-                    return "net-install";
-                }
-            }
-        }
-        "portable"
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(Path::to_path_buf));
+    distribution_type_for(cfg!(debug_assertions), exe_dir.as_deref())
+}
+
+fn distribution_type_for(is_debug: bool, exe_dir: Option<&Path>) -> &'static str {
+    if is_debug {
+        return "development";
     }
+    if exe_dir.is_some_and(|dir| dir.join("portable.txt").is_file()) {
+        return "portable";
+    }
+    "install"
 }
 
 /// Sets the current crash log verbosity level (0 = ErrorsOnly, 1 = WarningsAndErrors, 2 = AllSteps)
@@ -212,13 +213,18 @@ fn format_log_line(
     let time_str = Local::now().format("%H:%M:%S%.3f").to_string();
     let file_display = file
         .and_then(|f| Path::new(f).file_name()?.to_str())
-        .unwrap_or("unknown");
-    let line_num = line.unwrap_or(0);
+        .filter(|f| !f.is_empty());
     let caller_str = caller.unwrap_or("app");
 
+    let location = match (file_display, line.filter(|&n| n > 0)) {
+        (Some(f), Some(n)) => format!(" [{}:{}]", f, n),
+        (Some(f), None) => format!(" [{}]", f),
+        (None, _) => String::new(),
+    };
+
     redact_paths(&format!(
-        "[{}] [{}:{}] [{}] {}\n",
-        time_str, file_display, line_num, caller_str, message
+        "[{}]{} [{}] {}\n",
+        time_str, location, caller_str, message
     ))
 }
 
@@ -578,5 +584,36 @@ mod tests {
         assert_eq!(tail_all, "Line 1\nLine 2\nLine 3\nLine 4\nLine 5");
 
         let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn test_distribution_type_detection() {
+        let base_dir = std::env::temp_dir().join(format!("amp-dist-test-{}", std::process::id()));
+        let portable_dir = base_dir.join("portable");
+        let install_dir = base_dir.join("install");
+        fs::create_dir_all(portable_dir.join("resources")).unwrap();
+        fs::create_dir_all(install_dir.join("resources")).unwrap();
+        fs::write(portable_dir.join("portable.txt"), "portable\n").unwrap();
+        fs::write(install_dir.join("uninstall.exe"), "").unwrap();
+
+        assert_eq!(distribution_type_for(true, Some(&portable_dir)), "development");
+        assert_eq!(distribution_type_for(true, Some(&install_dir)), "development");
+        assert_eq!(distribution_type_for(false, Some(&portable_dir)), "portable");
+        assert_eq!(distribution_type_for(false, Some(&install_dir)), "install");
+        assert_eq!(distribution_type_for(false, None), "install");
+
+        let _ = fs::remove_dir_all(base_dir);
+    }
+
+    #[test]
+    fn formatted_line_omits_unknown_location() {
+        let without_location = format_log_line("PAGE_VISIT: page=songs", Some("renderer"), None, None);
+        assert!(!without_location.contains("unknown"));
+        assert!(!without_location.contains(":0]"));
+        assert!(without_location.contains("] [renderer] PAGE_VISIT: page=songs"));
+
+        let file_only = format_log_line("Loaded", Some("renderer"), Some("App.svelte"), None);
+        assert!(file_only.contains("] [App.svelte] [renderer] Loaded"));
+        assert!(!file_only.contains(":0]"));
     }
 }
