@@ -245,6 +245,8 @@ export const enUS = {
     close: 'Close',
   },
   player: {
+    playbackUnavailable: 'Playback unavailable',
+    chooseValidLayout: 'In Instrument View, choose an instrument with a valid layout, then press Play.',
     noSongPlaying: 'No song playing',
     unknownArtist: 'Unknown artist',
     play: 'Play',

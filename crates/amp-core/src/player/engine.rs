@@ -156,7 +156,7 @@ enum Command {
     MidiGate(bool),
     PrepareKeyboard(Sender<Result<(), String>>),
     SetKeyboard(Option<Box<dyn KeyboardOutput>>),
-    Play,
+    Play(Sender<Result<(), String>>),
     Pause,
     Stop,
     Seek(u64, u64),
@@ -306,7 +306,14 @@ impl PlaybackEngine {
     pub fn set_keyboard_output(&self, output: Option<Box<dyn KeyboardOutput>>) { let _ = self.cmd_tx.send(Command::SetKeyboard(output)); }
 
     pub fn play(&self) {
-        let _ = self.cmd_tx.send(Command::Play);
+        self.request_play();
+    }
+
+    /// The worker acknowledges the request after checking the current song and mapping.
+    pub fn request_play(&self) -> Receiver<Result<(), String>> {
+        let (reply, result) = crossbeam_channel::bounded(1);
+        let _ = self.cmd_tx.send(Command::Play(reply));
+        result
     }
 
     pub fn pause(&self) {
@@ -614,8 +621,16 @@ fn run_playback_loop(
                     #[cfg(not(windows))]
                     if key_sim.is_ready() { keyboard_error = None; }
                 }
-                Command::Play => {
-                    if config_available.load(Ordering::Acquire) && status != PlaybackStatus::Playing && current_song.is_some() {
+                Command::Play(reply) => {
+                    if !config_available.load(Ordering::Acquire) {
+                        let _ = reply.send(Err("Choose an instrument with a valid layout in Instrument View.".into()));
+                        continue;
+                    }
+                    if current_song.is_none() {
+                        let _ = reply.send(Err("Choose a song to play.".into()));
+                        continue;
+                    }
+                    if status != PlaybackStatus::Playing {
                         if current_song.as_ref().is_some_and(|song| event_idx >= song.events.len() && control_idx >= song.control_events.len()) {
                             rebuild_chords = true;
                             triggered_chords.clear();
@@ -640,6 +655,7 @@ fn run_playback_loop(
                         last_instant = Instant::now();
                         update_status(status, &status_arc);
                     }
+                    let _ = reply.send(Ok(()));
                 }
                 Command::Pause => {
                     if status == PlaybackStatus::Playing {

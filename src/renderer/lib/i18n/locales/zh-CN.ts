@@ -247,6 +247,8 @@ export const zhCN: TranslationSchema = {
     close: '关闭',
   },
   player: {
+    playbackUnavailable: '无法播放',
+    chooseValidLayout: '请在乐器视图中选择具有有效布局的乐器，然后按播放。',
     noSongPlaying: '未在播放歌曲',
     unknownArtist: '未知艺术家',
     play: '播放',

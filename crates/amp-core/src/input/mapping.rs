@@ -300,6 +300,9 @@ impl NoteKeyMapping {
     }
 
     pub fn chord_pads(&self) -> &[ChordPad] { &self.chord_pads }
+    pub fn has_playable_bindings(&self) -> bool {
+        !self.map.is_empty() || !self.chord_pads.is_empty() || self.frets.is_some()
+    }
     pub fn chord_wheel(&self) -> Option<&super::config::ChordWheelConfigJson> { self.chord_wheel.as_ref() }
     pub fn frets(&self) -> Option<&FretMapping> { self.frets.as_ref() }
 

@@ -511,11 +511,17 @@ fn read_midi_payload(
     Ok(payload)
 }
 
+async fn start_engine_playback(engine: &PlaybackEngine) -> Result<bool, String> {
+    let result = engine.request_play();
+    tauri::async_runtime::spawn_blocking(move || {
+        result.recv().map_err(|_| "The playback engine stopped.".to_string())?.map(|()| true)
+    }).await.map_err(|e| e.to_string())?
+}
+
 #[cfg(windows)]
 #[tauri::command]
-fn play_song(state: State<AppState>) -> Result<bool, String> {
-    state.engine.play();
-    Ok(true)
+async fn play_song(state: State<'_, AppState>) -> Result<bool, String> {
+    start_engine_playback(&state.engine).await
 }
 
 #[cfg(not(windows))]
@@ -543,8 +549,7 @@ async fn play_song(state: State<'_, AppState>) -> Result<bool, String> {
     if epoch.load(Ordering::Acquire) != request {
         return Err("Playback request cancelled.".into());
     }
-    state.engine.play();
-    Ok(true)
+    start_engine_playback(&state.engine).await
 }
 
 fn cancel_pending_playback(state: &AppState) {
@@ -1741,14 +1746,19 @@ fn set_game_instrument_mapping(
             processes.sort();
             processes.dedup();
             let mapping = if instrument.supports_fret_layout(&layout_cfg.id) {
-                let fretboard = layout_cfg.fretboard.as_ref().ok_or("The selected fret layout has no fretboard bindings.")?;
-                let wheel_layout = cm.layouts.get(&fretboard.wheel_layout.to_lowercase()).ok_or_else(|| {
+                let unavailable = |reason: &str| {
                     state.engine.set_config_available(false);
-                    "The fret layout's referenced wheel layout is unavailable.".to_string()
-                })?;
-                let wheel = wheel_layout.chord_wheel.as_ref().ok_or("The referenced layout has no wheel controls.")?;
+                    state.engine.set_mapping(NoteKeyMapping::from_pairs(KeyboardLayout::Diatonic21, &[]));
+                    reason.to_owned()
+                };
+                let fretboard = layout_cfg.fretboard.as_ref()
+                    .ok_or_else(|| unavailable("The selected fret layout has no fretboard bindings."))?;
+                let wheel_layout = cm.layouts.get(&fretboard.wheel_layout.to_lowercase())
+                    .ok_or_else(|| unavailable("The fret layout's referenced wheel layout is unavailable."))?;
+                let wheel = wheel_layout.chord_wheel.as_ref()
+                    .ok_or_else(|| unavailable("The referenced layout has no wheel controls."))?;
                 if let Some(path) = &wheel_layout.file_path {
-                    if !Path::new(path).is_file() { state.engine.set_config_available(false); return Err("The referenced wheel layout file is unavailable.".into()); }
+                    if !Path::new(path).is_file() { return Err(unavailable("The referenced wheel layout file is unavailable.")); }
                     if !sources.iter().any(|source| source == Path::new(path)) { sources.push(PathBuf::from(path)); }
                 }
                 mapping.with_frets(instrument, layout_cfg, wheel)
@@ -1760,10 +1770,11 @@ fn set_game_instrument_mapping(
     };
 
     // Stop while the old mapping is still installed so its held keys are released.
-    if layout.is_empty() { state.engine.set_config_available(false); }
+    let available = !layout.is_empty() && mapping.has_playable_bindings();
+    if !available { state.engine.set_config_available(false); }
     state.engine.set_mapping(mapping);
-    if !layout.is_empty() { state.engine.set_config_available(true); }
-    Ok(true)
+    if available { state.engine.set_config_available(true); }
+    Ok(available)
 }
 
 #[tauri::command]

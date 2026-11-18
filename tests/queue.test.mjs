@@ -27,6 +27,7 @@ async function createPlayer({ writeQueue, readQueue, writeSongSettings, readSong
   const libraryStore = { songs, playlists: [{ id: 'songs' }, { id: 'favorites' }], songsByPlaylist: { favorites: songs.slice(1, 3) }, init: async () => {} };
   libraryStore.reload = async () => {};
   const gameStore = { activeGame: null, songSettingsContext: { gameId: 'game-a', instrumentId: 'lyre' },
+    hasPlaybackMapping: async () => true,
     init: async () => {}, onSettingsContextChange() {}, onGameStatusChange() {} };
   const settingsStore = { settings: { autoCorrectThreshold: 21 } };
   const api = {
@@ -763,15 +764,65 @@ test('hold-note timing reaches the engine and persists in the selected song scop
   assert.equal(player.tapThresholdMs, 0, 'An older song must not inherit the previous threshold');
 });
 
-test('a deleted game configuration blocks playback until the selection is replaced', async () => {
-  const { player, songs, playbackCalls, gameStore } = await createPlayer();
-  gameStore.hasDeletedSelection = true;
-  gameStore.layoutDeletionTooltip = 'The entry for this keyboard layout has been deleted.';
-  await player.play(songs[0]);
+test('a missing layout at launch explains how to recover and blocked navigation preserves the queue position', async () => {
+  const { player, songs, playbackCalls, gameStore, notifications } = await createPlayer({ preferences: { playback: { isListenMode: true } } });
+  gameStore.hasPlaybackMapping = async () => false;
+  await player.initialize();
+  assert.deepEqual(notifications.at(-1), ['error', 'player.playbackUnavailable', 'player.chooseValidLayout']);
+  await player.setQueueList(songs);
+  await player.nextTrack();
+  assert.equal(player.activeQueueIndex, 0);
+  assert.equal(player.activeSong.id, songs[0].id);
+  assert.deepEqual(player.historyStack, []);
   assert.equal(playbackCalls.some(([method]) => method === 'play'), false);
-  gameStore.hasDeletedSelection = false;
-  await player.play(songs[0]);
-  assert.equal(playbackCalls.some(([method]) => method === 'play'), true);
+  gameStore.hasPlaybackMapping = async () => true;
+  await player.togglePlay();
+  assert.deepEqual(playbackCalls.filter(([method]) => method === 'play'), [['play', songs[0].id]]);
+  await player.nextTrack();
+  gameStore.hasPlaybackMapping = async () => false;
+  await player.prevTrack();
+  assert.equal(player.activeQueueIndex, 1);
+  assert.deepEqual(ids(player.historyStack), [songs[0].id]);
+  gameStore.hasPlaybackMapping = async () => true;
+  await player.prevTrack();
+  assert.equal(player.activeSong.id, songs[0].id);
+  assert.deepEqual(player.historyStack, []);
+});
+
+test('Play during instrument switching waits for the refreshed settings and the mapping acknowledgement', async () => {
+  const { player, songs, gameStore, libraryStore, playbackCalls } = await createPlayer();
+  let releaseSettings;
+  libraryStore.reload = () => new Promise(resolve => { releaseSettings = resolve; });
+  let releaseMapping;
+  const mapping = new Promise(resolve => { releaseMapping = resolve; });
+  gameStore.hasPlaybackMapping = () => mapping;
+  const refresh = player.refreshSongSettingsContext();
+  const superseded = player.play(songs[1]);
+  const play = player.play(songs[0]);
+  await new Promise(resolve => setImmediate(resolve));
+  releaseSettings();
+  await refresh;
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(playbackCalls.some(([method]) => method === 'play'), false);
+  releaseMapping(true);
+  assert.equal(await superseded, false);
+  assert.equal(await play, true);
+  assert.deepEqual(playbackCalls.filter(([method]) => method === 'play'), [['play', songs[0].id]]);
+});
+
+test('Windows can retry the same song with Play after the engine rejects its start', async () => {
+  let valid = false;
+  const h = await createPlayer({ playback: { play: () => {
+    if (!valid) throw new Error('Choose an instrument with a valid layout in Instrument View.');
+    return true;
+  } } });
+  h.settingsStore.isWindows = true;
+  await h.player.play(h.songs[0]);
+  assert.equal(h.player.status, 'Stopped');
+  assert.match(h.notifications.at(-1)[2], /valid layout/);
+  valid = true;
+  await h.player.togglePlay();
+  assert.equal(h.player.status, 'Playing');
 });
 
 test('library removal flushes settings and queued writes before closing only affected playback', async () => {

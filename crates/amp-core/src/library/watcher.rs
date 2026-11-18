@@ -41,11 +41,13 @@ impl DirectoryWatcher {
     pub fn watch_soundfont_file<F>(file: &Path, on_change: F) -> Result<Self, String>
     where F: Fn() + Send + 'static,
     {
-        let file = file.to_path_buf();
-        let parent = file.parent().ok_or("SoundFont path has no parent")?.to_path_buf();
-        Self::watch_filtered_mode(&parent, RecursiveMode::NonRecursive, move |event| {
+        let parent = file.parent().ok_or("SoundFont path has no parent")?;
+        let name = PathBuf::from(file.file_name().ok_or("SoundFont path has no filename")?);
+        Self::watch_filtered_mode(parent, RecursiveMode::NonRecursive, move |root, event| {
             if matches!(event.kind, EventKind::Access(_) | EventKind::Modify(ModifyKind::Metadata(_))) { return false; }
-            event.need_rescan() || event.paths.iter().any(|path| path == &file)
+            event.need_rescan() || event.paths.iter().any(|path| {
+                path.strip_prefix(root).is_ok_and(|relative| relative == name)
+            })
         }, on_change)
     }
 
@@ -53,16 +55,16 @@ impl DirectoryWatcher {
     pub fn watch_soundfonts<F>(folder: &Path, on_change: F) -> Result<Self, String>
     where F: Fn() + Send + 'static,
     {
-        let root = folder.to_path_buf();
         let parent = folder.parent().ok_or("SoundFonts folder has no parent")?;
-        Self::watch_filtered(parent, move |event| {
+        let name = PathBuf::from(folder.file_name().ok_or("SoundFonts folder has no name")?);
+        Self::watch_filtered(parent, move |root, event| {
             if event.need_rescan() { return true; }
             // Reads can update access metadata; reloading in response would create a loop.
             if matches!(event.kind, EventKind::Access(_) | EventKind::Modify(ModifyKind::Metadata(_))) { return false; }
-            event.paths.iter().any(|path| {
-                (path == &root && matches!(event.kind, EventKind::Create(_) | EventKind::Remove(_)
-                    | EventKind::Modify(ModifyKind::Name(_)) | EventKind::Any)) || (path.starts_with(&root)
-                    && path != &root
+            event.paths.iter().filter_map(|path| path.strip_prefix(root).ok()).any(|path| {
+                (path == name && matches!(event.kind, EventKind::Create(_) | EventKind::Remove(_)
+                    | EventKind::Modify(ModifyKind::Name(_)) | EventKind::Any)) || (path.starts_with(&name)
+                    && path != name
                     && (path.extension().and_then(|ext| ext.to_str())
                         .is_some_and(|ext| ext.eq_ignore_ascii_case("sf2"))
                         || matches!(event.kind, EventKind::Remove(_) | EventKind::Modify(ModifyKind::Name(_)))))
@@ -75,7 +77,7 @@ impl DirectoryWatcher {
     where
         F: Fn() + Send + 'static,
     {
-        Self::watch_filtered(folder, needs_scan, on_change)
+        Self::watch_filtered(folder, |_, event| needs_scan(event), on_change)
     }
 
     /// Watch the config roots through their parent, so deleting/recreating a root is detected.
@@ -89,12 +91,14 @@ impl DirectoryWatcher {
     pub fn watch_configs_with_removals<F, R>(folder: &Path, on_removal: R, on_change: F) -> Result<Self, String>
     where F: Fn() + Send + 'static, R: Fn() + Send + 'static,
     {
-        let root = folder.to_path_buf();
-        Self::watch_filtered(folder, move |event| {
+        Self::watch_filtered(folder, move |root, event| {
             if matches!(event.kind, EventKind::Access(_)) { return false; }
             let relevant = event.need_rescan() || event.paths.iter().any(|path| {
-                path == &root || path.starts_with(root.join("Games"))
-                    || path.starts_with(root.join("KeyboardLayouts"))
+                path.strip_prefix(root).is_ok_and(|relative| {
+                    relative.as_os_str().is_empty()
+                        || relative.starts_with("Games")
+                        || relative.starts_with("KeyboardLayouts")
+                })
             });
             if relevant && (event.need_rescan() || matches!(event.kind,
                 EventKind::Remove(_) | EventKind::Modify(ModifyKind::Name(_)))) {
@@ -105,24 +109,28 @@ impl DirectoryWatcher {
     }
 
     fn watch_filtered<F, P>(folder: &Path, needs_scan: P, on_change: F) -> Result<Self, String>
-    where F: Fn() + Send + 'static, P: Fn(&Event) -> bool + Send + 'static,
+    where F: Fn() + Send + 'static, P: Fn(&Path, &Event) -> bool + Send + 'static,
     {
         Self::watch_filtered_mode(folder, RecursiveMode::Recursive, needs_scan, on_change)
     }
 
     fn watch_filtered_mode<F, P>(folder: &Path, mode: RecursiveMode, needs_scan: P, on_change: F) -> Result<Self, String>
-    where F: Fn() + Send + 'static, P: Fn(&Event) -> bool + Send + 'static,
+    where F: Fn() + Send + 'static, P: Fn(&Path, &Event) -> bool + Send + 'static,
     {
         if !folder.exists() || !folder.is_dir() {
             return Err(format!("Cannot watch non-existent directory: {}", folder.display()));
         }
 
+        // FSEvents reports resolved paths, including when the caller used a symlink.
+        // Resolve the watched directory once so events for deleted children still match.
+        let watch_root = folder.canonicalize()
+            .map_err(|e| format!("Failed to resolve watch folder {}: {}", folder.display(), e))?;
         let (tx, rx) = channel::<notify::Result<Event>>();
         let mut watcher = RecommendedWatcher::new(tx, Config::default())
             .map_err(|e| format!("Failed to create filesystem watcher: {}", e))?;
 
         watcher
-            .watch(folder, mode)
+            .watch(&watch_root, mode)
             .map_err(|e| format!("Failed to watch folder {}: {}", folder.display(), e))?;
 
         let is_active = Arc::new(AtomicBool::new(true));
@@ -141,7 +149,7 @@ impl DirectoryWatcher {
                 };
                 match result {
                     Ok(Ok(event)) => {
-                        if needs_scan(&event) {
+                        if needs_scan(&watch_root, &event) {
                             deadline = Some(Instant::now() + debounce_duration);
                         }
                     }

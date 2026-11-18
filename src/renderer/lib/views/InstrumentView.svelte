@@ -475,8 +475,8 @@
   <span class="top-control-label" aria-hidden="true">
     <!-- Mount with the measured visibility so entering the view does not trigger a reveal. -->
     {#if topBarWidth > 0}
-      <GradientSweep visible={showTopLabels} anchor="right" collapseMargin="right" marginAmount="8px" overflowVisibleOnComplete={false}>
-        {label}
+      <GradientSweep visible={showTopLabels} anchor="right" overflowVisibleOnComplete={false}>
+        <span class="top-label-text">{label}</span>
       </GradientSweep>
     {/if}
   </span>
@@ -917,6 +917,10 @@
 
   .input-modes-sweep {
     width: 100%;
+  }
+
+  .top-label-text {
+    padding-right: 8px;
   }
 
   .input-modes-sweep :global(.sliding-tabs.pill .tab-btn) {

@@ -18,6 +18,7 @@ async function createGameStore(selectedInstrumentIds = {}, configureGames = () =
   const mappingSources = [];
   const pedalWrites = [];
   const modeChanges = [];
+  let applyMapping = async () => true;
   let pedalWriteError;
   let onConfigsChanged;
   let onStatusChanged;
@@ -54,7 +55,7 @@ async function createGameStore(selectedInstrumentIds = {}, configureGames = () =
       },
       onConfigsChanged: async callback => { onConfigsChanged = callback; return () => {}; },
       setActiveGame: async () => true,
-      setGameInstrumentMapping: async (layout, pairs, paths) => { mappings.push([layout, pairs]); mappingSources.push(paths); return true; },
+      setGameInstrumentMapping: async (layout, pairs, paths) => { mappings.push([layout, pairs]); mappingSources.push(paths); return applyMapping(layout); },
     },
     playback: { setGuitarMode: async mode => { modeChanges.push(mode); return true; }, stop: async () => { stopped.push(true); return true; } },
     songs: { setSettingsContext: context => contexts.push(context) },
@@ -73,6 +74,7 @@ async function createGameStore(selectedInstrumentIds = {}, configureGames = () =
   delete globalThis[key];
   await gameStore.init();
   return { gameStore, contexts, settingsWrites, mappings, notifications, stopped, mappingSources, pedalWrites, modeChanges,
+    setMappingHandler(handler) { applyMapping = handler; },
     failPedalWrite(error) { pedalWriteError = error; },
     setSnapshot(value) { snapshot = value; },
     setReader(reader) { readConfigs = reader; },
@@ -230,7 +232,7 @@ test('switching instruments persists each game choice and notifies settings once
   const changes = [];
   gameStore.onSettingsContextChange(() => changes.push(gameStore.songSettingsContext));
   gameStore.syncActiveInstrumentMapping('lyre');
-  gameStore.syncActiveInstrumentMapping('lyre', 'azerty');
+  await gameStore.syncActiveInstrumentMapping('lyre', 'azerty');
   assert.equal(changes.length, 1, 'Keyboard layout changes do not change the song settings scope');
   assert.equal(mappings.at(-1)[0], 'azerty');
   gameStore.setActiveGame('b');
@@ -302,12 +304,12 @@ test('live updates preserve selections, refresh notes and keys, and handle remov
 test('instruments without supported layouts never use another instrument layout', async () => {
   const { gameStore, mappings } = await createGameStore();
   gameStore.activeInstrument.keyboardLayouts = [];
-  gameStore.syncActiveInstrumentMapping();
+  await gameStore.syncActiveInstrumentMapping();
   assert.deepEqual(gameStore.getInstrumentLayouts(gameStore.activeInstrument), []);
   assert.deepEqual(mappings.at(-1), ['', []]);
   assert.equal(gameStore.isLayoutMissing, false, 'An unassigned layout uses No Layouts, not a deletion warning');
   gameStore.activeInstrument.keyboardLayouts = ['missing'];
-  gameStore.syncActiveInstrumentMapping();
+  await gameStore.syncActiveInstrumentMapping();
   assert.deepEqual(mappings.at(-1), ['', []]);
 });
 
@@ -333,6 +335,27 @@ test('deleting the selected instrument stops playback without selecting another 
   assert.equal(gameStore.activeInstrument.id, 'piano');
   assert.equal(gameStore.isInstrumentMissing, false);
   assert.equal(stopped.length, 1);
+});
+
+test('a missing saved layout can be replaced while a previous mapping is still being cleared', async () => {
+  const h = await createGameStore({}, () => {}, [], { 'a/piano/keyboard': 'removed-layout' });
+  assert.equal(h.gameStore.activeLayout, null);
+  assert.equal(await h.gameStore.hasPlaybackMapping(), false);
+  let finishClear;
+  h.setMappingHandler(layout => layout ? Promise.resolve(true) : new Promise(resolve => { finishClear = resolve; }));
+  const clear = h.gameStore.syncActiveInstrumentMapping();
+  const ready = h.gameStore.hasPlaybackMapping();
+  const replacement = h.gameStore.syncActiveInstrumentMapping('lyre', 'azerty');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.mappings.at(-1)[0], '');
+  finishClear(false);
+  assert.equal(await clear, false);
+  assert.equal(await ready, true);
+  assert.equal(await replacement, true);
+  assert.deepEqual(h.mappings.at(-1), ['azerty', [[60, 'Q'], [62, 'S']]]);
+  h.setMappingHandler(async () => false);
+  await h.gameStore.syncActiveInstrumentMapping();
+  assert.equal(await h.gameStore.hasPlaybackMapping(), false, 'Native rejection overrides a valid-looking selection');
 });
 
 test('deleting the selected layout leaves a missing placeholder even when another layout is available', async () => {
@@ -383,7 +406,7 @@ test('the native deletion guard receives the files for the selected game, instru
   gameStore.activeGame.filePath = 'Games/a/game.json';
   gameStore.activeInstrument.filePath = 'Games/a/Instruments/Piano.json';
   gameStore.activeLayout.filePath = 'KeyboardLayouts/qwerty.json';
-  gameStore.syncActiveInstrumentMapping();
+  await gameStore.syncActiveInstrumentMapping();
   assert.deepEqual(mappingSources.at(-1), ['Games/a/game.json', 'Games/a/Instruments/Piano.json', 'KeyboardLayouts/qwerty.json']);
 });
 
@@ -465,7 +488,7 @@ test('mouse-only chord layouts remain selectable and synchronize without chromat
     games[0].instruments.push({ id: 'chords', name: 'Guitar (Chords)', notes: [60, 64, 67], keyboardLayouts: ['nte-wheel'] });
     games[0].layouts.push({ id: 'nte-wheel', name: 'Chord Wheel', keys: [], chordWheel: { positions: [[693, 255]] } });
   });
-  h.gameStore.syncActiveInstrumentMapping('chords');
+  await h.gameStore.syncActiveInstrumentMapping('chords');
   assert.equal(h.gameStore.activeLayout.id, 'nte-wheel');
   assert.deepEqual(h.mappings.at(-1), ['nte-wheel', []]);
 });

@@ -108,22 +108,22 @@ fn watches_config_bursts_and_root_recreation_but_ignores_other_appdata() {
     let (tx, rx) = mpsc::channel();
     let _watcher = DirectoryWatcher::watch_configs(&temp.0, move || { let _ = tx.send(()); }).unwrap();
     temp.write("settings.json", "{}");
-    assert!(rx.recv_timeout(Duration::from_millis(750)).is_err());
+    assert!(rx.recv_timeout(Duration::from_millis(750)).is_err(), "Unrelated app data should not trigger a reload");
     for _ in 0..5 {
         temp.write("Games/NTE/game.json", GAME);
         std::thread::sleep(Duration::from_millis(80));
     }
-    rx.recv_timeout(Duration::from_secs(5)).unwrap();
+    rx.recv_timeout(Duration::from_secs(5)).expect("config burst should trigger a reload");
     assert!(rx.recv_timeout(Duration::from_millis(750)).is_err(), "Burst should trigger one reload");
     // Remove only the verified test root's Games child; the watcher stays attached to its parent.
     let games = temp.0.join("Games");
     assert_eq!(games.parent(), Some(temp.0.as_path()));
     fs::remove_dir_all(&games).unwrap();
-    rx.recv_timeout(Duration::from_secs(5)).unwrap();
+    rx.recv_timeout(Duration::from_secs(5)).expect("Games removal should trigger a reload");
     temp.write("Games/NTE/game.json", GAME);
-    rx.recv_timeout(Duration::from_secs(5)).unwrap();
+    rx.recv_timeout(Duration::from_secs(5)).expect("Games recreation should trigger a reload");
     temp.write("KeyboardLayouts/qwerty.json", LAYOUT);
-    rx.recv_timeout(Duration::from_secs(5)).unwrap();
+    rx.recv_timeout(Duration::from_secs(5)).expect("layout creation should trigger a reload");
 }
 
 #[test]
@@ -132,13 +132,15 @@ fn config_removal_is_reported_before_the_debounced_reload() {
     let path = temp.write("Games/NTE/Instruments/Guitar.json", INSTRUMENT);
     let (tx, rx) = mpsc::channel();
     let removed = tx.clone();
-    let _watcher = DirectoryWatcher::watch_configs_with_removals(&temp.0,
+    // Event paths may use a different spelling of the watched directory.
+    let watch_root = temp.0.join("Games").join("..");
+    let _watcher = DirectoryWatcher::watch_configs_with_removals(&watch_root,
         move || { let _ = removed.send("removed"); },
         move || { let _ = tx.send("reloaded"); }).unwrap();
     fs::remove_file(path).unwrap();
-    assert_eq!(rx.recv_timeout(Duration::from_secs(3)).unwrap(), "removed");
+    assert_eq!(rx.recv_timeout(Duration::from_secs(3)).expect("removal notification"), "removed");
     loop {
-        if rx.recv_timeout(Duration::from_secs(3)).unwrap() == "reloaded" { break; }
+        if rx.recv_timeout(Duration::from_secs(3)).expect("reload after removal") == "reloaded" { break; }
     }
 }
 
@@ -160,10 +162,12 @@ fn unavailable_config_stops_playback_and_blocks_native_restarts_until_replaced()
     assert_eq!(rx.recv_timeout(Duration::from_secs(2)).unwrap(), PlaybackStatus::Playing);
     engine.set_config_available(false);
     assert_eq!(rx.recv_timeout(Duration::from_secs(2)).unwrap(), PlaybackStatus::Stopped);
-    engine.play();
+    let rejected = engine.request_play().recv_timeout(Duration::from_secs(2)).unwrap();
+    assert!(rejected.unwrap_err().contains("valid layout"));
     assert!(rx.recv_timeout(Duration::from_millis(150)).is_err());
+    engine.set_mapping(NoteKeyMapping::from_pairs(KeyboardLayout::Diatonic21, &[(60, 'a')]));
     engine.set_config_available(true);
     assert!(rx.recv_timeout(Duration::from_millis(150)).is_err(), "Restoring a file must not resume automatically");
-    engine.play();
+    engine.request_play().recv_timeout(Duration::from_secs(2)).unwrap().unwrap();
     assert_eq!(rx.recv_timeout(Duration::from_secs(2)).unwrap(), PlaybackStatus::Playing);
 }
