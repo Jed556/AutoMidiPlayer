@@ -22,7 +22,7 @@
   import { onMount, onDestroy, untrack } from 'svelte';
   import { animationStore } from '../../state/animationStore.svelte';
   import CrossStrokes from './CrossStrokes.svelte';
-  import { crossStrokeProgress } from './windowControlUtils';
+  import { sameVolumeMotion, stepVolumeMotion, volumeTargetFor } from './volumeIconUtils';
 
   interface Props {
     volume?: number;
@@ -37,52 +37,36 @@
   const id = $props.id();
   const speaker = 'M9.741.85a.75.75 0 0 1 .375.65v13a.75.75 0 0 1-1.125.65l-6.925-4a3.64 3.64 0 0 1-1.33-4.967 3.64 3.64 0 0 1 1.33-1.332l6.925-4a.75.75 0 0 1 .75 0zm-6.924 5.3a2.14 2.14 0 0 0 0 3.7l5.8 3.35V2.8z';
 
-  function targetFor(value: number) {
-    const muted = value <= 0;
-    const high = value >= 0.66;
-    return {
-      primary: muted ? 0 : 1,
-      primaryScale: high ? 2.5 : value >= 0.33 ? 1.45 : 1,
-      inner: high ? 1 : 0,
-      first: muted ? 1 : 0,
-      second: muted ? 1 : 0,
-    };
-  }
-
-  const initial = targetFor(untrack(() => volume));
+  const initial = volumeTargetFor(untrack(() => volume));
   let motion = $state({ ...initial });
+  let activeTarget = { ...initial };
   let mounted = false;
   let frame: number | null = null;
 
   function animate(value: number, milliseconds: number) {
-    if (frame !== null) cancelAnimationFrame(frame);
-    frame = null;
-    const target = targetFor(value);
-    if (!mounted || milliseconds <= 0) {
+    const target = volumeTargetFor(value);
+    if (!mounted || !(milliseconds > 0)) {
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = null;
+      activeTarget = target;
       motion = target;
       return;
     }
+    if (sameVolumeMotion(activeTarget, target) && (frame !== null || sameVolumeMotion(motion, target))) {
+      return;
+    }
+    if (frame !== null) cancelAnimationFrame(frame);
+    frame = null;
+    activeTarget = target;
     const start = { ...motion };
     const started = performance.now();
-    const ease = (p: number) => 1 - Math.pow(1 - p, 3);
-    const mix = (a: number, b: number, p: number) => a + (b - a) * p;
     function step(now: number) {
-      const p = Math.min(1, (now - started) / milliseconds);
-      if (p >= 1) {
-        motion = target;
+      const next = stepVolumeMotion(start, target, now - started, milliseconds);
+      motion = next.motion;
+      if (next.done) {
         frame = null;
         return;
       }
-      const e = ease(p);
-      // The upper-right stroke leads; the upper-left stroke starts 20% later.
-      const { first, second } = crossStrokeProgress(p);
-      motion = {
-        primary: mix(start.primary, target.primary, e),
-        primaryScale: mix(start.primaryScale, target.primaryScale, e),
-        inner: mix(start.inner, target.inner, ease(Math.max(0, (p - 0.12) / 0.88))),
-        first: mix(start.first, target.first, first),
-        second: mix(start.second, target.second, second),
-      };
       frame = requestAnimationFrame(step);
     }
     frame = requestAnimationFrame(step);
@@ -116,7 +100,7 @@
        Only the new inner arc grows in, with a consistent stroke weight. -->
   <g clip-path="url(#{id}-waves)">
     <g transform="translate(10.116 8) scale({motion.primary * motion.primaryScale})">
-      <circle r="2" fill="none" stroke="currentColor" stroke-width={1.5 / motion.primaryScale} />
+      <circle r="2" fill="none" stroke="currentColor" stroke-width={1.5 / Math.max(1, motion.primaryScale)} />
     </g>
     <g transform="translate(10.116 8) scale({motion.inner})">
       <circle r="2" fill="none" stroke="currentColor" stroke-width="1.5" />
