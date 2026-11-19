@@ -1,0 +1,103 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { compile } from 'svelte/compiler';
+import { handleAppContextMenu, shouldAllowNativeContextMenu } from '../src/renderer/lib/utils/contextMenu.ts';
+
+function makeElement({ tagName = 'DIV', type = '', classes = [], attrs = {}, isContentEditable = false, parent = null } = {}) {
+  const el = {
+    tagName,
+    type,
+    isContentEditable,
+    parentElement: parent,
+    getAttribute(name) {
+      return name in attrs ? attrs[name] : null;
+    },
+    closest(selector) {
+      const tokens = selector.split(',').map(s => s.trim());
+      let cur = this;
+      while (cur) {
+        for (const token of tokens) {
+          if (token.startsWith('.')) {
+            if (cur.classes?.includes(token.slice(1))) return cur;
+          } else if (token === '[contenteditable]') {
+            if (cur.attrs && 'contenteditable' in cur.attrs) return cur;
+          } else if (cur.tagName?.toUpperCase() === token.toUpperCase()) {
+            return cur;
+          }
+        }
+        cur = cur.parent;
+      }
+      return null;
+    },
+    classes,
+    attrs,
+    parent,
+  };
+  return el;
+}
+
+test('suppresses native context menu inside the left navigation drawer, including its search input', () => {
+  const navDrawer = makeElement({ tagName: 'ASIDE', classes: ['nav-drawer'] });
+  const navButton = makeElement({ tagName: 'BUTTON', parent: navDrawer });
+  const navSearchInput = makeElement({ tagName: 'INPUT', type: 'text', parent: navDrawer });
+
+  assert.equal(shouldAllowNativeContextMenu(navDrawer), false);
+  assert.equal(shouldAllowNativeContextMenu(navButton), false);
+  assert.equal(shouldAllowNativeContextMenu(navSearchInput), false);
+
+  let prevented = 0;
+  handleAppContextMenu({ defaultPrevented: false, target: navButton, preventDefault: () => { prevented++; } });
+  handleAppContextMenu({ defaultPrevented: false, target: navSearchInput, preventDefault: () => { prevented++; } });
+  assert.equal(prevented, 2);
+});
+
+test('suppresses native context menu on non-editable UI controls and non-text inputs', () => {
+  const button = makeElement({ tagName: 'BUTTON' });
+  const checkbox = makeElement({ tagName: 'INPUT', type: 'checkbox' });
+  const slider = makeElement({ tagName: 'INPUT', type: 'range' });
+  const disabledEditable = makeElement({ tagName: 'DIV', attrs: { contenteditable: 'false' }, isContentEditable: false });
+
+  for (const target of [null, button, checkbox, slider, disabledEditable]) {
+    let prevented = false;
+    handleAppContextMenu({ defaultPrevented: false, target, preventDefault: () => { prevented = true; } });
+    assert.equal(prevented, true);
+  }
+});
+
+test('allows native context menu on editable text controls outside the navigation drawer', () => {
+  const textInput = makeElement({ tagName: 'INPUT', type: 'text' });
+  const textarea = makeElement({ tagName: 'TEXTAREA' });
+  const textNodeInTextarea = { parentElement: textarea };
+  const contentEditable = makeElement({ tagName: 'DIV', attrs: { contenteditable: 'true' }, isContentEditable: true });
+
+  for (const target of [textInput, textarea, textNodeInTextarea, contentEditable]) {
+    let prevented = false;
+    handleAppContextMenu({ defaultPrevented: false, target, preventDefault: () => { prevented = true; } });
+    assert.equal(prevented, false);
+  }
+});
+
+test('skips calling preventDefault again when a custom context menu already handled the event', () => {
+  let prevented = false;
+  handleAppContextMenu({
+    defaultPrevented: true,
+    target: makeElement({ tagName: 'DIV' }),
+    preventDefault: () => { prevented = true; },
+  });
+  assert.equal(prevented, false);
+});
+
+test('NavigationDrawer and App wire up context menu suppression and compile cleanly', () => {
+  const navSource = readFileSync(new URL('../src/renderer/lib/components/Layout/NavigationDrawer.svelte', import.meta.url), 'utf8');
+  const appSource = readFileSync(new URL('../src/renderer/App.svelte', import.meta.url), 'utf8');
+
+  assert.match(navSource, /oncontextmenu=\{\(e\) => e\.preventDefault\(\)\}/);
+  assert.match(appSource, /window\.addEventListener\('contextmenu', handleAppContextMenu\)/);
+  assert.match(appSource, /window\.removeEventListener\('contextmenu', handleAppContextMenu\)/);
+
+  const navCompiled = compile(navSource, { filename: 'NavigationDrawer.svelte', generate: 'client' });
+  const appCompiled = compile(appSource, { filename: 'App.svelte', generate: 'client' });
+  assert.ok(navCompiled.js.code.length > 0);
+  assert.ok(appCompiled.js.code.length > 0);
+});
