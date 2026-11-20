@@ -85,6 +85,7 @@
   class:three-column={uiStore.libraryMode === 'three-column'}
   class:is-resizing={isResizing}
   style="width: {uiStore.libraryWidth}px;"
+  oncontextmenu={(e) => e.preventDefault()}
 >
   {#if uiStore.libraryMode === 'compressed'}
     <!-- COMPRESSED MODE (Original 80px Width, Clean Vertical Layout) -->

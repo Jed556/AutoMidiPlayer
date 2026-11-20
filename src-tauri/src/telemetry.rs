@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -87,6 +88,7 @@ static STATE: Mutex<TelemetryState> = Mutex::new(TelemetryState {
     client: None,
     last_test_sent_at: None,
 });
+static MONITOR_STARTED: AtomicBool = AtomicBool::new(false);
 
 fn get_app_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
@@ -112,41 +114,28 @@ pub fn is_opt_out_refresh_due(last_date: Option<DateTime<Utc>>) -> bool {
     }
 }
 
-/// Initializes the telemetry service with the user's opt-in preference.
-/// If opted in: starts Sentry and logs "User started app" for DAU metrics.
-/// If opted out: checks persisted 30-day refresh timer. If >= 30 days have elapsed
-/// since last report, sends an anonymized "User opted out of telemetry" ping to refresh active metrics.
-pub fn init(telemetry_opt_in: bool) {
+fn report_opt_out_if_due() -> bool {
     let mut config = load_telemetry_config();
-
-    if telemetry_opt_in {
-        start_sentry();
-        track_app_started();
+    if is_opt_out_refresh_due(config.last_opted_out_date) {
+        report_opt_out();
+        config.last_opted_out_date = Some(Utc::now());
+        save_telemetry_config(&config);
+        true
     } else {
-        if is_opt_out_refresh_due(config.last_opted_out_date) {
-            report_opt_out();
-            config.last_opted_out_date = Some(Utc::now());
-            save_telemetry_config(&config);
-            logging::log_step(
-                "TELEMETRY",
-                Some("Refreshed monthly opt-out status (30-day interval)"),
-                None,
-                None,
-                None,
-            );
-        } else {
-            logging::log_step(
-                "TELEMETRY",
-                Some("Opt-out status is within active 30-day window; no refresh needed"),
-                None,
-                None,
-                None,
-            );
-        }
+        false
+    }
+}
+
+fn ensure_monthly_monitor_started() {
+    if MONITOR_STARTED
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return;
     }
 
     // Spawn background monitor to refresh opt-out status every 24 hours if the app runs continuously
-    std::thread::Builder::new()
+    if std::thread::Builder::new()
         .name("telemetry-monthly-monitor".into())
         .spawn(|| {
             loop {
@@ -155,45 +144,94 @@ pub fn init(telemetry_opt_in: bool) {
                 let enabled = state.client.is_some();
                 drop(state);
 
-                if !enabled {
-                    let mut cfg = load_telemetry_config();
-                    if is_opt_out_refresh_due(cfg.last_opted_out_date) {
-                        report_opt_out();
-                        cfg.last_opted_out_date = Some(Utc::now());
-                        save_telemetry_config(&cfg);
-                        logging::log_step(
-                            "TELEMETRY",
-                            Some("Refreshed monthly opt-out status from background scheduler"),
-                            None,
-                            None,
-                            None,
-                        );
-                    }
+                if !enabled && report_opt_out_if_due() {
+                    logging::log_step(
+                        "TELEMETRY",
+                        Some("Refreshed monthly opt-out status from background scheduler"),
+                        None,
+                        None,
+                        None,
+                    );
                 }
             }
         })
-        .ok();
+        .is_err()
+    {
+        MONITOR_STARTED.store(false, Ordering::Release);
+    }
+}
+
+/// Initializes the telemetry service with the user's opt-in preference.
+/// If opted in: starts Sentry and logs "User started app" for DAU metrics.
+/// If opted out: checks persisted 30-day refresh timer. If >= 30 days have elapsed
+/// since last report, sends an anonymized "User opted out of telemetry" ping to refresh active metrics.
+pub fn init(telemetry_opt_in: bool) {
+    if telemetry_opt_in {
+        start_sentry();
+        track_app_started();
+    } else if report_opt_out_if_due() {
+        logging::log_step(
+            "TELEMETRY",
+            Some("Refreshed monthly opt-out status (30-day interval)"),
+            None,
+            None,
+            None,
+        );
+    } else {
+        logging::log_step(
+            "TELEMETRY",
+            Some("Opt-out status is within active 30-day window; no refresh needed"),
+            None,
+            None,
+            None,
+        );
+    }
+
+    ensure_monthly_monitor_started();
+}
+
+fn disable_telemetry_with(
+    state: &Mutex<TelemetryState>,
+    load_config: impl FnOnce() -> PersistentTelemetryConfig,
+    save_config: impl FnOnce(&PersistentTelemetryConfig),
+    send_opt_out: impl FnOnce(),
+) -> bool {
+    let client = state.lock().unwrap_or_else(|e| e.into_inner()).client.take();
+    let was_enabled = client.is_some();
+    drop(client);
+
+    let mut config = load_config();
+    if !was_enabled && !is_opt_out_refresh_due(config.last_opted_out_date) {
+        return false;
+    }
+
+    send_opt_out();
+    config.last_opted_out_date = Some(Utc::now());
+    save_config(&config);
+    true
 }
 
 /// Enables or disables Sentry telemetry tracking dynamically.
 /// When disabling, reports the anonymized opt-out event and records the timestamp.
 pub fn set_telemetry_enabled(enabled: bool) {
-    let mut state = STATE.lock().unwrap_or_else(|e| e.into_inner());
-    if enabled && state.client.is_none() {
-        drop(state);
-        start_sentry();
-        logging::log_step("TELEMETRY", Some("opted in"), None, None, None);
-    } else if !enabled && state.client.is_some() {
-        let client = state.client.take();
-        drop(state);
-        drop(client);
-
-        report_opt_out();
-        let mut config = load_telemetry_config();
-        config.last_opted_out_date = Some(Utc::now());
-        save_telemetry_config(&config);
-
-        logging::log_step("TELEMETRY", Some("opted out"), None, None, None);
+    if enabled {
+        let state = STATE.lock().unwrap_or_else(|e| e.into_inner());
+        if state.client.is_none() {
+            drop(state);
+            start_sentry();
+            ensure_monthly_monitor_started();
+            logging::log_step("TELEMETRY", Some("opted in"), None, None, None);
+        }
+    } else {
+        if disable_telemetry_with(
+            &STATE,
+            load_telemetry_config,
+            save_telemetry_config,
+            report_opt_out,
+        ) {
+            logging::log_step("TELEMETRY", Some("opted out"), None, None, None);
+        }
+        ensure_monthly_monitor_started();
     }
 }
 
@@ -246,19 +284,18 @@ fn start_sentry() {
     state.client = Some(client);
 }
 
-/// Sends an anonymized event reporting opt-out
-fn report_opt_out() {
+fn build_opt_out_options() -> ClientOptions {
+    let environment_str: Cow<'static, str> = Cow::Borrowed(get_environment());
     let mut options = ClientOptions::default();
     options.dsn = SENTRY_DSN.parse().ok();
     options.release = None;
-    options.environment = None;
+    options.environment = Some(environment_str);
     options.server_name = None;
     options.send_default_pii = false;
     options.before_send = Some(Arc::new(|mut event: Event<'static>| {
         event.contexts.clear();
         event.server_name = None;
         event.release = None;
-        event.environment = None;
         event.tags.insert("Opted".to_string(), "out".to_string());
         event.tags.insert(
             "distribution".to_string(),
@@ -266,11 +303,19 @@ fn report_opt_out() {
         );
         Some(event)
     }));
+    options
+}
 
+fn send_opt_out_with_options(options: ClientOptions) {
     // Keep the temporary opt-out client isolated from the opted-in client/hubs.
     let client = TelemetryClient::new(options);
     client.capture_message("User opted out of telemetry", Level::Info);
     client.guard.flush(Some(Duration::from_secs(2)));
+}
+
+/// Sends an anonymized event reporting opt-out
+fn report_opt_out() {
+    send_opt_out_with_options(build_opt_out_options());
 }
 
 /// Reports application startup for Daily Active User metrics
@@ -553,5 +598,76 @@ mod tests {
         assert!(loaded.last_opted_out_date.is_some());
 
         let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn opt_out_event_preserves_environment_and_strips_identifying_metadata() {
+        let transport = Arc::new(RecordingTransport {
+            events: Mutex::new(Vec::new()),
+            flush_succeeds: AtomicBool::new(true),
+        });
+        let mut options = build_opt_out_options();
+        options.default_integrations = false;
+        options.transport = Some(Arc::new(transport.clone()));
+
+        send_opt_out_with_options(options);
+
+        let events = transport.events.lock().unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].message.as_deref(), Some("User opted out of telemetry"));
+        assert_eq!(events[0].level, Level::Info);
+        assert_eq!(events[0].environment.as_deref(), Some(get_environment()));
+        assert!(events[0].release.is_none());
+        assert!(events[0].server_name.is_none());
+        assert!(events[0].contexts.is_empty());
+        assert_eq!(events[0].tags.get("Opted").map(String::as_str), Some("out"));
+        assert_eq!(
+            events[0].tags.get("distribution").map(String::as_str),
+            Some(logging::get_distribution_type())
+        );
+    }
+
+    #[test]
+    fn disable_telemetry_reports_first_opt_out_and_skips_duplicate_within_30_days() {
+        let state = Mutex::new(TelemetryState {
+            client: None,
+            last_test_sent_at: None,
+        });
+        let stored = Mutex::new(PersistentTelemetryConfig::default());
+        let mut opt_out_count = 0usize;
+
+        // First-run onboarding opt-out: no live client yet, no prior opt-out timestamp.
+        let reported = disable_telemetry_with(
+            &state,
+            || stored.lock().unwrap().clone(),
+            |cfg| *stored.lock().unwrap() = cfg.clone(),
+            || opt_out_count += 1,
+        );
+        assert!(reported);
+        assert_eq!(opt_out_count, 1);
+        assert!(stored.lock().unwrap().last_opted_out_date.is_some());
+
+        // Subsequent startup sync within 30 days should not send a duplicate opt-out event.
+        let reported_again = disable_telemetry_with(
+            &state,
+            || stored.lock().unwrap().clone(),
+            |cfg| *stored.lock().unwrap() = cfg.clone(),
+            || opt_out_count += 1,
+        );
+        assert!(!reported_again);
+        assert_eq!(opt_out_count, 1);
+
+        // Explicitly toggling telemetry off from an active client always reports opt-out.
+        let (active_state, _) = test_state(false);
+        *state.lock().unwrap() = active_state;
+        let reported_toggle = disable_telemetry_with(
+            &state,
+            || stored.lock().unwrap().clone(),
+            |cfg| *stored.lock().unwrap() = cfg.clone(),
+            || opt_out_count += 1,
+        );
+        assert!(reported_toggle);
+        assert_eq!(opt_out_count, 2);
+        assert!(state.lock().unwrap().client.is_none());
     }
 }

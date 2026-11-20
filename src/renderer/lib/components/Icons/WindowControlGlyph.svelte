@@ -40,7 +40,7 @@
     const ease = (p: number) => 1 - Math.pow(1 - p, 3);
 
     function step(now: number) {
-      const p = Math.min(1, (now - started) / milliseconds);
+      const p = Math.max(0, Math.min(1, (now - started) / milliseconds));
       if (p >= 1) {
         motion = target;
         frame = null;

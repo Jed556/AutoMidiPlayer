@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { FileIssueAction } from '$shared/types/ipc';
+  import type { FileIssueAction, FileIssueKind } from '$shared/types/ipc';
   import { uiStore } from '../../state/uiStore.svelte';
   import { libraryStore } from '../../state/libraryStore.svelte';
   import { notificationCenter } from '../../ui/notificationCenter.svelte';
   import { api } from '../../backend';
-  import { groupDuplicateFiles } from '../../utils/fileIssueGroups';
+  import { dedupeIssuesByKind, groupDuplicateFiles } from '../../utils/fileIssueGroups';
   import Button from '../Common/Button.svelte';
   import RefreshIcon from '../Icons/RefreshIcon.svelte';
   import SlidingTabs from '../Common/SlidingTabs.svelte';
@@ -18,12 +18,13 @@
   let selectedKind = $state<string | null>(null);
   let scrollContainer = $state<HTMLDivElement>();
   onMount(() => { void libraryStore.reload(); });
-  const groups = $derived([
+  const groups = $derived(([
     { kind: 'missing', label: t('fileIssues.missing'), tabLabel: t('fileIssues.tabs.missing'), icon: 'DocumentQuestionMark', description: t('fileIssues.missingDescription') },
     { kind: 'invalid', label: t('fileIssues.invalid'), tabLabel: t('fileIssues.tabs.invalid'), icon: 'Warning', description: t('fileIssues.invalidDescription') },
     { kind: 'duplicate', label: t('fileIssues.duplicate'), tabLabel: t('fileIssues.tabs.duplicate'), icon: 'Copy', description: t('fileIssues.duplicateDescription') },
     { kind: 'excluded', label: t('fileIssues.excluded'), tabLabel: t('fileIssues.tabs.excluded'), icon: 'Delete', description: t('fileIssues.excludedDescription') },
-  ].map(group => ({ ...group, issues: libraryStore.fileIssues.filter(issue => issue.kind === group.kind) })));
+  ] satisfies { kind: FileIssueKind; label: string; tabLabel: string; icon: string; description: string }[])
+    .map(group => ({ ...group, issues: dedupeIssuesByKind(libraryStore.fileIssues, group.kind) })));
   const activeGroup = $derived(groups.find(group => group.kind === selectedKind)
     ?? groups.find(group => group.issues.length > 0) ?? groups[0]);
   const tabs = $derived(groups.map(group => ({

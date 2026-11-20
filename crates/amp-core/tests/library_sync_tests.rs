@@ -426,3 +426,28 @@ fn disk_deletion_is_a_separate_action_and_only_accepts_removed_file_conflicts() 
     assert!(db.get_song_by_id(&id).unwrap().is_none());
     assert!(db.get_file_issues().unwrap().is_empty());
 }
+
+#[test]
+fn legacy_duplicate_song_paths_report_one_missing_issue_and_forget_clears_all() {
+    let temp = TestDirectory::new();
+    let db_path = temp.0.join("legacy.db");
+    drop(LibraryDatabase::new(Some(db_path.clone())).unwrap());
+    let missing_path = temp.0.join("missing.mid").to_string_lossy().into_owned();
+    {
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute_batch("DROP TABLE Songs;
+            CREATE TABLE Songs (Id TEXT PRIMARY KEY, Title TEXT, Path TEXT NOT NULL);")
+            .unwrap();
+        conn.execute("INSERT INTO Songs (Id, Title, Path) VALUES ('one', 'Missing One', ?1)", [&missing_path]).unwrap();
+        conn.execute("INSERT INTO Songs (Id, Title, Path) VALUES ('two', 'Missing Two', ?1)", [&missing_path]).unwrap();
+    }
+    let db = LibraryDatabase::new(Some(db_path)).unwrap();
+    let issues = db.get_file_issues().unwrap();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0].path, missing_path);
+    assert_eq!(issues[0].kind, FileIssueKind::Missing);
+
+    resolve_file_issue(&db, &missing_path, FileIssueAction::Forget, None).unwrap();
+    assert!(db.get_all_songs().unwrap().is_empty());
+    assert!(db.get_file_issues().unwrap().is_empty());
+}

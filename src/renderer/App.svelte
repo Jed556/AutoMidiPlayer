@@ -29,6 +29,7 @@
   import ToastContainer from './lib/components/Common/ToastContainer.svelte';
   import TooltipHost from './lib/components/Common/TooltipHost.svelte';
   import DialogHost from './lib/components/Dialogs/DialogHost.svelte';
+  import { handleAppContextMenu } from './lib/utils/contextMenu';
   import { viewEntrance } from './lib/utils/transitions';
 
   // Load only the current view; Studio and other tools load when opened.
@@ -257,6 +258,7 @@
     window.addEventListener('keydown', handleGlobalKeydown);
     window.addEventListener('mouseup', handleGlobalMouseUp);
     window.addEventListener('auxclick', handleGlobalAuxClick);
+    window.addEventListener('contextmenu', handleAppContextMenu);
 
     const handleWindowResize = () => {
       uiStore.updateWindowWidth(window.innerWidth);
@@ -282,6 +284,7 @@
       window.removeEventListener('keydown', handleGlobalKeydown);
       window.removeEventListener('mouseup', handleGlobalMouseUp);
       window.removeEventListener('auxclick', handleGlobalAuxClick);
+      window.removeEventListener('contextmenu', handleAppContextMenu);
       window.removeEventListener('resize', handleWindowResize);
       unbindBack?.();
       unbindForward?.();

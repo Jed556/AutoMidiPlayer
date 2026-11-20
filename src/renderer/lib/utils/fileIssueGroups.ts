@@ -1,10 +1,19 @@
-import type { LibraryFileIssue } from '$shared/types/ipc';
+import type { FileIssueKind, LibraryFileIssue } from '$shared/types/ipc';
 import type { MidiFile } from '$shared/types/midi';
 
 export interface DuplicateFileGroup {
   id: string;
   title: string;
   copies: { path: string; name: string; isCurrent: boolean }[];
+}
+
+export function dedupeIssuesByKind(issues: LibraryFileIssue[], kind: FileIssueKind): LibraryFileIssue[] {
+  const seen = new Set<string>();
+  return issues.filter(issue => {
+    if (issue.kind !== kind || seen.has(issue.path)) return false;
+    seen.add(issue.path);
+    return true;
+  });
 }
 
 const fileName = (path: string) => path.split(/[\\/]/).pop() || path;
