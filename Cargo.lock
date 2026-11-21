@@ -7227,7 +7227,7 @@ dependencies = [
  "uuid",
  "windows-sys 0.61.2",
  "winnow 1.0.5",
- "zbus_macros 6.2.1",
+ "zbus_macros 6.5.0",
  "zbus_utils",
  "zcheapstr",
  "zruntime",
@@ -7250,9 +7250,9 @@ dependencies = [
 
 [[package]]
 name = "zbus_macros"
-version = "6.2.1"
+version = "6.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "083b38add47c340fc12ec560124fb1d9c23acb584f7021099f85ec6587a03c54"
+checksum = "2f5aa7f2c4ea81b7ccfb26bafefdb4d1a44dd9d4f82c8426173a3727311743e4"
 dependencies = [
  "proc-macro2",
  "quote",
