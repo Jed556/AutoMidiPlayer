@@ -79,3 +79,30 @@ export function computeContextMenuPosition(
 
   return { left, top, originX, originY };
 }
+
+/**
+ * Positions a nested flyout submenu adjacent to its trigger row, opening right when space permits
+ * or flipping left near the right edge, and clamping vertically within the viewport.
+ */
+export function computeSubmenuPosition(
+  triggerRect: { left: number; right: number; top: number; bottom: number },
+  submenuSize: { width: number; height: number },
+  viewport: { width: number; height: number },
+  margin = 8,
+  gap = 4,
+): ContextMenuLayout {
+  const width = Math.max(0, submenuSize.width);
+  const height = Math.max(0, submenuSize.height);
+  const spaceRight = viewport.width - triggerRect.right - gap - margin;
+  const spaceLeft = triggerRect.left - gap - margin;
+  const openLeft = width > spaceRight && spaceLeft > spaceRight;
+  const maxLeft = Math.max(margin, viewport.width - width - margin);
+  const maxTop = Math.max(margin, viewport.height - height - margin);
+  const rawLeft = openLeft ? triggerRect.left - width - gap : triggerRect.right + gap;
+  const left = Math.max(margin, Math.min(rawLeft, maxLeft));
+  const top = Math.max(margin, Math.min(triggerRect.top - 4, maxTop));
+  const originX = openLeft ? width : 0;
+  const originY = Math.max(0, Math.min(height, triggerRect.top - top + 12));
+
+  return { left, top, originX, originY };
+}

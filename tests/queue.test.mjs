@@ -1377,3 +1377,44 @@ test('custom SoundFont paths display only their file name and survive session re
   assert.equal(player.customSoundFontName, 'My Bank');
   assert.deepEqual(playbackCalls.filter(call => call[0] === 'configureSoundFontStack').at(-1)[1], [path]);
 });
+
+test('playing a song inside a playlist queues from that song onwards and restarts if played singly beforehand', async () => {
+  const { player, songs, writes } = await createPlayer();
+
+  // Start playing song at index 2 (not the first song) in playlist 'favorites'
+  await player.playPlaylist(songs, 'favorites', 2);
+  assert.deepEqual(ids(player.queue), ['c', 'd', 'e']);
+  assert.deepEqual(writes.at(-1), ['c', 'd', 'e']);
+  assert.equal(player.activeSong.id, 'c');
+  assert.equal(player.queuePlaylistId, 'favorites');
+  assert.equal(player.status, 'Playing');
+
+  // Playing the exact same active song in the same playlist toggles pause/play without rebuilding queue
+  await player.playPlaylist(songs, 'favorites', 2);
+  assert.equal(player.status, 'Paused');
+  assert.deepEqual(ids(player.queue), ['c', 'd', 'e']);
+
+  // Clicking a different song in the same playlist replaces queue from that song onwards
+  await player.playPlaylist(songs, 'favorites', 1);
+  assert.deepEqual(ids(player.queue), ['b', 'c', 'd', 'e']);
+  assert.equal(player.activeSong.id, 'b');
+  assert.equal(player.status, 'Playing');
+
+  // Playing a song outside the queued playlist tail clears queuePlaylistId, and playing inside reloads it
+  await player.play(songs[0]);
+  assert.equal(player.queuePlaylistId, null);
+  await player.playPlaylist(songs, 'favorites', 3);
+  assert.deepEqual(ids(player.queue), ['d', 'e']);
+  assert.equal(player.activeSong.id, 'd');
+  assert.equal(player.queuePlaylistId, 'favorites');
+
+  // If the same song was already playing singly outside a playlist, playing it in the playlist loads the tail
+  const single = await createPlayer();
+  await single.player.play(single.songs[2]);
+  assert.deepEqual(ids(single.player.queue), ['c']);
+  assert.equal(single.player.queuePlaylistId, null);
+  await single.player.playPlaylist(single.songs, 'favorites', 2);
+  assert.deepEqual(ids(single.player.queue), ['c', 'd', 'e']);
+  assert.equal(single.player.activeSong.id, 'c');
+  assert.equal(single.player.queuePlaylistId, 'favorites');
+});

@@ -21,6 +21,7 @@ const SONG_COLUMNS: &[(&str, &str)] = &[
 ];
 const LEGACY_SONG_SETTINGS_MIGRATION: &str = "legacy-instrument-song-settings-v1";
 const MARKER_LABEL_MIGRATION: &str = "marker-label-offsets-v1";
+pub const LIKED_SONGS_PLAYLIST_ID: &str = "liked-songs";
 const TECHNICAL_SONG_FIELDS: &[&str] = &[
     "baseKey", "key", "transpose", "speed", "bpm", "disabledTracks", "mergeNotes",
     "mergeMilliseconds", "holdNotes", "tapThresholdMs",
@@ -189,7 +190,7 @@ impl LibraryDatabase {
         conn.execute(
             "INSERT INTO Playlists (Id, Title, Subtitle, Icon, Gradient, BannerColor, DateCreated)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params!["liked-songs", "Liked Songs", "Favorite songs", "Heart",
+            params![LIKED_SONGS_PLAYLIST_ID, "Liked Songs", "Favorite songs", "Heart",
                 "linear-gradient(135deg, #450af5 0%, #8e8ee5 100%)",
                 "rgba(69, 10, 245, 0.45)", Utc::now().to_rfc3339()],
         )?;
@@ -898,6 +899,20 @@ impl LibraryDatabase {
 
     // --- Playlists ---
 
+    fn playlist_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<PlaylistRecord> {
+        Ok(PlaylistRecord {
+            id: row.get(0)?,
+            title: row.get(1)?,
+            subtitle: row.get(2)?,
+            icon: row.get(3)?,
+            gradient: row.get(4)?,
+            banner_color: row.get(5)?,
+            game_id: row.get(6)?,
+            date_created: row.get(7)?,
+            song_count: row.get::<_, i64>(8)? as usize,
+        })
+    }
+
     pub fn get_playlists(&self) -> Result<Vec<PlaylistRecord>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
@@ -909,19 +924,7 @@ impl LibraryDatabase {
              ORDER BY p.DateCreated ASC",
         )?;
 
-        let rows = stmt.query_map([], |row| {
-            Ok(PlaylistRecord {
-                id: row.get(0)?,
-                title: row.get(1)?,
-                subtitle: row.get(2)?,
-                icon: row.get(3)?,
-                gradient: row.get(4)?,
-                banner_color: row.get(5)?,
-                game_id: row.get(6)?,
-                date_created: row.get(7)?,
-                song_count: row.get::<_, i64>(8)? as usize,
-            })
-        })?;
+        let rows = stmt.query_map([], Self::playlist_from_row)?;
 
         let mut playlists = Vec::new();
         for r in rows {
@@ -930,24 +933,37 @@ impl LibraryDatabase {
         Ok(playlists)
     }
 
-    pub fn create_playlist(&self, title: &str, icon: Option<&str>, banner_color: Option<&str>) -> Result<PlaylistRecord, rusqlite::Error> {
+    pub fn create_playlist_with_details(
+        &self,
+        title: &str,
+        subtitle: Option<&str>,
+        icon: Option<&str>,
+        gradient: Option<&str>,
+        banner_color: Option<&str>,
+    ) -> Result<PlaylistRecord, rusqlite::Error> {
+        let trimmed_title = title.trim();
+        if trimmed_title.is_empty() {
+            return Err(rusqlite::Error::InvalidParameterName("Playlist title cannot be empty".into()));
+        }
+        let normalized_subtitle = subtitle.map(str::trim).filter(|s| !s.is_empty()).map(str::to_string);
+        let icon_str = icon.map(str::trim).filter(|s| !s.is_empty()).unwrap_or("MusicNote2");
+        let gradient_str = gradient.map(str::trim).filter(|s| !s.is_empty()).unwrap_or("linear-gradient(135deg, #1DB954 0%, #0d9488 100%)");
+        let banner_str = banner_color.map(str::trim).filter(|s| !s.is_empty()).unwrap_or("rgba(29, 185, 84, 0.45)");
+
         let conn = self.conn.lock().unwrap();
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
-        let icon_str = icon.unwrap_or("MusicNote2");
-        let gradient_str = "linear-gradient(135deg, #1DB954 0%, #0d9488 100%)";
-        let banner_str = banner_color.unwrap_or("rgba(29, 185, 84, 0.45)");
 
         conn.execute(
             "INSERT INTO Playlists (Id, Title, Subtitle, Icon, Gradient, BannerColor, DateCreated)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![id, title, "Custom playlist", icon_str, gradient_str, banner_str, now],
+            params![id, trimmed_title, normalized_subtitle, icon_str, gradient_str, banner_str, now],
         )?;
 
         Ok(PlaylistRecord {
             id,
-            title: title.to_string(),
-            subtitle: Some("Custom playlist".to_string()),
+            title: trimmed_title.to_string(),
+            subtitle: normalized_subtitle,
             icon: Some(icon_str.to_string()),
             gradient: Some(gradient_str.to_string()),
             banner_color: Some(banner_str.to_string()),
@@ -957,9 +973,67 @@ impl LibraryDatabase {
         })
     }
 
-    pub fn delete_playlist(&self, id: &str) -> Result<(), rusqlite::Error> {
+    pub fn create_playlist(&self, title: &str, icon: Option<&str>, banner_color: Option<&str>) -> Result<PlaylistRecord, rusqlite::Error> {
+        self.create_playlist_with_details(title, None, icon, None, banner_color)
+    }
+
+    pub fn update_playlist(
+        &self,
+        id: &str,
+        title: &str,
+        subtitle: Option<&str>,
+        icon: Option<&str>,
+        gradient: Option<&str>,
+        banner_color: Option<&str>,
+    ) -> Result<PlaylistRecord, rusqlite::Error> {
+        if id == LIKED_SONGS_PLAYLIST_ID {
+            return Err(rusqlite::Error::InvalidParameterName("Built-in playlist cannot be modified".into()));
+        }
+        let trimmed_title = title.trim();
+        if trimmed_title.is_empty() {
+            return Err(rusqlite::Error::InvalidParameterName("Playlist title cannot be empty".into()));
+        }
+        let normalized_subtitle = subtitle.map(str::trim).filter(|s| !s.is_empty());
+        let normalized_icon = icon.map(str::trim).filter(|s| !s.is_empty());
+        let normalized_gradient = gradient.map(str::trim).filter(|s| !s.is_empty());
+        let normalized_banner = banner_color.map(str::trim).filter(|s| !s.is_empty());
+
         let conn = self.conn.lock().unwrap();
-        conn.execute("DELETE FROM Playlists WHERE Id = ?1", [id])?;
+        let changed = conn.execute(
+            "UPDATE Playlists
+             SET Title = ?1,
+                 Subtitle = ?2,
+                 Icon = COALESCE(?3, Icon),
+                 Gradient = COALESCE(?4, Gradient),
+                 BannerColor = COALESCE(?5, BannerColor)
+             WHERE Id = ?6",
+            params![trimmed_title, normalized_subtitle, normalized_icon, normalized_gradient, normalized_banner, id],
+        )?;
+        if changed == 0 {
+            return Err(rusqlite::Error::InvalidParameterName("Playlist does not exist".into()));
+        }
+
+        conn.query_row(
+            "SELECT p.Id, p.Title, p.Subtitle, p.Icon, p.Gradient, p.BannerColor, p.GameId, p.DateCreated,
+                    COUNT(ps.SongId) as SongCount
+             FROM Playlists p
+             LEFT JOIN PlaylistSongs ps ON p.Id = ps.PlaylistId
+             WHERE p.Id = ?1
+             GROUP BY p.Id",
+            [id],
+            Self::playlist_from_row,
+        )
+    }
+
+    pub fn delete_playlist(&self, id: &str) -> Result<(), rusqlite::Error> {
+        if id == LIKED_SONGS_PLAYLIST_ID {
+            return Err(rusqlite::Error::InvalidParameterName("Built-in playlist cannot be deleted".into()));
+        }
+        let conn = self.conn.lock().unwrap();
+        let changed = conn.execute("DELETE FROM Playlists WHERE Id = ?1", [id])?;
+        if changed == 0 {
+            return Err(rusqlite::Error::InvalidParameterName("Playlist does not exist".into()));
+        }
         Ok(())
     }
 

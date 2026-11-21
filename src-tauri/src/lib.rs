@@ -4,6 +4,8 @@ mod desktop_open;
 mod media_controls;
 #[cfg(windows)]
 mod taskbar;
+#[cfg(windows)]
+mod file_drop;
 mod midi_input;
 #[cfg(target_os = "linux")]
 mod hotkeys_wayland;
@@ -1399,12 +1401,43 @@ async fn get_playlists(state: State<'_, AppState>) -> Result<Vec<PlaylistRecord>
 #[tauri::command]
 fn create_playlist(
     title: String,
+    subtitle: Option<String>,
     icon: Option<String>,
+    gradient: Option<String>,
     banner_color: Option<String>,
     state: State<AppState>,
     app: AppHandle,
 ) -> Result<PlaylistRecord, String> {
-    let pl = state.db.create_playlist(&title, icon.as_deref(), banner_color.as_deref()).map_err(|e| e.to_string())?;
+    let pl = state.db.create_playlist_with_details(
+        &title,
+        subtitle.as_deref(),
+        icon.as_deref(),
+        gradient.as_deref(),
+        banner_color.as_deref(),
+    ).map_err(|e| e.to_string())?;
+    let _ = app.emit("library:updated", ());
+    Ok(pl)
+}
+
+#[tauri::command]
+fn update_playlist(
+    id: String,
+    title: String,
+    subtitle: Option<String>,
+    icon: Option<String>,
+    gradient: Option<String>,
+    banner_color: Option<String>,
+    state: State<AppState>,
+    app: AppHandle,
+) -> Result<PlaylistRecord, String> {
+    let pl = state.db.update_playlist(
+        &id,
+        &title,
+        subtitle.as_deref(),
+        icon.as_deref(),
+        gradient.as_deref(),
+        banner_color.as_deref(),
+    ).map_err(|e| e.to_string())?;
     let _ = app.emit("library:updated", ());
     Ok(pl)
 }
@@ -2197,6 +2230,11 @@ pub fn run() {
                 log::warn!("Unable to initialize taskbar controls: {error}");
             }
 
+            #[cfg(windows)]
+            if let Err(error) = file_drop::install(app.handle()) {
+                log::warn!("Unable to initialize Windows file drop handler: {error}");
+            }
+
             // Tray failure must leave normal minimize/close behavior available.
             if let Err(error) = tray::install(app.handle()) {
                 log::warn!("Unable to initialize system tray: {error}");
@@ -2597,6 +2635,7 @@ pub fn run() {
             resolve_library_file_issue,
             get_playlists,
             create_playlist,
+            update_playlist,
             delete_playlist,
             add_to_playlist,
             remove_from_playlist,

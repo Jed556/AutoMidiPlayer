@@ -16,6 +16,15 @@ impl Drop for TestDirectory {
     }
 }
 
+fn drain_prewatch_events(rx: &mpsc::Receiver<()>) {
+    // macOS FSEvents processes /dev/fsevents asynchronously and may deliver
+    // fixture-creation events that happened immediately before the stream started.
+    #[cfg(target_os = "macos")]
+    while rx.recv_timeout(Duration::from_millis(1000)).is_ok() {}
+    #[cfg(not(target_os = "macos"))]
+    let _ = rx;
+}
+
 #[test]
 fn soundfont_watcher_detects_deletions_renames_and_directory_recreation() {
     let temp = TestDirectory::new();
@@ -25,6 +34,7 @@ fn soundfont_watcher_detects_deletions_renames_and_directory_recreation() {
     fs::write(&font, b"test font").unwrap();
     let (tx, rx) = mpsc::channel();
     let _watcher = DirectoryWatcher::watch_soundfonts(&root, move || { let _ = tx.send(()); }).unwrap();
+    drain_prewatch_events(&rx);
     // Reading a font and changing unrelated files must not trigger a reload loop.
     fs::read(&font).unwrap();
     fs::write(root.join("LICENSE.txt"), b"license").unwrap();
@@ -62,6 +72,7 @@ fn source_file_watcher_ignores_other_fonts_and_detects_removal_and_restoration()
     fs::write(&font, b"source").unwrap();
     let (tx, rx) = mpsc::channel();
     let _watcher = DirectoryWatcher::watch_soundfont_file(&font, move || { let _ = tx.send(()); }).unwrap();
+    drain_prewatch_events(&rx);
     fs::read(&font).unwrap();
     fs::write(root.join("Unrelated.sf2"), b"other").unwrap();
     assert!(rx.recv_timeout(Duration::from_millis(800)).is_err());

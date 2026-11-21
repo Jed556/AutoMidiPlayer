@@ -1,9 +1,15 @@
 <script lang="ts">
+  import type { MidiFile } from '$shared/types/midi';
   import { searchOverflow } from '../../actions/searchOverflow';
+  import { portal } from '../../actions/portal';
   import { playbackStore } from '../../state/playbackStore.svelte';
   import { uiStore } from '../../state/uiStore.svelte';
   import { gameStore } from '../../state/gameStore.svelte';
-  import { libraryStore, type PlaylistInfo } from '../../state/libraryStore.svelte';
+  import { ALL_SONGS_PLAYLIST_ID, libraryStore, type PlaylistInfo } from '../../state/libraryStore.svelte';
+  import { sortLibrarySongs } from '../../utils/libraryOrdering';
+  import { confirmAndDeletePlaylist } from '../../utils/playlistActions';
+  import { computeContextMenuPosition } from '../../utils/contextMenu';
+  import { popupScaleIn, popupScaleOut } from '../../utils/transitions';
   import { t } from '../../i18n';
   import FluentIcon from '../Icons/FluentIcon.svelte';
   import CustomScrollViewer from '../Common/CustomScrollViewer.svelte';
@@ -36,17 +42,98 @@
     uiStore.activeTab = 'songs';
   }
 
-  function playPlaylist(e: MouseEvent, playlist: PlaylistInfo) {
-    e.stopPropagation();
+  function getPlaylistOrderedSongs(playlist: PlaylistInfo): MidiFile[] {
+    const isAllSongs = playlist.id === ALL_SONGS_PLAYLIST_ID || playlist.id === 'all-songs';
+    const raw = isAllSongs ? libraryStore.songs : (libraryStore.songsByPlaylist[playlist.id] ?? []);
+    return sortLibrarySongs(
+      raw,
+      uiStore.songsSortMode,
+      uiStore.songsSortDirection,
+      isAllSongs ? uiStore.librarySongOrder : []
+    );
+  }
+
+  function startPlaylistPlayback(playlist: PlaylistInfo) {
     libraryStore.selectedPlaylistId = playlist.id;
     uiStore.activeTab = 'songs';
-    const songs = playlist.id === 'songs'
-      ? libraryStore.songs
-      : libraryStore.songsByPlaylist[playlist.id] ?? [];
+    const songs = getPlaylistOrderedSongs(playlist);
     if (songs.length > 0) {
-      playbackStore.loadSong(songs[0]);
-      playbackStore.play();
+      void playbackStore.playPlaylist(songs, playlist.id);
     }
+  }
+
+  function playPlaylist(e: MouseEvent, playlist: PlaylistInfo) {
+    e.stopPropagation();
+    startPlaylistPlayback(playlist);
+  }
+
+  let playlistMenuState = $state<{ key: number; playlistId: string; pos: { x: number; y: number } } | null>(null);
+  let playlistMenuKey = $state(0);
+
+  let activePlaylistMenu = $derived.by(() => {
+    if (!playlistMenuState) return null;
+    const playlist = libraryStore.playlists.find((pl) => pl.id === playlistMenuState!.playlistId);
+    if (!playlist) return null;
+    return { key: playlistMenuState.key, playlist, pos: playlistMenuState.pos };
+  });
+
+  function handlePlaylistContextMenu(e: MouseEvent, playlist: PlaylistInfo) {
+    e.preventDefault();
+    e.stopPropagation();
+    playlistMenuKey += 1;
+    playlistMenuState = { key: playlistMenuKey, playlistId: playlist.id, pos: { x: e.clientX, y: e.clientY } };
+  }
+
+  function closePlaylistMenu() {
+    playlistMenuState = null;
+  }
+
+  function applyPlaylistMenuLayout(node: HTMLElement, anchor: { x: number; y: number }) {
+    const width = node.offsetWidth || 180;
+    const height = node.offsetHeight || 120;
+    const layout = computeContextMenuPosition(
+      anchor,
+      { width, height },
+      { width: window.innerWidth, height: window.innerHeight }
+    );
+    node.style.left = `${layout.left}px`;
+    node.style.top = `${layout.top}px`;
+    node.style.transformOrigin = `${layout.originX}px ${layout.originY}px`;
+  }
+
+  function positionPlaylistMenu(node: HTMLElement, anchor: { x: number; y: number }) {
+    const mounted = portal(node, document.body);
+    applyPlaylistMenuLayout(node, anchor);
+    return {
+      update(nextAnchor: { x: number; y: number }) {
+        applyPlaylistMenuLayout(node, nextAnchor);
+      },
+      destroy() {
+        mounted.destroy();
+      }
+    };
+  }
+
+  function getInitialPlaylistMenuStyle(anchor: { x: number; y: number }): string {
+    const viewport = typeof window !== 'undefined'
+      ? { width: window.innerWidth, height: window.innerHeight }
+      : { width: 1280, height: 720 };
+    const layout = computeContextMenuPosition(anchor, { width: 180, height: 120 }, viewport);
+    return `position: fixed; left: ${layout.left}px; top: ${layout.top}px; transform-origin: ${layout.originX}px ${layout.originY}px;`;
+  }
+
+  function prefersReducedMotion(): boolean {
+    return typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  function playlistMenuIn(node: Element) {
+    return prefersReducedMotion() ? { duration: 0 } : popupScaleIn(node);
+  }
+
+  function playlistMenuOut(node: Element) {
+    return activePlaylistMenu !== null || prefersReducedMotion() ? { duration: 0 } : popupScaleOut(node);
   }
 
   let isSettingsActive = $derived((uiStore.activeTab || '').toLowerCase() === 'settings');
@@ -65,17 +152,21 @@
   <button
     type="button"
     class="new-playlist-button"
-    class:selected={uiStore.activeTab === 'new-playlist'}
-    aria-current={uiStore.activeTab === 'new-playlist' ? 'page' : undefined}
+    class:selected={uiStore.activeDialog === 'playlist' && uiStore.dialogData?.mode === 'create'}
     aria-label={t('playlists.newPlaylist')}
     title={t('playlists.newPlaylist')}
     data-tooltip-position="right"
     data-tooltip-follow="false"
-    onclick={() => selectTab('new-playlist')}
+    onclick={() => uiStore.openDialog('playlist', { mode: 'create' })}
   >
     <span class="new-playlist-icon"><FluentIcon name="Add" size={uiStore.libraryMode === 'compressed' ? 24 : 18} /></span>
   </button>
 {/snippet}
+
+<svelte:window
+  onclick={closePlaylistMenu}
+  onkeydown={(e) => { if (e.key === 'Escape' && playlistMenuState) closePlaylistMenu(); }}
+/>
 
 <aside
   class="nav-drawer"
@@ -136,6 +227,7 @@
         contentStyle="align-items: center; padding: 0 0 16px;"
         showScrollbar={false}
         fadeHeight={16}
+        onscroll={closePlaylistMenu}
       >
         {#each libraryStore.playlists as playlist (playlist.id)}
           {@const isSelected = libraryStore.selectedPlaylistId === playlist.id && uiStore.activeTab === 'songs'}
@@ -143,8 +235,10 @@
             type="button"
             class="compressed-playlist-item"
             class:selected={isSelected}
+            data-playlist-id={playlist.id}
             onclick={() => selectPlaylist(playlist)}
             ondblclick={(e) => playPlaylist(e, playlist)}
+            oncontextmenu={(e) => handlePlaylistContextMenu(e, playlist)}
             title="{playlist.title} • {playlist.subtitle}"
             aria-label={playlist.title}
             data-tooltip-position="right"
@@ -266,6 +360,7 @@
         contentClass="library-grid-scroll"
         persistenceKey={`playlists:${uiStore.libraryMode}`}
         fadeHeight={32}
+        onscroll={closePlaylistMenu}
       >
         <div class="cards-grid {uiStore.libraryMode}" data-tooltip-disabled="true">
           {#each filteredPlaylists as playlist (playlist.id)}
@@ -273,9 +368,11 @@
             <div
               class="playlist-card"
               class:selected={isSelected}
+              data-playlist-id={playlist.id}
               role="button"
               tabindex="0"
               onclick={() => selectPlaylist(playlist)}
+              oncontextmenu={(e) => handlePlaylistContextMenu(e, playlist)}
               onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') selectPlaylist(playlist); }}
             >
               <!-- Thumbnail Box -->
@@ -329,6 +426,48 @@
     </div>
   {/if}
 </aside>
+
+{#each activePlaylistMenu ? [activePlaylistMenu] : [] as menu (menu.key)}
+  <div
+    class="playlist-context-menu"
+    style={getInitialPlaylistMenuStyle(menu.pos)}
+    role="menu"
+    tabindex="-1"
+    use:positionPlaylistMenu={menu.pos}
+    in:playlistMenuIn
+    out:playlistMenuOut
+    onclick={(e) => e.stopPropagation()}
+    oncontextmenu={(e) => e.preventDefault()}
+    onkeydown={(e) => { if (e.key === 'Escape') closePlaylistMenu(); }}
+  >
+    <button
+      type="button"
+      class="playlist-context-item"
+      onclick={() => { const pl = menu.playlist; closePlaylistMenu(); startPlaylistPlayback(pl); }}
+    >
+      <FluentIcon name="Play" size={14} />
+      <span>{t('player.play')}</span>
+    </button>
+    {#if !menu.playlist.isBuiltIn}
+      <button
+        type="button"
+        class="playlist-context-item"
+        onclick={() => { const pl = menu.playlist; closePlaylistMenu(); uiStore.openDialog('playlist', { mode: 'edit', playlist: pl }); }}
+      >
+        <FluentIcon name="Edit" size={14} />
+        <span>{t('playlists.editPlaylist')}</span>
+      </button>
+      <button
+        type="button"
+        class="playlist-context-item danger"
+        onclick={() => { const pl = menu.playlist; closePlaylistMenu(); void confirmAndDeletePlaylist(pl); }}
+      >
+        <FluentIcon name="Delete" size={14} />
+        <span>{t('playlists.deletePlaylist')}</span>
+      </button>
+    {/if}
+  </div>
+{/each}
 
 <style>
   .new-playlist-button {
@@ -1130,5 +1269,50 @@
     overflow: hidden;
     text-overflow: ellipsis;
     opacity: 0.8;
+  }
+
+  .playlist-context-menu {
+    position: fixed;
+    z-index: 2147483646;
+    will-change: transform, opacity;
+    background: var(--bg-dialog, #282828);
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    padding: 4px;
+    min-width: 170px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .playlist-context-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    transition: background 0.12s ease;
+    user-select: none;
+  }
+
+  .playlist-context-item:hover {
+    background: var(--bg-hover, rgba(255, 255, 255, 0.1));
+  }
+
+  .playlist-context-item.danger {
+    color: #ff5252;
+  }
+
+  .playlist-context-item.danger:hover {
+    background: rgba(255, 82, 82, 0.15);
   }
 </style>

@@ -422,23 +422,6 @@ class PlaybackStore {
           listen('queue:updated', () => {
             this.loadQueueFromDb().catch(console.error);
           });
-          listen<{ paths: string[] }>('tauri://drag-drop', async (event) => {
-            const paths = event.payload?.paths;
-            if (Array.isArray(paths) && paths.length > 0) {
-              const midPath = paths.find((p: string) => p.endsWith('.mid') || p.endsWith('.midi'));
-              if (midPath) {
-                try {
-                  const imported = await api.playback.loadMidiFile(midPath);
-                  if (imported) {
-                    this.play(imported);
-                    notificationCenter.success(`Loaded MIDI: ${imported.title}`);
-                  }
-                } catch (e) {
-                  console.error('Failed to load dropped MIDI:', e);
-                }
-              }
-            }
-          });
         });
       }
 
@@ -1153,15 +1136,30 @@ class PlaybackStore {
     return this.persistQueue();
   }
 
-  async playPlaylist(songs: MidiFile[], playlistId: string) {
+  async playPlaylist(songs: MidiFile[], playlistId: string, startIndex?: number) {
     if (songs.length === 0) return;
-    if (this.queuePlaylistId === playlistId && songs.some(s => s.id === this.activeSong?.id)
-      && this.queue.some(s => s.id === this.activeSong?.id)) {
+    const hasExplicitStart = startIndex !== undefined;
+    const clampedStart = hasExplicitStart
+      ? Math.max(0, Math.min(startIndex, songs.length - 1))
+      : 0;
+    const targetSong = songs[clampedStart];
+    if (!targetSong) return;
+
+    if (!hasExplicitStart) {
+      if (this.queuePlaylistId === playlistId && songs.some(s => s.id === this.activeSong?.id)
+        && this.queue.some(s => s.id === this.activeSong?.id)) {
+        await this.togglePlay();
+        return;
+      }
+    } else if (this.queuePlaylistId === playlistId && this.activeSong?.id === targetSong.id
+      && this.queue.some(s => s.id === targetSong.id)) {
       await this.togglePlay();
       return;
     }
-    await this.setQueueList(songs, 0, playlistId);
-    await this.play(songs[0]);
+
+    const queuedSongs = songs.slice(clampedStart);
+    await this.setQueueList(queuedSongs, 0, playlistId);
+    await this.play(queuedSongs[0]);
   }
 
   private notifyMissingLayout() {

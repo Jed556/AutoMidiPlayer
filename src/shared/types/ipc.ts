@@ -163,10 +163,19 @@ export interface LibraryScanSummary {
   newConflicts?: number;
 }
 
+export interface PlaylistDetailsInput {
+  title: string;
+  subtitle?: string;
+  icon?: string;
+  gradient?: string;
+  bannerColor?: string;
+}
+
 export interface PlaylistsApi {
   reorderPlaylist: (playlistId: string, songIds: string[]) => Promise<boolean>;
   getPlaylists: () => Promise<any[]>;
-  createPlaylist: (title: string, icon?: string, bannerColor?: string) => Promise<any>;
+  createPlaylist: (title: string, icon?: string, bannerColor?: string, subtitle?: string, gradient?: string) => Promise<any>;
+  updatePlaylist: (id: string, details: PlaylistDetailsInput) => Promise<any>;
   deletePlaylist: (id: string) => Promise<boolean>;
   addToPlaylist: (playlistId: string, songId: string) => Promise<boolean>;
   removeFromPlaylist: (playlistId: string, songId: string) => Promise<boolean>;

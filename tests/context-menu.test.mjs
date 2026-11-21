@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { compile } from 'svelte/compiler';
 import {
   computeContextMenuPosition,
+  computeSubmenuPosition,
   handleAppContextMenu,
   shouldAllowNativeContextMenu,
 } from '../src/renderer/lib/utils/contextMenu.ts';
@@ -139,7 +140,11 @@ test('SongListTable and SongListRow animate context menus and wire Liked Songs a
   const rowSource = readFileSync(new URL('../src/renderer/lib/components/Common/SongListRow.svelte', import.meta.url), 'utf8');
 
   assert.match(tableSource, /import \{ portal \} from '\.\.\/\.\.\/actions\/portal'/);
+  assert.match(tableSource, /import \{ createFrameResizeObserver \} from '\.\.\/\.\.\/utils\/frameResizeObserver'/);
   assert.match(tableSource, /portal\(node, document\.body\)/);
+  assert.match(tableSource, /introend/);
+  assert.match(tableSource, /CustomScrollViewer/);
+  assert.match(tableSource, /is-selected/);
   assert.match(tableSource, /z-index: 2147483646/);
   assert.match(tableSource, /\{#each floatingMenu \? \[floatingMenu\] : \[\] as menu \(menu\.key\)\}/);
   assert.match(tableSource, /use:positionContextMenu=\{menu\.pos\}/);
@@ -157,9 +162,78 @@ test('SongListTable and SongListRow animate context menus and wire Liked Songs a
   assert.match(rowSource, /ontoggleliked/);
   assert.match(rowSource, /songs\.addToLikedSongs/);
   assert.match(rowSource, /songs\.removeFromLikedSongs/);
+  assert.match(rowSource, /songs\.addToPlaylist/);
+  assert.match(rowSource, /onremovefromplaylist/);
+
+  const navSource = readFileSync(new URL('../src/renderer/lib/components/Layout/NavigationDrawer.svelte', import.meta.url), 'utf8');
+  const songsViewSource = readFileSync(new URL('../src/renderer/lib/views/SongsView.svelte', import.meta.url), 'utf8');
+  const dialogSource = readFileSync(new URL('../src/renderer/lib/components/Dialogs/PlaylistDialog.svelte', import.meta.url), 'utf8');
+
+  assert.match(navSource, /playlist-context-menu/);
+  assert.match(navSource, /!menu\.playlist\.isBuiltIn/);
+  assert.match(songsViewSource, /isCustomPlaylist/);
+  assert.match(songsViewSource, /confirmAndDeletePlaylist/);
 
   const tableCompiled = compile(tableSource, { filename: 'SongListTable.svelte', generate: 'client' });
   const rowCompiled = compile(rowSource, { filename: 'SongListRow.svelte', generate: 'client' });
+  const navCompiled = compile(navSource, { filename: 'NavigationDrawer.svelte', generate: 'client' });
+  const songsViewCompiled = compile(songsViewSource, { filename: 'SongsView.svelte', generate: 'client' });
+  const dialogCompiled = compile(dialogSource, { filename: 'PlaylistDialog.svelte', generate: 'client' });
   assert.ok(tableCompiled.js.code.length > 0);
   assert.ok(rowCompiled.js.code.length > 0);
+  assert.ok(navCompiled.js.code.length > 0);
+  assert.ok(songsViewCompiled.js.code.length > 0);
+  assert.ok(dialogCompiled.js.code.length > 0);
+});
+
+test('computeSubmenuPosition opens right when space permits and flips left near right edge', () => {
+  const submenuSize = { width: 210, height: 220 };
+  const viewport = { width: 1280, height: 720 };
+
+  assert.deepEqual(
+    computeSubmenuPosition({ left: 300, right: 500, top: 240, bottom: 274 }, submenuSize, viewport),
+    { left: 504, top: 236, originX: 0, originY: 16 },
+  );
+
+  assert.deepEqual(
+    computeSubmenuPosition({ left: 960, right: 1160, top: 560, bottom: 594 }, submenuSize, viewport),
+    { left: 746, top: 492, originX: 210, originY: 80 },
+  );
+});
+
+test('ActionDialog passes footer snippet directly to ContentDialog and delete playlist hides close button', () => {
+  const actionDialogSource = readFileSync(new URL('../src/renderer/lib/components/Dialogs/ActionDialog.svelte', import.meta.url), 'utf8');
+  const playlistActionsSource = readFileSync(new URL('../src/renderer/lib/utils/playlistActions.ts', import.meta.url), 'utf8');
+
+  assert.doesNotMatch(actionDialogSource, /\{#if hasButtons\(\)\}\s*\{#snippet footer\(\)\}/);
+  assert.match(actionDialogSource, /hideFooter=\{!hasButtons\(\)\}/);
+
+  const actionCompiled = compile(actionDialogSource, { filename: 'ActionDialog.svelte', generate: 'client' });
+  assert.match(actionCompiled.js.code, /\bfooter:\s*footer\b|\bfooter,/);
+
+  assert.match(playlistActionsSource, /showCloseButton:\s*false/);
+  assert.match(playlistActionsSource, /cancelButton:/);
+  assert.match(playlistActionsSource, /confirmButton:/);
+});
+
+test('Tauri drag-drop is enabled, wired in App, removed from playbackStore, and playlist-aware in SongsView and NavigationDrawer', () => {
+  const tauriConf = JSON.parse(readFileSync(new URL('../src-tauri/tauri.conf.json', import.meta.url), 'utf8'));
+  const appSource = readFileSync(new URL('../src/renderer/App.svelte', import.meta.url), 'utf8');
+  const playbackSource = readFileSync(new URL('../src/renderer/lib/state/playbackStore.svelte.ts', import.meta.url), 'utf8');
+  const navSource = readFileSync(new URL('../src/renderer/lib/components/Layout/NavigationDrawer.svelte', import.meta.url), 'utf8');
+  const songsViewSource = readFileSync(new URL('../src/renderer/lib/views/SongsView.svelte', import.meta.url), 'utf8');
+
+  assert.equal(tauriConf.app?.windows?.[0]?.dragDropEnabled, true);
+  assert.match(appSource, /onDragDropEvent/);
+  assert.match(appSource, /window:file-drop/);
+  assert.doesNotMatch(playbackSource, /tauri:\/\/drag-drop/);
+  assert.match(navSource, /data-playlist-id=\{playlist\.id\}/);
+  assert.match(songsViewSource, /importMidiFilesWithFeedback\(undefined,\s*currentPlaylist\?\.id\)/);
+
+  const appCompiled = compile(appSource, { filename: 'App.svelte', generate: 'client' });
+  const navCompiled = compile(navSource, { filename: 'NavigationDrawer.svelte', generate: 'client' });
+  const songsViewCompiled = compile(songsViewSource, { filename: 'SongsView.svelte', generate: 'client' });
+  assert.ok(appCompiled.js.code.length > 0);
+  assert.ok(navCompiled.js.code.length > 0);
+  assert.ok(songsViewCompiled.js.code.length > 0);
 });

@@ -259,8 +259,10 @@ export function createAppApi(): AppWindowApi {
     playlists: {
       reorderPlaylist: (playlistId, songIds) => invokeTauri<boolean>('Playlists', 'reorder_playlist', { playlistId, songIds }),
       getPlaylists: () => invokeTauri('Playlists', 'get_playlists', undefined),
-      createPlaylist: (title, icon, bannerColor) =>
-        invokeTauri('Playlists', 'create_playlist', { title, icon, bannerColor }),
+      createPlaylist: (title, icon, bannerColor, subtitle, gradient) =>
+        invokeTauri('Playlists', 'create_playlist', { title, subtitle, icon, gradient, bannerColor }),
+      updatePlaylist: (id, details) =>
+        invokeTauri('Playlists', 'update_playlist', { id, ...details }),
       deletePlaylist: (id) => invokeTauri<boolean>('Playlists', 'delete_playlist', { id }),
       addToPlaylist: (playlistId, songId) =>
         invokeTauri<boolean>('Playlists', 'add_to_playlist', { playlistId, songId }),

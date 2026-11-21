@@ -1,7 +1,7 @@
 use crate::logging::{self, LogChannel};
 use chrono::{DateTime, Utc};
 use sentry::protocol::Event;
-use sentry::{ClientInitGuard, ClientOptions, Hub, Level};
+use sentry::{ClientInitGuard, ClientOptions, Hub, Level, Scope, User};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::fs;
@@ -20,6 +20,8 @@ pub const OPT_OUT_REFRESH_INTERVAL_DAYS: i64 = 30; // 30 days (1 month)
 pub struct PersistentTelemetryConfig {
     pub last_opted_out_date: Option<DateTime<Utc>>,
     pub has_shown_first_launch: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anonymous_id: Option<String>,
 }
 
 impl Default for PersistentTelemetryConfig {
@@ -27,6 +29,7 @@ impl Default for PersistentTelemetryConfig {
         Self {
             last_opted_out_date: None,
             has_shown_first_launch: true,
+            anonymous_id: None,
         }
     }
 }
@@ -47,9 +50,36 @@ pub fn load_telemetry_config() -> PersistentTelemetryConfig {
 
 pub fn save_telemetry_config(cfg: &PersistentTelemetryConfig) {
     let path = get_telemetry_config_path();
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
     if let Ok(json) = serde_json::to_string_pretty(cfg) {
         let _ = fs::write(path, json);
     }
+}
+
+fn ensure_anonymous_id_with(
+    load_config: impl FnOnce() -> PersistentTelemetryConfig,
+    save_config: impl FnOnce(&PersistentTelemetryConfig),
+) -> String {
+    let mut config = load_config();
+    if let Some(existing) = config
+        .anonymous_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+    {
+        return existing.to_string();
+    }
+
+    let generated = sentry::types::random_uuid().to_string();
+    config.anonymous_id = Some(generated.clone());
+    save_config(&config);
+    generated
+}
+
+fn get_or_create_anonymous_id() -> String {
+    ensure_anonymous_id_with(load_telemetry_config, save_telemetry_config)
 }
 
 /// Own the hub explicitly: startup and IPC commands run on different threads.
@@ -60,8 +90,16 @@ struct TelemetryClient {
 }
 
 impl TelemetryClient {
-    fn new(options: ClientOptions) -> Self {
-        let hub = Arc::new(Hub::new(None, Default::default()));
+    fn new(options: ClientOptions, anonymous_user_id: Option<String>) -> Self {
+        // Populate the scope before `sentry::init` so auto-started Release Health sessions capture `distinct_id`.
+        let mut scope = Scope::default();
+        if let Some(user_id) = anonymous_user_id {
+            scope.set_user(Some(User {
+                id: Some(user_id),
+                ..Default::default()
+            }));
+        }
+        let hub = Arc::new(Hub::new(None, Arc::new(scope)));
         let guard = Hub::run(hub.clone(), || sentry::init(options));
         Self { hub, guard }
     }
@@ -274,7 +312,8 @@ fn start_sentry() {
         Some(event)
     }));
 
-    let client = TelemetryClient::new(options);
+    let anonymous_id = get_or_create_anonymous_id();
+    let client = TelemetryClient::new(options, Some(anonymous_id));
 
     client.hub.configure_scope(|scope| {
         scope.set_tag("Opted", "in");
@@ -294,6 +333,7 @@ fn build_opt_out_options() -> ClientOptions {
     options.send_default_pii = false;
     options.before_send = Some(Arc::new(|mut event: Event<'static>| {
         event.contexts.clear();
+        event.user = None;
         event.server_name = None;
         event.release = None;
         event.tags.insert("Opted".to_string(), "out".to_string());
@@ -308,7 +348,7 @@ fn build_opt_out_options() -> ClientOptions {
 
 fn send_opt_out_with_options(options: ClientOptions) {
     // Keep the temporary opt-out client isolated from the opted-in client/hubs.
-    let client = TelemetryClient::new(options);
+    let client = TelemetryClient::new(options, None);
     client.capture_message("User opted out of telemetry", Level::Info);
     client.guard.flush(Some(Duration::from_secs(2)));
 }
@@ -429,13 +469,32 @@ mod tests {
 
     struct RecordingTransport {
         events: Mutex<Vec<Event<'static>>>,
+        sessions: Mutex<Vec<sentry::protocol::SessionUpdate<'static>>>,
         flush_succeeds: AtomicBool,
+    }
+
+    impl RecordingTransport {
+        fn new() -> Arc<Self> {
+            Arc::new(Self {
+                events: Mutex::new(Vec::new()),
+                sessions: Mutex::new(Vec::new()),
+                flush_succeeds: AtomicBool::new(true),
+            })
+        }
     }
 
     impl sentry::Transport for RecordingTransport {
         fn send_envelope(&self, envelope: sentry::Envelope) {
-            if let Some(event) = envelope.event() {
-                self.events.lock().unwrap().push(event.clone());
+            for item in envelope.items() {
+                match item {
+                    sentry::protocol::EnvelopeItem::Event(event) => {
+                        self.events.lock().unwrap().push((**event).clone());
+                    }
+                    sentry::protocol::EnvelopeItem::SessionUpdate(session) => {
+                        self.sessions.lock().unwrap().push(session.clone());
+                    }
+                    _ => {}
+                }
             }
         }
 
@@ -445,10 +504,7 @@ mod tests {
     }
 
     fn test_state(drop_events: bool) -> (TelemetryState, Arc<RecordingTransport>) {
-        let transport = Arc::new(RecordingTransport {
-            events: Mutex::new(Vec::new()),
-            flush_succeeds: AtomicBool::new(true),
-        });
+        let transport = RecordingTransport::new();
         let mut options = ClientOptions::default();
         options.dsn = Some(SENTRY_DSN.parse().unwrap());
         options.environment = Some(Cow::Borrowed(get_environment()));
@@ -456,7 +512,7 @@ mod tests {
         options.transport = Some(Arc::new(transport.clone()));
         options.before_send =
             drop_events.then(|| Arc::new(|_: Event<'static>| None) as Arc<_>);
-        let client = TelemetryClient::new(options);
+        let client = TelemetryClient::new(options, Some("test-anonymous-id".to_string()));
         client.hub.configure_scope(|scope| scope.set_tag("Opted", "in"));
         (
             TelemetryState {
@@ -587,6 +643,7 @@ mod tests {
         let cfg = PersistentTelemetryConfig {
             last_opted_out_date: Some(Utc::now()),
             has_shown_first_launch: true,
+            anonymous_id: Some("anon-id-123".to_string()),
         };
 
         let json = serde_json::to_string(&cfg).unwrap();
@@ -596,16 +653,25 @@ mod tests {
             serde_json::from_str(&fs::read_to_string(&config_path).unwrap()).unwrap();
         assert_eq!(loaded.has_shown_first_launch, true);
         assert!(loaded.last_opted_out_date.is_some());
+        assert_eq!(loaded.anonymous_id.as_deref(), Some("anon-id-123"));
+
+        let without_id = PersistentTelemetryConfig::default();
+        let without_id_json = serde_json::to_string(&without_id).unwrap();
+        assert!(!without_id_json.contains("anonymous_id"));
+
+        let legacy_json =
+            r#"{"last_opted_out_date":"2026-11-17T15:54:48.680689Z","has_shown_first_launch":true}"#;
+        let legacy_loaded: PersistentTelemetryConfig = serde_json::from_str(legacy_json).unwrap();
+        assert!(legacy_loaded.last_opted_out_date.is_some());
+        assert!(legacy_loaded.has_shown_first_launch);
+        assert!(legacy_loaded.anonymous_id.is_none());
 
         let _ = fs::remove_dir_all(temp_dir);
     }
 
     #[test]
     fn opt_out_event_preserves_environment_and_strips_identifying_metadata() {
-        let transport = Arc::new(RecordingTransport {
-            events: Mutex::new(Vec::new()),
-            flush_succeeds: AtomicBool::new(true),
-        });
+        let transport = RecordingTransport::new();
         let mut options = build_opt_out_options();
         options.default_integrations = false;
         options.transport = Some(Arc::new(transport.clone()));
@@ -617,6 +683,7 @@ mod tests {
         assert_eq!(events[0].message.as_deref(), Some("User opted out of telemetry"));
         assert_eq!(events[0].level, Level::Info);
         assert_eq!(events[0].environment.as_deref(), Some(get_environment()));
+        assert!(events[0].user.is_none());
         assert!(events[0].release.is_none());
         assert!(events[0].server_name.is_none());
         assert!(events[0].contexts.is_empty());
@@ -625,6 +692,89 @@ mod tests {
             events[0].tags.get("distribution").map(String::as_str),
             Some(logging::get_distribution_type())
         );
+    }
+
+    #[test]
+    fn ensure_anonymous_id_generates_and_reuses_uuid_v4() {
+        let stored = Mutex::new(PersistentTelemetryConfig::default());
+        let mut save_count = 0usize;
+
+        let first_id = ensure_anonymous_id_with(
+            || stored.lock().unwrap().clone(),
+            |cfg| {
+                *stored.lock().unwrap() = cfg.clone();
+                save_count += 1;
+            },
+        );
+        let parsed = sentry::types::Uuid::parse_str(&first_id).expect("valid UUID");
+        assert_eq!(parsed.get_version(), Some(sentry::types::UuidVersion::Random));
+        assert_eq!(save_count, 1);
+        assert_eq!(stored.lock().unwrap().anonymous_id.as_deref(), Some(first_id.as_str()));
+
+        let reused_id = ensure_anonymous_id_with(
+            || stored.lock().unwrap().clone(),
+            |cfg| {
+                *stored.lock().unwrap() = cfg.clone();
+                save_count += 1;
+            },
+        );
+        assert_eq!(reused_id, first_id);
+        assert_eq!(save_count, 1);
+
+        stored.lock().unwrap().anonymous_id = Some("   ".to_string());
+        let regenerated_id = ensure_anonymous_id_with(
+            || stored.lock().unwrap().clone(),
+            |cfg| {
+                *stored.lock().unwrap() = cfg.clone();
+                save_count += 1;
+            },
+        );
+        let parsed_regenerated = sentry::types::Uuid::parse_str(&regenerated_id).expect("valid UUID");
+        assert_eq!(
+            parsed_regenerated.get_version(),
+            Some(sentry::types::UuidVersion::Random)
+        );
+        assert_eq!(save_count, 2);
+    }
+
+    #[test]
+    fn opted_in_client_attaches_anonymous_user_id_without_pii() {
+        let (state, transport) = test_state(false);
+        state
+            .client
+            .as_ref()
+            .unwrap()
+            .capture_message("User started app", Level::Info);
+
+        let events = transport.events.lock().unwrap();
+        assert_eq!(events.len(), 1);
+        let user = events[0].user.as_ref().expect("user context should be set");
+        assert_eq!(user.id.as_deref(), Some("test-anonymous-id"));
+        assert!(user.email.is_none());
+        assert!(user.username.is_none());
+        assert!(user.ip_address.is_none());
+    }
+
+    #[test]
+    fn opted_in_client_attaches_distinct_id_to_auto_session() {
+        let transport = RecordingTransport::new();
+        let mut options = ClientOptions::default();
+        options.dsn = Some(SENTRY_DSN.parse().unwrap());
+        options.release = Some(Cow::Borrowed("auto-midi-player@test"));
+        options.environment = Some(Cow::Borrowed(get_environment()));
+        options.auto_session_tracking = true;
+        options.default_integrations = false;
+        options.send_default_pii = false;
+        options.transport = Some(Arc::new(transport.clone()));
+
+        let client = TelemetryClient::new(options, Some("test-anonymous-id".to_string()));
+        drop(client);
+
+        let sessions = transport.sessions.lock().unwrap();
+        assert!(!sessions.is_empty());
+        assert!(sessions
+            .iter()
+            .all(|s| s.distinct_id.as_deref() == Some("test-anonymous-id")));
     }
 
     #[test]

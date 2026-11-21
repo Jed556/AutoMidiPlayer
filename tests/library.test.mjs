@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import { compileModule } from 'svelte/compiler';
 import { dedupeIssuesByKind, groupDuplicateFiles } from '../src/renderer/lib/utils/fileIssueGroups.ts';
+import { filterMidiFilePaths, normalizeTargetPlaylistId, resolveDropTargetPlaylistId } from '../src/renderer/lib/utils/midiImport.ts';
 import { getMarkerNoteDisplay } from '../src/renderer/lib/utils/musicConstants.ts';
 
 const duplicateIssue = (path, songId, relatedPath) => ({
@@ -198,9 +199,14 @@ async function storeHarness() {
       (_, names, path) => `const {${names}} = globalThis.${key}[${JSON.stringify(path)}];`);
   const compiled = compileModule(source, { filename: 'libraryStore.svelte.js', generate: 'client' }).js.code
     .replace("'svelte/internal/client'", JSON.stringify(import.meta.resolve('svelte/internal/client')));
-  const { libraryStore: store, LIKED_SONGS_PLAYLIST_ID } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
+  const {
+    libraryStore: store,
+    ALL_SONGS_PLAYLIST_ID,
+    LIKED_SONGS_PLAYLIST_ID,
+    isBuiltInPlaylist,
+  } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
   delete globalThis[key];
-  return { store, LIKED_SONGS_PLAYLIST_ID, api, calls, toasts };
+  return { store, ALL_SONGS_PLAYLIST_ID, LIKED_SONGS_PLAYLIST_ID, isBuiltInPlaylist, api, calls, toasts };
 }
 
 test('library changes show batched add/remove toasts and quiet scans show none', async () => {
@@ -323,4 +329,197 @@ test('Liked Songs batch helpers deduplicate, skip duplicates, preserve order, an
 
   h.api.playlists.removeFromPlaylist = async () => false;
   await assert.rejects(h.store.removeSongsFromPlaylist('liked-songs', ['c']), /could not be removed/);
+});
+
+test('custom playlists can be created, edited, deleted, and built-in playlists are protected', async () => {
+  const h = await storeHarness();
+  let playlists = [{
+    id: 'liked-songs',
+    title: 'Liked Songs',
+    subtitle: 'Favorite songs',
+    icon: 'Heart',
+    gradient: 'linear-gradient(135deg, #450af5 0%, #8e8ee5 100%)',
+    bannerColor: 'rgba(69, 10, 245, 0.45)',
+    songCount: 0,
+  }];
+  const songsMap = { 'liked-songs': [] };
+
+  h.api.playlists.getPlaylists = async () => playlists.map(p => ({ ...p }));
+  h.api.playlists.getPlaylistSongs = async (id) => songsMap[id] ?? [];
+  h.api.playlists.createPlaylist = async (title, icon, bannerColor, subtitle, gradient) => {
+    h.calls.push(['create-playlist', title, icon, bannerColor, subtitle, gradient]);
+    const created = {
+      id: 'pl-1',
+      title,
+      subtitle: subtitle ?? null,
+      icon,
+      bannerColor,
+      gradient,
+      songCount: 0,
+    };
+    playlists.push(created);
+    songsMap[created.id] = [];
+    return created;
+  };
+  h.api.playlists.updatePlaylist = async (id, details) => {
+    h.calls.push(['update-playlist', id, details]);
+    const target = playlists.find(p => p.id === id);
+    Object.assign(target, details);
+    return { ...target };
+  };
+  h.api.playlists.deletePlaylist = async (id) => {
+    h.calls.push(['delete-playlist', id]);
+    playlists = playlists.filter(p => p.id !== id);
+    delete songsMap[id];
+    return true;
+  };
+
+  await h.store.init();
+  assert.equal(h.isBuiltInPlaylist(h.ALL_SONGS_PLAYLIST_ID), true);
+  assert.equal(h.isBuiltInPlaylist('liked-songs'), true);
+  assert.equal(h.isBuiltInPlaylist('pl-1'), false);
+  assert.deepEqual([...h.store.customPlaylists], []);
+
+  const created = await h.store.createPlaylist(
+    'Practice Mix',
+    'Star',
+    'rgba(37, 99, 235, 0.45)',
+    'Warm-up tracks',
+    'linear-gradient(135deg, #2563eb 0%, #06b6d4 100%)'
+  );
+  assert.equal(created.id, 'pl-1');
+  assert.equal(h.store.customPlaylists.length, 1);
+  assert.equal(h.store.customPlaylists[0].description, 'Warm-up tracks');
+  assert.equal(h.store.customPlaylists[0].isBuiltIn, false);
+
+  await h.store.updatePlaylist('pl-1', { title: 'Concert Prep', subtitle: '', icon: 'Headphones' });
+  assert.equal(h.store.customPlaylists[0].title, 'Concert Prep');
+  assert.equal(h.store.customPlaylists[0].description, undefined);
+  assert.equal(h.store.customPlaylists[0].subtitle, 'Playlist • 0 songs');
+
+  await assert.rejects(h.store.updatePlaylist('songs', { title: 'Nope' }), /Built-in playlists/);
+  await assert.rejects(h.store.updatePlaylist('liked-songs', { title: 'Nope' }), /Built-in playlists/);
+  await assert.rejects(h.store.deletePlaylist('songs'), /Built-in playlists/);
+  await assert.rejects(h.store.deletePlaylist('liked-songs'), /Built-in playlists/);
+
+  h.store.selectedPlaylistId = 'pl-1';
+  await h.store.deletePlaylist('pl-1');
+  assert.equal(h.store.selectedPlaylistId, 'songs');
+  assert.deepEqual([...h.store.customPlaylists], []);
+});
+
+test('filterMidiFilePaths filters .mid/.midi case-insensitively, ignores non-MIDI files, and deduplicates', () => {
+  assert.deepEqual(
+    filterMidiFilePaths([
+      'C:\\MIDIs\\One.MID',
+      ' C:\\MIDIs\\One.MID ',
+      'C:\\MIDIs\\Two.midi',
+      'C:\\MIDIs\\readme.txt',
+      'C:\\MIDIs\\cover.png',
+      'C:\\MIDIs\\Three.MiDi',
+      '',
+    ]),
+    ['C:\\MIDIs\\One.MID', 'C:\\MIDIs\\Two.midi', 'C:\\MIDIs\\Three.MiDi'],
+  );
+  assert.deepEqual(filterMidiFilePaths([]), []);
+  assert.deepEqual(filterMidiFilePaths(null), []);
+});
+
+test('resolveDropTargetPlaylistId resolves All Songs, Liked Songs, custom playlists, and hovered sidebar targets', () => {
+  assert.equal(normalizeTargetPlaylistId('songs'), null);
+  assert.equal(normalizeTargetPlaylistId('all-songs'), null);
+  assert.equal(normalizeTargetPlaylistId(null), null);
+  assert.equal(normalizeTargetPlaylistId('liked-songs'), 'liked-songs');
+  assert.equal(normalizeTargetPlaylistId('pl-1'), 'pl-1');
+
+  assert.equal(
+    resolveDropTargetPlaylistId({ activeTab: 'songs', selectedPlaylistId: 'songs' }),
+    null,
+  );
+  assert.equal(
+    resolveDropTargetPlaylistId({ activeTab: 'songs', selectedPlaylistId: 'liked-songs' }),
+    'liked-songs',
+  );
+  assert.equal(
+    resolveDropTargetPlaylistId({ activeTab: 'songs', selectedPlaylistId: 'pl-1' }),
+    'pl-1',
+  );
+  assert.equal(
+    resolveDropTargetPlaylistId({ activeTab: 'studio', selectedPlaylistId: 'liked-songs' }),
+    null,
+  );
+  assert.equal(
+    resolveDropTargetPlaylistId({
+      activeTab: 'studio',
+      selectedPlaylistId: 'songs',
+      hoveredPlaylistId: 'liked-songs',
+    }),
+    'liked-songs',
+  );
+  assert.equal(
+    resolveDropTargetPlaylistId({
+      activeTab: 'songs',
+      selectedPlaylistId: 'pl-1',
+      hoveredPlaylistId: 'songs',
+    }),
+    null,
+  );
+});
+
+test('libraryStore.importFiles adds imported songs to both All Songs and the target playlist (including Liked Songs)', async () => {
+  const h = await storeHarness();
+  let allSongs = [{ id: 'existing', title: 'Existing' }];
+  const playlistSongsMap = {
+    'liked-songs': [],
+    'pl-custom': [],
+  };
+
+  h.api.songs.getSongs = async () => allSongs.map(song => ({ ...song }));
+  h.api.playlists.getPlaylists = async () => [
+    { id: 'liked-songs', title: 'Liked Songs', songCount: playlistSongsMap['liked-songs'].length },
+    { id: 'pl-custom', title: 'Custom Mix', songCount: playlistSongsMap['pl-custom'].length },
+  ];
+  h.api.playlists.getPlaylistSongs = async (id) => (playlistSongsMap[id] ?? []).map(song => ({ ...song }));
+  h.api.playlists.addToPlaylist = async (playlistId, songId) => {
+    h.calls.push(['add', playlistId, songId]);
+    const song = allSongs.find(item => item.id === songId);
+    if (song && !playlistSongsMap[playlistId].some(item => item.id === songId)) {
+      playlistSongsMap[playlistId].push(song);
+    }
+    return true;
+  };
+  h.api.songs.importFiles = async (paths = []) => {
+    h.calls.push(['import', paths]);
+    const created = paths.map((p, idx) => ({ id: `imp-${h.calls.length}-${idx}`, title: p }));
+    allSongs = [...allSongs, ...created];
+    return created;
+  };
+
+  await h.store.init();
+
+  await h.store.importFiles(['C:\\all.mid'], 'songs');
+  assert.deepEqual(h.calls, [['import', ['C:\\all.mid']]]);
+  assert.equal(h.store.songs.some(song => song.title === 'C:\\all.mid'), true);
+
+  h.calls.length = 0;
+  const likedImported = await h.store.importFiles(['C:\\liked1.mid', 'C:\\liked2.midi'], 'liked-songs');
+  assert.equal(likedImported.length, 2);
+  assert.deepEqual(h.calls, [
+    ['import', ['C:\\liked1.mid', 'C:\\liked2.midi']],
+    ['add', 'liked-songs', likedImported[0].id],
+    ['add', 'liked-songs', likedImported[1].id],
+  ]);
+  assert.equal(h.store.songs.some(song => song.id === likedImported[0].id), true);
+  assert.equal(h.store.songsByPlaylist['liked-songs'].some(song => song.id === likedImported[0].id), true);
+  assert.equal(h.store.songsByPlaylist['liked-songs'].some(song => song.id === likedImported[1].id), true);
+
+  h.calls.length = 0;
+  const customImported = await h.store.importFiles(['C:\\custom.mid'], 'pl-custom');
+  assert.equal(customImported.length, 1);
+  assert.deepEqual(h.calls, [
+    ['import', ['C:\\custom.mid']],
+    ['add', 'pl-custom', customImported[0].id],
+  ]);
+  assert.equal(h.store.songs.some(song => song.id === customImported[0].id), true);
+  assert.equal(h.store.songsByPlaylist['pl-custom'].some(song => song.id === customImported[0].id), true);
 });

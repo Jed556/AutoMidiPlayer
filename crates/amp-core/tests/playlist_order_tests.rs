@@ -48,3 +48,53 @@ fn invalid_reorder_rolls_back_and_does_not_import_foreign_songs() {
     drop(db);
     std::fs::remove_dir_all(directory).unwrap();
 }
+
+#[test]
+fn custom_playlists_support_create_edit_delete_and_protect_builtin_playlists() {
+    let directory = std::env::temp_dir().join(format!("amp-playlist-crud-{}", uuid::Uuid::new_v4()));
+    let db = LibraryDatabase::new(Some(directory.join("library.db"))).unwrap();
+
+    db.create_playlist_with_details("   ", None, None, None, None).unwrap_err();
+    let created = db.create_playlist_with_details(
+        "  Chill Mix  ",
+        Some("  Late night practice  "),
+        Some("Star"),
+        Some("linear-gradient(135deg, #2563eb 0%, #06b6d4 100%)"),
+        Some("rgba(37, 99, 235, 0.45)"),
+    ).unwrap();
+    assert_eq!(created.title, "Chill Mix");
+    assert_eq!(created.subtitle.as_deref(), Some("Late night practice"));
+    assert_eq!(created.icon.as_deref(), Some("Star"));
+    assert_eq!(created.gradient.as_deref(), Some("linear-gradient(135deg, #2563eb 0%, #06b6d4 100%)"));
+    assert_eq!(created.banner_color.as_deref(), Some("rgba(37, 99, 235, 0.45)"));
+
+    db.upsert_song(&song("s1")).unwrap();
+    db.add_to_playlist(&created.id, "s1").unwrap();
+
+    db.update_playlist(&created.id, "  ", None, None, None, None).unwrap_err();
+    let updated = db.update_playlist(
+        &created.id,
+        "  Focus Mix  ",
+        Some("   "),
+        Some("Headphones"),
+        Some("linear-gradient(135deg, #9333ea 0%, #ec4899 100%)"),
+        Some("rgba(147, 51, 234, 0.45)"),
+    ).unwrap();
+    assert_eq!(updated.id, created.id);
+    assert_eq!(updated.title, "Focus Mix");
+    assert_eq!(updated.subtitle, None);
+    assert_eq!(updated.icon.as_deref(), Some("Headphones"));
+    assert_eq!(updated.song_count, 1);
+
+    db.update_playlist("liked-songs", "Custom", None, None, None, None).unwrap_err();
+    db.delete_playlist("liked-songs").unwrap_err();
+    db.update_playlist("missing-playlist", "Nope", None, None, None, None).unwrap_err();
+    db.delete_playlist("missing-playlist").unwrap_err();
+
+    db.delete_playlist(&created.id).unwrap();
+    assert!(db.get_playlists().unwrap().into_iter().all(|p| p.id != created.id));
+    assert!(ids(&db, &created.id).is_empty());
+
+    drop(db);
+    std::fs::remove_dir_all(directory).unwrap();
+}

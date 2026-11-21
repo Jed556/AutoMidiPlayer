@@ -61,44 +61,42 @@
     </div>
   {/if}
 
-  {#if hasButtons()}
-    {#snippet footer()}
-      {#if request.customButton}
+  {#snippet footer()}
+    {#if request.customButton}
+      <Button
+        variant={request.customButton.variant || 'secondary'}
+        onclick={() => handleButtonClick(request.customButton, 'Custom')}
+      >
+        {request.customButton.text}
+      </Button>
+    {/if}
+    {#if request.cancelButton}
+      <Button
+        variant={request.cancelButton.variant || 'secondary'}
+        onclick={() => handleButtonClick(request.cancelButton, 'Cancelled')}
+      >
+        {request.cancelButton.text}
+      </Button>
+    {/if}
+    {#if request.confirmButton}
+      <Button
+        variant={request.confirmButton.variant || 'accent'}
+        onclick={() => handleButtonClick(request.confirmButton, 'Confirmed')}
+      >
+        {request.confirmButton.text}
+      </Button>
+    {/if}
+    {#if request.buttons}
+      {#each request.buttons as btn}
         <Button
-          variant={request.customButton.variant || 'secondary'}
-          onclick={() => handleButtonClick(request.customButton, 'Custom')}
+          variant={btn.variant || 'secondary'}
+          onclick={() => handleButtonClick(btn, btn.text)}
         >
-          {request.customButton.text}
+          {btn.text}
         </Button>
-      {/if}
-      {#if request.cancelButton}
-        <Button
-          variant={request.cancelButton.variant || 'secondary'}
-          onclick={() => handleButtonClick(request.cancelButton, 'Cancelled')}
-        >
-          {request.cancelButton.text}
-        </Button>
-      {/if}
-      {#if request.confirmButton}
-        <Button
-          variant={request.confirmButton.variant || 'accent'}
-          onclick={() => handleButtonClick(request.confirmButton, 'Confirmed')}
-        >
-          {request.confirmButton.text}
-        </Button>
-      {/if}
-      {#if request.buttons}
-        {#each request.buttons as btn}
-          <Button
-            variant={btn.variant || 'secondary'}
-            onclick={() => handleButtonClick(btn, btn.text)}
-          >
-            {btn.text}
-          </Button>
-        {/each}
-      {/if}
-    {/snippet}
-  {/if}
+      {/each}
+    {/if}
+  {/snippet}
 </ContentDialog>
 
 <style>

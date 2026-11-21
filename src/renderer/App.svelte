@@ -31,6 +31,9 @@
   import DialogHost from './lib/components/Dialogs/DialogHost.svelte';
   import { handleAppContextMenu } from './lib/utils/contextMenu';
   import { viewEntrance } from './lib/utils/transitions';
+  import { filterMidiFilePaths, resolveDropTargetPlaylistId } from './lib/utils/midiImport';
+  import { importMidiFilesWithFeedback } from './lib/utils/playlistActions';
+  import FluentIcon from './lib/components/Icons/FluentIcon.svelte';
 
   // Load only the current view; Studio and other tools load when opened.
   import { loadView } from './lib/views/viewLoader';
@@ -56,7 +59,7 @@
     });
     await midiInputStore.init();
     startupStatus = 'startup.view';
-    if (currentTab !== 'discover' && currentTab !== 'new-playlist') await loadView(currentTab);
+    if (currentTab !== 'discover') await loadView(currentTab);
     if (updateStore.isCheckingUpdate) startupStatus = 'startup.updates';
     await updateCheck;
     await api.updates.complete().catch(error => console.warn('Could not clear update resume state:', error));
@@ -365,7 +368,7 @@
     const tab = currentTab;
     let cancelled = false;
 
-    if (tab === 'discover' || tab === 'new-playlist') {
+    if (tab === 'discover') {
       renderedView = { tab };
     } else {
       // Keep the current content until the import and its styles are ready.
@@ -378,6 +381,110 @@
 
     // A slower import must not replace a more recently requested destination.
     return () => { cancelled = true; };
+  });
+
+  let isMidiDragActive = $state(false);
+  let dragHoveredPlaylistId = $state<string | null>(null);
+  let dropTargetPlaylistId = $derived(resolveDropTargetPlaylistId({
+    activeTab: currentTab,
+    selectedPlaylistId: libraryStore.selectedPlaylistId,
+    hoveredPlaylistId: dragHoveredPlaylistId,
+  }));
+  let dropTargetPlaylist = $derived(
+    dropTargetPlaylistId
+      ? libraryStore.playlists.find((playlist) => playlist.id === dropTargetPlaylistId) ?? null
+      : null
+  );
+
+  function findHoveredPlaylistId(position?: { x: number; y: number }): string | null {
+    if (!position || typeof document === 'undefined') return null;
+    const scale = window.devicePixelRatio || 1;
+    const el = document.elementFromPoint(position.x / scale, position.y / scale);
+    return el?.closest<HTMLElement>('[data-playlist-id]')?.dataset.playlistId ?? null;
+  }
+
+  function handleDroppedMidiPaths(
+    paths: readonly string[] | undefined,
+    position?: { x: number; y: number },
+  ) {
+    const hoveredId = findHoveredPlaylistId(position);
+    isMidiDragActive = false;
+    dragHoveredPlaylistId = null;
+    const midiPaths = filterMidiFilePaths(paths);
+    if (midiPaths.length === 0) return;
+
+    const targetPlaylistId = resolveDropTargetPlaylistId({
+      activeTab: uiStore.activeTab,
+      selectedPlaylistId: libraryStore.selectedPlaylistId,
+      hoveredPlaylistId: hoveredId,
+    });
+    void importMidiFilesWithFeedback(midiPaths, targetPlaylistId).catch((error) => {
+      notificationCenter.error(t('common.error'), String(error));
+    });
+  }
+
+  $effect(() => {
+    if (!isTauri || !startupReady || showOnboarding || clearingAppData || updateStore.isApplyingUpdate) {
+      isMidiDragActive = false;
+      dragHoveredPlaylistId = null;
+      return;
+    }
+
+    let disposed = false;
+    let unlistenDragDrop: (() => void) | undefined;
+    let unlistenNativeFileDrop: (() => void) | undefined;
+
+    void Promise.all([
+      import('@tauri-apps/api/webview').then(({ getCurrentWebview }) =>
+        getCurrentWebview().onDragDropEvent((event) => {
+          if (disposed) return;
+          const payload = event.payload;
+          if (payload.type === 'enter') {
+            const midiPaths = filterMidiFilePaths(payload.paths);
+            if (midiPaths.length > 0) {
+              isMidiDragActive = true;
+              dragHoveredPlaylistId = findHoveredPlaylistId(payload.position);
+            } else {
+              isMidiDragActive = false;
+              dragHoveredPlaylistId = null;
+            }
+          } else if (payload.type === 'over') {
+            if (isMidiDragActive) {
+              dragHoveredPlaylistId = findHoveredPlaylistId(payload.position);
+            }
+          } else if (payload.type === 'leave') {
+            isMidiDragActive = false;
+            dragHoveredPlaylistId = null;
+          } else if (payload.type === 'drop') {
+            handleDroppedMidiPaths(payload.paths, payload.position);
+          }
+        })
+      ),
+      import('@tauri-apps/api/event').then(({ listen }) =>
+        listen<{ paths: string[]; position?: { x: number; y: number } }>('window:file-drop', (event) => {
+          if (disposed) return;
+          handleDroppedMidiPaths(event.payload?.paths, event.payload?.position);
+        })
+      ),
+    ]).then(([stopDragDrop, stopNativeFileDrop]) => {
+      if (disposed) {
+        stopDragDrop();
+        stopNativeFileDrop();
+      } else {
+        unlistenDragDrop = stopDragDrop;
+        unlistenNativeFileDrop = stopNativeFileDrop;
+      }
+    }).catch((error) => {
+      console.error('Unable to register drag-drop handler:', error);
+    });
+
+    return () => {
+      disposed = true;
+      isMidiDragActive = false;
+      dragHoveredPlaylistId = null;
+      unlistenDragDrop?.();
+      unlistenNativeFileDrop?.();
+    };
   });
 
   let isResizing = $state(false);
@@ -488,8 +595,6 @@
                 featureName={t('nav.discover')}
                 description={t('discover.constructionDescription')}
               />
-            {:else if renderedView.tab === 'new-playlist'}
-              <FeatureUnderConstruction featureName={t('playlists.newPlaylist')} />
             {:else if renderedView.view}
               {@const View = renderedView.view.default}
               <View />
@@ -508,6 +613,21 @@
   <!-- Global Modals & Notifications -->
   <DialogHost onreset={clearAppData} />
   <TooltipHost pedals={playbackStore.pedals} />
+
+  {#if isMidiDragActive}
+    <div class="midi-drag-overlay" aria-hidden="true">
+      <div class="midi-drag-card">
+        <div class="midi-drag-icon">
+          <FluentIcon name="MusicNote2" size={28} />
+        </div>
+        <span class="midi-drag-label">
+          {dropTargetPlaylist
+            ? t('songs.dropMidiToPlaylist', { playlist: dropTargetPlaylist.title })
+            : t('songs.dropMidiToImport')}
+        </span>
+      </div>
+    </div>
+  {/if}
 </div>
 {/if}
 
@@ -638,5 +758,51 @@
     display: flex;
     flex-direction: column;
     flex: 1;
+  }
+
+  .midi-drag-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.42);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    pointer-events: none;
+  }
+
+  .midi-drag-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 24px 32px;
+    border-radius: 12px;
+    background: var(--bg-secondary, rgba(32, 32, 32, 0.94));
+    border: 1px dashed var(--accent, #1DB954);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+    color: var(--text-primary, #ffffff);
+    pointer-events: none;
+  }
+
+  .midi-drag-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: rgba(29, 185, 84, 0.16);
+    color: var(--accent, #1DB954);
+    pointer-events: none;
+  }
+
+  .midi-drag-label {
+    font-size: 14px;
+    font-weight: 600;
+    text-align: center;
+    pointer-events: none;
   }
 </style>

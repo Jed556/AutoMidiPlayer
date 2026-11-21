@@ -1,6 +1,6 @@
 [package]
 name = "auto-midi-player"
-version = "8.16.0"
+version = "8.17.0"
 description = "MIDI auto player for games"
 authors = ["Jed556 <jguiriba11@gmail.com>"]
 license = "GPL-3.0-or-later"
@@ -42,7 +42,7 @@ midir = "0.11"
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62.2", features = ["Win32_System_Com", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 webview2-com = "0.39.1"
-windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging", "Win32_UI_Shell", "Win32_UI_Input_KeyboardAndMouse", "Win32_Foundation", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_LibraryLoader"] }
+windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging", "Win32_UI_Shell", "Win32_UI_Input_KeyboardAndMouse", "Win32_Foundation", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_LibraryLoader", "Win32_System_Ole", "Win32_Security", "Win32_System_Memory"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 x11rb = "0.14"

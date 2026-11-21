@@ -36,6 +36,36 @@ fn needs_scan(event: &Event) -> bool {
     }
 }
 
+fn is_relevant_config_event(root: &Path, event: &Event) -> bool {
+    if event.need_rescan() {
+        return true;
+    }
+    // Reads and directory stat updates can emit metadata-only events without config changes.
+    if matches!(event.kind, EventKind::Access(_) | EventKind::Modify(ModifyKind::Metadata(_))) {
+        return false;
+    }
+    event.paths.iter().any(|path| {
+        path.strip_prefix(root).is_ok_and(|relative| {
+            if relative.as_os_str().is_empty() {
+                // Events on the app-data root itself (e.g. macOS FSEvents delivering the
+                // directory's creation event or parent updates for unrelated files) only
+                // affect configs if the root itself was removed or renamed.
+                matches!(
+                    event.kind,
+                    EventKind::Remove(_) | EventKind::Modify(ModifyKind::Name(_)) | EventKind::Any
+                )
+            } else {
+                relative.starts_with("Games") || relative.starts_with("KeyboardLayouts")
+            }
+        })
+    })
+}
+
+fn is_config_removal_event(event: &Event) -> bool {
+    event.need_rescan()
+        || matches!(event.kind, EventKind::Remove(_) | EventKind::Modify(ModifyKind::Name(_)))
+}
+
 impl DirectoryWatcher {
     /// Watch only the source file's directory, without scanning its descendants.
     pub fn watch_soundfont_file<F>(file: &Path, on_change: F) -> Result<Self, String>
@@ -44,8 +74,9 @@ impl DirectoryWatcher {
         let parent = file.parent().ok_or("SoundFont path has no parent")?;
         let name = PathBuf::from(file.file_name().ok_or("SoundFont path has no filename")?);
         Self::watch_filtered_mode(parent, RecursiveMode::NonRecursive, move |root, event| {
+            if event.need_rescan() { return true; }
             if matches!(event.kind, EventKind::Access(_) | EventKind::Modify(ModifyKind::Metadata(_))) { return false; }
-            event.need_rescan() || event.paths.iter().any(|path| {
+            event.paths.iter().any(|path| {
                 path.strip_prefix(root).is_ok_and(|relative| relative == name)
             })
         }, on_change)
@@ -92,16 +123,8 @@ impl DirectoryWatcher {
     where F: Fn() + Send + 'static, R: Fn() + Send + 'static,
     {
         Self::watch_filtered(folder, move |root, event| {
-            if matches!(event.kind, EventKind::Access(_)) { return false; }
-            let relevant = event.need_rescan() || event.paths.iter().any(|path| {
-                path.strip_prefix(root).is_ok_and(|relative| {
-                    relative.as_os_str().is_empty()
-                        || relative.starts_with("Games")
-                        || relative.starts_with("KeyboardLayouts")
-                })
-            });
-            if relevant && (event.need_rescan() || matches!(event.kind,
-                EventKind::Remove(_) | EventKind::Modify(ModifyKind::Name(_)))) {
+            let relevant = is_relevant_config_event(root, event);
+            if relevant && is_config_removal_event(event) {
                 on_removal();
             }
             relevant
@@ -187,5 +210,84 @@ impl DirectoryWatcher {
 impl Drop for DirectoryWatcher {
     fn drop(&mut self) {
         self.stop();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{is_config_removal_event, is_relevant_config_event};
+    use notify::event::{
+        AccessKind, CreateKind, DataChange, Flag, MetadataKind, ModifyKind, RemoveKind, RenameMode,
+    };
+    use notify::{Event, EventKind};
+    use std::path::Path;
+
+    fn event(kind: EventKind, path: &Path) -> Event {
+        Event::new(kind).add_path(path.to_path_buf())
+    }
+
+    #[test]
+    fn ignores_root_creation_metadata_and_unrelated_appdata_events() {
+        let root = Path::new("/tmp/amp-appdata");
+        let ignored = [
+            event(EventKind::Create(CreateKind::Folder), root),
+            event(EventKind::Modify(ModifyKind::Metadata(MetadataKind::Any)), root),
+            event(EventKind::Modify(ModifyKind::Data(DataChange::Content)), root),
+            event(EventKind::Modify(ModifyKind::Any), root),
+            event(EventKind::Create(CreateKind::File), &root.join("settings.json")),
+            event(EventKind::Create(CreateKind::File), &root.join("GamesBackup/game.json")),
+            event(
+                EventKind::Modify(ModifyKind::Metadata(MetadataKind::Any)),
+                &root.join("Games/NTE/game.json"),
+            ),
+            event(
+                EventKind::Access(AccessKind::Read),
+                &root.join("Games/NTE/game.json"),
+            ),
+        ];
+
+        for ev in &ignored {
+            assert!(!is_relevant_config_event(root, ev), "Expected ignored event: {ev:?}");
+        }
+    }
+
+    #[test]
+    fn detects_config_edits_removals_root_renames_and_rescan_events() {
+        let root = Path::new("/tmp/amp-appdata");
+        let cases = [
+            (event(EventKind::Remove(RemoveKind::Folder), root), true, true),
+            (event(EventKind::Modify(ModifyKind::Name(RenameMode::From)), root), true, true),
+            (event(EventKind::Create(CreateKind::File), &root.join("Games/NTE/game.json")), true, false),
+            (
+                event(EventKind::Modify(ModifyKind::Data(DataChange::Content)), &root.join("Games/NTE/game.json")),
+                true,
+                false,
+            ),
+            (event(EventKind::Remove(RemoveKind::File), &root.join("Games/NTE/game.json")), true, true),
+            (
+                event(EventKind::Create(CreateKind::File), &root.join("KeyboardLayouts/qwerty.json")),
+                true,
+                false,
+            ),
+            (
+                event(EventKind::Modify(ModifyKind::Name(RenameMode::Any)), &root.join("KeyboardLayouts/qwerty.json")),
+                true,
+                true,
+            ),
+            (Event::new(EventKind::Other).set_flag(Flag::Rescan), true, true),
+        ];
+
+        for (ev, expected_relevant, expected_removal) in &cases {
+            assert_eq!(
+                is_relevant_config_event(root, ev),
+                *expected_relevant,
+                "Unexpected relevance for {ev:?}"
+            );
+            assert_eq!(
+                is_config_removal_event(ev),
+                *expected_removal,
+                "Unexpected removal flag for {ev:?}"
+            );
+        }
     }
 }

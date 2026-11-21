@@ -25,6 +25,9 @@
     isQueue?: boolean;
     isLiked?: boolean;
     likedActionLabel?: string;
+    hasPlaylistSubmenu?: boolean;
+    isPlaylistSubmenuOpen?: boolean;
+    removeFromPlaylistLabel?: string;
     hasStudioOption?: boolean;
     hasEditOption?: boolean;
     onclick: (e: MouseEvent) => void;
@@ -36,9 +39,13 @@
     onplaynext?: () => void;
     onaddtoqueue?: () => void;
     ontoggleliked?: () => void;
+    onplaylistmouseenter?: (anchor: HTMLElement) => void;
+    onplaylistmouseleave?: () => void;
+    onplaylistclick?: (anchor: HTMLElement) => void;
     onviewinstudio?: () => void;
     onedit?: () => void;
     onremove?: () => void;
+    onremovefromplaylist?: () => void;
     ondelete?: () => void;
     onclosemenu?: () => void;
   }
@@ -59,6 +66,9 @@
     isQueue = false,
     isLiked = false,
     likedActionLabel,
+    hasPlaylistSubmenu = true,
+    isPlaylistSubmenuOpen = false,
+    removeFromPlaylistLabel,
     hasStudioOption = true,
     hasEditOption = true,
     onclick,
@@ -70,9 +80,13 @@
     onplaynext,
     onaddtoqueue,
     ontoggleliked,
+    onplaylistmouseenter,
+    onplaylistmouseleave,
+    onplaylistclick,
     onviewinstudio,
     onedit,
     onremove,
+    onremovefromplaylist,
     ondelete,
     onclosemenu
   }: Props = $props();
@@ -316,6 +330,38 @@
             <span>{likedActionLabel ?? (isLiked ? t('songs.removeFromLikedSongs') : t('songs.addToLikedSongs'))}</span>
           </button>
         {/if}
+        {#if hasPlaylistSubmenu}
+          <button
+            type="button"
+            class="context-item submenu-trigger"
+            class:is-active={isPlaylistSubmenuOpen}
+            aria-haspopup="menu"
+            aria-expanded={isPlaylistSubmenuOpen}
+            onmouseenter={(e) => onplaylistmouseenter?.(e.currentTarget)}
+            onmouseleave={() => onplaylistmouseleave?.()}
+            onclick={(e) => {
+              e.stopPropagation();
+              onplaylistclick?.(e.currentTarget);
+            }}
+            onkeydown={(e) => {
+              if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                e.stopPropagation();
+                onplaylistmouseenter?.(e.currentTarget);
+              } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                e.stopPropagation();
+                onplaylistmouseleave?.();
+              }
+            }}
+          >
+            <FluentIcon name="MusicNote2" size={14} />
+            <span class="context-item-label">{t('songs.addToPlaylist')}</span>
+            <span class="submenu-chevron-wrap">
+              <FluentIcon name="ChevronRight" size={10} class="submenu-chevron" />
+            </span>
+          </button>
+        {/if}
         {#if onviewinstudio && hasStudioOption}
           <button class="context-item" onclick={() => { onviewinstudio?.(); onclosemenu?.(); }}>
             <FluentIcon name="CalendarMonth" size={14} />
@@ -330,6 +376,12 @@
           >
             <FluentIcon name="Edit" size={14} />
             <span>{t('songs.editDetails')}</span>
+          </button>
+        {/if}
+        {#if onremovefromplaylist}
+          <button class="context-item danger" onclick={() => { onremovefromplaylist?.(); onclosemenu?.(); }}>
+            <FluentIcon name="RemoveCircle" size={14} />
+            <span>{removeFromPlaylistLabel ?? t('songs.removeFromPlaylist')}</span>
           </button>
         {/if}
         {#if ondelete}
@@ -710,8 +762,26 @@
     user-select: none;
   }
 
-  .context-item:hover {
+  .context-item:hover,
+  .context-item.is-active {
     background: var(--bg-hover, rgba(255, 255, 255, 0.1));
+  }
+
+  .context-item-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .submenu-chevron-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    color: var(--text-tertiary);
+    opacity: 0.8;
   }
 
   .context-item.danger {

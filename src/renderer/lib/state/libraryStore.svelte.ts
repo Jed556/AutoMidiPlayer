@@ -5,17 +5,24 @@ import type { LibraryFileIssue, LibraryScanSummary, FileIssueAction } from '../.
 import { notificationCenter } from '../ui/notificationCenter.svelte';
 import { t } from '../i18n';
 
+export const ALL_SONGS_PLAYLIST_ID = 'songs';
 export const LIKED_SONGS_PLAYLIST_ID = 'liked-songs';
+
+export function isBuiltInPlaylist(id: string | null | undefined): boolean {
+  return !id || id === ALL_SONGS_PLAYLIST_ID || id === 'all-songs' || id === LIKED_SONGS_PLAYLIST_ID;
+}
 
 export interface PlaylistInfo {
   id: string;
   title: string;
   subtitle: string;
+  description?: string;
   icon: string;
   gradient: string;
   bannerColor?: string;
   songCount: number;
   gameId?: string;
+  isBuiltIn?: boolean;
 }
 
 class LibraryStore {
@@ -25,12 +32,17 @@ class LibraryStore {
   selectedPlaylistId = $state<string>(DEFAULT_UI_PREFERENCES.selectedPlaylistId);
   isScanning = $state<boolean>(false);
   playlists = $state<PlaylistInfo[]>([]);
+  customPlaylists = $derived(this.playlists.filter((playlist) => !playlist.isBuiltIn));
   fileIssues = $state<LibraryFileIssue[]>([]);
   hasFileIssues = $derived(this.fileIssues.length > 0);
   onSongsUnavailable?: (ids: string[]) => Promise<void>;
 
   isSongLiked(songId: string): boolean {
     return this.likedSongIds.has(songId);
+  }
+
+  isSongInPlaylist(playlistId: string, songId: string): boolean {
+    return (this.songsByPlaylist[playlistId] ?? []).some((song) => song.id === songId);
   }
 
   private _isInitialized = false;
@@ -61,16 +73,24 @@ class LibraryStore {
       ]);
       if (reloadId !== this.reloadId) return;
 
-      const mapped: PlaylistInfo[] = fetchedPlaylists.map((playlist) => ({
-        id: playlist.id,
-        title: playlist.title,
-        subtitle: playlist.subtitle || `Playlist • ${playlist.songCount ?? 0} songs`,
-        icon: playlist.icon || 'MusicNote2',
-        gradient: playlist.gradient || 'linear-gradient(135deg, #1DB954 0%, #0d9488 100%)',
-        bannerColor: playlist.bannerColor || 'rgba(29, 185, 84, 0.45)',
-        songCount: playlist.songCount ?? 0,
-        gameId: playlist.gameId,
-      }));
+      const mapped: PlaylistInfo[] = fetchedPlaylists.map((playlist) => {
+        const count = playlist.songCount ?? 0;
+        const description = typeof playlist.subtitle === 'string' && playlist.subtitle.trim()
+          ? playlist.subtitle.trim()
+          : undefined;
+        return {
+          id: playlist.id,
+          title: playlist.title,
+          description,
+          subtitle: description || `Playlist • ${count} ${count === 1 ? 'song' : 'songs'}`,
+          icon: playlist.icon || 'MusicNote2',
+          gradient: playlist.gradient || 'linear-gradient(135deg, #1DB954 0%, #0d9488 100%)',
+          bannerColor: playlist.bannerColor || 'rgba(29, 185, 84, 0.45)',
+          songCount: count,
+          gameId: playlist.gameId,
+          isBuiltIn: isBuiltInPlaylist(playlist.id),
+        };
+      });
       const playlistSongs = await Promise.all(
         mapped.map(async (playlist) => [playlist.id, await api.playlists.getPlaylistSongs(playlist.id)] as const),
       );
@@ -82,19 +102,20 @@ class LibraryStore {
       this.songsByPlaylist = Object.fromEntries(playlistSongs);
       this.playlists = [
         {
-          id: 'songs',
+          id: ALL_SONGS_PLAYLIST_ID,
           title: 'All Songs',
           subtitle: `All library songs`,
           icon: 'Cd',
           gradient: 'linear-gradient(135deg, #1DB954 0%, #0d9488 100%)',
           bannerColor: 'rgba(29, 185, 84, 0.45)',
           songCount: this.songs.length,
+          isBuiltIn: true,
         },
         ...mapped,
       ];
 
       if (!this.playlists.some((playlist) => playlist.id === this.selectedPlaylistId)) {
-        this.selectedPlaylistId = 'songs';
+        this.selectedPlaylistId = ALL_SONGS_PLAYLIST_ID;
       }
       if (unavailable.length) await this.onSongsUnavailable?.(unavailable);
     } catch (e) {
@@ -115,16 +136,31 @@ class LibraryStore {
     }
   }
 
-  async importFiles(paths?: string[]) {
+  async importFiles(paths?: string[], playlistId?: string | null) {
     try {
       const imported = await api.songs.importFiles(paths);
       if (imported && imported.length > 0) {
-        await this.reload();
+        const targetPlaylistId = playlistId
+          && playlistId !== ALL_SONGS_PLAYLIST_ID
+          && playlistId !== 'all-songs'
+          ? playlistId
+          : null;
+        try {
+          if (targetPlaylistId) {
+            const songIds = [...new Set(imported.map((song) => song.id))];
+            for (const songId of songIds) {
+              const ok = await api.playlists.addToPlaylist(targetPlaylistId, songId);
+              if (!ok) throw new Error('The song could not be added to the playlist.');
+            }
+          }
+        } finally {
+          await this.reload();
+        }
       }
       return imported;
     } catch (e) {
       console.error('[LibraryState] importFiles error:', e);
-      return [];
+      throw e;
     }
   }
 
@@ -166,16 +202,37 @@ class LibraryStore {
     }
   }
 
-  async createPlaylist(title: string, icon?: string, bannerColor?: string) {
-    const pl = await api.playlists.createPlaylist(title, icon, bannerColor);
+  async createPlaylist(
+    title: string,
+    icon?: string,
+    bannerColor?: string,
+    subtitle?: string,
+    gradient?: string,
+  ) {
+    const pl = await api.playlists.createPlaylist(title, icon, bannerColor, subtitle, gradient);
+    await this.reload();
+    return pl;
+  }
+
+  async updatePlaylist(
+    id: string,
+    details: { title: string; subtitle?: string; icon?: string; gradient?: string; bannerColor?: string },
+  ) {
+    if (isBuiltInPlaylist(id)) {
+      throw new Error('Built-in playlists cannot be edited.');
+    }
+    const pl = await api.playlists.updatePlaylist(id, details);
     await this.reload();
     return pl;
   }
 
   async deletePlaylist(id: string) {
+    if (isBuiltInPlaylist(id)) {
+      throw new Error('Built-in playlists cannot be deleted.');
+    }
     const res = await api.playlists.deletePlaylist(id);
     if (this.selectedPlaylistId === id) {
-      this.selectedPlaylistId = 'songs';
+      this.selectedPlaylistId = ALL_SONGS_PLAYLIST_ID;
     }
     await this.reload();
     return res;

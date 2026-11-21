@@ -2,11 +2,13 @@
   import { loadUiPreferences, saveUiPreferences } from '../../backend/preferences.js';
   import { onDestroy, onMount, tick } from 'svelte';
   import { playbackStore } from '../../state/playbackStore.svelte';
-  import { libraryStore, LIKED_SONGS_PLAYLIST_ID } from '../../state/libraryStore.svelte';
+  import { libraryStore, LIKED_SONGS_PLAYLIST_ID, type PlaylistInfo } from '../../state/libraryStore.svelte';
+  import { uiStore } from '../../state/uiStore.svelte';
   import { notificationCenter } from '../../ui/notificationCenter.svelte';
   import { t } from '../../i18n';
   import { popupScaleIn, popupScaleOut } from '../../utils/transitions';
-  import { computeContextMenuPosition } from '../../utils/contextMenu';
+  import { computeContextMenuPosition, computeSubmenuPosition } from '../../utils/contextMenu';
+  import { createFrameResizeObserver } from '../../utils/frameResizeObserver';
   import { portal } from '../../actions/portal';
   import FluentIcon from '../Icons/FluentIcon.svelte';
   import CustomScrollViewer from './CustomScrollViewer.svelte';
@@ -28,6 +30,7 @@
     onplay?: (song: MidiFile, index: number) => void;
     onremove?: (index: number) => void;
     onremoveselected?: (selectedIds: string[], selectedIndices: number[]) => void;
+    onremovefromplaylist?: (ids: string[]) => void;
     ondelete?: (ids: string[]) => void;
     onviewinstudio?: (song: MidiFile) => void;
     onedit?: (song: MidiFile) => void;
@@ -47,6 +50,7 @@
     onplay,
     onremove,
     onremoveselected,
+    onremovefromplaylist,
     ondelete,
     onviewinstudio,
     onedit,
@@ -147,6 +151,14 @@
   let activeMenuId = $state<string | null>(null);
   let contextMenuPos = $state<{ x: number; y: number } | null>(null);
   let contextMenuKey = $state(0);
+  let playlistSubmenuState = $state<{
+    key: number;
+    song: MidiFile;
+    anchorEl: HTMLElement;
+    triggerRect: { left: number; right: number; top: number; bottom: number };
+  } | null>(null);
+  let playlistSubmenuKey = $state(0);
+  let playlistSubmenuCloseTimer: ReturnType<typeof setTimeout> | null = null;
   let anchorId = $state<string | null>(null);
 
   let selectedIdSet = $derived(new Set(selectedIds));
@@ -227,6 +239,7 @@
 
   function handleRowContextMenu(e: MouseEvent, song: MidiFile) {
     e.preventDefault();
+    closePlaylistSubmenu();
     if (!selectedIds.includes(song.id)) {
       updateSelection([song.id], song);
       anchorId = song.id;
@@ -284,6 +297,118 @@
     return floatingMenu !== null || prefersReducedMotion() ? { duration: 0 } : popupScaleOut(node);
   }
 
+  function cancelPlaylistSubmenuClose() {
+    if (playlistSubmenuCloseTimer) {
+      clearTimeout(playlistSubmenuCloseTimer);
+      playlistSubmenuCloseTimer = null;
+    }
+  }
+
+  function closePlaylistSubmenu() {
+    cancelPlaylistSubmenuClose();
+    playlistSubmenuState = null;
+  }
+
+  function schedulePlaylistSubmenuClose() {
+    cancelPlaylistSubmenuClose();
+    playlistSubmenuCloseTimer = setTimeout(closePlaylistSubmenu, 150);
+  }
+
+  function getSubmenuAnchorBounds(anchorEl: HTMLElement) {
+    const rowRect = anchorEl.getBoundingClientRect();
+    const parentMenu = anchorEl.closest('.row-context-menu') as HTMLElement | null;
+    const menuRect = parentMenu?.getBoundingClientRect();
+    return {
+      left: menuRect ? menuRect.left : rowRect.left,
+      right: menuRect ? menuRect.right : rowRect.right,
+      top: rowRect.top,
+      bottom: rowRect.bottom,
+    };
+  }
+
+  function openPlaylistSubmenu(anchorEl: HTMLElement, song: MidiFile) {
+    cancelPlaylistSubmenuClose();
+    const triggerRect = getSubmenuAnchorBounds(anchorEl);
+    if (playlistSubmenuState?.anchorEl === anchorEl && playlistSubmenuState?.song.id === song.id) {
+      playlistSubmenuState = { ...playlistSubmenuState, triggerRect };
+      return;
+    }
+    playlistSubmenuKey += 1;
+    playlistSubmenuState = { key: playlistSubmenuKey, song, anchorEl, triggerRect };
+  }
+
+  function togglePlaylistSubmenu(anchorEl: HTMLElement, song: MidiFile) {
+    if (playlistSubmenuState?.anchorEl === anchorEl && playlistSubmenuState?.song.id === song.id) {
+      closePlaylistSubmenu();
+    } else {
+      openPlaylistSubmenu(anchorEl, song);
+    }
+  }
+
+  function positionPlaylistSubmenu(node: HTMLElement, anchorEl: HTMLElement) {
+    const mounted = portal(node, document.body);
+    let currentAnchor = anchorEl;
+    let currentParentMenu = currentAnchor.closest('.row-context-menu') as HTMLElement | null;
+
+    function updatePosition() {
+      if (!currentAnchor.isConnected) return;
+      const width = node.offsetWidth || 196;
+      const height = node.offsetHeight || 220;
+      const layout = computeSubmenuPosition(
+        getSubmenuAnchorBounds(currentAnchor),
+        { width, height },
+        { width: window.innerWidth, height: window.innerHeight }
+      );
+      node.style.left = `${layout.left}px`;
+      node.style.top = `${layout.top}px`;
+      node.style.transformOrigin = `${layout.originX}px ${layout.originY}px`;
+    }
+
+    const observer = createFrameResizeObserver(updatePosition);
+    function bindObservers() {
+      observer.disconnect();
+      observer.observe(node);
+      currentParentMenu = currentAnchor.closest('.row-context-menu') as HTMLElement | null;
+      if (currentParentMenu) {
+        observer.observe(currentParentMenu);
+        currentParentMenu.addEventListener('introend', updatePosition);
+      }
+    }
+
+    bindObservers();
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+
+    return {
+      update(nextAnchor: HTMLElement) {
+        if (nextAnchor !== currentAnchor) {
+          currentParentMenu?.removeEventListener('introend', updatePosition);
+          currentAnchor = nextAnchor;
+          bindObservers();
+        }
+        updatePosition();
+      },
+      destroy() {
+        observer.disconnect();
+        currentParentMenu?.removeEventListener('introend', updatePosition);
+        window.removeEventListener('resize', updatePosition);
+        mounted.destroy();
+      }
+    };
+  }
+
+  function getInitialSubmenuStyle(triggerRect: { left: number; right: number; top: number; bottom: number }): string {
+    const viewport = typeof window !== 'undefined'
+      ? { width: window.innerWidth, height: window.innerHeight }
+      : { width: 1280, height: 720 };
+    const layout = computeSubmenuPosition(triggerRect, { width: 196, height: 220 }, viewport);
+    return `position: fixed; left: ${layout.left}px; top: ${layout.top}px; transform-origin: ${layout.originX}px ${layout.originY}px;`;
+  }
+
+  function playlistSubmenuOut(node: Element) {
+    return playlistSubmenuState !== null || prefersReducedMotion() ? { duration: 0 } : popupScaleOut(node);
+  }
+
   function handleRowDoubleClick(song: MidiFile, index: number) {
     if (onplay) {
       onplay(song, index);
@@ -300,19 +425,18 @@
     e.stopPropagation();
     updateSelection([song.id], song);
     anchorId = song.id;
-    if (playbackStore.activeSong?.id === song.id) {
+    if (onplay) {
+      onplay(song, index);
+    } else if (playbackStore.activeSong?.id === song.id) {
       playbackStore.togglePlay();
     } else {
-      if (onplay) {
-        onplay(song, index);
-      } else {
-        playbackStore.play(song);
-      }
+      playbackStore.play(song);
     }
   }
 
   function handleMenuButtonClick(e: MouseEvent, song: MidiFile) {
     e.stopPropagation();
+    closePlaylistSubmenu();
     contextMenuPos = null;
     if (!selectedIds.includes(song.id)) {
       updateSelection([song.id], song);
@@ -322,6 +446,7 @@
   }
 
   function closeMenu() {
+    closePlaylistSubmenu();
     activeMenuId = null;
     contextMenuPos = null;
   }
@@ -378,6 +503,63 @@
           unlikedSongs.length === 1
             ? t('songs.addedToLikedSongsSingle', { title: unlikedSongs[0].title })
             : t('songs.addedToLikedSongsMultiple', { count: addedCount || targetSongs.length })
+        );
+      }
+    } catch (error) {
+      notificationCenter.error(t('common.error'), String(error));
+    }
+  }
+
+  function getRemoveFromPlaylistLabel(fallbackSong: MidiFile): string {
+    const targetSongs = getActionSongs(fallbackSong);
+    return targetSongs.length > 1
+      ? t('songs.removeSelectedFromPlaylist', { count: targetSongs.length })
+      : t('songs.removeFromPlaylist');
+  }
+
+  function handleRemoveFromPlaylistAction(fallbackSong: MidiFile) {
+    const targetIds = getActionSongs(fallbackSong).map(s => s.id);
+    closeMenu();
+    onremovefromplaylist?.(targetIds);
+  }
+
+  function handleCreatePlaylistFromMenu(fallbackSong: MidiFile) {
+    const targetIds = getActionSongs(fallbackSong).map(s => s.id);
+    closeMenu();
+    uiStore.openDialog('playlist', { mode: 'create', initialSongIds: targetIds });
+  }
+
+  async function handleToggleCustomPlaylistAction(playlist: PlaylistInfo, fallbackSong: MidiFile) {
+    const targetSongs = getActionSongs(fallbackSong);
+    const targetIds = targetSongs.map(s => s.id);
+    const shouldRemove = targetSongs.length > 0 && targetSongs.every(song => libraryStore.isSongInPlaylist(playlist.id, song.id));
+    closeMenu();
+
+    try {
+      if (shouldRemove) {
+        const removedCount = await libraryStore.removeSongsFromPlaylist(playlist.id, targetIds);
+        notificationCenter.info(
+          t('songs.removedFromPlaylistTitle', { playlist: playlist.title }),
+          targetSongs.length === 1
+            ? t('songs.removedFromPlaylistSingle', { title: targetSongs[0].title, playlist: playlist.title })
+            : t('songs.removedFromPlaylistMultiple', { count: removedCount || targetSongs.length, playlist: playlist.title })
+        );
+        await tick();
+        const remainingIds = selectedIds.filter(id => songs.some(s => s.id === id));
+        if (remainingIds.length !== selectedIds.length) {
+          const primary = remainingIds.length > 0
+            ? (songs.find(s => s.id === remainingIds[remainingIds.length - 1]) ?? null)
+            : null;
+          updateSelection(remainingIds, primary);
+        }
+      } else {
+        const missingSongs = targetSongs.filter(song => !libraryStore.isSongInPlaylist(playlist.id, song.id));
+        const addedCount = await libraryStore.addSongsToPlaylist(playlist.id, targetIds);
+        notificationCenter.success(
+          t('songs.addToPlaylistTitle', { playlist: playlist.title }),
+          missingSongs.length === 1
+            ? t('songs.addToPlaylistSingle', { title: missingSongs[0].title, playlist: playlist.title })
+            : t('songs.addToPlaylistMultiple', { count: addedCount || targetSongs.length, playlist: playlist.title })
         );
       }
     } catch (error) {
@@ -798,10 +980,11 @@
       return;
     }
 
-    if ((e.key === 'Delete' || e.key === 'Backspace') && (isQueue || ondelete) && selectedIds.length > 0) {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && (isQueue || ondelete || onremovefromplaylist) && selectedIds.length > 0) {
       e.preventDefault();
       const firstSelected = songs.find(s => selectedIds.includes(s.id)) ?? songs[0];
       if (isQueue) handleRemoveAction(firstSelected, 0);
+      else if (onremovefromplaylist) handleRemoveFromPlaylistAction(firstSelected);
       else handleDeleteAction(firstSelected);
     }
   }
@@ -977,6 +1160,7 @@
   }
 
   onDestroy(() => {
+    cancelPlaylistSubmenuClose();
     document.body.classList.remove('col-resizing');
     document.body.classList.remove('row-dragging');
     window.removeEventListener('mousemove', handleMouseMove);
@@ -1137,6 +1321,7 @@
         {@const showDropAfter = isDragging && !isOrigin && visIdx === songs.length - 2 && targetSlot === songs.length - 1}
         {@const isInlineMenuOpen = activeMenuId === song.id && !contextMenuPos}
         {@const isRowLiked = isInlineMenuOpen ? areAllTargetSongsLiked(song) : libraryStore.isSongLiked(song.id)}
+        {@const isRowPlaylistSubmenuOpen = isInlineMenuOpen && playlistSubmenuState?.song.id === song.id}
 
         <SongListRow
           {song}
@@ -1154,6 +1339,9 @@
           {isQueue}
           isLiked={isRowLiked}
           likedActionLabel={isInlineMenuOpen ? getLikedSongsLabel(song, isRowLiked) : undefined}
+          hasPlaylistSubmenu={true}
+          isPlaylistSubmenuOpen={isRowPlaylistSubmenuOpen}
+          removeFromPlaylistLabel={isInlineMenuOpen && onremovefromplaylist ? getRemoveFromPlaylistLabel(song) : undefined}
           hasStudioOption={!!onviewinstudio && !isMultiSelect}
           hasEditOption={!!onedit && !isMultiSelect}
           onclick={(e) => handleRowClick(e, song, absoluteIdx)}
@@ -1165,9 +1353,13 @@
           onplaynext={() => handlePlayNextAction(song)}
           onaddtoqueue={() => handleAddToQueueAction(song)}
           ontoggleliked={() => handleToggleLikedSongsAction(song)}
+          onplaylistmouseenter={(anchor) => openPlaylistSubmenu(anchor, song)}
+          onplaylistmouseleave={schedulePlaylistSubmenuClose}
+          onplaylistclick={(anchor) => togglePlaylistSubmenu(anchor, song)}
           onviewinstudio={() => { onviewinstudio?.(song); closeMenu(); }}
           onedit={() => { onedit?.(song); closeMenu(); }}
           onremove={() => handleRemoveAction(song, absoluteIdx)}
+          onremovefromplaylist={onremovefromplaylist ? () => handleRemoveFromPlaylistAction(song) : undefined}
           ondelete={ondelete ? () => handleDeleteAction(song) : undefined}
           onclosemenu={closeMenu}
         />
@@ -1309,6 +1501,36 @@
         <FluentIcon name="Heart" size={14} filled={isTargetLiked} class={isTargetLiked ? 'liked-heart-icon' : ''} />
         <span>{getLikedSongsLabel(activeSong, isTargetLiked)}</span>
       </button>
+      <button
+        type="button"
+        class="context-item submenu-trigger"
+        class:is-active={playlistSubmenuState?.song.id === activeSong.id}
+        aria-haspopup="menu"
+        aria-expanded={playlistSubmenuState?.song.id === activeSong.id}
+        onmouseenter={(e) => openPlaylistSubmenu(e.currentTarget, activeSong)}
+        onmouseleave={schedulePlaylistSubmenuClose}
+        onclick={(e) => {
+          e.stopPropagation();
+          togglePlaylistSubmenu(e.currentTarget, activeSong);
+        }}
+        onkeydown={(e) => {
+          if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            e.stopPropagation();
+            openPlaylistSubmenu(e.currentTarget, activeSong);
+          } else if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            e.stopPropagation();
+            closePlaylistSubmenu();
+          }
+        }}
+      >
+        <FluentIcon name="MusicNote2" size={14} />
+        <span class="context-item-label">{t('songs.addToPlaylist')}</span>
+        <span class="submenu-chevron-wrap">
+          <FluentIcon name="ChevronRight" size={10} class="submenu-chevron" />
+        </span>
+      </button>
       {#if onviewinstudio && !isMultiSelect}
         <button class="context-item" onclick={() => { onviewinstudio?.(activeSong); closeMenu(); }}>
           <FluentIcon name="CalendarMonth" size={14} />
@@ -1325,6 +1547,12 @@
           <span>{t('songs.editDetails')}</span>
         </button>
       {/if}
+      {#if onremovefromplaylist}
+        <button class="context-item danger" onclick={() => handleRemoveFromPlaylistAction(activeSong)}>
+          <FluentIcon name="RemoveCircle" size={14} />
+          <span>{getRemoveFromPlaylistLabel(activeSong)}</span>
+        </button>
+      {/if}
       {#if ondelete}
         <button class="context-item danger" onclick={() => handleDeleteAction(activeSong)}>
           <FluentIcon name="Delete" size={14} />
@@ -1337,6 +1565,85 @@
           <span>{isMultiSelect ? `Remove ${selectedIds.length} tracks from Queue` : t('songs.removeFromQueue')}</span>
         </button>
       {/if}
+    </div>
+  {/each}
+
+  <!-- Portaled Add-to-Playlist Submenu -->
+  {#each playlistSubmenuState ? [playlistSubmenuState] : [] as submenu (submenu.key)}
+    {@const targetSongs = getActionSongs(submenu.song)}
+    <div
+      class="row-context-menu floating playlist-submenu"
+      style={getInitialSubmenuStyle(submenu.triggerRect)}
+      role="menu"
+      tabindex="-1"
+      aria-label={t('songs.addToPlaylist')}
+      use:positionPlaylistSubmenu={submenu.anchorEl}
+      in:contextMenuIn
+      out:playlistSubmenuOut
+      onmouseenter={cancelPlaylistSubmenuClose}
+      onmouseleave={schedulePlaylistSubmenuClose}
+      onclick={(e) => e.stopPropagation()}
+      oncontextmenu={(e) => e.preventDefault()}
+      onkeydown={(e) => {
+        if (e.key === 'Escape') {
+          e.stopPropagation();
+          closeMenu();
+        } else if (e.key === 'ArrowLeft') {
+          e.stopPropagation();
+          const trigger = submenu.anchorEl;
+          closePlaylistSubmenu();
+          trigger?.focus();
+        }
+      }}
+    >
+      <CustomScrollViewer
+        class="playlist-submenu-scroll"
+        contentClass="playlist-submenu-list"
+        padding="4px"
+        gap="2px"
+        fadeHeight={18}
+        fadeRampDistance={16}
+      >
+        <button
+          type="button"
+          class="context-item playlist-submenu-item"
+          onclick={() => handleCreatePlaylistFromMenu(submenu.song)}
+        >
+          <span class="item-main">
+            <FluentIcon name="Add" size={14} />
+            <span class="context-item-label">{t('playlists.newPlaylist')}</span>
+          </span>
+        </button>
+
+        {#if libraryStore.customPlaylists.length > 0}
+          <div class="submenu-divider" role="separator"></div>
+          {#each libraryStore.customPlaylists as playlist (playlist.id)}
+            {@const allInPlaylist = targetSongs.length > 0 && targetSongs.every(song => libraryStore.isSongInPlaylist(playlist.id, song.id))}
+            <button
+              type="button"
+              class="context-item playlist-submenu-item"
+              class:is-selected={allInPlaylist}
+              role="menuitemcheckbox"
+              aria-checked={allInPlaylist}
+              onclick={() => void handleToggleCustomPlaylistAction(playlist, submenu.song)}
+            >
+              <span class="item-main">
+                <span class="playlist-submenu-dot" style="background: {playlist.gradient};">
+                  <FluentIcon name={playlist.icon} size={11} filled={true} />
+                </span>
+                <span class="context-item-label">
+                  <OverflowText text={playlist.title} hoverTarget="button" showTooltip={true} />
+                </span>
+              </span>
+              {#if allInPlaylist}
+                <span class="check-indicator">
+                  <FluentIcon name="Checkmark" size={13} />
+                </span>
+              {/if}
+            </button>
+          {/each}
+        {/if}
+      </CustomScrollViewer>
     </div>
   {/each}
 </div>
@@ -1820,8 +2127,111 @@
     user-select: none;
   }
 
-  .context-item:hover {
+  .context-item:hover,
+  .context-item.is-active {
     background: var(--bg-hover, rgba(255, 255, 255, 0.1));
+  }
+
+  .context-item-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .submenu-chevron-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    color: var(--text-tertiary);
+    opacity: 0.8;
+  }
+
+  .playlist-submenu {
+    display: block;
+    padding: 0;
+    width: max-content;
+    min-width: min(196px, calc(100vw - 16px));
+    max-width: min(260px, calc(100vw - 16px));
+    border-radius: var(--radius-md, 8px);
+    background: var(--bg-dialog, var(--card-bg, #27272A));
+    box-shadow: var(--popup-shadow, 0 8px 24px rgba(0, 0, 0, 0.55));
+    overflow: hidden;
+  }
+
+  :global(.playlist-submenu-scroll) {
+    max-height: min(260px, calc(100vh - 16px));
+    width: 100%;
+  }
+
+  :global(.playlist-submenu-list) {
+    max-height: min(260px, calc(100vh - 16px));
+    overflow-y: auto;
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    box-sizing: border-box;
+  }
+
+  .playlist-submenu-item {
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 10px;
+    border-radius: 5px;
+    flex-shrink: 0;
+  }
+
+  .playlist-submenu-item:hover:not(:disabled) {
+    background: var(--control-fill-hover, var(--bg-hover, rgba(255, 255, 255, 0.1)));
+    color: var(--text-primary);
+  }
+
+  .playlist-submenu-item.is-selected {
+    background: var(--accent-subtle);
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .playlist-submenu-item.is-selected:hover {
+    background: var(--accent-subtle);
+    filter: brightness(1.05);
+  }
+
+  .item-main {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .check-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .submenu-divider {
+    height: 1px;
+    margin: 3px 6px;
+    background: var(--border-subtle, rgba(255, 255, 255, 0.1));
+    flex-shrink: 0;
+  }
+
+  .playlist-submenu-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    flex-shrink: 0;
   }
 
   .context-item.danger {

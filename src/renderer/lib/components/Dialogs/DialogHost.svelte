@@ -10,6 +10,7 @@
   import ActionDialog from './ActionDialog.svelte';
   import PedalSettingsDialog from './PedalSettingsDialog.svelte';
   import SheetLegendDialog from './SheetLegendDialog.svelte';
+  import PlaylistDialog from './PlaylistDialog.svelte';
 
   let { onreset }: { onreset: () => Promise<void> } = $props();
 
@@ -60,6 +61,8 @@
         <PedalSettingsDialog />
       {:else if uiStore.activeDialog === 'sheetLegend'}
         <SheetLegendDialog />
+      {:else if uiStore.activeDialog === 'playlist'}
+        <PlaylistDialog />
       {/if}
     </div>
   </div>
@@ -111,7 +114,8 @@
 
   .dialog-box.dialog-action,
   .dialog-box.dialog-pedalSettings,
-  .dialog-box.dialog-sheetLegend {
+  .dialog-box.dialog-sheetLegend,
+  .dialog-box.dialog-playlist {
     width: 480px;
   }
 

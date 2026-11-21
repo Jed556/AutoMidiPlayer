@@ -2,11 +2,14 @@
   import { onMount, onDestroy, untrack } from 'svelte';
   import { cubicInOut } from 'svelte/easing';
   import { playbackStore } from '../state/playbackStore.svelte';
-  import { libraryStore } from '../state/libraryStore.svelte';
+  import { isBuiltInPlaylist, libraryStore } from '../state/libraryStore.svelte';
   import { uiStore } from '../state/uiStore.svelte';
   import { animationStore } from '../state/animationStore.svelte';
   import { notificationCenter } from '../ui/notificationCenter.svelte';
   import { settingsStore } from '../state/settingsStore.svelte';
+  import { confirmAndDeletePlaylist, importMidiFilesWithFeedback } from '../utils/playlistActions';
+  import { isTauri } from '../backend';
+  import { filterMidiFilePaths } from '../utils/midiImport';
   import { t } from '../i18n';
   import type { MidiFile } from '$shared/types/midi';
   import { replaceVisibleSongOrder, sortLibrarySongs } from '../utils/libraryOrdering';
@@ -63,6 +66,8 @@
   let currentPlaylist = $derived(
     libraryStore.playlists.find(p => p.id === libraryStore.selectedPlaylistId) || libraryStore.playlists[0]
   );
+
+  let isCustomPlaylist = $derived(Boolean(currentPlaylist && !isBuiltInPlaylist(currentPlaylist.id)));
 
   let activeBannerColor = $derived(
     currentPlaylist?.bannerColor || 'rgba(29, 185, 84, 0.45)'
@@ -121,6 +126,7 @@
   interface PlaylistSnapshot {
     id: string;
     title: string;
+    description?: string;
     icon: string;
     gradient: string;
     badge: string;
@@ -139,6 +145,7 @@
     return {
       id: currentPlaylist?.id ?? libraryStore.selectedPlaylistId,
       title: currentPlaylist?.title || t('nav.songs'),
+      description: currentPlaylist?.description,
       icon: currentPlaylist?.icon || 'Cd',
       gradient: currentPlaylist?.gradient || 'linear-gradient(135deg, #1DB954 0%, #0d9488 100%)',
       badge: 'Playlist',
@@ -208,13 +215,7 @@
 
   async function importMidi() {
     try {
-      const imported = await libraryStore.importFiles();
-      if (imported && imported.length > 0) {
-        notificationCenter.success(
-          t('songs.importMidiTitle'),
-          t('songs.importSuccessMsg', { count: imported.length })
-        );
-      }
+      await importMidiFilesWithFeedback(undefined, currentPlaylist?.id);
     } catch (e) {
       notificationCenter.error(t('common.error'), String(e));
     }
@@ -242,6 +243,7 @@
   async function handleFileDrop(e: DragEvent) {
     e.preventDefault();
     e.stopPropagation();
+    if (isTauri) return;
     if (!e.dataTransfer?.files || e.dataTransfer.files.length === 0) return;
 
     const paths: string[] = [];
@@ -252,22 +254,21 @@
       }
     }
 
-    if (paths.length > 0) {
+    const midiPaths = filterMidiFilePaths(paths);
+    if (midiPaths.length > 0) {
       try {
-        const imported = await libraryStore.importFiles(paths);
-        if (imported && imported.length > 0) {
-          notificationCenter.success(
-            t('songs.importMidiTitle'),
-            t('songs.importSuccessMsg', { count: imported.length })
-          );
-        }
+        await importMidiFilesWithFeedback(midiPaths, currentPlaylist?.id);
       } catch (err) {
         notificationCenter.error(t('common.error'), String(err));
       }
     }
   }
 
-  function handlePlay(song: MidiFile) {
+  function handlePlay(song: MidiFile, index: number) {
+    if (currentPlaylist) {
+      void playbackStore.playPlaylist(filteredSongs, currentPlaylist.id, index);
+      return;
+    }
     if (playbackStore.activeSong?.id === song.id) {
       playbackStore.togglePlay();
     } else {
@@ -281,6 +282,24 @@
       await libraryStore.deleteSongs(ids);
       selectedSongIds = selectedSongIds.filter(id => !ids.includes(id));
       if (selectedSongId && ids.includes(selectedSongId)) selectedSongId = null;
+    } catch (error) {
+      notificationCenter.error(t('common.error'), String(error));
+    }
+  }
+
+  async function handleRemoveFromPlaylist(ids: string[]) {
+    if (!currentPlaylist || isBuiltInPlaylist(currentPlaylist.id)) return;
+    const targetSongs = filteredSongs.filter(s => ids.includes(s.id));
+    try {
+      const removedCount = await libraryStore.removeSongsFromPlaylist(currentPlaylist.id, ids);
+      selectedSongIds = selectedSongIds.filter(id => !ids.includes(id));
+      if (selectedSongId && ids.includes(selectedSongId)) selectedSongId = null;
+      notificationCenter.info(
+        t('songs.removedFromPlaylistTitle', { playlist: currentPlaylist.title }),
+        targetSongs.length === 1
+          ? t('songs.removedFromPlaylistSingle', { title: targetSongs[0].title, playlist: currentPlaylist.title })
+          : t('songs.removedFromPlaylistMultiple', { count: removedCount || ids.length, playlist: currentPlaylist.title })
+      );
     } catch (error) {
       notificationCenter.error(t('common.error'), String(error));
     }
@@ -369,6 +388,9 @@
         <div class="hero-info-layer hero-info-prev sweeping" aria-hidden="true">
           <span class="hero-badge">{previousPlaylist.badge}</span>
           <h1 class="hero-title">{previousPlaylist.title}</h1>
+          {#if previousPlaylist.description}
+            <p class="hero-description">{previousPlaylist.description}</p>
+          {/if}
           <div class="hero-meta">
             <span class="meta-item bold">{previousPlaylist.songCountText}</span>
             {#if previousPlaylist.durationText}
@@ -381,6 +403,9 @@
       <div class="hero-info-layer hero-info-curr" class:sweeping={isSweeping}>
         <span class="hero-badge">Playlist</span>
         <h1 class="hero-title">{currentPlaylist?.title || t('nav.songs')}</h1>
+        {#if currentPlaylist?.description}
+          <p class="hero-description">{currentPlaylist.description}</p>
+        {/if}
         <div class="hero-meta">
           <span class="meta-item bold">{filteredSongs.length} {filteredSongs.length === 1 ? 'song' : 'songs'}</span>
           {#if totalDurationFormatted}
@@ -431,8 +456,29 @@
       </GradientSweep>
     </div>
 
-    <!-- Right: Ghost Import, Ghost Refresh, Ghost Search, Ghost Filter -->
+    <!-- Right: Custom Playlist Actions, Ghost Import, Ghost Refresh, Ghost Search, Ghost Filter -->
     <div class="action-right" class:expand-right={animationStore.searchExpansionDirection === 'right'}>
+      {#if isCustomPlaylist && currentPlaylist}
+        <button
+          type="button"
+          class="ghost-icon-btn theme-ghost-button"
+          onclick={() => uiStore.openDialog('playlist', { mode: 'edit', playlist: currentPlaylist })}
+          title={t('playlists.editPlaylist')}
+          aria-label={t('playlists.editPlaylist')}
+        >
+          <FluentIcon name="Edit" size={15} />
+        </button>
+        <button
+          type="button"
+          class="ghost-icon-btn theme-ghost-button color-danger"
+          onclick={() => void confirmAndDeletePlaylist(currentPlaylist)}
+          title={t('playlists.deletePlaylist')}
+          aria-label={t('playlists.deletePlaylist')}
+        >
+          <FluentIcon name="Delete" size={15} />
+        </button>
+      {/if}
+
       <!-- Import MIDI ghost button -->
       <button class="ghost-icon-btn theme-ghost-button" onclick={importMidi} title={t('songs.importMidiTooltip')}>
         <FluentIcon name="Add" size={16} />
@@ -510,6 +556,7 @@
     onplay={handlePlay}
     onviewinstudio={handleViewInStudio}
     onedit={handleEdit}
+    onremovefromplaylist={isCustomPlaylist ? handleRemoveFromPlaylist : undefined}
     ondelete={!currentPlaylist || currentPlaylist.id === 'songs' || currentPlaylist.id === 'all-songs' ? handleDelete : undefined}
   />
 </CustomScrollViewer>
@@ -779,6 +826,17 @@
     padding-right: 8px;
     user-select: text;
     word-break: break-word;
+  }
+
+  .hero-description {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    max-width: 640px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .hero-meta {
