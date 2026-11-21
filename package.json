@@ -35,14 +35,14 @@
   },
   "dependencies": {
     "@fluentui/svg-icons": "^1.1.346",
-    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/api": "^2.12.5",
     "@tauri-apps/plugin-dialog": "^2.8.4",
     "@tauri-apps/plugin-shell": "^2.6.0",
-    "svelte": "^5.57.3"
+    "svelte": "^5.58.0"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
-    "@tauri-apps/cli": "^2.12.4",
+    "@tauri-apps/cli": "^2.12.6",
     "@types/node": "^26.6.6",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
