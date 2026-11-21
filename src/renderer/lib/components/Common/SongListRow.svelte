@@ -2,6 +2,7 @@
   import type { MidiFile } from '$shared/types/midi';
   import { t } from '../../i18n';
   import { popupScaleIn, popupScaleOut } from '../../utils/transitions';
+  import { portal } from '../../actions/portal';
   import FluentIcon from '../Icons/FluentIcon.svelte';
   import PlayPauseIcon from '../Icons/PlayPauseIcon.svelte';
   import EqualizerControl from './EqualizerControl.svelte';
@@ -77,6 +78,40 @@
   }: Props = $props();
 
   let isActivelyPlaying = $derived(isCurrentSong && isPlaying);
+  let menuBtnEl = $state<HTMLButtonElement | null>(null);
+
+  function applyRowMenuLayout(node: HTMLElement) {
+    if (!menuBtnEl) return;
+    const rect = menuBtnEl.getBoundingClientRect();
+    const width = node.offsetWidth || 180;
+    const height = node.offsetHeight || 260;
+    const margin = 8;
+    const gap = 4;
+    const spaceBelow = window.innerHeight - rect.bottom - margin;
+    const spaceAbove = rect.top - margin;
+    const openUpward = spaceBelow < height + gap && spaceAbove > spaceBelow;
+    const left = Math.max(margin, Math.min(rect.right - width, window.innerWidth - width - margin));
+    const top = Math.max(
+      margin,
+      Math.min(openUpward ? rect.top - height - gap : rect.bottom + gap, window.innerHeight - height - margin)
+    );
+    node.style.left = `${left}px`;
+    node.style.top = `${top}px`;
+    node.style.transformOrigin = openUpward ? 'bottom right' : 'top right';
+  }
+
+  function positionRowMenu(node: HTMLElement) {
+    const mounted = portal(node, document.body);
+    applyRowMenuLayout(node);
+    const onResize = () => applyRowMenuLayout(node);
+    window.addEventListener('resize', onResize);
+    return {
+      destroy() {
+        window.removeEventListener('resize', onResize);
+        mounted.destroy();
+      }
+    };
+  }
 
   function prefersReducedMotion(): boolean {
     return typeof window !== 'undefined'
@@ -233,6 +268,7 @@
   <!-- 3-dot Menu Button & Inline Flyout -->
   <div class="col-menu">
     <button
+      bind:this={menuBtnEl}
       type="button"
       class="menu-btn"
       class:visible={isMenuOpen}
@@ -248,6 +284,7 @@
         class="row-context-menu"
         role="menu"
         tabindex="-1"
+        use:positionRowMenu
         in:rowMenuIn
         out:rowMenuOut
         onclick={(e) => e.stopPropagation()}
@@ -636,16 +673,14 @@
 
   /* Context Menu Dropdown Flyout */
   .row-context-menu {
-    position: absolute;
-    top: calc(100% + 4px);
-    right: 8px;
+    position: fixed;
     transform-origin: top right;
     will-change: transform, opacity;
     background: var(--bg-dialog, #282828);
     border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
     border-radius: 6px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-    z-index: 100;
+    z-index: 2147483646;
     min-width: 170px;
     padding: 4px;
     display: flex;
@@ -666,6 +701,7 @@
     background: transparent;
     border: none;
     color: var(--text-primary);
+    font-family: inherit;
     font-size: 12.5px;
     cursor: pointer;
     text-align: left;

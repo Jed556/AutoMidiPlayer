@@ -138,6 +138,9 @@ test('SongListTable and SongListRow animate context menus and wire Liked Songs a
   const tableSource = readFileSync(new URL('../src/renderer/lib/components/Common/SongListTable.svelte', import.meta.url), 'utf8');
   const rowSource = readFileSync(new URL('../src/renderer/lib/components/Common/SongListRow.svelte', import.meta.url), 'utf8');
 
+  assert.match(tableSource, /import \{ portal \} from '\.\.\/\.\.\/actions\/portal'/);
+  assert.match(tableSource, /portal\(node, document\.body\)/);
+  assert.match(tableSource, /z-index: 2147483646/);
   assert.match(tableSource, /\{#each floatingMenu \? \[floatingMenu\] : \[\] as menu \(menu\.key\)\}/);
   assert.match(tableSource, /use:positionContextMenu=\{menu\.pos\}/);
   assert.match(tableSource, /in:contextMenuIn/);
@@ -145,6 +148,10 @@ test('SongListTable and SongListRow animate context menus and wire Liked Songs a
   assert.match(tableSource, /handleToggleLikedSongsAction/);
   assert.match(tableSource, /LIKED_SONGS_PLAYLIST_ID/);
 
+  assert.match(rowSource, /import \{ portal \} from '\.\.\/\.\.\/actions\/portal'/);
+  assert.match(rowSource, /portal\(node, document\.body\)/);
+  assert.match(rowSource, /z-index: 2147483646/);
+  assert.match(rowSource, /use:positionRowMenu/);
   assert.match(rowSource, /in:rowMenuIn/);
   assert.match(rowSource, /out:rowMenuOut/);
   assert.match(rowSource, /ontoggleliked/);

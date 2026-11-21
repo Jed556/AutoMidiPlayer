@@ -7,6 +7,7 @@
   import { t } from '../../i18n';
   import { popupScaleIn, popupScaleOut } from '../../utils/transitions';
   import { computeContextMenuPosition } from '../../utils/contextMenu';
+  import { portal } from '../../actions/portal';
   import FluentIcon from '../Icons/FluentIcon.svelte';
   import CustomScrollViewer from './CustomScrollViewer.svelte';
   import RollingIndex from './RollingIndex.svelte';
@@ -91,6 +92,7 @@
   }
 
   function handleScrollEvent() {
+    if (activeMenuId) closeMenu();
     if (scrollRafId) return;
     scrollRafId = requestAnimationFrame(() => {
       scrollRafId = 0;
@@ -248,10 +250,14 @@
   }
 
   function positionContextMenu(node: HTMLElement, anchor: { x: number; y: number }) {
+    const mounted = portal(node, document.body);
     applyContextMenuLayout(node, anchor);
     return {
       update(nextAnchor: { x: number; y: number }) {
         applyContextMenuLayout(node, nextAnchor);
+      },
+      destroy() {
+        mounted.destroy();
       }
     };
   }
@@ -1778,7 +1784,7 @@
 
   /* Right-Click Floating Context Menu */
   .row-context-menu.floating {
-    z-index: 10000;
+    z-index: 2147483646;
     transform-origin: top left;
     will-change: transform, opacity;
     background: var(--bg-dialog, #282828);
@@ -1805,6 +1811,7 @@
     background: transparent;
     border: none;
     color: var(--text-primary);
+    font-family: inherit;
     font-size: 12.5px;
     cursor: pointer;
     text-align: left;
