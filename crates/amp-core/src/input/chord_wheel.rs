@@ -39,6 +39,7 @@ struct Attack {
     stage: Stage,
     at: Instant,
     page_delta: isize,
+    expired: bool,
 }
 
 pub(super) struct ChordWheelOutput {
@@ -61,6 +62,29 @@ impl Default for ChordWheelOutput {
             held_strings: Vec::new(),
         }
     }
+}
+
+/// Real-time input budget shared by the arrangement search and the transport.
+pub(crate) fn wheel_transition_ms(
+    config: &ChordWheelConfigJson,
+    index: usize,
+    current_page: Option<usize>,
+    same_selector: bool,
+    switch: bool,
+) -> u64 {
+    if same_selector && !switch {
+        // Prepare the new owner before entering the transport's final sub-ms wait.
+        return 2;
+    }
+    let target = index / config.positions.len();
+    let pages = current_page.filter(|&page| page < config.page_count && target < config.page_count)
+        .map_or(config.page_count.saturating_sub(1), |page| {
+            let distance = page.abs_diff(target);
+            distance.min(config.page_count - distance)
+        });
+    let switch_ms = if switch { super::simulator::MODE_HOLD_MS + super::simulator::MODE_SETTLE_MS } else { 0 };
+    switch_ms + pages as u64 * u64::from(config.page_hold_ms + config.page_wait_ms)
+        + u64::from(config.move_delay_ms + config.select_hold_ms + config.after_select_ms) + 30
 }
 
 impl ChordWheelOutput {
@@ -87,18 +111,7 @@ impl ChordWheelOutput {
         self.held_strings.clear();
     }
     pub fn preparation_ms(&self, config: &ChordWheelConfigJson, index: usize) -> u64 {
-        if self.selected == Some(index) {
-            // No selector work is needed, but keep a small lookahead so the
-            // transport prepares this owner before its final sub-ms wait.
-            return 2;
-        }
-        let pages = self.page.map_or(config.page_count - 1, |page| {
-            let distance = page.abs_diff(index / config.positions.len());
-            distance.min(config.page_count - distance)
-        });
-        (pages as u64) * u64::from(config.page_hold_ms + config.page_wait_ms)
-            + u64::from(config.move_delay_ms + config.select_hold_ms + config.after_select_ms)
-            + 30
+        wheel_transition_ms(config, index, self.page, self.selected == Some(index), false)
     }
     pub fn prepare(
         &mut self,
@@ -113,7 +126,10 @@ impl ChordWheelOutput {
         if self.is_active() {
             return Err("The chord wheel is busy.".into());
         }
-        if self.page.is_none() {
+        if config.page_count == 1 && self.page != Some(0) {
+            self.assume_page(0);
+        }
+        if self.page.is_none_or(|page| page >= config.page_count) {
             return Err("Set the current game page before resuming chord playback.".into());
         }
         if target_page >= config.page_count {
@@ -140,6 +156,7 @@ impl ChordWheelOutput {
             },
             at: now,
             page_delta: 0,
+            expired: false,
         });
         self.tick(output, now)
     }
@@ -215,6 +232,7 @@ impl ChordWheelOutput {
                 attack.stage = Stage::Ready;
                 attack.at = now + Duration::from_millis(attack.config.after_select_ms.into());
             }
+            Stage::Ready if attack.expired => self.attack = None,
             Stage::Ready => {}
             Stage::StrumUp => {
                 if self.held == Some(WheelButton::Right) {
@@ -230,8 +248,14 @@ impl ChordWheelOutput {
     }
     pub fn ready(&self, owner: usize, now: Instant) -> bool {
         self.attack.as_ref().is_some_and(|attack| {
-            attack.owner == Some(owner) && matches!(attack.stage, Stage::Ready) && now >= attack.at
+            !attack.expired && attack.owner == Some(owner) && matches!(attack.stage, Stage::Ready) && now >= attack.at
         })
+    }
+    /// Finish any in-flight physical key release but never play a missed attack late.
+    pub fn expire(&mut self, owner: usize) {
+        if let Some(attack) = self.attack.as_mut().filter(|a| a.owner == Some(owner)) {
+            attack.expired = true;
+        }
     }
     pub fn strum(
         &mut self,
@@ -280,10 +304,18 @@ impl ChordWheelOutput {
             }
         }
         self.held_strings.retain(|stroke| {
-            match output.key(stroke.key, true) {
-                Ok(()) => false,
-                Err(failure) => { error = Some(failure); true }
+            let mut failed = false;
+            for key in [
+                Some(stroke.key),
+                stroke.shift.then_some(enigo::Key::Shift),
+                stroke.control.then_some(enigo::Key::Control),
+            ].into_iter().flatten() {
+                if let Err(failure) = output.key(key, true) {
+                    error = Some(failure);
+                    failed = true;
+                }
             }
+            failed
         });
         error.map_or(Ok(()), Err)
     }

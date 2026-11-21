@@ -68,7 +68,22 @@ pub struct KeySimulator {
     wheel: ChordWheelOutput,
     wheel_context: Option<String>,
     wheel_pages: HashMap<String, Option<usize>>,
+    fret_mode: Option<bool>,
+    mode_switch: Option<ModeSwitch>,
 }
+
+// The game accepts Z as a toggle. Any interruption before it settles makes
+// the physical mode ambiguous until the user synchronizes it.
+struct ModeSwitch {
+    target_fret: bool,
+    context: String,
+    key: KeyStroke,
+    held: bool,
+    deadline: Instant,
+}
+
+pub(super) const MODE_HOLD_MS: u64 = 50;
+pub(super) const MODE_SETTLE_MS: u64 = 180;
 
 /// One backend owns the physical keyboard. Wayland supplies a portal backend;
 /// other desktops initialize Enigo only when output is requested.
@@ -170,6 +185,8 @@ impl KeySimulator {
             wheel: ChordWheelOutput::default(),
             wheel_context: None,
             wheel_pages: HashMap::new(),
+            fret_mode: None,
+            mode_switch: None,
         }
     }
 
@@ -207,6 +224,7 @@ impl KeySimulator {
         self.release_everything();
         self.output = output;
         self.wheel.retire();
+        self.mode_switch = None;
         // Failed releases belong to the retired backend. A replacement must
         // not inherit ownership for keys that it has never pressed.
         #[cfg(not(windows))]
@@ -346,7 +364,59 @@ impl KeySimulator {
 
     pub fn wheel_preparation_ms(&self, config: &ChordWheelConfigJson, index: usize) -> u64 { self.wheel.preparation_ms(config, index) }
     pub fn wheel_ready(&self, owner: usize) -> bool { self.wheel.ready(owner, Instant::now()) }
-    pub fn wheel_state(&self) -> super::chord_wheel::ChordWheelState { self.wheel.state() }
+    pub fn expire_wheel(&mut self, owner: usize) { self.wheel.expire(owner); }
+    pub fn wheel_state(&self) -> super::chord_wheel::ChordWheelState {
+        let mut state = self.wheel.state();
+        state.busy |= self.mode_switch.is_some();
+        state
+    }
+    pub fn fret_mode(&self) -> Option<bool> { self.fret_mode }
+    pub fn declare_mode(&mut self, mode: Option<bool>) { self.fret_mode = mode; }
+    pub fn page_for_context(&self, context: Option<&str>) -> Option<usize> {
+        let context = context?;
+        if self.wheel_context.as_deref() == Some(context) { return self.wheel.state().page; }
+        self.wheel_pages.get(context).copied().unwrap_or(Some(0))
+    }
+    pub fn target_preparation_ms(&self, config: &ChordWheelConfigJson, index: usize, target_fret: bool, context: Option<&str>) -> u64 {
+        if self.fret_mode == Some(target_fret) { return self.wheel.preparation_ms(config, index); }
+        super::chord_wheel::wheel_transition_ms(config, index, self.page_for_context(context), false, true)
+    }
+    pub fn begin_mode_switch(&mut self, target_fret: bool, context: &str, key: KeyStroke, config: &ChordWheelConfigJson, processes: &[String]) {
+        let result = (|| {
+            self.prepare()?;
+            let output = self.output.as_mut().unwrap();
+            output.wheel_move(processes, config.strum_position)?;
+            if !output.wheel_focused() { return Err("Focus the selected game before switching guitar modes.".into()); }
+            self.mode_switch = Some(ModeSwitch { target_fret, context: context.to_owned(), key, held: true,
+                deadline: Instant::now() + Duration::from_millis(MODE_HOLD_MS) });
+            self.fret_mode = None;
+            for (key, up) in key.press_events() { output.key(key, up)?; }
+            Ok(())
+        })();
+        if let Err(error) = result { self.cancel_wheel(); self.error = Some(error); }
+    }
+    fn tick_mode_switch(&mut self, now: Instant) -> Result<(), String> {
+        let Some(switch) = self.mode_switch.as_mut() else { return Ok(()); };
+        let output = self.output.as_mut().ok_or("Guitar output is unavailable.")?;
+        if !output.wheel_focused() { return Err("The game lost focus during a mode switch. Synchronize the guitar mode before resuming.".into()); }
+        if now < switch.deadline { return Ok(()); }
+        if switch.held {
+            output.key(switch.key.key, true)?;
+            switch.held = false;
+            switch.deadline = now + Duration::from_millis(MODE_SETTLE_MS);
+        } else {
+            let switch = self.mode_switch.take().unwrap();
+            self.fret_mode = Some(switch.target_fret);
+            self.wheel_pages.entry(switch.context.clone()).or_insert(Some(0));
+            self.set_wheel_context(Some(switch.context));
+        }
+        Ok(())
+    }
+    pub fn dispatch_succeeded(&self) -> bool { self.error.is_none() }
+    pub fn fail_wheel(&mut self, error: &str) {
+        self.cancel_wheel();
+        self.error = Some(error.into());
+    }
     pub fn set_wheel_context(&mut self, context: Option<String>) {
         if let Some(context) = context {
             if self.wheel_context.as_ref().is_some_and(|previous| previous != &context) {
@@ -360,7 +430,7 @@ impl KeySimulator {
     }
     pub fn set_wheel_page(&mut self, config: &ChordWheelConfigJson, processes: &[String], page: usize, send: bool) -> Result<(), String> {
         if page >= config.page_count { return Err("Chord page is unavailable".into()); }
-        if self.wheel.is_active() { return Err("The chord wheel is busy".into()); }
+        if self.wheel_active() { return Err("The chord wheel is busy".into()); }
         if !send { self.wheel.assume_page(page); return Ok(()); }
         self.prepare()?;
         let result = self.wheel.prepare(self.output.as_mut().unwrap().as_mut(), config, processes, None, page, None, Instant::now());
@@ -369,6 +439,9 @@ impl KeySimulator {
     }
 
     pub fn tick_wheel(&mut self) {
+        if let Err(error) = self.tick_mode_switch(Instant::now()) {
+            self.cancel_wheel(); self.error = Some(error); return;
+        }
         if let Some(output) = &mut self.output {
             if let Err(error) = self.wheel.tick(output.as_mut(), Instant::now()) {
                 self.cancel_wheel(); self.error = Some(error);
@@ -376,9 +449,19 @@ impl KeySimulator {
         }
     }
 
-    pub fn wheel_active(&self) -> bool { self.wheel.is_active() }
+    pub fn wheel_active(&self) -> bool { self.wheel.is_active() || self.mode_switch.is_some() }
     pub fn cancel_wheel(&mut self) {
         if let Some(output) = &mut self.output {
+            if let Some(switch) = self.mode_switch.take() {
+                self.fret_mode = None;
+                if switch.held {
+                    let mut failure = None;
+                    for key in [Some(switch.key.key), switch.key.shift.then_some(Key::Shift), switch.key.control.then_some(Key::Control)].into_iter().flatten() {
+                        if let Err(error) = output.key(key, true) { failure = Some(error); }
+                    }
+                    if let Some(error) = failure { self.mode_switch = Some(switch); self.error = Some(error); }
+                }
+            }
             if let Err(error) = self.wheel.cancel(output.as_mut()) { self.error = Some(error); }
         }
     }

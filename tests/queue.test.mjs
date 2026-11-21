@@ -230,7 +230,9 @@ test('chord tolerance restores and saves for the loaded instrument', async () =>
     ['setNoteProcessing', false, 100, 55]);
   assert.deepEqual(songSettingsWrites[0][2], { kind: 'instrument', gameId: 'game-a', instrumentId: 'lyre' });
   player.loadSong(songs[1]);
-  assert.equal(player.chordDetectionMilliseconds, 30, 'A new song must not inherit the previous song tolerance');
+  assert.equal(sharedDefaults.DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds, 100);
+  assert.equal(player.chordDetectionMilliseconds, sharedDefaults.DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds,
+    'A new song must not inherit the previous song tolerance');
 });
 
 test('merge and chord tolerance controls synchronize complete settings live and reset on song changes', async () => {
@@ -252,7 +254,7 @@ test('merge and chord tolerance controls synchronize complete settings live and 
   assert.equal(playbackCalls.length, beforeInvalid);
   player.loadSong({ ...songs[1], mergeNotes: undefined, mergeToleranceMs: undefined });
   assert.deepEqual(playbackCalls.findLast(([method]) => method === 'setNoteProcessing'),
-    ['setNoteProcessing', false, sharedDefaults.DEFAULT_APP_SETTINGS.defaultMergeToleranceMs, 30]);
+    ['setNoteProcessing', false, sharedDefaults.DEFAULT_APP_SETTINGS.defaultMergeToleranceMs, sharedDefaults.DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds]);
   await player.flushPendingSongSettings();
   assert.equal(songSettingsWrites[0][0], 'a');
   assert.equal(songSettingsWrites[0][1].mergeMilliseconds, 90);
@@ -274,7 +276,7 @@ test('native loading reapplies processing before playback and song switches do n
   assert.equal(playbackCalls.slice(switchIndex, loadIndex).some(([method]) => method === 'setNoteProcessing'), false,
     'Selecting a different song must not apply its effects to the previously loaded native song');
   assert.deepEqual(playbackCalls.slice(loadIndex).filter(([method]) => ['setNoteProcessing', 'play'].includes(method)), [
-    ['setNoteProcessing', false, 100, 30], ['play', 'b'],
+    ['setNoteProcessing', false, 100, sharedDefaults.DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds], ['play', 'b'],
   ]);
 });
 

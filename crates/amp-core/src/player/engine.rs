@@ -20,7 +20,7 @@ use crate::diagnostics::ServiceState;
 use super::live_input::{LiveInput, LiveInputSnapshot, LiveSettings, MidiMessage};
 use crate::input::simulator::KeyboardOutput;
 use super::note_timing::{is_tap, note_durations, pending_note_owners, KeyReleases, KeyPressAction, OverlapBehavior};
-use super::note_processing::{NoteProcessingSettings, ChordNote, merge_notes, detect_chords, detect_frets};
+use super::note_processing::{NoteProcessingSettings, ChordNote, merge_notes, detect_chords, plan_guitar, plan_pad_accompaniment, GuitarPlanStart};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum PlaybackStatus {
@@ -133,6 +133,26 @@ fn publish_live_notes(
     }
 }
 
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArrangementState {
+    pub mode: Option<&'static str>,
+    pub slot: Option<usize>,
+    pub strings: u8,
+    pub page: Option<usize>,
+    pub omitted_melody: usize,
+    pub omitted_accompaniment: usize,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct WheelAttack {
+    owner: usize,
+    at: u64,
+    slot: usize,
+    fret: bool,
+    members: usize,
+}
+
 #[derive(Debug, Clone)]
 pub enum PlayerEvent {
     TimeUpdate { time_us: u64, seek_id: u64 },
@@ -143,11 +163,15 @@ pub enum PlayerEvent {
     StateChanged(PlaybackStatus),
     Finished,
     ChordWheelChanged(crate::input::chord_wheel::ChordWheelState),
+    Arrangement(ArrangementState),
 }
 
 enum Command {
     GetChordWheelState(Sender<crate::input::chord_wheel::ChordWheelState>),
     SetChordWheelPage(usize, bool, Sender<Result<(), String>>),
+    SyncGuitarMode(bool, Sender<Result<(), String>>),
+    SwitchGuitarMode(bool, crate::input::mapping::KeyStroke, Sender<Result<(), String>>),
+    GetGuitarMode(Sender<Option<bool>>),
     ObserveKeyboard(ServiceStatus),
     Fence(Sender<()>),
     MidiStart(u64),
@@ -204,6 +228,21 @@ pub struct PlaybackEngine {
 }
 
 impl PlaybackEngine {
+    pub fn guitar_mode(&self) -> Result<Option<bool>, String> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        self.cmd_tx.send(Command::GetGuitarMode(tx)).map_err(|e| e.to_string())?;
+        rx.recv_timeout(Duration::from_secs(2)).map_err(|e| e.to_string())
+    }
+    pub fn sync_guitar_mode(&self, fret: bool) -> Result<(), String> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        self.cmd_tx.send(Command::SyncGuitarMode(fret, tx)).map_err(|e| e.to_string())?;
+        rx.recv_timeout(Duration::from_secs(2)).map_err(|e| e.to_string())?
+    }
+    pub fn switch_guitar_mode(&self, fret: bool, key: crate::input::mapping::KeyStroke) -> Result<(), String> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        self.cmd_tx.send(Command::SwitchGuitarMode(fret, key, tx)).map_err(|e| e.to_string())?;
+        rx.recv_timeout(Duration::from_secs(2)).map_err(|e| e.to_string())?
+    }
     pub fn chord_wheel_state(&self) -> Result<crate::input::chord_wheel::ChordWheelState, String> {
         let (tx, rx) = crossbeam_channel::bounded(1);
         self.cmd_tx.send(Command::GetChordWheelState(tx)).map_err(|e| e.to_string())?;
@@ -495,6 +534,11 @@ fn run_playback_loop(
     midi_overflow: Arc<AtomicBool>,
 ) {
     let mut key_sim = KeySimulator::new();
+    let mut manual_mode_switch: Option<(bool, Sender<Result<(), String>>)> = None;
+    let mut wheel_contexts = [mapping.wheel_context_for_mode(false), mapping.wheel_context_for_mode(true)];
+    if !mapping.is_mixed() && mapping.chord_wheel().is_some() {
+        key_sim.declare_mode(Some(mapping.chord_pads().is_empty() && mapping.frets().is_some()));
+    }
     key_sim.set_wheel_context(mapping.wheel_context());
     let mut log_played_notes = false;
     let mut midi = LiveInput::default();
@@ -555,7 +599,9 @@ fn run_playback_loop(
     let mut all_keys = mapping.all_keys();
     let (mut min_pitch, mut max_pitch) = mapping.pitch_range();
     let mut playable_notes = mapping.playable_notes().to_vec();
-    let mut wheel_attacks: Vec<(usize, u64, usize)> = Vec::new();
+    let mut wheel_attacks: Vec<WheelAttack> = Vec::new();
+    let mut arrangement = ArrangementState::default();
+    let mut arrangement_clear_at = None;
     let mut wheel_starting = true;
     let mut wheel_state = key_sim.wheel_state();
 
@@ -575,11 +621,45 @@ fn run_playback_loop(
             let Some(cmd) = pending_command.take().or_else(|| cmd_rx.try_recv().ok()) else { break };
             match cmd {
                 Command::GetChordWheelState(reply) => { let _ = reply.send(key_sim.wheel_state()); }
+                Command::GetGuitarMode(reply) => { let _ = reply.send(key_sim.fret_mode()); }
+                Command::SwitchGuitarMode(fret, key, reply) => {
+                    let result = if status == PlaybackStatus::Playing || key_sim.wheel_active() || manual_mode_switch.is_some() {
+                        Err("Pause playback and wait for pending guitar input.".into())
+                    } else if !config_available.load(Ordering::Acquire) || mapping.chord_wheel().is_none() {
+                        Err("Select a guitar with a valid wheel layout.".into())
+                    } else if key_sim.fret_mode().is_none() {
+                        Err("Sync the current game mode in Instrument View before changing modes.".into())
+                    } else if key_sim.fret_mode() == Some(fret) {
+                        Ok(())
+                    } else {
+                        // Fixed modes install the destination mapping after this command completes.
+                        let context = wheel_contexts[fret as usize].as_ref().or(wheel_contexts[!fret as usize].as_ref()).unwrap();
+                        key_sim.begin_mode_switch(fret, context, key, mapping.chord_wheel().unwrap(), mapping.game_process_names());
+                        manual_mode_switch = Some((fret, reply));
+                        continue;
+                    };
+                    let _ = reply.send(result);
+                }
+                Command::SyncGuitarMode(fret, reply) => {
+                    let result = if status == PlaybackStatus::Playing || key_sim.wheel_active() {
+                        Err("Pause playback and wait for pending input before synchronizing the mode.".into())
+                    } else if wheel_contexts[fret as usize].is_none() {
+                        Err("Select that guitar mode in Instrument View first.".into())
+                    } else {
+                        key_sim.declare_mode(Some(fret));
+                        key_sim.set_wheel_context(wheel_contexts[fret as usize].clone());
+                        rebuild_chords = true;
+                        Ok(())
+                    };
+                    let _ = reply.send(result);
+                }
                 Command::SetChordWheelPage(page, send, reply) => {
                     let result = if !config_available.load(Ordering::Acquire) { Err("The instrument configuration is unavailable.".into()) }
                         else if status == PlaybackStatus::Playing { Err("Pause playback before changing the page manually.".into()) }
-                        else if let Some(config) = mapping.chord_wheel() { key_sim.set_wheel_page(config, mapping.game_process_names(), page, send) }
+                        else if mapping.is_mixed() && key_sim.fret_mode().is_none() { Err("Synchronize the current guitar mode before changing its page.".into()) }
+                        else if let Some(config) = mapping.wheel_for_mode(key_sim.fret_mode().unwrap_or(false)) { key_sim.set_wheel_page(config, mapping.game_process_names(), page, send) }
                         else { Err("Select an instrument with a chord wheel first.".into()) };
+                    if result.is_ok() && !send { rebuild_chords = true; }
                     let _ = reply.send(result);
                 }
                 Command::ObserveKeyboard(status) => key_sim.observe(status),
@@ -622,12 +702,21 @@ fn run_playback_loop(
                     if key_sim.is_ready() { keyboard_error = None; }
                 }
                 Command::Play(reply) => {
+                    if status != PlaybackStatus::Playing && key_sim.wheel_active() {
+                        let _ = reply.send(Err("Wait for the guitar controls to finish changing.".into()));
+                        continue;
+                    }
                     if !config_available.load(Ordering::Acquire) {
                         let _ = reply.send(Err("Choose an instrument with a valid layout in Instrument View.".into()));
                         continue;
                     }
                     if current_song.is_none() {
                         let _ = reply.send(Err("Choose a song to play.".into()));
+                        continue;
+                    }
+                    if send_input && !listen_mode && mapping.chord_wheel().is_some()
+                        && key_sim.fret_mode().and_then(|fret| mapping.wheel_for_mode(fret)).is_none() {
+                        let _ = reply.send(Err("Synchronize the current guitar mode in Instrument View before playback.".into()));
                         continue;
                     }
                     if status != PlaybackStatus::Playing {
@@ -748,6 +837,7 @@ fn run_playback_loop(
                     }
                 }
                 Command::SetSpeed(new_speed) => {
+                    rebuild_chords |= mapping.chord_wheel().is_some() && speed != new_speed.clamp(0.1, 5.0);
                     speed = new_speed.clamp(0.1, 5.0);
                 }
                 Command::SetKeyOffset(offset) => {
@@ -793,6 +883,7 @@ fn run_playback_loop(
                     }
                 }
                 Command::SetHoldDelayMs(ms) => {
+                    rebuild_chords |= mapping.chord_wheel().is_some() && tap_duration_ms != ms.min(1000);
                     if tap_duration_ms != ms.min(1000) { midi.clear(&mut key_sim, &audio_synth); }
                     tap_duration_ms = ms.min(1000);
                     key_sim.set_hold_delay_ms(ms);
@@ -992,7 +1083,14 @@ fn run_playback_loop(
                     rebuild_chords = true;
                     midi.clear(&mut key_sim, &audio_synth);
                     key_sim.release_all(&all_keys);
-                    key_sim.set_wheel_context(new_mapping.wheel_context());
+                    let next_contexts = [new_mapping.wheel_context_for_mode(false), new_mapping.wheel_context_for_mode(true)];
+                    if !new_mapping.is_mixed() {
+                        key_sim.declare_mode(new_mapping.chord_wheel().map(|_| new_mapping.chord_pads().is_empty() && new_mapping.frets().is_some()));
+                    } else if key_sim.fret_mode().is_some_and(|fret| wheel_contexts[fret as usize] != next_contexts[fret as usize]) {
+                        key_sim.declare_mode(None);
+                    }
+                    wheel_contexts = next_contexts;
+                    key_sim.set_wheel_context(wheel_contexts[key_sim.fret_mode().unwrap_or(false) as usize].clone());
                     key_releases.clear();
                     active_held_notes.clear();
                     live_notes.clear();
@@ -1078,18 +1176,37 @@ fn run_playback_loop(
             let frozen: Vec<_> = chord_notes.iter().map(|note|
                 note.filter(|note| triggered_chords.contains(&note.chord_id))).collect();
             let next_chord_id = frozen.iter().flatten().map(|note| note.chord_id + 1).max().unwrap_or(0);
+            let mut omissions = (0, 0);
             let mut planned = current_song.as_ref().map(|song| {
                 let enabled = |index: usize, event: &crate::midi::TimedNoteEvent| frozen.get(index).is_none_or(Option::is_none)
                         && !muted_tracks.contains(&event.track_index)
                         && ((event.velocity as f32) * track_volumes.get(&event.track_index).copied().unwrap_or(1.0)).round() > 0.0;
+                let pad_only = !mapping.chord_pads().is_empty() && mapping.chord_wheel().is_none() && mapping.is_chord_only();
                 let transform = |pitch, time_us: u64| {
-                        let marker = key_markers_enabled.then(|| get_active_marker(&key_markers, (time_us + 10_000) / 1000)).flatten();
-                        process_note_pitch(pitch, marker.map(|m| m.key_offset).unwrap_or(key_offset),
-                            marker.and_then(|m| m.transpose).unwrap_or(transpose_mode),
-                            min_pitch, max_pitch, &playable_notes)
+                    let marker = key_markers_enabled.then(|| get_active_marker(&key_markers, (time_us + 10_000) / 1000)).flatten();
+                    let offset = marker.map(|m| m.key_offset).unwrap_or(key_offset);
+                    if pad_only {
+                        // A pad plays a harmony independently of the melody keyboard's range.
+                        return Some(crate::midi::transpose::fold_note_by_octaves(i32::from(pitch) + i32::from(offset), 0, 127) as u8);
+                    }
+                    process_note_pitch(pitch, offset, marker.and_then(|m| m.transpose).unwrap_or(transpose_mode),
+                        min_pitch, max_pitch, &playable_notes)
+                };
+                if mapping.chord_wheel().is_some() {
+                    let start = GuitarPlanStart {
+                        from_index: event_idx,
+                        initial_fret_mode: key_sim.fret_mode().unwrap_or(false),
+                        initial_chord_page: key_sim.page_for_context(wheel_contexts[0].as_deref()).unwrap_or(0),
+                        initial_fret_page: key_sim.page_for_context(wheel_contexts[1].as_deref()).unwrap_or(0),
+                        speed, hold_ms: tap_duration_ms,
                     };
-                if let (Some(frets), Some(wheel)) = (mapping.frets(), mapping.chord_wheel()) {
-                    detect_frets(&song.events, frets, wheel.positions.len(), 0, enabled, transform)
+                    let plan = plan_guitar(song, &mapping, start, note_processing.chord_detection_milliseconds,
+                        enabled, transform);
+                    omissions = (plan.omitted_melody, plan.omitted_accompaniment);
+                    plan.notes
+                } else if pad_only {
+                    plan_pad_accompaniment(song, mapping.chord_pads(), note_processing.chord_detection_milliseconds,
+                        |index, event| event.channel != 9 && enabled(index, event), transform)
                 } else if !mapping.chord_pads().is_empty() {
                     detect_chords(&song.events, mapping.chord_pads(), note_processing.chord_detection_milliseconds, enabled, transform)
                 } else { Vec::new() }
@@ -1102,10 +1219,28 @@ fn run_playback_loop(
                 }
             }
             chord_notes = planned;
-            wheel_attacks = current_song.as_ref().map(|song| chord_notes.iter().enumerate().filter_map(|(index, note)| {
-                match note { Some(ChordNote { binding: ChordBinding::Wheel(slot) | ChordBinding::Frets { slot, .. }, trigger: true, .. }) =>
-                    Some((index, song.events[index].time_us, *slot)), _ => None }
-            }).collect()).unwrap_or_default();
+            let previous = arrangement.clone();
+            arrangement = ArrangementState { omitted_melody: omissions.0, omitted_accompaniment: omissions.1, ..Default::default() };
+            arrangement_clear_at = None;
+            if previous != arrangement { callback(PlayerEvent::Arrangement(arrangement.clone())); }
+            wheel_attacks.clear();
+            if let Some(song) = current_song.as_ref().filter(|_| mapping.chord_wheel().is_some()) {
+                let mut members = HashMap::new();
+                for (event, note) in song.events.iter().zip(&chord_notes) {
+                    if let Some(note) = note.filter(|_| event.is_note_on && event.velocity > 0) {
+                        *members.entry(note.chord_id).or_insert(0usize) += 1;
+                    }
+                }
+                for (owner, note) in chord_notes.iter().enumerate() {
+                    let Some(note) = note.filter(|n| n.trigger) else { continue };
+                    let (slot, fret) = match note.binding {
+                        ChordBinding::Wheel(slot) | ChordBinding::Pluck { slot, .. } => (slot, false),
+                        ChordBinding::Frets { slot, .. } => (slot, true),
+                        ChordBinding::Key(_) => continue,
+                    };
+                    wheel_attacks.push(WheelAttack { owner, at: song.events[owner].time_us, slot, fret, members: members[&note.chord_id] });
+                }
+            }
         }
 
         midi.snapshot.listen_mode = listen_mode;
@@ -1116,8 +1251,12 @@ fn run_playback_loop(
             .is_some_and(|synth| synth.output_status().state == ServiceState::Ready); }
         if !config_available.load(Ordering::Acquire) { midi.gate(false, &mut key_sim, &audio_synth); }
         midi.tick(Instant::now(), &mut key_sim, &audio_synth, repress_gap_ms);
+        if manual_mode_switch.is_some() && !config_available.load(Ordering::Acquire) {
+            key_sim.cancel_wheel();
+        }
         key_sim.tick_wheel();
         if let Some(error) = key_sim.take_error() {
+            if let Some((_, reply)) = manual_mode_switch.take() { let _ = reply.send(Err(error.clone())); }
             if mapping.chord_wheel().is_some() {
                 let mut state = key_sim.wheel_state();
                 state.error = Some(error.clone());
@@ -1155,7 +1294,18 @@ fn run_playback_loop(
             #[cfg(not(windows))]
             { keyboard_error = Some(error); }
         }
+        if !key_sim.wheel_active() {
+            if let Some((fret, reply)) = manual_mode_switch.take() {
+                let result = if key_sim.fret_mode() == Some(fret) { Ok(()) }
+                    else { Err("The guitar mode change was interrupted. Sync the current game mode.".into()) };
+                let _ = reply.send(result);
+            }
+        }
         let next_wheel_state = key_sim.wheel_state();
+        if status != PlaybackStatus::Playing && wheel_state.busy && !next_wheel_state.busy {
+            // A manual page move changes the starting position of the arrangement.
+            rebuild_chords |= mapping.chord_wheel().is_some();
+        }
         if wheel_state != next_wheel_state {
             wheel_state = next_wheel_state;
             callback(PlayerEvent::ChordWheelChanged(wheel_state.clone()));
@@ -1197,6 +1347,12 @@ fn run_playback_loop(
                 && config_available.load(Ordering::Acquire));
 
         let now = Instant::now();
+        if arrangement_clear_at.is_some_and(|deadline| now >= deadline || status != PlaybackStatus::Playing || !send_input || listen_mode) {
+            arrangement.slot = None;
+            arrangement.strings = 0;
+            arrangement_clear_at = None;
+            callback(PlayerEvent::Arrangement(arrangement.clone()));
+        }
         // A threshold/hold/speed change also applies to notes currently held.
         for (&owner, note) in &mut live_notes {
             if note.adapted_timing && note.deadline.is_none()
@@ -1211,6 +1367,16 @@ fn run_playback_loop(
         for (stroke, owners) in key_releases.take_presses(now) {
             key_sim.press_stroke(stroke);
             for owner in owners {
+                if let Some(chord) = chord_notes.get(owner).copied().flatten().filter(|c| c.trigger && c.binding == ChordBinding::Key(stroke)) {
+                    if let Some(slot) = mapping.chord_slot(chord.binding).filter(|_| key_sim.dispatch_succeeded()) {
+                        arrangement.mode = Some("chords");
+                        arrangement.slot = Some(slot);
+                        arrangement.page = None;
+                        arrangement.strings = 0;
+                        arrangement_clear_at = Some(now + Duration::from_millis(tap_duration_ms));
+                        callback(PlayerEvent::Arrangement(arrangement.clone()));
+                    }
+                }
                 if let Some(note) = live_notes.get_mut(&owner).filter(|note| !note.chord_pad) {
                     note.deadline = note.deadline.map(|at| now + at.saturating_duration_since(note.started));
                     note.started = now;
@@ -1250,18 +1416,26 @@ fn run_playback_loop(
             }
         };
 
-        if send_input && !listen_mode && (!mapping.chord_pads().is_empty() || mapping.frets().is_some()) {
-            if let Some(config) = mapping.chord_wheel() {
-                let next = wheel_attacks.get(wheel_attacks.partition_point(|(index, _, _)| *index < event_idx));
-                if let Some(&(owner, at_us, slot)) = next {
-                    let budget_us = key_sim.wheel_preparation_ms(config, slot) * 1000;
-                    let until_us = (at_us.saturating_sub(current_us) as f64 / speed) as u64;
+        if send_input && !listen_mode && mapping.chord_wheel().is_some() {
+            if let Some(&attack) = wheel_attacks.get(wheel_attacks.partition_point(|attack| attack.owner < event_idx)) {
+                if let Some(config) = mapping.wheel_for_mode(attack.fret) {
+                    let context = wheel_contexts[attack.fret as usize].as_deref();
+                    let budget_us = key_sim.target_preparation_ms(config, attack.slot, attack.fret, context) * 1000;
+                    let until_us = (attack.at.saturating_sub(current_us) as f64 / speed) as u64;
                     if until_us <= budget_us && !key_sim.wheel_active() {
-                        key_sim.prepare_wheel(config, mapping.game_process_names(), slot, owner);
+                        if mapping.is_mixed() && key_sim.fret_mode() != Some(attack.fret) {
+                            if let (Some(_), Some(context), Some(key)) = (key_sim.fret_mode(), context, mapping.frets().and_then(|f| f.mode_key)) {
+                                key_sim.begin_mode_switch(attack.fret, context, key, config, mapping.game_process_names());
+                            } else {
+                                key_sim.fail_wheel("Synchronize the current guitar mode before Mixed playback.");
+                            }
+                        } else {
+                            key_sim.prepare_wheel(config, mapping.game_process_names(), attack.slot, attack.owner);
+                        }
                     }
                     // Starting and seeking get preparation time before the song
                     // clock runs. Later page changes must fit between attacks.
-                    if wheel_starting && until_us <= budget_us && !key_sim.wheel_ready(owner) {
+                    if wheel_starting && until_us <= budget_us && !key_sim.wheel_ready(attack.owner) {
                         sleeper.sleep(Duration::from_millis(1));
                         last_instant = Instant::now();
                         continue;
@@ -1430,7 +1604,7 @@ fn run_playback_loop(
                         // Pads are one timed attack, never retriggered by a historical seek/resume.
                         Some(note) => match note.binding {
                             ChordBinding::Key(stroke) => (note.trigger && !restoring).then_some(stroke),
-                            ChordBinding::Wheel(_) | ChordBinding::Frets { .. } => None,
+                            ChordBinding::Wheel(_) | ChordBinding::Pluck { .. } | ChordBinding::Frets { .. } => None,
                         },
                         None => mapped_note.and_then(|n| mapping.get_stroke(n)),
                     };
@@ -1473,12 +1647,35 @@ fn run_playback_loop(
                     } else if send_input {
                         if let Some(chord) = chord.filter(|note| note.trigger && !restoring) {
                             triggered_chords.insert(chord.chord_id);
-                            if matches!(chord.binding, ChordBinding::Wheel(_)) {
-                                key_sim.strum_wheel(owner_index, tap_duration_ms);
-                            } else if let (ChordBinding::Frets { strings, .. }, Some(frets)) = (chord.binding, mapping.frets()) {
-                                let strokes: Vec<_> = frets.string_strokes.iter().enumerate()
-                                    .filter_map(|(index, &stroke)| (strings & (1 << index) != 0).then_some(stroke)).collect();
-                                key_sim.pluck_wheel(owner_index, &strokes, tap_duration_ms);
+                            if let Ok(index) = wheel_attacks.binary_search_by_key(&owner_index, |a| a.owner) {
+                                let attack = wheel_attacks[index];
+                                if !key_sim.wheel_ready(owner_index) {
+                                    // An overloaded scheduler must never turn a missed attack into a late one.
+                                    key_sim.expire_wheel(owner_index);
+                                    arrangement.omitted_melody += 1;
+                                    arrangement.omitted_accompaniment += attack.members.saturating_sub(1);
+                                    callback(PlayerEvent::Arrangement(arrangement.clone()));
+                                } else {
+                                    let strings = match chord.binding {
+                                        ChordBinding::Pluck { strings, .. } | ChordBinding::Frets { strings, .. } => strings,
+                                        _ => 0,
+                                    };
+                                    if strings == 0 {
+                                        key_sim.strum_wheel(owner_index, tap_duration_ms);
+                                    } else if let Some(frets) = mapping.frets() {
+                                        let strokes: Vec<_> = frets.string_strokes.iter().enumerate()
+                                            .filter_map(|(index, &stroke)| (strings & (1 << index) != 0).then_some(stroke)).collect();
+                                        key_sim.pluck_wheel(owner_index, &strokes, tap_duration_ms);
+                                    }
+                                    if key_sim.dispatch_succeeded() {
+                                        arrangement.mode = Some(if attack.fret { "frets" } else { "chords" });
+                                        arrangement.slot = Some(attack.slot);
+                                        arrangement.page = key_sim.wheel_state().page;
+                                        arrangement.strings = strings;
+                                        arrangement_clear_at = Some(started + Duration::from_millis(tap_duration_ms));
+                                        callback(PlayerEvent::Arrangement(arrangement.clone()));
+                                    }
+                                }
                             }
                         }
                         if let Some(stroke) = mapped_stroke {
@@ -1487,7 +1684,16 @@ fn run_playback_loop(
                             }
                             let key = stroke.key;
                             let key_deadline = if chord_pad { Some(started + Duration::from_millis(tap_duration_ms)) } else { deadline };
-                            let (action, press_at) = key_releases.begin_stroke(stroke, owner_index, started, key_deadline, overlap_behavior);
+                            let (action, press_at) = if chord_pad && mapping.is_chord_only() {
+                                // Chord attacks carry their own musical onset. The overlap
+                                // preference for melody keys must not suppress or defer a pad.
+                                if key_releases.press(key, owner_index, key_deadline) {
+                                    key_sim.send_key(key, true);
+                                }
+                                (KeyPressAction::Press, started)
+                            } else {
+                                key_releases.begin_stroke(stroke, owner_index, started, key_deadline, overlap_behavior)
+                            };
                             if let Some(note) = live_notes.get_mut(&owner_index).filter(|note| !note.chord_pad) {
                                 note.started = press_at;
                                 note.deadline = deadline.map(|at| press_at + at.saturating_duration_since(started));
@@ -1496,6 +1702,14 @@ fn run_playback_loop(
                                 KeyPressAction::Press => key_sim.press_stroke(stroke),
                                 KeyPressAction::Retrigger => key_sim.send_key(key, true),
                                 KeyPressAction::Deferred | KeyPressAction::Ignore => {}
+                            }
+                            if chord_pad && matches!(action, KeyPressAction::Press) && key_sim.dispatch_succeeded() {
+                                arrangement.mode = Some("chords");
+                                arrangement.slot = mapping.chord_slot(ChordBinding::Key(stroke));
+                                arrangement.page = None;
+                                arrangement.strings = 0;
+                                arrangement_clear_at = Some(started + Duration::from_millis(tap_duration_ms));
+                                callback(PlayerEvent::Arrangement(arrangement.clone()));
                             }
                         }
                     }

@@ -53,6 +53,7 @@ fn mapping() -> NoteKeyMapping {
     NoteKeyMapping::from_pairs(KeyboardLayout::Diatonic21,
         &[(60, 'a'), (64, 'd'), (65, 'f'), (67, 'g'), (69, 'h')])
         .with_chord_bindings(vec![ChordPad {
+            slot: 0,
             pitch_classes: vec![0, 4, 7], binding: amp_core::input::mapping::ChordBinding::Key(parse_key_stroke("q").unwrap()), bass_pitch_class: None,
         }])
 }
@@ -220,6 +221,57 @@ fn a_short_source_chord_does_not_cut_off_its_longer_pad_tap() {
     wait(|| h.count("q", true) == 1);
     assert!(started.elapsed() >= Duration::from_millis(150));
     wait(|| h.engine.get_status() == PlaybackStatus::Stopped);
+}
+
+#[test]
+fn both_genshin_chord_instruments_dispatch_only_the_inferred_pads_for_a_scale() {
+    let layout = serde_json::from_str(include_str!(
+        "../../../src-tauri/resources/defaults/KeyboardLayouts/Genshin_QWERTY_Chords.json"
+    )).unwrap();
+    for source in [
+        include_str!("../../../src-tauri/resources/defaults/Games/Genshin Impact/Instruments/Strings/Ukulele.json"),
+        include_str!("../../../src-tauri/resources/defaults/Games/Genshin Impact/Instruments/Strings/LingeringEuphonia.json"),
+    ] {
+        let instrument = serde_json::from_str(source).unwrap();
+        let events = [60, 62, 64, 65, 67, 69, 71].into_iter().enumerate().flat_map(|(i, pitch)| {
+            let at = i as u64 * 500_000;
+            [event(at, 0, pitch, true), event(at + 125_000, 0, pitch, false)]
+        }).collect();
+        let h = Harness::new(events);
+        h.engine.set_mapping(NoteKeyMapping::from_pairs(KeyboardLayout::Diatonic21, &[])
+            .with_chord_pads(&instrument, &layout));
+        h.engine.set_note_processing(settings(false));
+        h.engine.set_speed(4.0);
+        h.run_to_end();
+        let expected: Vec<_> = ["q", "w", "e", "r", "t", "y", "e"].into_iter()
+            .flat_map(|binding| [(key(binding), false), (key(binding), true)])
+            .collect();
+        assert_eq!(*h.output.lock().unwrap(), expected);
+    }
+}
+
+#[test]
+fn genshin_restrikes_two_written_chords_in_one_beat_across_different_registers() {
+    let instrument = serde_json::from_str(include_str!(
+        "../../../src-tauri/resources/defaults/Games/Genshin Impact/Instruments/Strings/Ukulele.json"
+    )).unwrap();
+    let layout = serde_json::from_str(include_str!(
+        "../../../src-tauri/resources/defaults/KeyboardLayouts/Genshin_QWERTY_Chords.json"
+    )).unwrap();
+    let events = [(0, [36, 40, 43]), (125_000, [84, 88, 91])].into_iter()
+        .flat_map(|(at, triad)| triad.into_iter().flat_map(move |pitch| [
+            event(at, 0, pitch, true), event(at + 80_000, 0, pitch, false),
+        ])).collect();
+    let h = Harness::new(events);
+    h.engine.set_mapping(NoteKeyMapping::from_pairs(KeyboardLayout::Diatonic21, &[])
+        .with_chord_pads(&instrument, &layout));
+    h.engine.set_note_processing(settings(false));
+    h.engine.set_transpose_mode(amp_core::TransposeMode::Ignore);
+    h.engine.set_hold_delay_ms(250);
+    h.run_to_end();
+    assert_eq!(*h.output.lock().unwrap(), [
+        (key("q"), false), (key("q"), true), (key("q"), false), (key("q"), true),
+    ]);
 }
 
 #[test]

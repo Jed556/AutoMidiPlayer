@@ -12,6 +12,7 @@
   "chordLayouts": ["Genshin_QWERTY_Chords"],
   "fretLayouts": [],
   "chordMode": "pads",
+  "pluckStrings": false,
   "chords": [
     { "name": "C", "pitchClasses": [0, 4, 7] },
     { "name": "Dm", "pitchClasses": [2, 5, 9] },

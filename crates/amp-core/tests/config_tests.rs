@@ -90,8 +90,13 @@ fn guitar_pitch_and_binding_configuration_rejects_unplayable_input() {
     guitar.tuning[0] = 120;
     assert!(!guitar.is_valid());
     let mut layout = FretLayoutJson { string_keys: vec!["6".into(), "5".into(), "4".into(), "3".into(), "2".into(), "1".into()],
-        wheel_layout: "NTE_Chord_Wheel".into(), mode_key: "z".into() };
+        wheel_layout: "NTE_Chord_Wheel".into(), mode_key: "z".into(), page_keys: None };
     assert!(layout.is_valid());
+    layout.page_keys = Some(["PageUp".into(), "PageDown".into()]);
+    assert!(layout.is_valid());
+    layout.page_keys = Some(["q".into(), "NotAKey".into()]);
+    assert!(!layout.is_valid());
+    layout.page_keys = None;
     layout.string_keys[0] = "NotAKey".into();
     assert!(!layout.is_valid());
 }

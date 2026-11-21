@@ -6,7 +6,7 @@
   let { layoutStyle, rows, activePitches, onplay }: {
     layoutStyle: InstrumentLayoutStyle;
     rows: Array<Array<InstrumentKey | null>>;
-    activePitches: Set<number>;
+    activePitches: ReadonlySet<number>;
     onplay: (pitch: number) => void;
   } = $props();
 

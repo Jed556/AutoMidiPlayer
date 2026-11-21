@@ -2,6 +2,8 @@ import type { InstrumentConfig, InstrumentInputMode, InstrumentLayoutStyle, Keyb
 
 export function instrumentLayoutIds(instrument: InstrumentConfig | null, mode: InstrumentInputMode | 'all'): string[] {
   if (!instrument) return [];
+  if (mode === 'mixed') return instrument.pluckStrings && instrument.chordMode === 'wheel' && instrument.supportsChords !== false
+    && instrument.guitar?.tuning.length === 6 && instrument.chords?.length && instrument.chordLayouts?.length ? instrument.fretLayouts ?? [] : [];
   if (mode === 'all') return [...new Set([...(instrument.keyboardLayouts ?? []), ...(instrument.chordLayouts ?? []), ...(instrument.fretLayouts ?? [])])];
   return instrument[mode === 'keyboard' ? 'keyboardLayouts' : mode === 'chords' ? 'chordLayouts' : 'fretLayouts'] ?? [];
 }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { guitarVoicing, guitarChord } from '../src/renderer/lib/utils/guitarLayout.ts';
+import { dispatchedGuitarPositions, guitarVoicing, guitarChord } from '../src/renderer/lib/utils/guitarLayout.ts';
 import { instrumentLayoutIds, guitarNotes } from '../src/shared/utils/instrumentLayout.ts';
 
 const guitar = { guitar: { tuning: [64, 59, 55, 50, 45, 40], fretCount: 24 },
@@ -29,4 +29,22 @@ test('chord display distinguishes slash bass and does not invent a chord for sin
   assert.equal(guitarChord(guitar, [59, 62, 67]), 'G/B');
   assert.equal(guitarChord(guitar, [55]), null);
   assert.equal(guitarChord(guitar, []), null);
+});
+
+test('guitar display uses the dispatched shape, string mask, and open selector', () => {
+  const instrument = { ...guitar, chords: [
+    { name: 'C', pitchClasses: [0, 4, 7], stringPitches: [64, 60, 55, null, 48, 'muted'] },
+  ] };
+  const attack = { mode: 'chords', slot: 0, strings: 0b000110, page: 0 };
+  assert.deepEqual(dispatchedGuitarPositions(instrument, attack), [
+    { string: 1, fret: 1, pitch: 60 }, { string: 2, fret: 0, pitch: 55 },
+  ]);
+  assert.deepEqual(dispatchedGuitarPositions(instrument, { ...attack, strings: 0 }), [
+    { string: 0, fret: 0, pitch: 64 }, { string: 1, fret: 1, pitch: 60 },
+    { string: 2, fret: 0, pitch: 55 }, { string: 4, fret: 3, pitch: 48 },
+  ]);
+  assert.deepEqual(dispatchedGuitarPositions(instrument, { ...attack, mode: 'frets', page: 4, slot: 24, strings: 0b100001 }), [
+    { string: 0, fret: 0, pitch: 64 }, { string: 5, fret: 0, pitch: 40 },
+  ]);
+  assert.deepEqual(dispatchedGuitarPositions(instrument, { ...attack, slot: null }), []);
 });

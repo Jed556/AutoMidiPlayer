@@ -1,26 +1,51 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import type { InstrumentConfig, InstrumentInputMode } from '../../../../shared/types/games';
-  import { guitarVoicing, guitarChord } from '../../utils/guitarLayout';
+  import type { ArrangementState } from '../../../../shared/types/ipc';
+  import { dispatchedGuitarPositions, guitarVoicing, guitarChord, type GuitarPosition } from '../../utils/guitarLayout';
+  import { PressHighlights } from '../../utils/pressHighlights';
   import { noteName } from '../../utils/instrumentKeyboard';
   import { t } from '../../i18n';
 
-  let { instrument, activePitches, mode }: { instrument: InstrumentConfig; activePitches: Set<number>; mode: InstrumentInputMode } = $props();
+  let { instrument, activePitches, mode, performing, action, attacks, accessibleChords }: {
+    instrument: InstrumentConfig; activePitches: Set<number>; mode: InstrumentInputMode;
+    performing: boolean; action: ArrangementState | null; attacks: ArrangementState[]; accessibleChords?: number;
+  } = $props();
   const tuning = $derived(instrument.guitar?.tuning ?? []);
   const count = $derived(instrument.guitar?.fretCount ?? 24);
-  const positions = $derived(guitarVoicing(instrument, activePitches));
-  const chord = $derived(guitarChord(instrument, activePitches));
-  const activeCells = $derived(new Set(positions.map(position => `${position.string}/${position.fret}`)));
+  const latest = $derived(attacks.at(-1) ?? null);
+  const positions = $derived(performing ? dispatchedGuitarPositions(instrument, latest) : guitarVoicing(instrument, activePitches));
+  const chord = $derived(performing ? (latest?.slot != null && latest.mode === 'chords' ? instrument.chords?.[latest.slot]?.name : null) : guitarChord(instrument, activePitches));
+  let previewHighlights = $state.raw<(GuitarPosition | string)[]>([]);
+  const preview = new PressHighlights<GuitarPosition | string>(
+    value => typeof value === 'string' ? value : `${value.string}/${value.fret}`,
+    values => { previewHighlights = values; },
+  );
+  $effect(() => {
+    instrument.id; mode;
+    return () => preview.clear();
+  });
+  $effect(() => {
+    if (performing) preview.clear();
+    else preview.update(chord ? [...positions, chord] : positions);
+  });
+  onDestroy(() => preview.clear());
+  const highlightedPositions = $derived(performing
+    ? attacks.filter(attack => attack.mode === mode).flatMap(attack => dispatchedGuitarPositions(instrument, attack))
+    : previewHighlights.filter(value => typeof value !== 'string'));
+  const highlightedChords = $derived(new Set(attacks.filter(attack => attack.mode === 'chords').map(attack => attack.slot)));
+  const activeCells = $derived(new Set(highlightedPositions.map(position => `${position.string}/${position.fret}`)));
   const activeFrets = $derived(new Map(positions.map(position => [position.string, position.fret])));
 </script>
 
 <section class="guitar-layout" aria-label={t('instrument.guitarView')}>
   <div class="guitar-heading">
-    <span class="guitar-title">{t(mode === 'chords' ? 'instrument.chordWheel' : 'instrument.fretboard')}</span>
+    <span class="guitar-title">{t(mode === 'chords' ? 'instrument.chordWheel' : mode === 'frets' ? 'instrument.fretboard' : 'instrument.guitarView')}</span>
     <span class="guitar-status" aria-live="polite">{mode === 'chords' ? chord ?? t('instrument.guitarWaiting') : positions.length ? t('instrument.guitarFret', { fret: positions[0].fret }) : t('instrument.guitarWaiting')}</span>
   </div>
   {#if mode === 'chords'}
     <div class="guitar-chords" aria-label={t('instrument.chordWheelAvailableChords')}>
-      {#each instrument.chords ?? [] as item}<span class:active={chord === item.name}>{item.name}</span>{/each}
+      {#each instrument.chords?.slice(0, accessibleChords) ?? [] as item, index}<span class:active={performing ? highlightedChords.has(index) : previewHighlights.includes(item.name)}>{item.name}</span>{/each}
     </div>
   {/if}
   <div class="fret-scroll" tabindex="0" role="region" aria-label={t('instrument.fretboard')}>
@@ -41,7 +66,11 @@
     <span class="tab-title">{t('instrument.guitarTabPreview')}</span>
     {#each tuning as open, string}<span class="tab-string"><small>{noteName(open)}</small><b>{activeFrets.get(string) ?? '—'}</b></span>{/each}
   </div>
-  <p class="guitar-hint">{mode === 'frets' && activePitches.size && !positions.length ? t('instrument.guitarUnplayable') : t('instrument.guitarSharedFret')}</p>
+  {#if action && (action.omittedMelody || action.omittedAccompaniment)}
+    <p class="guitar-hint">{t('instrument.guitarOmittedNotes', { melody: action.omittedMelody, accompaniment: action.omittedAccompaniment })}</p>
+  {:else if mode === 'frets' && !performing && activePitches.size && !positions.length}
+    <p class="guitar-hint">{t('instrument.guitarUnplayable')}</p>
+  {/if}
 </section>
 
 <style>

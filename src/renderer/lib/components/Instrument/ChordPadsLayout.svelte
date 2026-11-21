@@ -1,16 +1,30 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import type { ChordDefinition } from '../../../../shared/types/games';
+  import { PressHighlights } from '../../utils/pressHighlights';
   import { t } from '../../i18n';
-  let { chords, bindings, activePitches, onpreview }: {
-    chords: ChordDefinition[]; bindings: string[]; activePitches: Set<number>;
+  let { chords, bindings, activePitches, dispatchedPads, onpreview }: {
+    chords: ChordDefinition[]; bindings: string[]; activePitches: Set<number>; dispatchedPads?: ReadonlySet<number>;
     onpreview: (pitches: number[]) => void;
   } = $props();
   const mask = $derived([...activePitches].reduce((value, pitch) => value | (1 << (pitch % 12)), 0));
+  const chordMasks = $derived(chords.map(chord => chord.pitchClasses.reduce((value, pitch) => value | (1 << pitch), 0)));
+  let previewPads = $state<ReadonlySet<number>>(new Set());
+  const preview = new PressHighlights<number>(index => index, values => { previewPads = new Set(values); });
+  $effect(() => {
+    chordMasks;
+    return () => preview.clear();
+  });
+  $effect(() => {
+    if (dispatchedPads !== undefined) preview.clear();
+    else preview.update(mask ? chordMasks.flatMap((chord, index) => chord === mask ? [index] : []) : []);
+  });
+  onDestroy(() => preview.clear());
 </script>
 
 <div class="chord-pads" role="group" aria-label={t('instrument.guitarMode_chords')}>
   {#each chords as chord, index}
-    <button type="button" class:active={mask !== 0 && chord.pitchClasses.reduce((value, pitch) => value | (1 << pitch), 0) === mask}
+    <button type="button" class:active={dispatchedPads !== undefined ? dispatchedPads.has(index) : previewPads.has(index)}
       disabled={!bindings[index]} aria-label={`${chord.name}${bindings[index] ? ` (${bindings[index]})` : ''}`}
       onclick={() => onpreview(chord.pitchClasses.map(pitch => 60 + pitch))}>
       <span class="chord-name">{chord.name}</span><kbd>{bindings[index] ?? ''}</kbd>

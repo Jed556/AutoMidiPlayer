@@ -1622,6 +1622,21 @@ async fn set_chord_wheel_page(page: usize, send: bool, state: State<'_, AppState
     }).await.map_err(|e| e.to_string())?
 }
 
+#[tauri::command]
+async fn get_guitar_mode(state: State<'_, AppState>) -> Result<Option<&'static str>, String> {
+    let engine = Arc::clone(&state.engine);
+    tauri::async_runtime::spawn_blocking(move || engine.guitar_mode().map(|mode|
+        mode.map(|fret| if fret { "frets" } else { "chords" })
+    )).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn sync_guitar_mode(mode: String, state: State<'_, AppState>) -> Result<(), String> {
+    if !matches!(mode.as_str(), "chords" | "frets") { return Err("Unknown guitar mode.".into()); }
+    let engine = Arc::clone(&state.engine);
+    tauri::async_runtime::spawn_blocking(move || engine.sync_guitar_mode(mode == "frets")).await.map_err(|e| e.to_string())?
+}
+
 /// Explicit guitar sub-mode changes use the instrument's fret-layout binding.
 /// Startup and ordinary config reloads never send this toggle to the game.
 #[tauri::command]
@@ -1638,6 +1653,9 @@ async fn set_guitar_mode(mode: String, state: State<'_, AppState>) -> Result<boo
         tauri::async_runtime::spawn_blocking(move || {
             if engine.get_status() == PlaybackStatus::Playing { return Err("Pause playback before changing guitar mode.".into()); }
             let selected_sources = sources.lock().map_err(|e| e.to_string())?.clone();
+            let fret = mode == "frets";
+            let current_mode = engine.guitar_mode()?.ok_or("Sync the current game mode in Instrument View before changing modes.")?;
+            if current_mode == fret { return Ok(true); }
             let (game_id, binding) = {
                 let manager = configs.lock().map_err(|e| e.to_string())?;
                 let (game, instrument) = manager.games.iter().flat_map(|game| game.instruments.iter().map(move |instrument| (game, instrument)))
@@ -1645,9 +1663,13 @@ async fn set_guitar_mode(mode: String, state: State<'_, AppState>) -> Result<boo
                     .ok_or("The selected guitar is unavailable.")?;
                 let current = selected_sources.iter().find_map(|source| manager.layouts.values().find(|layout|
                     layout.file_path.as_ref().is_some_and(|path| source == Path::new(path))));
-                if current.is_some_and(|layout| layout.fretboard.is_some() == (mode == "frets")) { return Ok(true); }
-                let fret_layout = current.filter(|layout| layout.fretboard.is_some())
-                    .or_else(|| instrument.fret_layouts.iter().find_map(|id| manager.layouts.get(&id.to_lowercase())))
+                let fret_layout = current.filter(|layout| layout.fretboard.is_some()).or_else(|| {
+                    instrument.fret_layouts.iter().filter_map(|id| manager.layouts.get(&id.to_lowercase()))
+                        .min_by_key(|layout| (
+                            !current.is_some_and(|wheel| layout.fretboard.as_ref().is_some_and(|f| f.wheel_layout.eq_ignore_ascii_case(&wheel.id))),
+                            !layout.file_path.as_ref().is_some_and(|p| selected_sources.contains(&PathBuf::from(p))),
+                        ))
+                })
                     .and_then(|layout| layout.fretboard.as_ref()).ok_or("The guitar has no fret mode binding.")?;
                 let binding = amp_core::parse_key_stroke(&fret_layout.mode_key).ok_or("Invalid guitar mode binding.")?;
                 (game.config.id.clone(), binding)
@@ -1656,14 +1678,7 @@ async fn set_guitar_mode(mode: String, state: State<'_, AppState>) -> Result<boo
                 .find(|game| game.id == game_id && game.is_running).and_then(|game| game.pid)
                 .ok_or("Start the selected game and open its guitar controls first.")?;
             if !focus_window_by_pid(pid) { return Err("Could not focus the selected game window.".into()); }
-            let mut output = amp_core::KeySimulator::new();
-            output.prepare()?;
-            output.press_stroke(binding);
-            std::thread::sleep(std::time::Duration::from_millis(35));
-            output.send_key(binding.key, true);
-            output.release_all(&[binding.key]);
-            if let Some(error) = output.take_error() { return Err(error); }
-            std::thread::sleep(std::time::Duration::from_millis(120));
+            engine.switch_guitar_mode(fret, binding)?;
             Ok(true)
         }).await.map_err(|e| e.to_string())?
     }
@@ -1680,6 +1695,7 @@ fn set_game_instrument_mapping(
     layout: String,
     key_pairs: Vec<(u8, String)>,
     config_paths: Option<Vec<String>>,
+    mixed: Option<bool>,
     state: State<AppState>,
 ) -> Result<bool, String> {
     let paths: Vec<PathBuf> = config_paths.unwrap_or_default().into_iter().map(PathBuf::from).collect();
@@ -1745,23 +1761,42 @@ fn set_game_instrument_mapping(
             processes.extend(state.process_monitor.lock().map_err(|e| e.to_string())?.process_names_for_game(&game.config.id));
             processes.sort();
             processes.dedup();
+            let mixed = mixed.unwrap_or(false);
+            let unavailable = |reason: &str| {
+                state.engine.set_config_available(false);
+                state.engine.set_mapping(NoteKeyMapping::from_pairs(KeyboardLayout::Diatonic21, &[]));
+                reason.to_owned()
+            };
+            let sources = &mut *sources;
+            let track_layout = |sources: &mut Vec<PathBuf>, layout: &amp_core::KeyboardLayoutJson| -> Result<(), String> {
+                if let Some(path) = &layout.file_path {
+                    let path = Path::new(path);
+                    if !path.is_file() { return Err(unavailable("A referenced guitar layout file is unavailable.")); }
+                    if !sources.iter().any(|p| p == path) { sources.push(path.to_owned()); }
+                }
+                Ok(())
+            };
             let mapping = if instrument.supports_fret_layout(&layout_cfg.id) {
-                let unavailable = |reason: &str| {
-                    state.engine.set_config_available(false);
-                    state.engine.set_mapping(NoteKeyMapping::from_pairs(KeyboardLayout::Diatonic21, &[]));
-                    reason.to_owned()
-                };
                 let fretboard = layout_cfg.fretboard.as_ref()
                     .ok_or_else(|| unavailable("The selected fret layout has no fretboard bindings."))?;
                 let wheel_layout = cm.layouts.get(&fretboard.wheel_layout.to_lowercase())
                     .ok_or_else(|| unavailable("The fret layout's referenced wheel layout is unavailable."))?;
                 let wheel = wheel_layout.chord_wheel.as_ref()
                     .ok_or_else(|| unavailable("The referenced layout has no wheel controls."))?;
-                if let Some(path) = &wheel_layout.file_path {
-                    if !Path::new(path).is_file() { return Err(unavailable("The referenced wheel layout file is unavailable.")); }
-                    if !sources.iter().any(|source| source == Path::new(path)) { sources.push(PathBuf::from(path)); }
-                }
-                mapping.with_frets(instrument, layout_cfg, wheel)
+                track_layout(sources, wheel_layout)?;
+                if mixed { mapping.with_guitar_chords(instrument, wheel_layout, layout_cfg, true) }
+                else { mapping.with_frets(instrument, layout_cfg, wheel) }
+            } else if mixed {
+                return Err(unavailable("Mixed mode requires a fret layout linked to a supported chord wheel."));
+            } else if instrument.pluck_strings && instrument.supports_chord_layout(&layout_cfg.id) && layout_cfg.chord_wheel.is_some() {
+                // Prefer the user's selected matching fret layout when several share a wheel.
+                let fret_layout = instrument.fret_layouts.iter().filter_map(|id| cm.layouts.get(&id.to_lowercase()))
+                    .filter(|candidate| candidate.fretboard.as_ref().is_some_and(|f| f.wheel_layout.eq_ignore_ascii_case(&layout_cfg.id)))
+                    .min_by_key(|candidate| !candidate.file_path.as_ref().is_some_and(|path| sources.contains(&PathBuf::from(path))));
+                if let Some(fret_layout) = fret_layout {
+                    track_layout(sources, fret_layout)?;
+                    mapping.with_guitar_chords(instrument, layout_cfg, fret_layout, false)
+                } else { mapping.with_chord_pads(instrument, layout_cfg) }
             } else { mapping.with_chord_pads(instrument, layout_cfg) };
             mapping.with_game_target(&game.config).with_game_process_names(&processes)
         } else { mapping }
@@ -1770,7 +1805,8 @@ fn set_game_instrument_mapping(
     };
 
     // Stop while the old mapping is still installed so its held keys are released.
-    let available = !layout.is_empty() && mapping.has_playable_bindings();
+    let available = !layout.is_empty() && mapping.has_playable_bindings()
+        && (!mixed.unwrap_or(false) || mapping.is_mixed());
     if !available { state.engine.set_config_available(false); }
     state.engine.set_mapping(mapping);
     if available { state.engine.set_config_available(true); }
@@ -2250,6 +2286,9 @@ pub fn run() {
                             PlayerEvent::PedalsChanged(state) => {
                                 let _ = app_handle.emit("playback:pedals", state);
                             }
+                            PlayerEvent::Arrangement(state) => {
+                                let _ = app_handle.emit("playback:arrangement", state);
+                            }
                             PlayerEvent::ChordWheelChanged(state) => {
                                 let _ = app_handle.emit("playback:chord_wheel", state);
                             }
@@ -2577,6 +2616,8 @@ pub fn run() {
             set_game_targets,
             focus_game,
             get_chord_wheel_state,
+            get_guitar_mode,
+            sync_guitar_mode,
             set_chord_wheel_page,
             set_guitar_mode,
             tap_note_preview,

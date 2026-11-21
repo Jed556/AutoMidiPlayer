@@ -12,6 +12,7 @@
       "1"
     ],
     "wheelLayout": "NTE_Chord_Wheel",
-    "modeKey": "z"
+    "modeKey": "z",
+    "pageKeys": ["r", "t"]
   }
 }

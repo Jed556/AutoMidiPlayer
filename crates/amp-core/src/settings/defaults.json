@@ -131,6 +131,6 @@
   "pageCaching": true,
   "cacheAutoClean": "weekly",
   "cacheMaxSizeMb": 500,
-  "defaultChordDetectionMilliseconds": 30,
+  "defaultChordDetectionMilliseconds": 100,
   "defaultEnableKeyChangeMarkers": true
 }

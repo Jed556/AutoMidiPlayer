@@ -22,7 +22,7 @@
   let isCopied = $state(false);
   const layoutOptions = $derived(gameStore.getInstrumentLayouts(gameStore.activeInstrument).map(layout => ({
     value: layout.id,
-    label: layout.name.toLowerCase().includes('layout') ? layout.name : `${layout.name} Layout`,
+    label: layout.name,
   })));
   const layoutPlaceholder = $derived(gameStore.isLayoutMissing ? 'Missing Layout' : 'No Layouts');
   const pitchToKey = $derived(new Map(instrumentKeyPairs(gameStore.activeInstrument, gameStore.activeLayout)));

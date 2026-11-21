@@ -16,6 +16,7 @@ async function createGameStore(selectedInstrumentIds = {}, configureGames = () =
   const notifications = [];
   const stopped = [];
   const mappingSources = [];
+  const mixedMappings = [];
   const pedalWrites = [];
   const modeChanges = [];
   let applyMapping = async () => true;
@@ -55,7 +56,12 @@ async function createGameStore(selectedInstrumentIds = {}, configureGames = () =
       },
       onConfigsChanged: async callback => { onConfigsChanged = callback; return () => {}; },
       setActiveGame: async () => true,
-      setGameInstrumentMapping: async (layout, pairs, paths) => { mappings.push([layout, pairs]); mappingSources.push(paths); return applyMapping(layout); },
+      setGameInstrumentMapping: async (layout, pairs, paths, mixed) => {
+        mappings.push([layout, pairs]);
+        mappingSources.push(paths);
+        mixedMappings.push(mixed);
+        return applyMapping(layout);
+      },
     },
     playback: { setGuitarMode: async mode => { modeChanges.push(mode); return true; }, stop: async () => { stopped.push(true); return true; } },
     songs: { setSettingsContext: context => contexts.push(context) },
@@ -73,7 +79,7 @@ async function createGameStore(selectedInstrumentIds = {}, configureGames = () =
   const { gameStore } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
   delete globalThis[key];
   await gameStore.init();
-  return { gameStore, contexts, settingsWrites, mappings, notifications, stopped, mappingSources, pedalWrites, modeChanges,
+  return { gameStore, contexts, settingsWrites, mappings, notifications, stopped, mappingSources, mixedMappings, pedalWrites, modeChanges,
     setMappingHandler(handler) { applyMapping = handler; },
     failPedalWrite(error) { pedalWriteError = error; },
     setSnapshot(value) { snapshot = value; },
@@ -481,6 +487,63 @@ test('guitar input groups retain separate layouts and only explicit chord/fret c
   assert.equal(restored.gameStore.activeInputMode, 'chords');
   assert.equal(restored.gameStore.activeLayout.id, 'wheel-b');
   assert.deepEqual(restored.modeChanges, []);
+});
+
+test('Mixed requires opt-in and a linked wheel, restores its layout, and leaves physical mode alone on entry', async () => {
+  const configure = games => {
+    Object.assign(games[0].instruments[1], { chordMode: 'wheel', pluckStrings: true,
+      chords: [{ name: 'C', pitchClasses: [0, 4, 7] }],
+      chordLayouts: ['wheel'], fretLayouts: ['frets', 'unlinked'],
+      guitar: { tuning: [64, 59, 55, 50, 45, 40], fretCount: 24 } });
+    const fretboard = { stringKeys: ['6', '5', '4', '3', '2', '1'], wheelLayout: 'WHEEL', modeKey: 'z' };
+    games[0].layouts.push({ id: 'wheel', name: 'Wheel', keys: [], chordWheel: { positions: [[500, 200]] } },
+      { id: 'frets', name: 'Frets', keys: [], fretboard },
+      { id: 'unlinked', name: 'Unlinked', keys: [], fretboard: { ...fretboard, wheelLayout: 'missing' } });
+  };
+  const h = await createGameStore({}, configure, [{ id: 'a', isRunning: true, isFocused: false }]);
+  await h.gameStore.setInputMode('chords');
+  await h.gameStore.setInputMode('mixed');
+  assert.equal(h.gameStore.activeInputMode, 'mixed');
+  assert.deepEqual(h.gameStore.getInstrumentLayouts(h.gameStore.activeInstrument).map(layout => layout.id), ['frets']);
+  assert.deepEqual(h.mappings.at(-1), ['frets', []]);
+  assert.equal(h.mixedMappings.at(-1), true);
+  assert.deepEqual(h.modeChanges, []);
+  const saved = h.settingsWrites.findLast(write => write.selectedLayoutIds).selectedLayoutIds;
+  const restored = await createGameStore({}, configure, [], saved);
+  assert.equal(restored.gameStore.activeInputMode, 'mixed');
+  assert.deepEqual(restored.mappings.at(-1), ['frets', []]);
+  assert.equal(restored.mixedMappings.at(-1), true);
+  assert.deepEqual(restored.modeChanges, []);
+  await h.gameStore.setInputMode('frets');
+  assert.deepEqual(h.modeChanges, ['frets']);
+  assert.equal(h.mixedMappings.at(-1), false);
+  const legacy = await createGameStore({}, games => {
+    configure(games);
+    delete games[0].instruments[1].pluckStrings;
+  }, [], saved);
+  assert.equal(legacy.gameStore.activeInputMode, 'frets');
+  assert.equal(legacy.mixedMappings.at(-1), false);
+});
+
+test('removing the active Mixed layout allows recovery through the Chords layout', async () => {
+  const h = await createGameStore({}, games => {
+    Object.assign(games[0].instruments[1], { chordMode: 'wheel', pluckStrings: true,
+      chords: [{ name: 'C', pitchClasses: [0, 4, 7] }], chordLayouts: ['wheel'], fretLayouts: ['frets'],
+      guitar: { tuning: [64, 59, 55, 50, 45, 40], fretCount: 24 } });
+    games[0].layouts.push({ id: 'wheel', name: 'Wheel', keys: [], chordWheel: { positions: [[500, 200]] } },
+      { id: 'frets', name: 'Frets', keys: [], fretboard: {
+        stringKeys: ['6', '5', '4', '3', '2', '1'], wheelLayout: 'wheel', modeKey: 'z',
+      } });
+  }, [{ id: 'a', isRunning: true, isFocused: false }]);
+  await h.gameStore.setInputMode('mixed');
+  const games = h.gameStore.games.map(game => ({ ...game, layouts: game.layouts.filter(layout => layout.id !== 'frets') }));
+  h.setSnapshot({ games, issues: [] });
+  await h.gameStore.refreshConfigs();
+  assert.equal(await h.gameStore.hasPlaybackMapping(), false);
+  await h.gameStore.setInputMode('chords');
+  assert.equal(await h.gameStore.hasPlaybackMapping(), true);
+  assert.equal(h.gameStore.activeLayout.id, 'wheel');
+  assert.deepEqual(h.modeChanges, []);
 });
 
 test('mouse-only chord layouts remain selectable and synchronize without chromatic key pairs', async () => {

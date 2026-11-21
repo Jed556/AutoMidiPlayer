@@ -1,6 +1,24 @@
 import type { InstrumentConfig } from '../../../shared/types/games';
 
+import type { ArrangementState } from '../../../shared/types/ipc';
+
 export interface GuitarPosition { string: number; fret: number; pitch: number }
+
+/** Project exactly the physical attack reported by the player onto the six strings. */
+export function dispatchedGuitarPositions(instrument: InstrumentConfig, action: ArrangementState | null): GuitarPosition[] {
+  const guitar = instrument.guitar;
+  if (!guitar || action?.slot == null || !action.mode) return [];
+  const { mode, slot, strings } = action;
+  const voicing = instrument.chords?.[slot]?.stringPitches;
+  const sharedFret = slot < guitar.fretCount ? slot + 1 : 0;
+  const strum = mode === 'chords' && strings === 0;
+  return guitar.tuning.flatMap((open, string) => {
+    if (!strum && !(strings & (1 << string))) return [];
+    const pitch = mode === 'frets' ? open + sharedFret : voicing?.[string];
+    if (typeof pitch !== 'number' || pitch < open || pitch > open + guitar.fretCount) return [];
+    return [{ string, fret: pitch - open, pitch }];
+  });
+}
 
 /** The game's fret selector is shared by all strings; preserve exact pitches. */
 export function guitarVoicing(instrument: InstrumentConfig | null, pitches: Iterable<number>): GuitarPosition[] {

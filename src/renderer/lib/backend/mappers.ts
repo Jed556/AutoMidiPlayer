@@ -71,7 +71,10 @@ export interface RawLoadedBundle {
     chordLayouts?: string[];
     fretLayouts?: string[];
     guitar?: { tuning: number[]; fretCount: number };
-    chords?: Array<{ name: string; pitchClasses: number[] }>;
+    chords?: InstrumentConfig['chords'];
+    pluckStrings?: boolean;
+    pagedChords?: boolean;
+    pagedFrets?: boolean;
     chordMode?: 'pads' | 'wheel';
     supportsPedals?: boolean;
     supportsChords?: boolean;
@@ -352,6 +355,9 @@ export function loadedBundleToGameInfo(
     fretLayouts: instrument.fretLayouts || [],
     guitar: instrument.guitar,
     chords: instrument.chords || [],
+    pluckStrings: instrument.pluckStrings,
+    pagedChords: instrument.pagedChords,
+    pagedFrets: instrument.pagedFrets,
     chordMode: instrument.chordMode ?? 'pads',
     supportsPedals: instrument.supportsPedals ?? false,
     supportsChords: instrument.supportsChords ?? Boolean(instrument.chords?.length),

@@ -24,6 +24,15 @@ export interface PedalState {
   unaCorda: boolean;
 }
 
+export interface ArrangementState {
+  mode: 'chords' | 'frets' | null;
+  slot: number | null;
+  strings: number;
+  page: number | null;
+  omittedMelody: number;
+  omittedAccompaniment: number;
+}
+
 export interface ChordWheelState {
   page: number | null;
   busy: boolean;
@@ -47,6 +56,9 @@ export interface PlaybackApi {
   setNoteTiming: (holdNotes: boolean, tapThresholdMs: number) => Promise<boolean>;
   setNoteProcessing: (mergeNotes: boolean, mergeToleranceMs: number, chordDetectionMilliseconds: number) => Promise<boolean>;
   getChordWheelState: () => Promise<ChordWheelState>;
+  getGuitarMode: () => Promise<'chords' | 'frets' | null>;
+  syncGuitarMode: (mode: 'chords' | 'frets') => Promise<void>;
+  onArrangement: (callback: (state: ArrangementState) => void) => () => void;
   setGuitarMode: (mode: 'chords' | 'frets') => Promise<boolean>;
   setChordWheelPage: (page: number, send: boolean) => Promise<boolean>;
   onChordWheelState: (callback: (state: ChordWheelState) => void) => () => void;
@@ -182,7 +194,7 @@ export interface GamesApi {
   getGameStatuses: () => Promise<GameStatus[]>;
   focusGame: (pid: number) => Promise<boolean>;
   tapNotePreview: (pitch: number, isListenMode: boolean) => Promise<boolean>;
-  setGameInstrumentMapping: (layout: string, keyPairs: [number, string][], configPaths?: string[]) => Promise<boolean>;
+  setGameInstrumentMapping: (layout: string, keyPairs: [number, string][], configPaths?: string[], mixed?: boolean) => Promise<boolean>;
   onGameStatusChanged: (callback: (statuses: GameStatus[]) => void) => Promise<() => void>;
   getKeyboardLayouts: () => Promise<Record<string, KeyboardLayoutConfig>>;
   getLayoutPedalDefaults: (layoutId: string) => Promise<PedalBindings>;

@@ -75,11 +75,11 @@ pub fn scan_layouts_checked(dir: &Path) -> (HashMap<String, KeyboardLayoutJson>,
             continue;
         }
         if layout.chord_wheel.as_ref().is_some_and(|wheel| !wheel.is_valid()) {
-            issue(&mut issues, &path, "Chord wheel requires positions between 0 and 1000 and delays between 1 and 1000 ms");
+            issue(&mut issues, &path, "Chord wheel requires positions between 0 and 1000, delays between 1 and 1000 ms, and valid page keys");
             continue;
         }
         if layout.fretboard.as_ref().is_some_and(|fret| !fret.is_valid()) {
-            issue(&mut issues, &path, "Fret bindings require string keys, a wheel layout reference, and a mode key");
+            issue(&mut issues, &path, "Fret bindings require string keys, a wheel layout reference, a mode key, and valid page keys if specified");
             continue;
         }
         let id = layout.id.to_lowercase();
@@ -137,6 +137,13 @@ pub fn scan_games_checked(dir: &Path) -> (Vec<LoadedGameBundle>, Vec<ConfigIssue
                 }
                 if !inst.fret_layouts.is_empty() && inst.guitar.is_none() {
                     issue(&mut issues, path, "Fret layouts require guitar tuning and fret count");
+                    continue;
+                }
+                if inst.chords.iter().filter_map(|chord| chord.string_pitches.as_ref()).any(|pitches| {
+                    inst.guitar.as_ref().is_none_or(|guitar| pitches.len() != guitar.tuning.len())
+                        || pitches.iter().flatten().any(|pitch| matches!(pitch, super::config::StringPitch::Pitch(128..)))
+                }) {
+                    issue(&mut issues, path, "Chord stringPitches must specify one MIDI pitch (0–127), null, or muted for each guitar string");
                     continue;
                 }
                 if inst.keys.as_ref().is_some_and(|rows| rows.is_empty() || rows.iter().any(|row| row.is_empty()) || inst.notes.is_empty()) {

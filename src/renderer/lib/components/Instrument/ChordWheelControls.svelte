@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { ChordDefinition, KeyboardLayoutConfig } from '../../../../shared/types/games';
-  import type { ChordWheelState } from '../../../../shared/types/ipc';
+  import type { ArrangementState, ChordWheelState } from '../../../../shared/types/ipc';
   import { api } from '../../backend';
   import { playbackStore } from '../../state/playbackStore.svelte';
   import { notificationCenter } from '../../ui/notificationCenter.svelte';
@@ -10,10 +10,17 @@
   import Dropdown from '../Common/Dropdown.svelte';
   import ChordIcon from '../Icons/ChordIcon.svelte';
 
-  let { wheel, pads, fretMode = false }: {
+  let { wheel, pads, fretMode, paged, mixed, needsModeSync, physicalMode, onsyncmode, action, activeSlots }: {
     wheel: NonNullable<KeyboardLayoutConfig['chordWheel']>;
     pads: ChordDefinition[];
-    fretMode?: boolean;
+    fretMode: boolean;
+    paged: boolean;
+    mixed: boolean;
+    needsModeSync: boolean;
+    physicalMode: 'frets' | 'chords' | null;
+    onsyncmode: (mode: 'frets' | 'chords') => Promise<void>;
+    action: ArrangementState | null;
+    activeSlots: ReadonlySet<number>;
   } = $props();
 
   let wheelState = $state<ChordWheelState>({ page: null, busy: false, error: null });
@@ -26,8 +33,24 @@
     value: page,
     label: t('instrument.chordWheelPage', { page: page + 1, count: wheel.pageCount }),
   })));
-  const visiblePads = $derived(wheelState.page === null ? [] :
-    pads.slice(wheelState.page * wheel.positions.length, (wheelState.page + 1) * wheel.positions.length));
+  const page = $derived(!paged ? 0 : action?.page ?? wheelState.page);
+  const pageStart = $derived((page ?? 0) * wheel.positions.length);
+  const visiblePads = $derived(page === null ? [] : pads.slice(pageStart, pageStart + wheel.positions.length));
+
+  async function syncMode(mode: 'chords' | 'frets') {
+    if (locked) return;
+    pending = true;
+    try {
+      await onsyncmode(mode);
+      const beforeRead = revision;
+      const state = await api.playback.getChordWheelState();
+      if (revision === beforeRead) receiveState(state);
+    } catch (error) {
+      notificationCenter.error(t('instrument.chordWheelError'), String(error));
+    } finally {
+      pending = false;
+    }
+  }
 
   function receiveState(state: ChordWheelState) {
     wheelState = state;
@@ -74,33 +97,52 @@
 
 <section class="chord-wheel-controls" aria-label={t('instrument.chordWheel')}>
   <div class="wheel-heading">
-    <div class="wheel-title"><ChordIcon size={16} /><span>{t(fretMode ? 'instrument.fretboard' : 'instrument.chordWheel')}</span></div>
-    <div class="wheel-paging" role="group" aria-label={t('instrument.chordWheelPages')}>
-      <Button variant="ghost" size="sm" icon="ChevronLeft"
-        disabled={locked || wheelState.page === null || wheel.pageCount < 2}
-        title={t('instrument.chordWheelPreviousKey', { key: wheel.pageKeys[0].toUpperCase() })}
-        onclick={() => setPage((wheelState.page! - 1 + wheel.pageCount) % wheel.pageCount, true)}>{t('instrument.chordWheelPrevious')}</Button>
-      <span class="wheel-page" aria-live="polite">{wheelState.page === null ? t('instrument.chordWheelUnknownPage') :
-        t('instrument.chordWheelPage', { page: wheelState.page + 1, count: wheel.pageCount })}</span>
-      <Button variant="ghost" size="sm" icon="ChevronRight"
-        disabled={locked || wheelState.page === null || wheel.pageCount < 2}
-        title={t('instrument.chordWheelNextKey', { key: wheel.pageKeys[1].toUpperCase() })}
-        onclick={() => setPage((wheelState.page! + 1) % wheel.pageCount, true)}>{t('instrument.chordWheelNext')}</Button>
-    </div>
-    <div class="wheel-sync">
-      <span>{t('instrument.chordWheelSyncPage')}</span>
-      <Dropdown variant="ghost" options={pageOptions} value={wheelState.page}
-        placeholder={t('instrument.chordWheelUnknownPage')} ariaLabel={t('instrument.chordWheelSyncPage')}
-        title={t('instrument.chordWheelSyncHint')} disabled={locked} width="150px"
-        onchange={(page: number) => setPage(page, false)} />
-    </div>
+    <div class="wheel-title"><ChordIcon size={16} /><span>{t(fretMode ? 'instrument.fretboard' : mixed && !physicalMode ? 'instrument.guitarView' : 'instrument.chordWheel')}</span></div>
+    {#if mixed}
+      <div class="wheel-sync">
+        <span>{t('instrument.guitarSyncMode')}</span>
+        <Dropdown variant="ghost" options={(['chords', 'frets'] as const).map(value => ({ value, label: t(`instrument.guitarMode_${value}`) }))}
+          value={physicalMode} placeholder={t('instrument.guitarModeUnknown')} ariaLabel={t('instrument.guitarSyncMode')}
+          disabled={locked} width="130px" onchange={syncMode} />
+      </div>
+    {:else if needsModeSync && physicalMode}
+      <Button variant="ghost" size="sm" disabled={locked}
+        onclick={() => syncMode(physicalMode!)}>{t('instrument.guitarConfirmMode', { mode: t(`instrument.guitarMode_${physicalMode}`) })}</Button>
+    {/if}
+    {#if paged && wheel.pageCount > 1 && !needsModeSync}
+      <div class="wheel-paging" role="group" aria-label={t('instrument.chordWheelPages')}>
+        <Button variant="ghost" size="sm" icon="ChevronLeft"
+          disabled={locked || wheelState.page === null}
+          title={t('instrument.chordWheelPreviousKey', { key: wheel.pageKeys[0].toUpperCase() })}
+          onclick={() => setPage((wheelState.page! - 1 + wheel.pageCount) % wheel.pageCount, true)}>{t('instrument.chordWheelPrevious')}</Button>
+        <span class="wheel-page" aria-live="polite">{page === null ? t('instrument.chordWheelUnknownPage') :
+          t('instrument.chordWheelPage', { page: page + 1, count: wheel.pageCount })}</span>
+        <Button variant="ghost" size="sm" icon="ChevronRight"
+          disabled={locked || wheelState.page === null}
+          title={t('instrument.chordWheelNextKey', { key: wheel.pageKeys[1].toUpperCase() })}
+          onclick={() => setPage((wheelState.page! + 1) % wheel.pageCount, true)}>{t('instrument.chordWheelNext')}</Button>
+      </div>
+      <div class="wheel-sync">
+        <span>{t('instrument.chordWheelSyncPage')}</span>
+        <Dropdown variant="ghost" options={pageOptions} value={page}
+          placeholder={t('instrument.chordWheelUnknownPage')} ariaLabel={t('instrument.chordWheelSyncPage')}
+          title={t('instrument.chordWheelSyncHint')} disabled={locked} width="150px"
+          onchange={(page: number) => setPage(page, false)} />
+      </div>
+    {/if}
   </div>
-  <div class="wheel-chords" aria-label={t('instrument.chordWheelAvailableChords')}>
-    {#each visiblePads as pad}
-      <span class="wheel-chord">{pad.name}</span>
-    {/each}
-  </div>
-  <p class="wheel-hint">{t(fretMode ? 'instrument.guitarSharedFret' : 'instrument.chordWheelHint')}</p>
+  {#if visiblePads.length}
+    <div class="wheel-chords" aria-label={t(fretMode ? 'instrument.fretboard' : 'instrument.chordWheelAvailableChords')}>
+      {#each visiblePads as pad, index}
+        {#if pad.name}<span class="wheel-chord" class:active={activeSlots.has(pageStart + index)}>{pad.name}</span>{/if}
+      {/each}
+    </div>
+  {/if}
+  {#if mixed && !physicalMode}
+    <p class="wheel-hint">{t('instrument.guitarSyncModeHint')}</p>
+  {:else if fretMode || paged && wheel.pageCount > 1}
+    <p class="wheel-hint">{t(fretMode ? 'instrument.guitarSharedFret' : 'instrument.chordWheelHint')}</p>
+  {/if}
 </section>
 
 <style>
@@ -116,6 +158,7 @@
   .wheel-page { min-width: 84px; text-align: center; font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
   .wheel-chords { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
   .wheel-chord { min-width: 46px; padding: 4px 10px; border-radius: var(--radius-sm); background: var(--bg-tertiary); color: var(--text-primary); font-size: 12px; font-weight: 600; text-align: center; }
+  .wheel-chord.active { background: var(--accent); color: white; }
   .wheel-hint { margin: 10px 0 0; color: var(--text-tertiary); font-size: 11px; line-height: 1.5; }
   @media (max-width: 700px) {
     .chord-wheel-controls { margin-right: 16px; margin-left: 16px; }

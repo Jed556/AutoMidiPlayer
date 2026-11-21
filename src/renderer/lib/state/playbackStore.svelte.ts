@@ -6,7 +6,7 @@ import type { MidiFile, MidiTrack, TransposeMode, KeyChangeMarker } from '../../
 import type { PlaybackStatus } from '../../../shared/types/playback.js';
 import type { MediaControlAction } from '../../../shared/types/mediaControls.js';
 import type { GameInfo } from '../../../shared/types/games.js';
-import type { SongSettingsContext } from '../../../shared/types/ipc.js';
+import type { ArrangementState, SongSettingsContext } from '../../../shared/types/ipc.js';
 import { api, isTauri, loadedMidiToMidiFile, type RawLoadedMidiFile } from '../backend/index.js';
 import { getKeyNoteName, getMarkerNoteDisplay, formatSignedOffset, getTrackColor } from '../utils/musicConstants.js';
 import { notificationCenter } from '../ui/notificationCenter.svelte';
@@ -53,7 +53,14 @@ class PlaybackStore {
   customSoundFontName = $state<string>('General User');
 
   // Active playing notes for visualizers (piano keys / card glow / piano roll)
+  arrangement = $state<ArrangementState | null>(null);
   activeNotes = $state<{ pitch: number; trackId: number }[]>([]);
+  private instrumentVisualListeners = new Set<() => void>();
+
+  onInstrumentVisualUpdate(listener: () => void) {
+    this.instrumentVisualListeners.add(listener);
+    return () => { this.instrumentVisualListeners.delete(listener); };
+  }
 
   // Queue & Active Track
   queue = $state<MidiFile[]>([]);
@@ -331,6 +338,10 @@ class PlaybackStore {
 
       onProgress?.('startup.player');
       // Subscribe to backend events
+      api.playback.onArrangement?.(state => {
+        this.arrangement = state;
+        this.instrumentVisualListeners.forEach(listener => listener());
+      });
       api.playback.onTimeUpdate((position) => {
         if (!this.positionGate.accepts(position) || this.isScrubbing) return;
         // Ignore stale engine updates if the active song does not match what the engine has loaded
@@ -345,6 +356,7 @@ class PlaybackStore {
           } else {
             this.activeNotes = trackNotes.map(n => ({ pitch: n.pitch, trackId: n.trackIndex }));
           }
+          this.instrumentVisualListeners.forEach(listener => listener());
         });
       }
 
@@ -361,6 +373,7 @@ class PlaybackStore {
           } else {
             this.activeNotes = activePitches.map((p, idx) => ({ pitch: p, trackId: (idx % 3) + 1 }));
           }
+          this.instrumentVisualListeners.forEach(listener => listener());
         }
       });
 

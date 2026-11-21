@@ -40,7 +40,8 @@ class GameStore {
     if (!game || !instrument) return 'keyboard';
     const key = `${game.id}/${instrument.id}`;
     const saved = this.selectedLayoutIds[`${key}/mode`] as InstrumentInputMode | undefined;
-    if (saved && instrumentLayoutIds(instrument, saved).length) return saved;
+    if (saved === 'mixed' && this.getInstrumentLayouts(instrument, game, saved).length) return saved;
+    if ((saved === 'keyboard' || saved === 'chords' || saved === 'frets') && instrumentLayoutIds(instrument, saved).length) return saved;
     const layout = this.selectedLayoutIds[key];
     return (['keyboard', 'chords', 'frets'] as const).find(mode =>
       layout && instrumentLayoutIds(instrument, mode).includes(layout))
@@ -50,9 +51,10 @@ class GameStore {
   async setInputMode(mode: InstrumentInputMode) {
     const game = this.activeGame;
     const instrument = this.activeInstrument;
-    if (!game || !instrument || !instrumentLayoutIds(instrument, mode).length || mode === this.activeInputMode) return;
+    if (!game || !instrument || !this.getInstrumentLayouts(instrument, game, mode).length || mode === this.activeInputMode) return;
     const previous = this.activeInputMode;
-    if (game.isRunning && previous !== 'keyboard' && mode !== 'keyboard') {
+    if (game.isRunning && previous !== 'keyboard' && mode !== 'keyboard' && mode !== 'mixed' && await this.hasPlaybackMapping()) {
+      if (this.activeGame?.id !== game.id || this.activeInstrument?.id !== instrument.id) return;
       if (!await api.playback.setGuitarMode(mode)) throw new Error('Unable to change the game guitar mode.');
     }
     this.selectedLayoutIds[`${game.id}/${instrument.id}/mode`] = mode;
@@ -293,8 +295,15 @@ class GameStore {
 
   getInstrumentLayouts(instrument: InstrumentConfig | null, game = this.activeGame, mode: InstrumentInputMode | 'all' = this.getInputMode(game, instrument)) {
     const supported = instrumentLayoutIds(instrument, mode);
-    return (game?.layouts ?? []).filter(layout => (layout.keys.length > 0 || layout.chordKeys?.length || layout.chordWheel?.positions.length || layout.fretboard?.stringKeys.length) && supported.some(id =>
-      id.toLowerCase() === layout.id.toLowerCase() || id.toLowerCase() === layout.name.toLowerCase()));
+    const available = game?.layouts ?? [];
+    const matches = (layout: GameInfo['layouts'][number], ids: string[]) => ids.some(id =>
+      id.toLowerCase() === layout.id.toLowerCase() || id.toLowerCase() === layout.name.toLowerCase());
+    if (mode === 'mixed') return available.filter(layout => matches(layout, supported)
+      && layout.fretboard?.stringKeys.length === instrument?.guitar?.tuning.length
+      && available.some(wheel => wheel.id.toLowerCase() === layout.fretboard?.wheelLayout.toLowerCase()
+        && matches(wheel, instrument?.chordLayouts ?? []) && wheel.chordWheel?.positions.length));
+    return available.filter(layout => (layout.keys.length > 0 || layout.chordKeys?.length || layout.chordWheel?.positions.length
+      || layout.fretboard?.stringKeys.length) && matches(layout, supported));
   }
 
   async openGamesFolder(): Promise<boolean> {
@@ -313,10 +322,10 @@ class GameStore {
   }
 
   // Apply selections in order so an older clear cannot overwrite a newer mapping.
-  private applyMapping(layout: string, pairs: [number, string][], paths?: string[]) {
+  private applyMapping(layout: string, pairs: [number, string][], paths?: string[], mixed = false) {
     this.mappingReady = this.mappingReady.then(async () => {
       try {
-        const applied = await api.games.setGameInstrumentMapping(layout, pairs, paths);
+        const applied = await api.games.setGameInstrumentMapping(layout, pairs, paths, mixed);
         return applied && layout !== '';
       } catch (error) {
         console.error('[GameState] Failed to apply instrument mapping:', error);
@@ -379,7 +388,14 @@ class GameStore {
     const effectiveLayoutName = keyPairs.length || targetLayout?.chordWheel?.positions.length || targetLayout?.fretboard?.stringKeys.length || targetLayout?.chordKeys?.length ? targetLayout!.id : '';
     const configPaths = [this.activeGame.filePath, inst.filePath, targetLayout?.filePath]
       .filter((path): path is string => Boolean(path));
-    return this.applyMapping(effectiveLayoutName, keyPairs, configPaths.length ? configPaths : undefined);
+    if (this.activeInputMode === 'chords' && inst.pluckStrings && targetLayout?.chordWheel) {
+      const selectedFret = this.selectedLayoutIds[`${selectionKey}/frets`];
+      const compatible = this.getInstrumentLayouts(inst, this.activeGame, 'frets')
+        .filter(layout => layout.fretboard?.wheelLayout.toLowerCase() === targetLayout.id.toLowerCase());
+      const path = (compatible.find(layout => layout.id === selectedFret) ?? compatible[0])?.filePath;
+      if (path) configPaths.push(path);
+    }
+    return this.applyMapping(effectiveLayoutName, keyPairs, configPaths.length ? configPaths : undefined, this.activeInputMode === 'mixed');
   }
 }
 

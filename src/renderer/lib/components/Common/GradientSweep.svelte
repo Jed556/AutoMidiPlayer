@@ -36,6 +36,7 @@
   let innerEl = $state<HTMLElement | null>(null);
   let isMounted = $state(false);
   let lastVisible: boolean | null = null;
+  let activeEndHandler: ((e: TransitionEvent) => void) | null = null;
 
   const sizeProp = $derived(direction === 'horizontal' ? 'width' : 'height');
   const effectiveAnchor = $derived(anchor || 'left');
@@ -62,6 +63,7 @@
       containerEl.style.opacity = '1';
       containerEl.style.overflow = overflowVisibleOnComplete ? 'visible' : 'hidden';
       containerEl.style.setProperty('--gradient-sweep-mask', '#000000');
+      containerEl.classList.toggle('unmasked', overflowVisibleOnComplete);
       if (marginProp) containerEl.style[marginProp] = marginAmount;
     } else {
       containerEl.style[sizeProp] = '0px';
@@ -69,6 +71,7 @@
       containerEl.style.display = 'none';
       containerEl.style.overflow = 'hidden';
       containerEl.style.setProperty('--gradient-sweep-mask', 'transparent');
+      containerEl.classList.remove('unmasked');
       if (marginProp) containerEl.style[marginProp] = '0px';
     }
   });
@@ -91,6 +94,12 @@
 
   function animateTransition(targetVisible: boolean) {
     if (!containerEl || !innerEl) return;
+
+    if (activeEndHandler) {
+      containerEl.removeEventListener('transitionend', activeEndHandler);
+      activeEndHandler = null;
+    }
+    containerEl.classList.remove('unmasked');
 
     const isOff = reducedMotion || animationStore.isOff || (typeof document !== 'undefined' && document.documentElement.classList.contains('no-animations'));
     const durationSec = Math.max(0.12, animationStore.timing);
@@ -115,7 +124,10 @@
         containerEl.style.opacity = '1';
         containerEl.style.setProperty('--gradient-sweep-mask', '#000000');
         if (marginProp) containerEl.style[marginProp] = marginAmount;
-        if (overflowVisibleOnComplete) containerEl.style.overflow = 'visible';
+        if (overflowVisibleOnComplete) {
+          containerEl.style.overflow = 'visible';
+          containerEl.classList.add('unmasked');
+        }
         return;
       }
 
@@ -142,14 +154,17 @@
       const onEnd = (e: TransitionEvent) => {
         if (e.target !== containerEl || e.propertyName !== sizeProp) return;
         containerEl?.removeEventListener('transitionend', onEnd);
+        if (activeEndHandler === onEnd) activeEndHandler = null;
         if (lastVisible && containerEl) {
           containerEl.style[sizeProp] = 'auto';
           containerEl.style.setProperty('--gradient-sweep-mask', '#000000');
           if (overflowVisibleOnComplete) {
             containerEl.style.overflow = 'visible';
+            containerEl.classList.add('unmasked');
           }
         }
       };
+      activeEndHandler = onEnd;
       containerEl.addEventListener('transitionend', onEnd);
     } else {
       // Collapse
@@ -194,10 +209,12 @@
       const onEnd = (e: TransitionEvent) => {
         if (e.target !== containerEl || e.propertyName !== sizeProp) return;
         containerEl?.removeEventListener('transitionend', onEnd);
+        if (activeEndHandler === onEnd) activeEndHandler = null;
         if (!lastVisible && containerEl) {
           containerEl.style.display = 'none';
         }
       };
+      activeEndHandler = onEnd;
       containerEl.addEventListener('transitionend', onEnd);
     }
   }
@@ -299,5 +316,11 @@
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
+  }
+
+  .gradient-sweep:global(.unmasked),
+  .gradient-sweep.horizontal.anchor-right:global(.unmasked) {
+    -webkit-mask-image: none;
+    mask-image: none;
   }
 </style>

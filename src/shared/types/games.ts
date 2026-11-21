@@ -2,10 +2,11 @@ export interface ChordDefinition {
   name: string;
   pitchClasses: number[];
   bassPitchClass?: number;
+  stringPitches?: Array<number | null | 'muted'>;
 }
 
 export type InstrumentLayoutStyle = 'sky' | 'genshin' | 'heartopia' | 'drums' | 'guitar' | 'none';
-export type InstrumentInputMode = 'keyboard' | 'chords' | 'frets';
+export type InstrumentInputMode = 'keyboard' | 'chords' | 'frets' | 'mixed';
 export type KeyMatrix<T> = Array<Array<T | null>>;
 
 export interface InstrumentConfig {
@@ -23,6 +24,9 @@ export interface InstrumentConfig {
   chords?: ChordDefinition[];
   chordMode?: 'pads' | 'wheel';
   supportsChords?: boolean;
+  pluckStrings?: boolean;
+  pagedChords?: boolean;
+  pagedFrets?: boolean;
   supportsPedals?: boolean;
   supportsSustain?: boolean;
   subfolder?: string;
@@ -41,7 +45,12 @@ export interface KeyboardLayoutConfig {
   keyRows?: KeyMatrix<string>;
   filePath?: string;
   chordKeys?: string[];
-  fretboard?: { stringKeys: string[]; wheelLayout: string; modeKey: string };
+  fretboard?: {
+    stringKeys: string[];
+    wheelLayout: string;
+    modeKey: string;
+    pageKeys?: [string, string];
+  };
   chordWheel?: {
     positions: Array<[number, number]>;
     strumPosition: [number, number];

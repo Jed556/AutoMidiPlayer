@@ -1,5 +1,5 @@
 import { DEFAULT_APP_SETTINGS } from '../../../shared/defaults/settings.js';
-import type { AppWindowApi, PedalState, ChordWheelState, SongSettingsContext, StorageUsage, LegacyDataStatus, LegacyMigrationResult } from '$shared/types/ipc.js';
+import type { AppWindowApi, PedalState, ChordWheelState, ArrangementState, SongSettingsContext, StorageUsage, LegacyDataStatus, LegacyMigrationResult } from '$shared/types/ipc.js';
 import type { GameStatus, GameConfigState, ConfigIssue, KeyboardLayoutConfig, DefaultConfigUpdates } from '$shared/types/games.js';
 import type { MidiFile } from '$shared/types/midi.js';
 import type { SystemSnapshot } from '$shared/types/system.js';
@@ -144,6 +144,9 @@ export function createAppApi(): AppWindowApi {
       setNoteProcessing: (mergeNotes, mergeToleranceMs, chordDetectionMilliseconds) =>
         invokeTauri<boolean>('Playback', 'set_note_processing', { mergeNotes, mergeToleranceMs, chordDetectionMilliseconds }),
       getChordWheelState: () => invokeTauri<ChordWheelState>('Playback', 'get_chord_wheel_state', undefined),
+      getGuitarMode: () => invokeTauri<'chords' | 'frets' | null>('Playback', 'get_guitar_mode', undefined),
+      syncGuitarMode: (mode) => invokeTauri<void>('Playback', 'sync_guitar_mode', { mode }),
+      onArrangement: (callback) => listenTauri<ArrangementState>('playback:arrangement', callback),
       setGuitarMode: (mode) => invokeTauri<boolean>('Playback', 'set_guitar_mode', { mode }),
       setChordWheelPage: (page, send) => invokeTauri<boolean>('Playback', 'set_chord_wheel_page', { page, send }),
       onChordWheelState: (callback) => listenTauri<ChordWheelState>('playback:chord_wheel', callback),
@@ -302,8 +305,8 @@ export function createAppApi(): AppWindowApi {
       focusGame: (pid) => invokeTauri<boolean>('Games', 'focus_game', { pid }),
       tapNotePreview: (pitch, isListenMode) =>
         invokeTauri<boolean>('Games', 'tap_note_preview', { pitch, isListenMode }),
-      setGameInstrumentMapping: (layout, keyPairs, configPaths) =>
-        invokeTauri<boolean>('Games', 'set_game_instrument_mapping', { layout, keyPairs, configPaths }),
+      setGameInstrumentMapping: (layout, keyPairs, configPaths, mixed) =>
+        invokeTauri<boolean>('Games', 'set_game_instrument_mapping', { layout, keyPairs, configPaths, mixed }),
       getKeyboardLayouts: () =>
         invokeTauri<Record<string, KeyboardLayoutConfig>>('Games', 'get_keyboard_layouts', undefined),
       getLayoutPedalDefaults: (layoutId) =>

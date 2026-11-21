@@ -111,6 +111,7 @@ fn invalid_and_missing_bindings_do_not_shift_pad_associations() {
     let expected = [(0, "q"), (2, "^A"), (4, "u")];
     assert_eq!(mapping.chord_pads().len(), expected.len());
     for (pad, (index, binding)) in mapping.chord_pads().iter().zip(expected) {
+        assert_eq!(mapping.chord_slot(pad.binding), Some(index));
         assert_eq!(pad.pitch_classes, instrument.chords[index].pitch_classes);
         assert_eq!(pad.binding, amp_core::input::mapping::ChordBinding::Key(parse_key_stroke(binding).unwrap()));
     }
@@ -172,6 +173,88 @@ fn nte_wheel_maps_all_pages_without_acquiring_piano_keys() {
     assert!(mapping.chord_pads()[12].pitch_classes.len() == 2);
     assert_eq!(mapping.chord_pads()[18].bass_pitch_class, Some(11));
     assert!(instrument.notes.iter().all(|pitch| mapping.get_stroke(*pitch).is_none()));
+}
+
+fn nte_layouts() -> (InstrumentConfigJson, KeyboardLayoutJson, KeyboardLayoutJson) {
+    let instrument = serde_json::from_str(include_str!(
+        "../../../src-tauri/resources/defaults/Games/Neverness to Everness/Instruments/Strings/Guitar.json"
+    )).unwrap();
+    let wheel = serde_json::from_str(include_str!(
+        "../../../src-tauri/resources/defaults/KeyboardLayouts/NTE_Chord_Wheel.json"
+    )).unwrap();
+    let frets = serde_json::from_str(include_str!(
+        "../../../src-tauri/resources/defaults/KeyboardLayouts/NTE_Fret_Wheel.json"
+    )).unwrap();
+    (instrument, wheel, frets)
+}
+
+#[test]
+fn mixed_reuses_the_two_physical_wheels_and_the_fret_layouts_string_order() {
+    let (instrument, chord_layout, fret_layout) = nte_layouts();
+    let empty = NoteKeyMapping::from_pairs(KeyboardLayout::Chromatic36, &[]);
+    let chord = empty.clone().with_guitar_chords(&instrument, &chord_layout, &fret_layout, false);
+    let fret = empty.clone().with_frets(&instrument, &fret_layout, chord_layout.chord_wheel.as_ref().unwrap());
+    let mixed = empty.with_guitar_chords(&instrument, &chord_layout, &fret_layout, true);
+    assert!(mixed.is_mixed());
+    assert_eq!(mixed.wheel_context_for_mode(false), chord.wheel_context());
+    assert_eq!(mixed.wheel_context_for_mode(true), fret.wheel_context());
+    assert_ne!(mixed.wheel_context_for_mode(false), mixed.wheel_context_for_mode(true));
+    assert_eq!(mixed.wheel_for_mode(false).unwrap().page_count, 4);
+    assert_eq!(mixed.wheel_for_mode(true).unwrap().page_count, 5);
+    assert_eq!(chord.frets().unwrap().string_strokes[0], parse_key_stroke("6").unwrap());
+    assert!(chord.wheel_for_mode(true).is_none());
+    assert_eq!(mixed.chord_pads().len(), 24);
+    assert_eq!(mixed.string_pitches(3), [Some(64), Some(60), Some(55), Some(52), Some(48), None]);
+    assert_eq!(mixed.string_pitches(2)[1], None);
+    let shapes = serde_json::to_value(&instrument.chords).unwrap();
+    assert_eq!(shapes[3]["stringPitches"][5], "muted");
+    assert!(shapes[2]["stringPitches"][1].is_null());
+}
+
+#[test]
+fn fret_page_keys_override_the_linked_wheel_and_legacy_layouts_inherit() {
+    let (instrument, mut chord_layout, mut fret_layout) = nte_layouts();
+    let empty = NoteKeyMapping::from_pairs(KeyboardLayout::Chromatic36, &[]);
+    chord_layout.chord_wheel.as_mut().unwrap().page_keys = ["q".into(), "e".into()];
+
+    let mut legacy = serde_json::to_value(&fret_layout).unwrap();
+    legacy["fretboard"].as_object_mut().unwrap().remove("pageKeys");
+    let legacy: KeyboardLayoutJson = serde_json::from_value(legacy).unwrap();
+    let inherited = empty.clone().with_guitar_chords(&instrument, &chord_layout, &legacy, true);
+    assert_eq!(inherited.wheel_for_mode(true).unwrap().page_keys, ["q", "e"]);
+
+    fret_layout.fretboard.as_mut().unwrap().page_keys = Some(["PageUp".into(), "PageDown".into()]);
+    let rebound = empty.with_guitar_chords(&instrument, &chord_layout, &fret_layout, true);
+    assert_eq!(rebound.wheel_for_mode(false).unwrap().page_keys, ["q", "e"]);
+    assert_eq!(rebound.wheel_for_mode(true).unwrap().page_keys, ["PageUp", "PageDown"]);
+    assert_eq!(rebound.wheel_context_for_mode(true), inherited.wheel_context_for_mode(true));
+}
+
+#[test]
+fn independent_paging_flags_and_legacy_pluck_defaults() {
+    let (mut instrument, wheel, fret) = nte_layouts();
+    let empty = NoteKeyMapping::from_pairs(KeyboardLayout::Chromatic36, &[]);
+    for (chords, frets, chord_count, fret_count) in [
+        (Some(false), Some(true), 1, 5), (Some(true), Some(false), 4, 1),
+        (Some(false), Some(false), 1, 1), (None, None, 4, 5),
+    ] {
+        instrument.paged_chords = chords;
+        instrument.paged_frets = frets;
+        let mapping = empty.clone().with_guitar_chords(&instrument, &wheel, &fret, true);
+        assert_eq!(mapping.wheel_for_mode(false).unwrap().page_count, chord_count);
+        assert_eq!(mapping.wheel_for_mode(true).unwrap().page_count, fret_count);
+        assert_eq!(mapping.chord_pads().len(), chord_count * 6);
+    }
+    let mut source = serde_json::to_value(instrument).unwrap();
+    source.as_object_mut().unwrap().remove("pluckStrings");
+    let legacy: InstrumentConfigJson = serde_json::from_value(source).unwrap();
+    let mixed = empty.clone().with_guitar_chords(&legacy, &wheel, &fret, true);
+    assert!(!mixed.has_playable_bindings());
+    let chord = empty.clone().with_guitar_chords(&legacy, &wheel, &fret, false);
+    assert!(chord.frets().is_none());
+    assert_eq!(chord.chord_pads().len(), 24);
+    let fret_only = empty.with_frets(&legacy, &fret, wheel.chord_wheel.as_ref().unwrap());
+    assert!(fret_only.frets().is_some());
 }
 
 #[test]

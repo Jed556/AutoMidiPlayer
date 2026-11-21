@@ -1,7 +1,7 @@
 use amp_core::{
     input::{chord_wheel::WheelButton, simulator::KeyboardOutput},
     parse_key_stroke,
-    player::NoteProcessingSettings,
+    player::{engine::ArrangementState, NoteProcessingSettings},
     InstrumentConfigJson, KeyboardLayout, KeyboardLayoutJson, NoteKeyMapping, OutputKey,
     ParsedMidi, PlaybackEngine, PlaybackStatus, PlayerEvent, TempoMap, TimedNoteEvent,
 };
@@ -25,6 +25,7 @@ type Inputs = Arc<Mutex<Vec<(Instant, Input)>>>;
 struct Output {
     inputs: Inputs,
     focused: Arc<AtomicBool>,
+    stall_next_selector: Arc<AtomicBool>,
 }
 
 impl Output {
@@ -45,6 +46,9 @@ impl KeyboardOutput for Output {
     }
     fn wheel_button(&mut self, button: WheelButton, up: bool) -> Result<(), String> {
         self.record(Input::Button(button, up));
+        if button == WheelButton::Left && !up && self.stall_next_selector.swap(false, Ordering::AcqRel) {
+            std::thread::sleep(Duration::from_millis(180));
+        }
         Ok(())
     }
     fn wheel_focused(&self) -> bool {
@@ -82,7 +86,9 @@ struct Harness {
     engine: PlaybackEngine,
     inputs: Inputs,
     focused: Arc<AtomicBool>,
+    stall_next_selector: Arc<AtomicBool>,
     errors: Arc<Mutex<Vec<String>>>,
+    arrangements: Arc<Mutex<Vec<ArrangementState>>>,
     layout: KeyboardLayoutJson,
 }
 
@@ -103,20 +109,37 @@ impl Harness {
 
     fn new(events: Vec<TimedNoteEvent>) -> Self { Self::new_mode(events, false) }
 
-    fn new_mode(mut events: Vec<TimedNoteEvent>, fret_mode: bool) -> Self {
+    fn new_mode(events: Vec<TimedNoteEvent>, fret_mode: bool) -> Self {
+        Self::with_mode(events, fret_mode, false, false)
+    }
+
+    fn with_mode(events: Vec<TimedNoteEvent>, fret_mode: bool, pluck: bool, mixed: bool) -> Self {
+        Self::with_layouts(events, fret_mode, pluck, mixed, |_, _| {})
+    }
+
+    fn with_layouts(
+        mut events: Vec<TimedNoteEvent>,
+        fret_mode: bool,
+        pluck: bool,
+        mixed: bool,
+        configure: impl FnOnce(&mut KeyboardLayoutJson, &mut KeyboardLayoutJson),
+    ) -> Self {
         let instrument: InstrumentConfigJson = serde_json::from_str(include_str!(
             "../../../src-tauri/resources/defaults/Games/Neverness to Everness/Instruments/Strings/Guitar.json"
         )).unwrap();
-        let layout: KeyboardLayoutJson = serde_json::from_str(include_str!(
+        let mut layout: KeyboardLayoutJson = serde_json::from_str(include_str!(
             "../../../src-tauri/resources/defaults/KeyboardLayouts/NTE_Chord_Wheel.json"
         ))
         .unwrap();
         let base = NoteKeyMapping::from_pairs(KeyboardLayout::Chromatic36, &[]);
+        let mut fret_layout = serde_json::from_str(include_str!(
+            "../../../src-tauri/resources/defaults/KeyboardLayouts/NTE_Fret_Wheel.json"
+        )).unwrap();
+        configure(&mut layout, &mut fret_layout);
         let mapping = if fret_mode {
-            let fret_layout = serde_json::from_str(include_str!(
-                "../../../src-tauri/resources/defaults/KeyboardLayouts/NTE_Fret_Wheel.json"
-            )).unwrap();
             base.with_frets(&instrument, &fret_layout, layout.chord_wheel.as_ref().unwrap())
+        } else if pluck {
+            base.with_guitar_chords(&instrument, &layout, &fret_layout, mixed)
         } else { base.with_chord_pads(&instrument, &layout) }.with_game_target(
                 &serde_json::from_str(include_str!(
                     "../../../src-tauri/resources/defaults/Games/Neverness to Everness/game.json"
@@ -141,18 +164,26 @@ impl Harness {
         };
         let inputs = Arc::new(Mutex::new(Vec::new()));
         let focused = Arc::new(AtomicBool::new(true));
+        let stall_next_selector = Arc::new(AtomicBool::new(false));
         let errors = Arc::new(Mutex::new(Vec::new()));
         let captured_errors = errors.clone();
+        let arrangements = Arc::new(Mutex::new(Vec::new()));
+        let captured_arrangements = arrangements.clone();
         let engine = PlaybackEngine::new(Some(song), mapping, true, None, move |event| {
-            if let PlayerEvent::ChordWheelChanged(state) = event {
-                if let Some(error) = state.error {
-                    captured_errors.lock().unwrap().push(error);
+            match event {
+                PlayerEvent::ChordWheelChanged(state) => {
+                    if let Some(error) = state.error {
+                        captured_errors.lock().unwrap().push(error);
+                    }
                 }
+                PlayerEvent::Arrangement(state) => captured_arrangements.lock().unwrap().push(state),
+                _ => {}
             }
         });
         engine.set_keyboard_output(Some(Box::new(Output {
             inputs: inputs.clone(),
             focused: focused.clone(),
+            stall_next_selector: stall_next_selector.clone(),
         })));
         engine.set_listen_mode(false);
         engine.set_note_timing(true, 0);
@@ -167,7 +198,9 @@ impl Harness {
             engine,
             inputs,
             focused,
+            stall_next_selector,
             errors,
+            arrangements,
             layout,
         }
     }
@@ -179,6 +212,14 @@ impl Harness {
             .iter()
             .map(|(_, input)| input.clone())
             .collect()
+    }
+    fn play_to_end(&self) {
+        self.engine.request_play().recv_timeout(Duration::from_secs(5)).unwrap().unwrap();
+        self.wait("playback completion", || self.engine.get_status() == PlaybackStatus::Stopped);
+        assert!(self.errors.lock().unwrap().is_empty());
+    }
+    fn attacks(&self) -> Vec<ArrangementState> {
+        self.arrangements.lock().unwrap().iter().filter(|s| s.slot.is_some()).cloned().collect()
     }
     fn count(&self, expected: Input) -> usize {
         self.events()
@@ -282,11 +323,167 @@ fn pausing_fret_playback_releases_all_plucked_strings() {
 }
 
 #[test]
-fn fret_groups_requiring_different_selectors_do_not_send_approximate_notes() {
+fn fret_groups_requiring_different_selectors_keep_the_melody_and_report_the_omission() {
     let h = Harness::new_mode(notes(0, &[60, 61]), true);
+    h.play_to_end();
+    let attacks = h.attacks();
+    assert_eq!(attacks.len(), 1);
+    let attack = &attacks[0];
+    assert_eq!((attack.omitted_melody, attack.omitted_accompaniment), (0, 1));
+    assert_eq!(attack.strings.count_ones(), 1);
+    let string = attack.strings.trailing_zeros() as usize;
+    let fret = (attack.slot.unwrap() + 1) % 25;
+    assert_eq!([64, 59, 55, 50, 45, 40][string] + fret, 61);
+    let key = parse_key_stroke(&(6 - string).to_string()).unwrap().key;
+    assert_eq!(h.count(Input::Key(key, false)), 1);
+    assert_eq!(h.count(Input::Key(key, true)), 1);
+}
+
+#[test]
+fn chord_shape_plucks_follow_the_midi_attacks_on_the_chord_wheel() {
+    let h = Harness::with_mode([notes(0, &[59]), notes(60_000, &[40])].concat(), false, true, false);
+    h.play_to_end();
+    let attacks = h.attacks();
+    assert_eq!(attacks.iter().map(|s| (s.mode, s.slot, s.strings)).collect::<Vec<_>>(),
+        [(Some("chords"), Some(5), 2), (Some("chords"), Some(5), 32)]);
+    assert!(h.strums().is_empty());
+    for binding in ["5", "1"] {
+        let key = parse_key_stroke(binding).unwrap().key;
+        assert_eq!(h.count(Input::Key(key, false)), 1);
+        assert_eq!(h.count(Input::Key(key, true)), 1);
+    }
+    assert_eq!(h.count(Input::Button(WheelButton::Left, false)), 1);
+}
+
+#[test]
+fn mixed_switches_wheels_and_remembers_the_first_chord_page() {
+    let chord = &[60, 64, 67, 71]; // Cmaj7, chord page two.
+    let h = Harness::with_mode([notes(0, chord), notes(1_000_000, &[88]), notes(2_000_000, chord)].concat(), false, true, true);
+    assert!(h.engine.request_play().recv().unwrap().unwrap_err().contains("Synchronize"));
+    h.engine.sync_guitar_mode(false).unwrap();
+    h.play_to_end();
+    let attacks = h.attacks();
+    assert_eq!(attacks.iter().map(|s| (s.mode, s.page, s.strings)).collect::<Vec<_>>(),
+        [(Some("chords"), Some(1), 0), (Some("frets"), Some(3), 1), (Some("chords"), Some(1), 0)]);
+    assert_eq!(h.strums().len(), 2);
+    let mode_key = parse_key_stroke("z").unwrap().key;
+    assert_eq!(h.count(Input::Key(mode_key, false)), 2);
+    assert_eq!(h.count(Input::Key(mode_key, true)), 2);
+    assert_eq!(h.count(Input::Key(parse_key_stroke("t").unwrap().key, false)), 1);
+    assert_eq!(h.engine.guitar_mode().unwrap(), Some(false));
+}
+
+#[test]
+fn manual_pagination_sends_each_wheels_configured_previous_and_next_keys() {
+    let h = Harness::with_layouts(vec![], false, true, true, |chord_layout, fret_layout| {
+        chord_layout.chord_wheel.as_mut().unwrap().page_keys = ["b".into(), "n".into()];
+        fret_layout.fretboard.as_mut().unwrap().page_keys = Some(["PageUp".into(), "PageDown".into()]);
+    });
+    for fret in [false, true] {
+        h.engine.sync_guitar_mode(fret).unwrap();
+        h.engine.set_chord_wheel_page(0, false).unwrap();
+        for page in [1, 0] {
+            h.engine.set_chord_wheel_page(page, true).unwrap();
+            h.wait("manual page", || {
+                let wheel = h.engine.chord_wheel_state().unwrap();
+                !wheel.busy && wheel.page == Some(page)
+            });
+        }
+    }
+    let expected = ["n", "b", "PageDown", "PageUp"].into_iter().flat_map(|binding| {
+        let key = parse_key_stroke(binding).unwrap().key;
+        [Input::Key(key, false), Input::Key(key, true)]
+    }).collect::<Vec<_>>();
+    let keys = h.events().into_iter().filter(|input| matches!(input, Input::Key(..))).collect::<Vec<_>>();
+    assert_eq!(keys, expected);
+}
+
+#[test]
+fn interrupted_mode_press_is_released_and_requires_resynchronization() {
+    let h = Harness::with_mode(notes(0, &[88]), false, true, true);
+    h.engine.sync_guitar_mode(false).unwrap();
     h.engine.play();
-    h.wait("unsupported group completion", || h.engine.get_status() == PlaybackStatus::Stopped);
-    assert!(h.events().is_empty());
+    let mode_key = parse_key_stroke("z").unwrap().key;
+    h.wait("mode key down", || h.count(Input::Key(mode_key, false)) == 1);
+    h.focused.store(false, Ordering::Release);
+    h.wait("focus-loss pause", || h.engine.get_status() == PlaybackStatus::Paused);
+    assert_eq!(h.count(Input::Key(mode_key, true)), 1);
+    assert_eq!(h.engine.guitar_mode().unwrap(), None);
+    assert!(h.attacks().is_empty());
+    assert!(h.engine.request_play().recv().unwrap().unwrap_err().contains("Synchronize"));
+}
+
+#[test]
+fn manual_mode_switch_blocks_play_until_settled_and_reselecting_the_same_mode_sends_no_key() {
+    let h = Harness::with_mode(notes(0, &[88]), false, true, true);
+    h.engine.sync_guitar_mode(false).unwrap();
+    let mode_key = parse_key_stroke("z").unwrap();
+    std::thread::scope(|scope| {
+        let switch = scope.spawn(|| h.engine.switch_guitar_mode(true, mode_key));
+        h.wait("manual mode key down", || h.count(Input::Key(mode_key.key, false)) == 1);
+        assert!(h.engine.request_play().recv_timeout(Duration::from_secs(2)).unwrap().is_err());
+        switch.join().unwrap().unwrap();
+    });
+    h.engine.switch_guitar_mode(true, mode_key).unwrap();
+    assert_eq!(h.count(Input::Key(mode_key.key, false)), 1);
+    assert_eq!(h.count(Input::Key(mode_key.key, true)), 1);
+    assert_eq!(h.engine.guitar_mode().unwrap(), Some(true));
+    h.play_to_end();
+    assert_eq!(h.attacks().len(), 1);
+    assert_eq!(h.count(Input::Key(mode_key.key, false)), 1);
+}
+
+#[test]
+fn interrupted_page_press_releases_key_and_invalidates_only_that_wheel() {
+    let h = Harness::new_mode(notes(0, &[40]), true);
+    h.engine.play();
+    let page_key = parse_key_stroke("r").unwrap().key;
+    h.wait("page key down", || h.count(Input::Key(page_key, false)) == 1);
+    h.focused.store(false, Ordering::Release);
+    h.wait("focus-loss pause", || h.engine.get_status() == PlaybackStatus::Paused);
+    assert_eq!(h.count(Input::Key(page_key, true)), 1);
+    assert_eq!(h.engine.chord_wheel_state().unwrap().page, None);
+    assert_eq!(h.engine.guitar_mode().unwrap(), Some(true));
+    assert!(h.attacks().is_empty());
+}
+
+#[test]
+fn a_missed_selection_is_counted_once_and_playback_continues_at_the_next_attack() {
+    let g = &[55, 59, 62];
+    let events = [notes(0, g), notes(600_000, &[48, 52, 55]), notes(1_350_000, g)].concat();
+    let h = Harness::with_mode(events, false, true, false);
+    h.engine.play();
+    h.wait("first strum", || h.strums().len() == 1);
+    h.stall_next_selector.store(true, Ordering::Release);
+    h.wait("final strum", || h.strums().len() == 2);
+    h.wait("completion after skipped attack", || h.engine.get_status() == PlaybackStatus::Stopped);
+    assert!(h.errors.lock().unwrap().is_empty());
+    let attacks = h.attacks();
+    assert_eq!(attacks.iter().map(|s| s.slot).collect::<Vec<_>>(), [Some(0), Some(0)]);
+    assert_eq!((attacks[1].omitted_melody, attacks[1].omitted_accompaniment), (1, 2));
+    assert!(h.strums()[1].duration_since(h.strums()[0]) >= Duration::from_millis(1_250));
+}
+
+#[test]
+fn seeking_inside_a_strummed_chord_does_not_replay_its_remaining_midi_members() {
+    let events = [notes(0, &[48]), notes(60_000, &[52]), notes(120_000, &[55]), notes(650_000, &[40])].concat();
+    let h = Harness::with_mode(events, false, true, false);
+    h.engine.set_note_processing(NoteProcessingSettings {
+        merge_notes: false,
+        merge_tolerance_ms: 25,
+        chord_detection_milliseconds: 150,
+    });
+    h.engine.play();
+    h.wait("first strum", || h.strums().len() == 1);
+    h.engine.pause();
+    h.engine.seek(10_000, 1);
+    h.engine.flush().unwrap();
+    h.play_to_end();
+    let attacks = h.attacks();
+    assert_eq!(attacks.len(), 2, "{attacks:?}");
+    assert_eq!(attacks[0].strings, 0);
+    assert_eq!(attacks[1].strings, 32);
+    assert_eq!(h.strums().len(), 1);
 }
 
 #[test]

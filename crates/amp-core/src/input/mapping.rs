@@ -12,6 +12,7 @@ pub struct KeyStroke {
 /// A pre-composed instrument chord paired with its selected layout binding.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChordPad {
+    pub slot: usize,
     pub pitch_classes: Vec<u8>,
     pub binding: ChordBinding,
     pub bass_pitch_class: Option<u8>,
@@ -21,6 +22,7 @@ pub struct ChordPad {
 pub enum ChordBinding {
     Key(KeyStroke),
     Wheel(usize),
+    Pluck { slot: usize, strings: u8 },
     Frets { slot: usize, strings: u8 },
 }
 
@@ -118,6 +120,9 @@ pub struct NoteKeyMapping {
     pedal_bindings: [Option<KeyStroke>; 3],
     chord_pads: Vec<ChordPad>,
     chord_wheel: Option<super::config::ChordWheelConfigJson>,
+    fret_wheel: Option<super::config::ChordWheelConfigJson>,
+    chord_strings: Vec<Vec<Option<u8>>>,
+    mixed: bool,
     frets: Option<FretMapping>,
     game_process_names: Vec<String>,
     game_target_id: Option<String>,
@@ -201,6 +206,9 @@ impl NoteKeyMapping {
             pedal_bindings: [None; 3],
             chord_pads: Vec::new(),
             chord_wheel: None,
+            fret_wheel: None,
+            chord_strings: Vec::new(),
+            mixed: false,
             frets: None,
             game_process_names: Vec::new(),
             game_target_id: None,
@@ -232,6 +240,9 @@ impl NoteKeyMapping {
             pedal_bindings: [None; 3],
             chord_pads: Vec::new(),
             chord_wheel: None,
+            fret_wheel: None,
+            chord_strings: Vec::new(),
+            mixed: false,
             frets: None,
             game_process_names: Vec::new(),
             game_target_id: None,
@@ -255,6 +266,9 @@ impl NoteKeyMapping {
     pub fn with_chord_bindings(mut self, pads: Vec<ChordPad>) -> Self {
         self.chord_pads = pads;
         self.chord_wheel = None;
+        self.fret_wheel = None;
+        self.chord_strings.clear();
+        self.mixed = false;
         self.frets = None;
         self
     }
@@ -269,7 +283,8 @@ impl NoteKeyMapping {
         let pads = instrument.chords.iter().enumerate()
             .filter_map(|(index, pad)| {
                 let binding = if let Some(wheel) = wheel {
-                    if index >= wheel.positions.len() * wheel.page_count { return None; }
+                    let pages = if instrument.paged_chords == Some(false) { 1 } else { wheel.page_count };
+                    if index >= wheel.positions.len() * pages { return None; }
                     ChordBinding::Wheel(index)
                 } else {
                     ChordBinding::Key(parse_key_stroke(layout.chord_keys.as_ref()?.get(index)?)?)
@@ -277,7 +292,7 @@ impl NoteKeyMapping {
                 if pad.pitch_classes.iter().any(|&pitch| pitch > 11)
                     || pad.bass_pitch_class.is_some_and(|pitch| pitch > 11)
                     || pad.pitch_classes.iter().copied().collect::<HashSet<_>>().len() < 2 { return None; }
-                Some(ChordPad { pitch_classes: pad.pitch_classes.clone(), binding, bass_pitch_class: pad.bass_pitch_class })
+                Some(ChordPad { slot: index, pitch_classes: pad.pitch_classes.clone(), binding, bass_pitch_class: pad.bass_pitch_class })
             }).collect();
         self = self.with_chord_bindings(pads);
         // Pad-only layouts still need the instrument's pitch set for chord
@@ -288,7 +303,9 @@ impl NoteKeyMapping {
             self.playable_notes.dedup();
         }
         if let Some(wheel) = wheel {
-            self.chord_wheel = Some(wheel.clone());
+            let mut wheel = wheel.clone();
+            if instrument.paged_chords == Some(false) { wheel.page_count = 1; }
+            self.chord_wheel = Some(wheel);
             // Chord mode has no chromatic keys. Keep its pitch set for detection
             // and Listen Mode without sending piano-mode keys for unmatched notes.
             self.map.clear();
@@ -300,10 +317,24 @@ impl NoteKeyMapping {
     }
 
     pub fn chord_pads(&self) -> &[ChordPad] { &self.chord_pads }
+    pub fn chord_slot(&self, binding: ChordBinding) -> Option<usize> {
+        self.chord_pads.iter().find(|pad| pad.binding == binding).map(|pad| pad.slot)
+    }
     pub fn has_playable_bindings(&self) -> bool {
         !self.map.is_empty() || !self.chord_pads.is_empty() || self.frets.is_some()
     }
-    pub fn chord_wheel(&self) -> Option<&super::config::ChordWheelConfigJson> { self.chord_wheel.as_ref() }
+    /// Default physical wheel when the selected input mode is entered.
+    pub fn chord_wheel(&self) -> Option<&super::config::ChordWheelConfigJson> {
+        self.chord_wheel.as_ref().or(self.fret_wheel.as_ref())
+    }
+    pub fn wheel_for_mode(&self, frets: bool) -> Option<&super::config::ChordWheelConfigJson> {
+        if frets { self.fret_wheel.as_ref() } else { self.chord_wheel.as_ref() }
+    }
+    pub fn is_mixed(&self) -> bool { self.mixed }
+    pub fn is_chord_only(&self) -> bool { self.map.is_empty() && !self.chord_pads.is_empty() }
+    pub fn string_pitches(&self, slot: usize) -> &[Option<u8>] {
+        self.chord_strings.get(slot).map(Vec::as_slice).unwrap_or_default()
+    }
     pub fn frets(&self) -> Option<&FretMapping> { self.frets.as_ref() }
 
     pub fn with_frets(mut self, instrument: &super::config::InstrumentConfigJson,
@@ -320,14 +351,44 @@ impl NoteKeyMapping {
         // One held selector applies to all six strings in the reference game.
         // The last page contains the open-string selector; frets start at slot 0.
         let mut resolved_wheel = wheel.clone();
-        resolved_wheel.page_count = (guitar.fret_count as usize).div_ceil(wheel.positions.len()) + 1;
-        self.chord_wheel = Some(resolved_wheel);
+        if let Some(page_keys) = &fretboard.page_keys {
+            resolved_wheel.page_keys.clone_from(page_keys);
+        }
+        resolved_wheel.page_count = if instrument.paged_frets == Some(false) { 1 }
+            else { (guitar.fret_count as usize).div_ceil(wheel.positions.len()) + 1 };
+        self.fret_wheel = Some(resolved_wheel);
         self.playable_notes = guitar.tuning.iter().flat_map(|pitch| *pitch..=(*pitch + guitar.fret_count)).collect();
         self.playable_notes.sort_unstable();
         self.playable_notes.dedup();
         self.frets = Some(FretMapping { tuning: guitar.tuning.clone(), fret_count: guitar.fret_count,
             string_strokes: strokes, mode_key: parse_key_stroke(&fretboard.mode_key) });
         self
+    }
+
+    /// Combine one chord wheel and its linked fret layout, which owns the string bindings.
+    pub fn with_guitar_chords(self, instrument: &super::config::InstrumentConfigJson,
+        chord_layout: &super::config::KeyboardLayoutJson, fret_layout: &super::config::KeyboardLayoutJson,
+        mixed: bool) -> Self {
+        let mut chord = self.with_chord_pads(instrument, chord_layout);
+        let unavailable = || Self::from_pairs(chord.layout, &[]);
+        let Some(wheel) = chord_layout.chord_wheel.as_ref() else { return unavailable(); };
+        if !instrument.pluck_strings || chord.chord_wheel.is_none() || chord.chord_pads.is_empty()
+            || !fret_layout.fretboard.as_ref().is_some_and(|f| f.wheel_layout.eq_ignore_ascii_case(&chord_layout.id)) {
+            return if mixed { unavailable() } else { chord };
+        }
+        let fret = unavailable().with_frets(instrument, fret_layout, wheel);
+        if fret.frets.is_none() { return if mixed { unavailable() } else { chord }; }
+        chord.chord_strings = instrument.chords.iter().map(|shape| {
+            shape.string_pitches.iter().flatten().map(|entry| match entry {
+                Some(super::config::StringPitch::Pitch(pitch @ 0..=127)) => Some(*pitch),
+                _ => None,
+            }).collect()
+        }).collect();
+        chord.frets = fret.frets;
+        chord.playable_notes = fret.playable_notes;
+        if mixed { chord.fret_wheel = fret.fret_wheel; }
+        chord.mixed = mixed;
+        chord
     }
 
     /// Runtime target inherited from the owning game's definition and preferences.
@@ -346,8 +407,16 @@ impl NoteKeyMapping {
     }
 
     pub fn wheel_context(&self) -> Option<String> {
-        self.chord_wheel.as_ref().map(|wheel| format!("{}:{}:{}", self.game_target_id.as_deref().unwrap_or(""),
-            self.game_process_names.join("|"), serde_json::to_string(wheel).unwrap_or_default()))
+        self.wheel_context_for_mode(self.chord_wheel.is_none())
+    }
+    pub fn wheel_context_for_mode(&self, frets: bool) -> Option<String> {
+        self.wheel_for_mode(frets).map(|wheel| {
+            // Rebinding page keys does not change the current page in the game.
+            let mut identity = wheel.clone();
+            identity.page_keys = Default::default();
+            format!("{}:{}:{frets}:{}", self.game_target_id.as_deref().unwrap_or(""),
+                self.game_process_names.join("|"), serde_json::to_string(&identity).unwrap_or_default())
+        })
     }
 
     /// Resolves a MIDI note to an Enigo physical Key, if mapped.
@@ -381,7 +450,7 @@ impl NoteKeyMapping {
         let mut keys = HashSet::new();
         for stroke in self.map.values().chain(self.pedal_bindings.iter().flatten())
             .chain(self.chord_pads.iter().filter_map(|pad| match &pad.binding {
-                ChordBinding::Key(stroke) => Some(stroke), ChordBinding::Wheel(_) | ChordBinding::Frets { .. } => None,
+                ChordBinding::Key(stroke) => Some(stroke), _ => None,
             })).chain(self.frets.iter().flat_map(|frets| &frets.string_strokes)) {
             keys.insert(stroke.key);
             if stroke.shift { keys.insert(Key::Shift); }

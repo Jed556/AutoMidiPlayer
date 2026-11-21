@@ -32,6 +32,17 @@ pub struct ChordConfigJson {
     pub pitch_classes: Vec<u8>,
     #[serde(default)]
     pub bass_pitch_class: Option<u8>,
+    /// String 1 first. A null cell is unknown; a muted string is explicitly labelled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub string_pitches: Option<Vec<Option<StringPitch>>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum StringPitch {
+    #[serde(rename = "muted")]
+    Muted,
+    #[serde(untagged)]
+    Pitch(u8),
 }
 
 /// Guitar pitch data belongs to the instrument, not its physical controls.
@@ -50,13 +61,16 @@ impl GuitarConfigJson {
     }
 }
 
-/// String and mode bindings reuse an existing wheel layout's calibration.
+/// Fret bindings reuse an existing wheel layout's calibration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FretLayoutJson {
     pub string_keys: Vec<String>,
     pub wheel_layout: String,
     pub mode_key: String,
+    /// Previous and next page keys. Omit to inherit the linked wheel's keys.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_keys: Option<[String; 2]>,
 }
 
 impl FretLayoutJson {
@@ -64,6 +78,7 @@ impl FretLayoutJson {
         !self.wheel_layout.trim().is_empty() && !self.string_keys.is_empty() && self.string_keys.len() <= 6
             && self.string_keys.iter().all(|binding| super::mapping::parse_key_stroke(binding).is_some())
             && super::mapping::parse_key_stroke(&self.mode_key).is_some()
+            && self.page_keys.as_ref().is_none_or(|keys| keys.iter().all(|key| super::mapping::parse_key_stroke(key).is_some()))
     }
 }
 
@@ -139,6 +154,12 @@ pub struct InstrumentConfigJson {
     #[serde(default)]
     pub chord_mode: ChordMode,
     #[serde(default)]
+    pub pluck_strings: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub paged_chords: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub paged_frets: Option<bool>,
+    #[serde(default)]
     pub supports_pedals: Option<bool>,
     #[serde(default)]
     pub supports_chords: Option<bool>,
@@ -205,6 +226,12 @@ struct InstrumentConfigSource {
     #[serde(default)]
     chord_mode: ChordMode,
     #[serde(default)]
+    pluck_strings: bool,
+    #[serde(default)]
+    paged_chords: Option<bool>,
+    #[serde(default)]
+    paged_frets: Option<bool>,
+    #[serde(default)]
     supports_pedals: Option<bool>,
     #[serde(default)]
     supports_chords: Option<bool>,
@@ -225,6 +252,7 @@ impl From<InstrumentConfigSource> for InstrumentConfigJson {
             instrument_type: source.instrument_type, layout_style: source.layout_style, keys: source.keys,
             notes: source.notes, keyboard_layouts: source.keyboard_layouts.unwrap_or(source.supported_layouts),
             chord_layouts, fret_layouts: source.fret_layouts, chords: source.chords, guitar: source.guitar, chord_mode: source.chord_mode,
+            pluck_strings: source.pluck_strings, paged_chords: source.paged_chords, paged_frets: source.paged_frets,
             supports_pedals: source.supports_pedals, supports_chords: source.supports_chords,
             subfolder: source.subfolder, file_path: source.file_path };
         instrument.normalize_keys();
