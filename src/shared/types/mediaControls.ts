@@ -10,6 +10,7 @@ export interface MediaControlsSnapshot {
   title: string;
   artist: string;
   album: string;
+  coverUrl?: string;
   durationSeconds: number;
   positionSeconds: number;
   status: PlaybackStatus;

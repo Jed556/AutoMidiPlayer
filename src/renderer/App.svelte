@@ -137,6 +137,7 @@
       title: song?.title ?? '',
       artist: song?.artist ?? '',
       album: song?.album ?? '',
+      coverUrl: song?.coverArtUrl?.trim() || undefined,
       durationSeconds: song ? playbackStore.durationSeconds : 0,
       positionSeconds: mediaPositionSeconds,
       status: playbackStore.status,
