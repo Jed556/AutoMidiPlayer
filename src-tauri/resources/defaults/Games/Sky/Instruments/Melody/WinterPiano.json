@@ -9,5 +9,7 @@
     [81, 83, 84, 86, 88],
     [89, 91, 93, 95, 96]
   ],
-  "supportedLayouts": ["QWERTY_15Keys"]
+  "keyboardLayouts": ["QWERTY_15Keys"],
+  "chordLayouts": [],
+  "fretLayouts": []
 }

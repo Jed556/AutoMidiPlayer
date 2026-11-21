@@ -36,7 +36,6 @@ class PlaybackStore {
   tapThresholdMs = $state<number>(DEFAULT_APP_SETTINGS.defaultTapThresholdMs);
   mergeNotes = $state<boolean>(DEFAULT_APP_SETTINGS.defaultMergeNotes);
   mergeToleranceMs = $state<number>(DEFAULT_APP_SETTINGS.defaultMergeToleranceMs);
-  autoChord = $state<boolean>(DEFAULT_APP_SETTINGS.defaultAutoChord);
   chordDetectionMilliseconds = $state<number>(DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds);
   enableKeyChangeMarkers = $state<boolean>(DEFAULT_APP_SETTINGS.defaultEnableKeyChangeMarkers);
   isShuffled = $state<boolean>(DEFAULT_UI_PREFERENCES.playback.isShuffled);
@@ -443,6 +442,7 @@ class PlaybackStore {
         });
       });
       await this.restoreSession(preferences);
+      if (!await gameStore.hasPlaybackMapping()) this.notifyMissingLayout();
 
       // Subscribe to process monitor updates for mid-playback focus loss or process exit
       gameStore.onGameStatusChange((activeGame) => {
@@ -481,7 +481,6 @@ class PlaybackStore {
       this.tapThresholdMs = settingsStore.settings.defaultTapThresholdMs;
       this.mergeNotes = settingsStore.settings.defaultMergeNotes ?? DEFAULT_APP_SETTINGS.defaultMergeNotes;
       this.mergeToleranceMs = settingsStore.settings.defaultMergeToleranceMs ?? DEFAULT_APP_SETTINGS.defaultMergeToleranceMs;
-      this.autoChord = settingsStore.settings.defaultAutoChord ?? DEFAULT_APP_SETTINGS.defaultAutoChord;
       this.chordDetectionMilliseconds = settingsStore.settings.defaultChordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds;
     }
     this.currentTimeSeconds = restoredSong ? Math.min(saved.positionSeconds, this.durationSeconds) : 0;
@@ -609,7 +608,6 @@ class PlaybackStore {
       mergeMilliseconds: this.mergeToleranceMs,
       holdNotes: this.holdNotes,
       tapThresholdMs: this.tapThresholdMs,
-      autoChord: this.autoChord,
       chordDetectionMilliseconds: this.chordDetectionMilliseconds,
       enableKeyChangeMarkers: this.enableKeyChangeMarkers,
     };
@@ -679,7 +677,6 @@ class PlaybackStore {
     }
     this.tapThresholdMs = song.tapThresholdMs ?? DEFAULT_APP_SETTINGS.defaultTapThresholdMs;
     void this.syncNoteTiming();
-    this.autoChord = song.autoChord ?? DEFAULT_APP_SETTINGS.defaultAutoChord;
     this.chordDetectionMilliseconds = song.chordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds;
     // A preview selection must not reprocess the previously loaded native song.
     // Play reapplies these settings after the selected file has loaded.
@@ -793,7 +790,7 @@ class PlaybackStore {
     // Controls and Edit can update a preview before its file replaces the engine song.
     if (isTauri && (!this.activeSong || this._currentLoadedPath !== this.activeSong.filePath)) return Promise.resolve(true);
     return api.playback.setNoteProcessing(this.mergeNotes, this.mergeToleranceMs,
-      this.autoChord, this.chordDetectionMilliseconds)
+      this.chordDetectionMilliseconds)
       .catch(error => notificationCenter.error('Unable to update note processing', String(error)));
   }
 
@@ -802,15 +799,6 @@ class PlaybackStore {
     this.tapThresholdMs = value;
     if (this.activeSong) this.activeSong.tapThresholdMs = value;
     void this.syncNoteTiming();
-    this.scheduleAutoSaveSongSettings();
-  }
-
-  setAutoChord(val: boolean) {
-    this.autoChord = val;
-    if (this.activeSong) {
-      this.activeSong.autoChord = val;
-    }
-    void this.syncNoteProcessing();
     this.scheduleAutoSaveSongSettings();
   }
 
@@ -1163,15 +1151,32 @@ class PlaybackStore {
     await this.play(songs[0]);
   }
 
-  async play(song?: MidiFile) {
-    if (this.isChangingSongContext) return;
+  private notifyMissingLayout() {
+    notificationCenter.error(t('player.playbackUnavailable'), t('player.chooseValidLayout'));
+  }
+
+  private async canStartPlayback(request: number) {
+    let mappingReady: boolean;
+    do {
+      if (this.isChangingSongContext) await this.contextRefresh;
+      mappingReady = await gameStore.hasPlaybackMapping();
+      if (request !== this.playRequestRevision) return false;
+    } while (this.isChangingSongContext);
+    if (!mappingReady) this.notifyMissingLayout();
+    return mappingReady;
+  }
+
+  async play(song?: MidiFile): Promise<boolean> {
     const playRequest = ++this.playRequestRevision;
-    if (gameStore.hasDeletedSelection) {
-      notificationCenter.warning('Playback unavailable', gameStore.layoutDeletionTooltip);
-      return;
+    const originalContext = this.contextRevision;
+    const wasChangingContext = this.isChangingSongContext;
+    if (!await this.canStartPlayback(playRequest)) return false;
+    if (song && (wasChangingContext || originalContext !== this.contextRevision)) {
+      const requestedId = song.id;
+      song = libraryStore.songs.find(entry => entry.id === requestedId) ?? song;
     }
     const targetSong = song || this.activeSong || this.playbackQueue[0];
-    if (!targetSong) return;
+    if (!targetSong) return false;
     this.cancelSongFinish();
 
     // Check game running state if not in listen mode (matching WPF StartPlayback / HandleGameNotRunning)
@@ -1190,13 +1195,14 @@ class PlaybackStore {
             'Game not running',
             `${gameName} is not running.`
           );
-          return;
+          return false;
         }
       } else {
         await gameStore.focusActiveGame();
       }
     }
 
+    if (playRequest !== this.playRequestRevision) return false;
     const isNewSong = !this.activeSong || this.activeSong.id !== targetSong.id;
     const isPathLoaded = this._currentLoadedPath === targetSong.filePath;
 
@@ -1233,31 +1239,28 @@ class PlaybackStore {
           }
         } catch (e) {
           notificationCenter.error('Unable to load song', String(e));
-          return;
+          return false;
         }
       }
     }
 
     if (song && !isNewSong && isPathLoaded) await this.seek(0);
 
-    // A pause/stop during a load must not restart playback after the load finishes.
-    if (!settingsStore.isWindows && playRequest !== this.playRequestRevision) return;
-    if (settingsStore.isWindows) {
-      this.status = 'Playing';
-      await api.playback.play(targetSong.id);
-      return;
-    }
+    // The selection or transport request can change while a MIDI file is loading.
+    if (!await this.canStartPlayback(playRequest)) return false;
     if (!this.isListenMode && gameStore.activeGame?.requiresManualFocus) {
       notificationCenter.info('Switch to your game', 'Allow keyboard access if prompted, then switch to the game within 30 seconds. Playback starts after AMP loses focus.');
     }
     const previousStatus = this.status;
     this.status = 'Playing';
     try {
-      await api.playback.play(targetSong.id);
+      if (!await api.playback.play(targetSong.id)) throw new Error(t('player.chooseValidLayout'));
+      return playRequest === this.playRequestRevision;
     } catch (error) {
-      if (playRequest !== this.playRequestRevision) return;
+      if (playRequest !== this.playRequestRevision) return false;
       if (this.status === 'Playing') this.status = previousStatus;
       if (!String(error).includes('cancelled')) notificationCenter.error('Unable to start playback', String(error));
+      return false;
     }
   }
 
@@ -1534,7 +1537,6 @@ class PlaybackStore {
       await this.syncNoteTiming();
       this.mergeNotes = song.mergeNotes ?? DEFAULT_APP_SETTINGS.defaultMergeNotes;
       this.mergeToleranceMs = song.mergeToleranceMs ?? DEFAULT_APP_SETTINGS.defaultMergeToleranceMs;
-      this.autoChord = song.autoChord ?? DEFAULT_APP_SETTINGS.defaultAutoChord;
       this.chordDetectionMilliseconds = song.chordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds;
       await this.syncNoteProcessing();
       this.enableKeyChangeMarkers = song.enableKeyChangeMarkers ?? DEFAULT_APP_SETTINGS.defaultEnableKeyChangeMarkers;
@@ -1618,14 +1620,14 @@ class PlaybackStore {
       }
     }
 
-    this.activeQueueIndex = nextIndex;
-    const nextSong = currentList[this.activeQueueIndex];
+    const nextSong = currentList[nextIndex];
     if (nextSong) {
-      if (this.activeSong && this.activeSong.id !== nextSong.id) {
-        this.historyStack.push(this.activeSong);
+      const previous = this.activeSong;
+      const started = await this.play(nextSong);
+      if (started && previous && previous.id !== nextSong.id) {
+        this.historyStack.push(previous);
         if (this.historyStack.length > 50) this.historyStack.shift();
       }
-      await this.play(nextSong);
     }
   }
 
@@ -1636,13 +1638,8 @@ class PlaybackStore {
     }
 
     if (this.historyStack.length > 0) {
-      const prevSong = this.historyStack.pop()!;
-      const currentList = this.playbackQueue;
-      const foundIdx = currentList.findIndex(s => s.id === prevSong.id);
-      if (foundIdx !== -1) {
-        this.activeQueueIndex = foundIdx;
-      }
-      await this.play(prevSong);
+      const prevSong = this.historyStack[this.historyStack.length - 1];
+      if (await this.play(prevSong)) this.historyStack.pop();
       return;
     }
 
@@ -1654,8 +1651,7 @@ class PlaybackStore {
       prevIndex = this.loopMode === 'all' ? currentList.length - 1 : 0;
     }
 
-    this.activeQueueIndex = prevIndex;
-    const prevSong = currentList[this.activeQueueIndex];
+    const prevSong = currentList[prevIndex];
     if (prevSong) {
       await this.play(prevSong);
     }

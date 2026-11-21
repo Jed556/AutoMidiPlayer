@@ -122,7 +122,6 @@ export interface AppSettings {
   defaultTapThresholdMs: number;
   defaultMergeNotes: boolean;
   defaultMergeToleranceMs: number;
-  defaultAutoChord: boolean;
   defaultChordDetectionMilliseconds: number;
   defaultEnableKeyChangeMarkers: boolean;
   autoCheckUpdates: boolean;

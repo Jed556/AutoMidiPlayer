@@ -16,10 +16,10 @@ impl Fixture {
         conn.execute_batch("ALTER TABLE Songs ADD COLUMN Description TEXT;
             INSERT INTO Songs (Id, Path, Title, Artist, Album, DateAdded, BaseKey, Key, Transpose,
                 Speed, Bpm, DisabledTracks, MergeNotes, MergeMilliseconds, HoldNotes, TapThresholdMs,
-                AutoChord, ChordDetectionMilliseconds, KeyChanges, EnableKeyChangeMarkers,
+                ChordDetectionMilliseconds, KeyChanges, EnableKeyChangeMarkers,
                 ImagePath, CachedDurationMs, CachedNativeBpm, FileHash, Description)
             VALUES ('song', 'missing.mid', 'My title', 'My artist', 'My album', '2026-01-01', 5, -2, 3,
-                1.75, 143, '1,3', 1, 87, 0, 300, 1, 45,
+                1.75, 143, '1,3', 1, 87, 0, 300, 45,
                 '[{\"TimeMs\":1200,\"KeyOffset\":3,\"Label\":\"Chorus\"}]', 0,
                 'cover.png', 90000, 144, 'hash', 'My description');").unwrap();
         // Include the instrument copies made during legacy migration, plus a
@@ -58,7 +58,7 @@ fn defaults() -> SongDefaults {
         default_hold_notes: true, default_tap_threshold_ms: 50,
         default_merge_notes: false, default_merge_tolerance_ms: 25,
         // Options absent from these onboarding pages must remain untouched.
-        default_auto_chord: false, default_enable_key_change_markers: true,
+        default_enable_key_change_markers: true,
         ..SongDefaults::default()
     }
 }

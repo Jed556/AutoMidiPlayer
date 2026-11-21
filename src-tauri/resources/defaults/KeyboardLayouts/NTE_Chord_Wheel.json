@@ -1,0 +1,16 @@
+{
+  "id": "NTE_Chord_Wheel",
+  "name": "Chord Wheel",
+  "keys": [],
+  "chordWheel": {
+    "positions": [[693, 255], [786, 352], [786, 532], [693, 631], [599, 532], [599, 352]],
+    "strumPosition": [910, 670],
+    "moveDelayMs": 30,
+    "selectHoldMs": 15,
+    "afterSelectMs": 15,
+    "pageCount": 4,
+    "pageKeys": ["r", "t"],
+    "pageHoldMs": 35,
+    "pageWaitMs": 145
+  }
+}

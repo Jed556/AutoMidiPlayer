@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createPianoRows, createPianoSlots, hasInGameInstrumentLayout, pianoRange } from '../src/renderer/lib/utils/instrumentKeyboard.ts';
-import { instrumentNotes, instrumentKeyRows, instrumentKeyPairs, instrumentLayoutStyle, normalizeKeyboardLayout } from '../src/shared/utils/instrumentLayout.ts';
+import { instrumentChordMode, instrumentNotes, instrumentKeyRows, instrumentKeyPairs, instrumentLayoutStyle, normalizeKeyboardLayout } from '../src/shared/utils/instrumentLayout.ts';
 
 const instrument = path => {
   const raw = JSON.parse(readFileSync(new URL(`../src-tauri/resources/defaults/Games/${path}`, import.meta.url), 'utf8'));
@@ -74,6 +74,40 @@ test('row wrapping supports sparse scales and keeps a closing C when it fits', (
 });
 
 const layout = name => normalizeKeyboardLayout(JSON.parse(readFileSync(new URL(`../src-tauri/resources/defaults/KeyboardLayouts/${name}.json`, import.meta.url), 'utf8')));
+
+test('shared chord detection uses the instrument mode and its selected layout bindings', () => {
+  const guitar = instrument('Neverness to Everness/Instruments/Strings/Guitar.json');
+  const ukulele = instrument('Genshin Impact/Instruments/Strings/Ukulele.json');
+  assert.equal(instrumentChordMode(guitar, layout('NTE_Chord_Wheel')), 'wheel');
+  assert.equal(instrumentChordMode(guitar, layout('NTE_QWERTY_Guitar')), null);
+  const pads = layout('Genshin_QWERTY_Chords');
+  assert.equal(instrumentChordMode(ukulele, layout('Genshin_QWERTY_Melody')), null);
+  assert.equal(instrumentChordMode(ukulele, pads), 'pads');
+  const { chordMode: _mode, ...legacyUkulele } = ukulele;
+  assert.equal(instrumentChordMode(legacyUkulele, pads), 'pads');
+  const both = { ...pads, chordWheel: layout('NTE_Chord_Wheel').chordWheel };
+  assert.equal(instrumentChordMode(ukulele, both), 'pads');
+  assert.equal(instrumentChordMode({ ...ukulele, chordMode: 'wheel' }, both), 'wheel');
+  assert.equal(instrumentChordMode({ ...guitar, supportsChords: false }, layout('NTE_Chord_Wheel')), null);
+  assert.equal(instrumentChordMode(ukulele, { ...pads, chordKeys: [] }), null);
+});
+
+test('Genshin stringed instruments combine keyboard and chord modes in a single definition', () => {
+  for (const file of ['Ukulele', 'LingeringEuphonia']) {
+    const inst = instrument(`Genshin Impact/Instruments/Strings/${file}.json`);
+    assert.equal(inst.notes.length, 14);
+    assert.equal(inst.keys.length, 2);
+    assert.deepEqual(inst.keyboardLayouts, ['Genshin_QWERTY_Melody']);
+    assert.deepEqual(inst.chordLayouts, ['Genshin_QWERTY_Chords']);
+    assert.deepEqual(inst.fretLayouts, []);
+    assert.equal(inst.chordMode, 'pads');
+    assert.equal(instrumentChordMode(inst, layout('Genshin_QWERTY_Melody')), null);
+    assert.equal(instrumentChordMode(inst, layout('Genshin_QWERTY_Chords')), 'pads');
+    assert.equal(instrumentKeyPairs(inst, layout('Genshin_QWERTY_Melody')).length, 14);
+    assert.deepEqual(instrumentKeyPairs(inst, layout('Genshin_QWERTY_Chords')), []);
+    assert.deepEqual(inst.chords.map(chord => chord.name), ['C', 'Dm', 'Em', 'F', 'G', 'Am', 'G7']);
+  }
+});
 
 test('Heartopia matrices preserve the configured rows and QWERTY bindings', () => {
   for (const [file, binding, sizes] of [

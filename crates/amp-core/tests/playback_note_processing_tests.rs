@@ -53,7 +53,7 @@ fn mapping() -> NoteKeyMapping {
     NoteKeyMapping::from_pairs(KeyboardLayout::Diatonic21,
         &[(60, 'a'), (64, 'd'), (65, 'f'), (67, 'g'), (69, 'h')])
         .with_chord_bindings(vec![ChordPad {
-            pitch_classes: vec![0, 4, 7], stroke: parse_key_stroke("q").unwrap(),
+            pitch_classes: vec![0, 4, 7], binding: amp_core::input::mapping::ChordBinding::Key(parse_key_stroke("q").unwrap()), bass_pitch_class: None,
         }])
 }
 
@@ -92,9 +92,13 @@ impl Harness {
     }
 }
 
-fn settings(merge_notes: bool, auto_chord: bool) -> NoteProcessingSettings {
+fn melody_mapping() -> NoteKeyMapping {
+    NoteKeyMapping::from_pairs(KeyboardLayout::Diatonic21, &[(60, 'a'), (64, 'd'), (65, 'f'), (67, 'g'), (69, 'h')])
+}
+
+fn settings(merge_notes: bool) -> NoteProcessingSettings {
     NoteProcessingSettings {
-        merge_notes, merge_tolerance_ms: 25, auto_chord,
+        merge_notes, merge_tolerance_ms: 25,
         chord_detection_milliseconds: 30,
     }
 }
@@ -114,7 +118,7 @@ fn disabled_processing_preserves_repeated_note_attacks_and_releases() {
         event(0, 0, 60, true), event(60_000, 0, 60, false),
         event(80_000, 0, 60, true), event(140_000, 0, 60, false),
     ]);
-    h.engine.set_note_processing(settings(false, false));
+    h.engine.set_note_processing(settings(false));
     h.run_to_end();
     assert_eq!(*h.output.lock().unwrap(), vec![
         (key("a"), false), (key("a"), true), (key("a"), false), (key("a"), true),
@@ -127,13 +131,13 @@ fn merging_bridges_the_gap_without_retrigger_and_disabling_restores_original_not
         event(0, 0, 60, true), event(60_000, 0, 60, false),
         event(80_000, 0, 60, true), event(140_000, 0, 60, false),
     ]);
-    h.engine.set_note_processing(settings(true, false));
+    h.engine.set_note_processing(settings(true));
     h.run_to_end();
     assert_eq!(*h.output.lock().unwrap(), vec![(key("a"), false), (key("a"), true)]);
     assert_eq!(*h.hits.lock().unwrap(), vec![(60, true), (60, false)]);
 
     h.engine.stop();
-    h.engine.set_note_processing(settings(false, false));
+    h.engine.set_note_processing(settings(false));
     h.engine.flush().unwrap();
     h.output.lock().unwrap().clear();
     h.hits.lock().unwrap().clear();
@@ -148,7 +152,7 @@ fn disabling_merge_during_a_bridged_gap_releases_the_hold_and_keeps_playback_pos
         event(0, 0, 60, true), event(60_000, 0, 60, false),
         event(500_000, 0, 60, true), event(560_000, 0, 60, false),
     ]);
-    let mut processing = settings(true, false);
+    let mut processing = settings(true);
     processing.merge_tolerance_ms = 500;
     h.engine.set_note_processing(processing);
     h.engine.play();
@@ -167,7 +171,7 @@ fn disabling_merge_during_a_bridged_gap_releases_the_hold_and_keeps_playback_pos
 #[test]
 fn a_cross_track_chord_taps_one_pad_and_keeps_constituent_note_glow() {
     let h = Harness::new(triad(67, 0, 300_000));
-    h.engine.set_note_processing(settings(false, true));
+    h.engine.set_note_processing(settings(false));
     h.engine.play();
     wait(|| h.count("q", true) == 1);
     wait(|| h.hits.lock().unwrap().iter().filter(|(_, on)| *on).count() == 3);
@@ -186,10 +190,27 @@ fn a_cross_track_chord_taps_one_pad_and_keeps_constituent_note_glow() {
 }
 
 #[test]
+fn separate_genshin_chord_layout_detects_midi_chords_without_note_bindings() {
+    let h = Harness::new(triad(67, 0, 300_000));
+    let instrument = serde_json::from_str(include_str!(
+        "../../../src-tauri/resources/defaults/Games/Genshin Impact/Instruments/Strings/Ukulele.json"
+    )).unwrap();
+    let layout = serde_json::from_str(include_str!(
+        "../../../src-tauri/resources/defaults/KeyboardLayouts/Genshin_QWERTY_Chords.json"
+    )).unwrap();
+    h.engine.set_mapping(NoteKeyMapping::from_pairs(KeyboardLayout::Diatonic21, &[]).with_chord_pads(&instrument, &layout));
+    h.engine.set_note_processing(settings(false));
+    h.run_to_end();
+    assert_eq!(h.count("q", false), 1);
+    assert_eq!(h.count("q", true), 1);
+    for binding in ["a", "d", "g"] { assert_eq!(h.count(binding, false), 0); }
+}
+
+#[test]
 fn a_short_source_chord_does_not_cut_off_its_longer_pad_tap() {
     let h = Harness::new(triad(67, 0, 40_000));
     h.engine.set_hold_delay_ms(200);
-    h.engine.set_note_processing(settings(false, true));
+    h.engine.set_note_processing(settings(false));
     h.engine.play();
     wait(|| h.count("q", false) == 1);
     let started = Instant::now();
@@ -206,7 +227,8 @@ fn disabled_unmatched_and_muted_chords_keep_individual_melody_output() {
     for scenario in ["disabled", "unmatched", "muted", "zero_volume"] {
         let unmatched = scenario == "unmatched";
         let h = Harness::new(triad(if unmatched { 69 } else { 67 }, 0, 160_000));
-        h.engine.set_note_processing(settings(false, scenario != "disabled"));
+        h.engine.set_note_processing(settings(false));
+        if scenario == "disabled" { h.engine.set_mapping(melody_mapping()); }
         if scenario == "muted" { h.engine.set_track_muted(1, true); }
         if scenario == "zero_volume" { h.engine.set_track_volume(1, 0.0); }
         h.run_to_end();
@@ -224,12 +246,12 @@ fn mid_chord_processing_and_track_changes_do_not_mix_pad_and_melody_output() {
             event(0, 0, 60, true), event(60_000, 1, 64, true), event(120_000, 2, 67, true),
             event(180_000, 0, 60, false), event(180_000, 1, 64, false), event(180_000, 2, 67, false),
         ]);
-        let processing = NoteProcessingSettings { chord_detection_milliseconds: 150, ..settings(false, true) };
+        let processing = NoteProcessingSettings { chord_detection_milliseconds: 150, ..settings(false) };
         h.engine.set_note_processing(processing);
         h.engine.play();
         wait(|| h.count("q", false) == 1 && h.engine.get_current_time_us() >= 30_000);
         match change {
-            "disable" => h.engine.set_note_processing(settings(false, false)),
+            "disable" => h.engine.set_mapping(melody_mapping()),
             "mute" => h.engine.set_track_muted(2, true),
             _ => h.engine.set_track_volume(2, 0.0),
         }
@@ -242,7 +264,7 @@ fn mid_chord_processing_and_track_changes_do_not_mix_pad_and_melody_output() {
         }
 
         h.engine.stop();
-        h.engine.set_note_processing(settings(false, false));
+        h.engine.set_mapping(melody_mapping());
         h.engine.set_track_muted(2, false);
         h.engine.set_track_volume(2, 1.0);
         h.engine.flush().unwrap();
@@ -257,10 +279,10 @@ fn mid_chord_processing_and_track_changes_do_not_mix_pad_and_melody_output() {
 }
 
 #[test]
-fn auto_chord_preserves_raw_and_adapted_listen_note_glow_without_keyboard_output() {
+fn chord_pads_preserve_raw_and_adapted_listen_note_glow_without_keyboard_output() {
     for mode in [SynthMode::Raw, SynthMode::Adapted] {
         let h = Harness::new(triad(67, 0, 120_000));
-        h.engine.set_note_processing(settings(false, true));
+        h.engine.set_note_processing(settings(false));
         h.engine.set_listen_mode(true);
         h.engine.set_synth_mode(mode);
         h.engine.play();
@@ -270,24 +292,24 @@ fn auto_chord_preserves_raw_and_adapted_listen_note_glow_without_keyboard_output
         let mut hits = h.hits.lock().unwrap().clone();
         hits.sort_unstable();
         assert_eq!(hits, vec![(60, false), (60, true), (64, false), (64, true), (67, false), (67, true)],
-            "Auto Chord must preserve every source note's existing listen/glow lifecycle");
+            "Chord detection must preserve every source note's existing listen/glow lifecycle");
     }
 }
 
 #[test]
-fn a_chord_heard_in_listen_mode_does_not_freeze_later_game_notes_after_disabling_auto_chord() {
+fn a_chord_heard_in_listen_mode_does_not_freeze_later_game_notes_after_switching_to_melody_mapping() {
     let h = Harness::new(vec![
         event(0, 0, 60, true), event(60_000, 1, 64, true), event(120_000, 2, 67, true),
         event(180_000, 0, 60, false), event(180_000, 1, 64, false), event(180_000, 2, 67, false),
     ]);
     h.engine.set_note_processing(NoteProcessingSettings {
-        chord_detection_milliseconds: 150, ..settings(false, true)
+        chord_detection_milliseconds: 150, ..settings(false)
     });
     h.engine.set_listen_mode(true);
     h.engine.play();
     wait(|| h.engine.get_current_time_us() >= 30_000);
     assert!(h.output.lock().unwrap().is_empty());
-    h.engine.set_note_processing(settings(false, false));
+    h.engine.set_mapping(melody_mapping());
     h.engine.set_listen_mode(false);
     h.engine.flush().unwrap();
     wait(|| h.engine.get_status() == PlaybackStatus::Stopped);
@@ -301,7 +323,7 @@ fn pad_cleanup_on_pause_stop_and_seek_does_not_restore_historical_taps() {
     for action in ["pause", "stop", "seek"] {
         let h = Harness::new(triad(67, 0, 1_000_000));
         h.engine.set_hold_delay_ms(500);
-        h.engine.set_note_processing(settings(false, true));
+        h.engine.set_note_processing(settings(false));
         h.engine.play();
         wait(|| h.count("q", false) == 1);
         match action {
@@ -322,7 +344,7 @@ fn pad_cleanup_on_pause_stop_and_seek_does_not_restore_historical_taps() {
 #[test]
 fn seeking_to_the_exact_chord_onset_still_dispatches_the_pad() {
     let h = Harness::new(triad(67, 100_000, 350_000));
-    h.engine.set_note_processing(settings(false, true));
+    h.engine.set_note_processing(settings(false));
     h.engine.seek(100_000, 1);
     h.engine.flush().unwrap();
     assert!(h.output.lock().unwrap().is_empty(), "stopped seeks must remain silent");
@@ -338,7 +360,7 @@ fn processing_setting_changes_leave_live_midi_notes_and_their_ownership_intact()
     h.engine.midi_gate(true);
     h.engine.midi_message(3, MidiMessage::On { channel: 0, pitch: 60, velocity: 100 });
     wait(|| h.engine.midi_snapshot().pitches == [60]);
-    for processing in [settings(true, false), settings(true, true), settings(false, false)] {
+    for processing in [settings(true), settings(false)] {
         h.engine.set_note_processing(processing);
         h.engine.flush().unwrap();
     }
@@ -351,9 +373,9 @@ fn processing_setting_changes_leave_live_midi_notes_and_their_ownership_intact()
 }
 
 #[test]
-fn auto_chord_does_not_replace_live_midi_input_with_song_chord_pads() {
+fn chord_pads_do_not_replace_live_midi_input_with_song_chord_pads() {
     let h = Harness::new(vec![]);
-    h.engine.set_note_processing(settings(true, true));
+    h.engine.set_note_processing(settings(true));
     h.engine.midi_start(4);
     h.engine.midi_gate(true);
     for pitch in [60, 64, 67] {

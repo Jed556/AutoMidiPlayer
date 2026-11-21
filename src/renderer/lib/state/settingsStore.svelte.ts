@@ -135,7 +135,6 @@ class SettingsStore {
       defaultTapThresholdMs: this.settings.defaultTapThresholdMs ?? DEFAULT_APP_SETTINGS.defaultTapThresholdMs,
       defaultMergeNotes: this.settings.defaultMergeNotes ?? DEFAULT_APP_SETTINGS.defaultMergeNotes,
       defaultMergeToleranceMs: this.settings.defaultMergeToleranceMs ?? DEFAULT_APP_SETTINGS.defaultMergeToleranceMs,
-      defaultAutoChord: this.settings.defaultAutoChord ?? DEFAULT_APP_SETTINGS.defaultAutoChord,
       defaultChordDetectionMilliseconds: this.settings.defaultChordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds,
       defaultEnableKeyChangeMarkers: this.settings.defaultEnableKeyChangeMarkers ?? DEFAULT_APP_SETTINGS.defaultEnableKeyChangeMarkers,
     }, applyToExisting).then(result => {

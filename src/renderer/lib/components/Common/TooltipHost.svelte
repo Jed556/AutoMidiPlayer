@@ -3,11 +3,14 @@
   import { portal } from '../../actions/portal';
   import { tooltipManager } from '../../ui/tooltipManager.svelte';
   import { animationStore } from '../../state/animationStore.svelte';
-  import { playbackStore } from '../../state/playbackStore.svelte';
   import { t } from '../../i18n';
   import { createFrameResizeObserver } from '../../utils/frameResizeObserver';
   import { animateTextSweep } from '../../utils/textSweep';
   import PedalIcon from '../Icons/PedalIcon.svelte';
+
+  let { pedals }: {
+    pedals?: { enabled: boolean; sustain: boolean; sostenuto: boolean; unaCorda: boolean };
+  } = $props();
 
   let wrapper = $state<HTMLDivElement>();
   let surface = $state<HTMLDivElement>();
@@ -27,7 +30,10 @@
     outgoing = null;
   }
 
-  onDestroy(cancelMorph);
+  onDestroy(() => {
+    cancelMorph();
+    tooltipManager.hide(true);
+  });
 
   $effect.pre(() => {
     const revision = tooltipManager.contentRevision;
@@ -162,17 +168,17 @@
         >
           <div bind:this={surface} class="amp-tooltip-surface"></div>
           <div bind:this={content} class="amp-tooltip-content" class:is-pedals={tooltipManager.options.contentType === 'pedals'}>
-            {#if tooltipManager.options.contentType === 'pedals'}
+            {#if tooltipManager.options.contentType === 'pedals' && pedals}
               <div bind:this={label} class="amp-tooltip-pedal-card">
                 <PedalIcon
                   size={60}
-                  isSoftActive={playbackStore.pedals.unaCorda}
-                  isSostenutoActive={playbackStore.pedals.sostenuto}
-                  isSustainActive={playbackStore.pedals.sustain}
-                  isActive={playbackStore.pedals.enabled}
+                  isSoftActive={pedals.unaCorda}
+                  isSostenutoActive={pedals.sostenuto}
+                  isSustainActive={pedals.sustain}
+                  isActive={pedals.enabled}
                 />
                 <div class="pedal-status-indicator">
-                  <span class="status-dot" class:active={playbackStore.pedals.enabled}></span>
+                  <span class="status-dot" class:active={pedals.enabled}></span>
                   <span class="status-text">{tooltipManager.options.text || t('player.pedals') || 'Pedals'}</span>
                 </div>
               </div>

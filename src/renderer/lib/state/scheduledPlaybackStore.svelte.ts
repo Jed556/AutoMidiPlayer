@@ -8,7 +8,7 @@ export interface ScheduledPlaybackRuntime {
   now: () => number;
   isPlaying: () => boolean;
   hasSong: () => boolean;
-  play: () => Promise<void>;
+  play: () => Promise<void | boolean>;
   pause: () => Promise<void>;
   interval: (callback: () => void) => ReturnType<typeof setInterval>;
   clearInterval: (id: ReturnType<typeof setInterval>) => void;

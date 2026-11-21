@@ -1,6 +1,6 @@
 import { DEFAULT_APP_SETTINGS } from '../../../shared/defaults/settings.js';
-import type { AppWindowApi, PedalState, SongSettingsContext, StorageUsage, LegacyDataStatus, LegacyMigrationResult } from '$shared/types/ipc.js';
-import type { GameStatus, GameConfigState, ConfigIssue, KeyboardLayoutConfig } from '$shared/types/games.js';
+import type { AppWindowApi, PedalState, ChordWheelState, SongSettingsContext, StorageUsage, LegacyDataStatus, LegacyMigrationResult } from '$shared/types/ipc.js';
+import type { GameStatus, GameConfigState, ConfigIssue, KeyboardLayoutConfig, DefaultConfigUpdates } from '$shared/types/games.js';
 import type { MidiFile } from '$shared/types/midi.js';
 import type { SystemSnapshot } from '$shared/types/system.js';
 import type { MidiInputState } from '$shared/types/midiInput.js';
@@ -49,7 +49,6 @@ function serializeSongSettings(song: MidiFile) {
     mergeMilliseconds: song.mergeToleranceMs ?? DEFAULT_APP_SETTINGS.defaultMergeToleranceMs,
     holdNotes: song.holdNotes,
     tapThresholdMs: song.tapThresholdMs ?? DEFAULT_APP_SETTINGS.defaultTapThresholdMs,
-    autoChord: song.autoChord ?? DEFAULT_APP_SETTINGS.defaultAutoChord,
     chordDetectionMilliseconds: song.chordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds,
     enableKeyChangeMarkers: song.enableKeyChangeMarkers ?? DEFAULT_APP_SETTINGS.defaultEnableKeyChangeMarkers,
   };
@@ -142,8 +141,12 @@ export function createAppApi(): AppWindowApi {
       setTrackVolume: (trackIndex, volume) => invokeTauri<boolean>('Playback', 'set_track_volume', { trackIndex, volume }),
       setListenMode: (enabled) => invokeTauri<boolean>('Playback', 'set_listen_mode', { enabled }),
       setNoteTiming: (holdNotes, tapThresholdMs) => invokeTauri<boolean>('Playback', 'set_note_timing', { holdNotes, tapThresholdMs }),
-      setNoteProcessing: (mergeNotes, mergeToleranceMs, autoChord, chordDetectionMilliseconds) =>
-        invokeTauri<boolean>('Playback', 'set_note_processing', { mergeNotes, mergeToleranceMs, autoChord, chordDetectionMilliseconds }),
+      setNoteProcessing: (mergeNotes, mergeToleranceMs, chordDetectionMilliseconds) =>
+        invokeTauri<boolean>('Playback', 'set_note_processing', { mergeNotes, mergeToleranceMs, chordDetectionMilliseconds }),
+      getChordWheelState: () => invokeTauri<ChordWheelState>('Playback', 'get_chord_wheel_state', undefined),
+      setGuitarMode: (mode) => invokeTauri<boolean>('Playback', 'set_guitar_mode', { mode }),
+      setChordWheelPage: (page, send) => invokeTauri<boolean>('Playback', 'set_chord_wheel_page', { page, send }),
+      onChordWheelState: (callback) => listenTauri<ChordWheelState>('playback:chord_wheel', callback),
       setKeyMarkers: (markers) => invokeTauri<boolean>('Playback', 'set_key_markers', {
         markers: markers.map((marker) => ({
           timeMs: marker.timeMs ?? Math.round((marker.time ?? 0) * 1000),
@@ -279,6 +282,8 @@ export function createAppApi(): AppWindowApi {
 
     games: {
       getConfigs,
+      getDefaultConfigUpdates: () => invokeTauri<DefaultConfigUpdates>('Games', 'get_default_config_updates', undefined),
+      resolveDefaultConfigUpdates: (choices, duplicateChoices) => invokeTauri<DefaultConfigUpdates>('Games', 'resolve_default_config_updates', { choices, duplicateChoices }),
       onConfigsChanged: async (callback) => {
         if (!isTauriEnvironment) return () => {};
         const { listen } = await import('@tauri-apps/api/event');

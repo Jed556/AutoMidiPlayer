@@ -19,7 +19,7 @@ impl Drop for TestDirectory {
 #[test]
 fn soundfont_watcher_detects_deletions_renames_and_directory_recreation() {
     let temp = TestDirectory::new();
-    let root = temp.0.canonicalize().unwrap().join("SoundFonts");
+    let root = temp.0.join("SoundFonts");
     fs::create_dir(&root).unwrap();
     let font = root.join("Stock.sf2");
     fs::write(&font, b"test font").unwrap();
@@ -57,7 +57,7 @@ fn soundfont_watcher_can_start_with_a_missing_directory() {
 #[test]
 fn source_file_watcher_ignores_other_fonts_and_detects_removal_and_restoration() {
     let temp = TestDirectory::new();
-    let root = temp.0.canonicalize().unwrap();
+    let root = &temp.0;
     let font = root.join("Source.sf2");
     fs::write(&font, b"source").unwrap();
     let (tx, rx) = mpsc::channel();

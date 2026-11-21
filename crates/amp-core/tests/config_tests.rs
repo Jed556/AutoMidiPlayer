@@ -25,7 +25,7 @@ fn matrix_configs_preserve_rows_and_normalize_legacy_playback_fields() {
     use amp_core::{InstrumentConfigJson, KeyboardLayoutJson};
     let instrument: InstrumentConfigJson = serde_json::from_str(r#"{
         "id":"piano", "name":"Piano", "layoutStyle":"heartopia",
-        "keys":[[72,null,73],[60,61]], "supportedLayouts":["qwerty"]
+        "keys":[[72,null,73],[60,61]], "keyboardLayouts":["qwerty"]
     }"#).unwrap();
     assert_eq!(instrument.notes, [72, 73, 60, 61]);
     assert_eq!(instrument.keys.as_ref().unwrap()[0], [Some(72), None, Some(73)]);
@@ -39,6 +39,61 @@ fn matrix_configs_preserve_rows_and_normalize_legacy_playback_fields() {
     assert_eq!(roundtrip.keys, layout.keys);
     assert_eq!(roundtrip.key_rows, layout.key_rows);
     assert!(serde_json::from_str::<InstrumentConfigJson>(r#"{"id":"x","name":"X","layoutStyle":"unknown"}"#).is_err());
+}
+
+#[test]
+fn instrument_layout_groups_and_chords_serialize_canonically() {
+    use amp_core::InstrumentConfigJson;
+    let instrument: InstrumentConfigJson = serde_json::from_str(r#"{
+        "id":"guitar", "name":"Guitar", "layoutStyle":"guitar", "notes":[60],
+        "keyboardLayouts":["keyboard"], "chordLayouts":["wheel"], "fretLayouts":["frets"],
+        "chords":[{"name":"C","pitchClasses":[0,4,7]}],
+        "guitar":{"tuning":[64,59,55,50,45,40],"fretCount":24}
+    }"#).unwrap();
+    assert!(instrument.supports_keyboard_layout("KEYBOARD"));
+    assert!(instrument.supports_chord_layout("wheel"));
+    assert!(instrument.supports_fret_layout("frets"));
+    assert!(!instrument.supports_chord_layout("keyboard"));
+    assert_eq!(instrument.all_layouts().map(String::as_str).collect::<Vec<_>>(), ["keyboard", "wheel", "frets"]);
+    assert!(instrument.guitar.as_ref().unwrap().is_valid());
+    let json = serde_json::to_value(instrument).unwrap();
+    assert_eq!(json["layoutStyle"], "guitar");
+    assert_eq!(json["chords"][0]["name"], "C");
+    assert!(json.get("supportedLayouts").is_none());
+    assert!(json.get("chordPads").is_none());
+}
+
+#[test]
+fn legacy_chord_definitions_remain_readable_but_explicit_layout_groups_win() {
+    use amp_core::InstrumentConfigJson;
+    let legacy: InstrumentConfigJson = serde_json::from_str(r#"{
+        "id":"ukulele","name":"Ukulele", "supportedLayouts":["qwerty"],
+        "chordPads":[{"name":"C","pitchClasses":[0,4,7]}]
+    }"#).unwrap();
+    assert_eq!(legacy.keyboard_layouts, ["qwerty"]);
+    assert_eq!(legacy.chord_layouts, ["qwerty"]);
+    assert_eq!(legacy.chords.len(), 1);
+    let explicit: InstrumentConfigJson = serde_json::from_str(r#"{
+        "id":"ukulele","name":"Ukulele", "supportedLayouts":["old"],
+        "keyboardLayouts":["new"], "chordLayouts":[],
+        "chords":[{"name":"C","pitchClasses":[0,4,7]}]
+    }"#).unwrap();
+    assert_eq!(explicit.keyboard_layouts, ["new"]);
+    assert!(explicit.chord_layouts.is_empty());
+}
+
+#[test]
+fn guitar_pitch_and_binding_configuration_rejects_unplayable_input() {
+    use amp_core::{FretLayoutJson, GuitarConfigJson};
+    let mut guitar = GuitarConfigJson { tuning: vec![64, 59, 55, 50, 45, 40], fret_count: 24 };
+    assert!(guitar.is_valid());
+    guitar.tuning[0] = 120;
+    assert!(!guitar.is_valid());
+    let mut layout = FretLayoutJson { string_keys: vec!["6".into(), "5".into(), "4".into(), "3".into(), "2".into(), "1".into()],
+        wheel_layout: "NTE_Chord_Wheel".into(), mode_key: "z".into() };
+    assert!(layout.is_valid());
+    layout.string_keys[0] = "NotAKey".into();
+    assert!(!layout.is_valid());
 }
 
 #[test]
@@ -96,7 +151,7 @@ fn test_scan_games_recursive_instruments() {
         "name": "Leaping Spirit Piano",
         "type": "diatonic21",
         "notes": [72, 74, 76, 77, 79, 81, 83, 60, 62, 64, 65, 67, 69, 71, 48, 50, 52, 53, 55, 57, 59],
-        "supportedLayouts": ["genshin_qwerty"]
+        "keyboardLayouts": ["genshin_qwerty"]
     }"#;
     fs::write(instruments_pianos.join("LeapingSpiritPiano.json"), piano_json).unwrap();
 
@@ -106,7 +161,7 @@ fn test_scan_games_recursive_instruments() {
         "name": "Djem Djem Drum",
         "type": "drum8",
         "notes": [60, 62, 64, 65, 67, 69, 71, 72],
-        "supportedLayouts": ["genshin_qwerty_drums"]
+        "keyboardLayouts": ["genshin_qwerty_drums"]
     }"#;
     fs::write(instruments_drums.join("DjemDjemDrum.json"), drum_json).unwrap();
 

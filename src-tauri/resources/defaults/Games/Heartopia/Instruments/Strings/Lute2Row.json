@@ -8,5 +8,7 @@
     [72, 74, 76, 77, 79, 81, 83, 84],
     [60, 62, 64, 65, 67, 69, 71]
   ],
-  "supportedLayouts": ["Heartopia_QWERTY_2Row"]
+  "keyboardLayouts": ["Heartopia_QWERTY_2Row"],
+  "chordLayouts": [],
+  "fretLayouts": []
 }

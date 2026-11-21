@@ -814,14 +814,6 @@
                 </div>
               </div>
 
-              <div class="switch-row">
-                <ToggleSwitch
-                  label={t('studio.autoChord')}
-                  title={t('studio.autoChordDesc')}
-                  checked={settingsStore.settings.defaultAutoChord}
-                  onchange={(v) => settingsStore.update('defaultAutoChord', v)}
-                />
-              </div>
             </div>
           </div>
         </div>

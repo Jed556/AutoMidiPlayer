@@ -101,15 +101,14 @@ test('saving a song strips legacy label offsets while preserving numeric marker 
 test('song serialization preserves merge settings and note processing reaches the native command', async () => {
   const { api, calls } = await nativeHarness();
   await api.songs.saveSong({ id: 'song', keyOffset: 0, baseKeyOffset: 0, transposeMode: 'Smart',
-    tracks: [], mergeNotes: true, mergeToleranceMs: 175, autoChord: true, chordDetectionMilliseconds: 65,
+    tracks: [], mergeNotes: true, mergeToleranceMs: 175, chordDetectionMilliseconds: 65,
   }, { kind: 'instrument', gameId: 'a', instrumentId: 'lyre' });
   assert.equal(calls[0][1].settings.mergeNotes, true);
   assert.equal(calls[0][1].settings.mergeMilliseconds, 175);
-  assert.equal(calls[0][1].settings.autoChord, true);
   assert.equal(calls[0][1].settings.chordDetectionMilliseconds, 65);
-  await api.playback.setNoteProcessing(true, 175, true, 65);
+  await api.playback.setNoteProcessing(true, 175, 65);
   assert.deepEqual(calls.at(-1), ['set_note_processing', {
-    mergeNotes: true, mergeToleranceMs: 175, autoChord: true, chordDetectionMilliseconds: 65,
+    mergeNotes: true, mergeToleranceMs: 175, chordDetectionMilliseconds: 65,
   }]);
 });
 

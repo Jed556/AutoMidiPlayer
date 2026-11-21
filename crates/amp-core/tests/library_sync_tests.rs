@@ -64,7 +64,6 @@ fn imports_with_missing_options_use_the_shared_json_defaults() {
     assert_eq!(song.speed, expected["defaultSpeed"].as_f64());
     assert_eq!(song.merge_milliseconds.map(u64::from), expected["defaultMergeToleranceMs"].as_u64());
     assert_eq!(song.tap_threshold_ms.map(u64::from), expected["defaultTapThresholdMs"].as_u64());
-    assert_eq!(song.auto_chord, expected["defaultAutoChord"].as_bool());
     assert_eq!(song.chord_detection_milliseconds.map(u64::from), expected["defaultChordDetectionMilliseconds"].as_u64());
     assert_eq!(song.enable_key_change_markers, expected["defaultEnableKeyChangeMarkers"].as_bool());
 }

@@ -2,6 +2,7 @@ use amp_core::{
     KeyboardLayoutJson, LoadedGameBundle,
 };
 use amp_core::input::config_scan::{scan_games_checked, scan_layouts_checked, ConfigIssue};
+use amp_core::input::defaults_sync::{self, BundledDefault, DefaultConfigChoice, DefaultConfigUpdates};
 use include_dir::{include_dir, Dir};
 use log::{info, warn};
 use std::collections::HashMap;
@@ -10,6 +11,18 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 static DEFAULTS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/resources/defaults");
+static DEFAULT_SYNC_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Available before AppState, audio, database, and playback initialization.
+pub fn check_startup_defaults() -> Result<DefaultConfigUpdates, String> {
+    let _guard = DEFAULT_SYNC_LOCK.lock().map_err(|e| e.to_string())?;
+    defaults_sync::sync_defaults(&get_appdata_dir(), &bundled_default_files(&DEFAULTS_DIR))
+}
+
+pub fn resolve_startup_defaults(choices: &[DefaultConfigChoice], duplicates: &[DefaultConfigChoice]) -> Result<DefaultConfigUpdates, String> {
+    let _guard = DEFAULT_SYNC_LOCK.lock().map_err(|e| e.to_string())?;
+    defaults_sync::resolve_default_updates(&get_appdata_dir(), &bundled_default_files(&DEFAULTS_DIR), choices, duplicates)
+}
 
 pub struct ConfigManager {
     base_dir: PathBuf,
@@ -50,12 +63,22 @@ impl ConfigManager {
         mgr
     }
 
-    /// Extracts bundled defaults into %LocalAppData%\Jed556\AutoMIDIPlayer without overwriting existing files
+    /// Install missing defaults; existing JSON revisions remain pending until reviewed.
     pub fn extract_defaults_if_missing(&self) {
-        let _ = fs::create_dir_all(&self.games_dir);
-        let _ = fs::create_dir_all(&self.layouts_dir);
+        if let Err(error) = self.default_config_updates() {
+            warn!("[ConfigManager] Unable to synchronize bundled defaults: {error}");
+        }
+    }
 
-        extract_dir_recursive(&DEFAULTS_DIR, &self.base_dir);
+    pub fn default_config_updates(&self) -> Result<DefaultConfigUpdates, String> {
+        let _guard = DEFAULT_SYNC_LOCK.lock().map_err(|e| e.to_string())?;
+        defaults_sync::sync_defaults(&self.base_dir, &bundled_default_files(&DEFAULTS_DIR))
+    }
+
+    #[cfg(test)]
+    fn resolve_default_config_updates(&self, choices: &[DefaultConfigChoice], duplicates: &[DefaultConfigChoice]) -> Result<DefaultConfigUpdates, String> {
+        let _guard = DEFAULT_SYNC_LOCK.lock().map_err(|e| e.to_string())?;
+        defaults_sync::resolve_default_updates(&self.base_dir, &bundled_default_files(&DEFAULTS_DIR), choices, duplicates)
     }
 
     /// Reloads all keyboard layouts and game definitions from disk
@@ -106,6 +129,9 @@ impl ConfigManager {
                 fs::rename(staging.join(name), self.base_dir.join(name))
                     .map_err(|e| format!("Unable to restore {name}: {e}"))?;
             }
+            // A deliberate reset accepts the currently bundled revisions.
+            defaults_sync::reset_default_history(&self.base_dir)?;
+            self.default_config_updates()?;
             self.loaded = false;
             self.reload();
             Ok(())
@@ -164,7 +190,9 @@ impl ConfigManager {
             }
         }
         // Patch the latest file, preserving key matrices, custom metadata and other edits.
-        let mut document: serde_json::Value = serde_json::from_slice(&fs::read(&path).map_err(|e| e.to_string())?)
+        let _sync_guard = DEFAULT_SYNC_LOCK.lock().map_err(|e| e.to_string())?;
+        let before = fs::read(&path).map_err(|e| e.to_string())?;
+        let mut document: serde_json::Value = serde_json::from_slice(&before)
             .map_err(|e| format!("Cannot read keyboard layout: {e}"))?;
         let original: KeyboardLayoutJson = serde_json::from_value(document.clone()).map_err(|e| e.to_string())?;
         let registered = &self.layouts[&layout_id.to_lowercase()];
@@ -186,6 +214,14 @@ impl ConfigManager {
         })();
         if result.is_err() { let _ = fs::remove_file(&temporary); }
         result?;
+        if let Some(file) = DEFAULTS_DIR.get_dir("KeyboardLayouts").into_iter().flat_map(|dir| dir.files())
+            .find(|file| serde_json::from_slice::<serde_json::Value>(file.contents()).ok()
+                .and_then(|doc| doc.get("id").and_then(|id| id.as_str()).map(|id| id.eq_ignore_ascii_case(&updated.id))).unwrap_or(false)) {
+            if let Err(error) = defaults_sync::record_reviewed_edit(&self.base_dir, file.path(), &before,
+                &serde_json::to_vec(&document).map_err(|e| e.to_string())?) {
+                warn!("[ConfigManager] Unable to record reviewed pedal edit: {error}");
+            }
+        }
         // Keep ID and filename aliases current even if another config has an unrelated error.
         for layout in self.layouts.values_mut().filter(|layout| layout.id.eq_ignore_ascii_case(&updated.id)) {
             *layout = updated.clone();
@@ -235,24 +271,9 @@ fn extract_defaults_checked(dir: &Dir, root: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn extract_dir_recursive(embedded_dir: &Dir, target_root: &Path) {
-    for file in embedded_dir.files() {
-        let rel_path = file.path();
-        let target_file_path = target_root.join(rel_path);
-
-        if !target_file_path.exists() {
-            if let Some(parent) = target_file_path.parent() {
-                let _ = fs::create_dir_all(parent);
-            }
-            if let Err(e) = fs::write(&target_file_path, file.contents()) {
-                warn!("[ConfigManager] Failed to extract \"{}\": {}", target_file_path.display(), e);
-            }
-        }
-    }
-
-    for dir in embedded_dir.dirs() {
-        extract_dir_recursive(dir, target_root);
-    }
+fn bundled_default_files<'a>(dir: &'a Dir<'a>) -> Vec<BundledDefault<'a>> {
+    dir.files().map(|file| BundledDefault { path: file.path(), contents: file.contents() })
+        .chain(dir.dirs().flat_map(bundled_default_files)).collect()
 }
 
 fn open_folder_in_explorer(path: &Path) -> Result<(), String> {
@@ -273,6 +294,69 @@ fn open_folder_in_explorer(path: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explicit_pedal_edits_do_not_request_another_default_review() {
+        let mut manager = pedal_test_manager();
+        manager.save_layout_pedals("QWERTY_61Keys", serde_json::json!({ "sustainKey": "Shift" }).as_object()).unwrap();
+        assert!(manager.default_config_updates().unwrap().conflicts.is_empty());
+        let path = manager.layouts_dir.join("QWERTY_61Keys.json");
+        let mut external: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        external["custom"] = serde_json::json!(true);
+        fs::write(&path, serde_json::to_vec(&external).unwrap()).unwrap();
+        manager.save_layout_pedals("QWERTY_61Keys", serde_json::json!({ "sustainKey": "Enter" }).as_object()).unwrap();
+        assert_eq!(manager.default_config_updates().unwrap().conflicts.len(), 1);
+        fs::remove_dir_all(manager.base_dir).unwrap();
+    }
+
+    #[test]
+    fn embedded_default_updates_add_missing_files_and_review_existing_json() {
+        let mut manager = pedal_test_manager();
+        let layout_path = manager.layouts_dir.join("QWERTY_61Keys.json");
+        let mut local: serde_json::Value = serde_json::from_slice(&fs::read(&layout_path).unwrap()).unwrap();
+        local["customMetadata"] = serde_json::json!({ "keep": true });
+        let original = serde_json::to_vec_pretty(&local).unwrap();
+        fs::write(&layout_path, &original).unwrap();
+        fs::remove_file(manager.base_dir.join("configuration-state.json")).unwrap();
+        fs::remove_file(manager.layouts_dir.join("Genshin_QWERTY_Chords.json")).unwrap();
+        let report = manager.default_config_updates().unwrap();
+        assert_eq!(report.added_files, ["KeyboardLayouts/Genshin_QWERTY_Chords.json"]);
+        assert_eq!(report.conflicts.len(), 1);
+        assert_eq!(fs::read(&layout_path).unwrap(), original);
+        let conflict = &report.conflicts[0];
+        let result = manager.resolve_default_config_updates(&[DefaultConfigChoice {
+            id: conflict.id.clone(), token: conflict.token.clone(),
+            action: defaults_sync::DefaultConfigAction::Keep,
+        }], &[]).unwrap();
+        assert!(result.conflicts.is_empty());
+        manager.reload();
+        assert!(manager.issues.is_empty(), "{:?}", manager.issues);
+        let genshin = manager.games.iter().find(|game| game.config.id == "Genshin Impact").unwrap();
+        for id in ["ukulele", "lingering-euphonia"] {
+            let instrument = genshin.instruments.iter().find(|instrument| instrument.id == id).unwrap();
+            assert!(instrument.supports_keyboard_layout("Genshin_QWERTY_Melody"));
+            assert!(instrument.supports_chord_layout("Genshin_QWERTY_Chords"));
+            assert!(!instrument.chords.is_empty());
+        }
+        assert!(!genshin.instruments.iter().any(|instrument| instrument.id == "ukulele-chords" || instrument.id == "lingering-euphonia-chords"));
+        assert_eq!(fs::read(&layout_path).unwrap(), original);
+        let duplicate_path = manager.layouts_dir.join("newer-layout.json");
+        fs::write(&duplicate_path, &original).unwrap();
+        fs::File::options().write(true).open(&layout_path).unwrap().set_times(fs::FileTimes::new()
+            .set_modified(std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_600_000_000))).unwrap();
+        let review = manager.default_config_updates().unwrap();
+        assert_eq!(review.duplicates.len(), 1);
+        let duplicate = &review.duplicates[0];
+        let updated = manager.resolve_default_config_updates(&[], &[DefaultConfigChoice {
+            id: duplicate.id.clone(), token: duplicate.token.clone(), action: defaults_sync::DefaultConfigAction::Replace,
+        }]).unwrap();
+        assert!(updated.duplicates.is_empty());
+        manager.reload();
+        assert!(manager.issues.is_empty(), "{:?}", manager.issues);
+        assert!(!layout_path.exists());
+        assert_eq!(fs::read(duplicate_path).unwrap(), original);
+        fs::remove_dir_all(manager.base_dir).unwrap();
+    }
 
     fn pedal_test_manager() -> ConfigManager {
         let root = std::env::temp_dir().join(format!("amp_pedal_edit_{}_{}", std::process::id(),

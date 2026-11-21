@@ -318,16 +318,6 @@
                       </div>
                     </div>
                   </div>
-                  <div class="note-control switch-row-card">
-                    <div class="switch-card-text">
-                      <div class="switch-card-title">{t('studio.autoChord')}</div>
-                      <div class="switch-card-desc">{t('studio.autoChordDesc')}</div>
-                    </div>
-                    <ToggleSwitch
-                      bind:checked={playbackStore.autoChord}
-                      onchange={(val) => playbackStore.setAutoChord(val)}
-                    />
-                  </div>
                 </div>
               </section>
 

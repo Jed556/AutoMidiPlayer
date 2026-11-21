@@ -9,5 +9,7 @@
     [33, 35, 36, 38, 40],
     [41, 43, 45, 47, 48]
   ],
-  "supportedLayouts": ["QWERTY_15Keys"]
+  "keyboardLayouts": ["QWERTY_15Keys"],
+  "chordLayouts": [],
+  "fretLayouts": []
 }

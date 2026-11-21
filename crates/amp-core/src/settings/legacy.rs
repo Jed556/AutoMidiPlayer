@@ -392,8 +392,7 @@ pub(super) fn selections(
             settings["selectedInstrumentIds"][&game.config.id] = json!(instrument.id);
             if let Some(selected) = raw.get("SelectedLayoutName") {
                 if let Some(layout) = instrument
-                    .supported_layouts
-                    .iter()
+                    .all_layouts()
                     .filter_map(|id| {
                         layouts
                             .values()

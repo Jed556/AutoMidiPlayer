@@ -19,6 +19,8 @@
     overlayScrollbar?: boolean; // Draw the scrollbar over content without reserving a gutter.
     scrollContainer?: HTMLDivElement; // Bindable ref to the scrollable element
     persistenceKey?: string;
+    tabIndex?: number;
+    ariaLabel?: string;
     onscroll?: (e: Event) => void;
     onwheel?: (e: WheelEvent) => void;
     onpointerdown?: (e: PointerEvent) => void;
@@ -45,6 +47,8 @@
     overlayScrollbar = false,
     scrollContainer = $bindable(),
     persistenceKey,
+    tabIndex = -1,
+    ariaLabel,
     onscroll: externalOnScroll,
     onwheel: externalOnWheel,
     onpointerdown: externalOnPointerDown,
@@ -246,14 +250,15 @@
   {style}
 >
   <!-- Scrollable Viewport with Pure Alpha Gradient Fade -->
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions, a11y_no_noninteractive_tabindex (Scrollable regions may opt into keyboard focus.) -->
   <div
     class="scroll-content {contentClass}"
     class:hide-scrollbar={!showScrollbar || overlayScrollbar}
     id={viewportId}
     bind:this={internalScrollEl}
     role="region"
-    tabindex="-1"
+    tabindex={tabIndex}
+    aria-label={ariaLabel}
     onscroll={handleScroll}
     onwheel={externalOnWheel}
     onpointerdown={externalOnPointerDown}

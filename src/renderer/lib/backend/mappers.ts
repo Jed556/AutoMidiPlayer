@@ -26,7 +26,6 @@ export interface RawSongRecord {
   imagePath?: string;
   cachedDurationMs?: number;
   cachedNativeBpm?: number;
-  autoChord?: boolean;
   chordDetectionMilliseconds?: number;
   keyChanges?: string;
   enableKeyChangeMarkers?: boolean;
@@ -68,8 +67,12 @@ export interface RawLoadedBundle {
     layoutStyle?: InstrumentLayoutStyle;
     keys?: KeyMatrix<number>;
     notes?: number[];
-    supportedLayouts?: string[];
-    chordPads?: Array<{ name: string; pitchClasses: number[] }>;
+    keyboardLayouts?: string[];
+    chordLayouts?: string[];
+    fretLayouts?: string[];
+    guitar?: { tuning: number[]; fretCount: number };
+    chords?: Array<{ name: string; pitchClasses: number[] }>;
+    chordMode?: 'pads' | 'wheel';
     supportsPedals?: boolean;
     supportsChords?: boolean;
     subfolder?: string;
@@ -150,7 +153,6 @@ export function songRecordToMidiFile(record: RawSongRecord): MidiFile {
     holdNotes: record.holdNotes ?? DEFAULT_APP_SETTINGS.defaultHoldNotes,
     tapThresholdMs: record.tapThresholdMs ?? DEFAULT_APP_SETTINGS.defaultTapThresholdMs,
     disabledTracks: record.disabledTracks ?? null,
-    autoChord: record.autoChord ?? DEFAULT_APP_SETTINGS.defaultAutoChord,
     chordDetectionMilliseconds: record.chordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds,
     enableKeyChangeMarkers: record.enableKeyChangeMarkers ?? DEFAULT_APP_SETTINGS.defaultEnableKeyChangeMarkers,
     dateAdded: record.dateAdded || new Date().toISOString(),
@@ -288,7 +290,6 @@ export function loadedMidiToMidiFile(raw: RawLoadedMidiFile | MidiFile): MidiFil
     holdNotes: typeof source.holdNotes === 'boolean' ? source.holdNotes : DEFAULT_APP_SETTINGS.defaultHoldNotes,
     tapThresholdMs: Number(source.tapThresholdMs ?? DEFAULT_APP_SETTINGS.defaultTapThresholdMs),
     disabledTracks: typeof source.disabledTracks === 'string' ? source.disabledTracks : null,
-    autoChord: typeof source.autoChord === 'boolean' ? source.autoChord : DEFAULT_APP_SETTINGS.defaultAutoChord,
     chordDetectionMilliseconds: Number(source.chordDetectionMilliseconds ?? DEFAULT_APP_SETTINGS.defaultChordDetectionMilliseconds),
     enableKeyChangeMarkers: typeof source.enableKeyChangeMarkers === 'boolean' ? source.enableKeyChangeMarkers : DEFAULT_APP_SETTINGS.defaultEnableKeyChangeMarkers,
     dateAdded: String(source.dateAdded ?? new Date().toISOString()),
@@ -329,7 +330,7 @@ export function loadedBundleToGameInfo(
   const layouts = Object.values(normalizedLayouts);
 
   for (const instrument of bundle.instruments || []) {
-    for (const layoutId of instrument.supportedLayouts || []) {
+    for (const layoutId of [...instrument.keyboardLayouts ?? [], ...instrument.chordLayouts ?? [], ...instrument.fretLayouts ?? []]) {
       const layout = normalizedLayouts[layoutId.toLowerCase()] || layouts.find((candidate) =>
         candidate.id.toLowerCase() === layoutId.toLowerCase() ||
         candidate.name.toLowerCase() === layoutId.toLowerCase(),
@@ -346,10 +347,14 @@ export function loadedBundleToGameInfo(
     layoutStyle: instrument.layoutStyle,
     keys: instrument.keys,
     notes: instrumentNotes(instrument),
-    supportedLayouts: instrument.supportedLayouts || [],
-    chordPads: instrument.chordPads || [],
+    keyboardLayouts: instrument.keyboardLayouts || [],
+    chordLayouts: instrument.chordLayouts || [],
+    fretLayouts: instrument.fretLayouts || [],
+    guitar: instrument.guitar,
+    chords: instrument.chords || [],
+    chordMode: instrument.chordMode ?? 'pads',
     supportsPedals: instrument.supportsPedals ?? false,
-    supportsChords: instrument.supportsChords ?? Boolean(instrument.chordPads?.length),
+    supportsChords: instrument.supportsChords ?? Boolean(instrument.chords?.length),
     supportsSustain: instrument.supportsPedals ?? false,
     subfolder: instrument.subfolder,
     filePath: instrument.filePath,

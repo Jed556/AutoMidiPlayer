@@ -9,5 +9,7 @@
     [60, 62, 64, 65, 67, 69, 71],
     [48, 50, 52, 53, 55, 57, 59]
   ],
-  "supportedLayouts": ["Heartopia_QWERTY_22Key"]
+  "keyboardLayouts": ["Heartopia_QWERTY_22Key"],
+  "chordLayouts": [],
+  "fretLayouts": []
 }

@@ -27,6 +27,7 @@ async function createPlayer({ writeQueue, readQueue, writeSongSettings, readSong
   const libraryStore = { songs, playlists: [{ id: 'songs' }, { id: 'favorites' }], songsByPlaylist: { favorites: songs.slice(1, 3) }, init: async () => {} };
   libraryStore.reload = async () => {};
   const gameStore = { activeGame: null, songSettingsContext: { gameId: 'game-a', instrumentId: 'lyre' },
+    hasPlaybackMapping: async () => true,
     init: async () => {}, onSettingsContextChange() {}, onGameStatusChange() {} };
   const settingsStore = { settings: { autoCorrectThreshold: 21 } };
   const api = {
@@ -215,49 +216,43 @@ test('adding a marker preserves the snapped note boundary through native sync an
   }
 });
 
-test('chord toggle and tolerance restore and save for the loaded instrument', async () => {
+test('chord tolerance restores and saves for the loaded instrument', async () => {
   const { player, songs, songSettingsWrites, playbackCalls } = await createPlayer();
-  Object.assign(songs[0], { autoChord: true, chordDetectionMilliseconds: 85 });
+  Object.assign(songs[0], { chordDetectionMilliseconds: 85 });
   player.loadSong(songs[0]);
-  assert.equal(player.autoChord, true);
   assert.equal(player.chordDetectionMilliseconds, 85);
   assert.deepEqual(playbackCalls.findLast(([method]) => method === 'setNoteProcessing'),
-    ['setNoteProcessing', false, 100, true, 85]);
-  player.setAutoChord(false);
+    ['setNoteProcessing', false, 100, 85]);
   player.setChordDetectionMilliseconds(55);
   await player.flushSongSettings();
-  assert.equal(songSettingsWrites[0][1].autoChord, false);
   assert.equal(songSettingsWrites[0][1].chordDetectionMilliseconds, 55);
   assert.deepEqual(playbackCalls.findLast(([method]) => method === 'setNoteProcessing'),
-    ['setNoteProcessing', false, 100, false, 55]);
+    ['setNoteProcessing', false, 100, 55]);
   assert.deepEqual(songSettingsWrites[0][2], { kind: 'instrument', gameId: 'game-a', instrumentId: 'lyre' });
   player.loadSong(songs[1]);
-  assert.equal(player.autoChord, false, 'A song without Auto Chord must not inherit the previous setting');
   assert.equal(player.chordDetectionMilliseconds, 30, 'A new song must not inherit the previous song tolerance');
 });
 
-test('merge and chord controls synchronize complete settings live and reset on song changes', async () => {
+test('merge and chord tolerance controls synchronize complete settings live and reset on song changes', async () => {
   const { player, songs, playbackCalls, songSettingsWrites } = await createPlayer();
   player.loadSong({ ...songs[0], mergeNotes: true, mergeToleranceMs: 175,
-    autoChord: true, chordDetectionMilliseconds: 65 });
+    chordDetectionMilliseconds: 65 });
   assert.deepEqual(playbackCalls.findLast(([method]) => method === 'setNoteProcessing'),
-    ['setNoteProcessing', true, 175, true, 65]);
+    ['setNoteProcessing', true, 175, 65]);
   player.setMergeToleranceMs(90);
-  player.setAutoChord(false);
   player.setMergeNotes(false);
   player.setChordDetectionMilliseconds(45);
-  assert.deepEqual(playbackCalls.filter(([method]) => method === 'setNoteProcessing').slice(-4), [
-    ['setNoteProcessing', true, 90, true, 65],
-    ['setNoteProcessing', true, 90, false, 65],
-    ['setNoteProcessing', false, 90, false, 65],
-    ['setNoteProcessing', false, 90, false, 45],
+  assert.deepEqual(playbackCalls.filter(([method]) => method === 'setNoteProcessing').slice(-3), [
+    ['setNoteProcessing', true, 90, 65],
+    ['setNoteProcessing', false, 90, 65],
+    ['setNoteProcessing', false, 90, 45],
   ]);
   const beforeInvalid = playbackCalls.length;
   for (const invalid of [NaN, -1, 0, 1.5, 1001]) player.setMergeToleranceMs(invalid);
   assert.equal(playbackCalls.length, beforeInvalid);
   player.loadSong({ ...songs[1], mergeNotes: undefined, mergeToleranceMs: undefined });
   assert.deepEqual(playbackCalls.findLast(([method]) => method === 'setNoteProcessing'),
-    ['setNoteProcessing', false, sharedDefaults.DEFAULT_APP_SETTINGS.defaultMergeToleranceMs, false, 30]);
+    ['setNoteProcessing', false, sharedDefaults.DEFAULT_APP_SETTINGS.defaultMergeToleranceMs, 30]);
   await player.flushPendingSongSettings();
   assert.equal(songSettingsWrites[0][0], 'a');
   assert.equal(songSettingsWrites[0][1].mergeMilliseconds, 90);
@@ -267,11 +262,11 @@ test('merge and chord controls synchronize complete settings live and reset on s
 test('native loading reapplies processing before playback and song switches do not retain old effects', async () => {
   const { player, songs, playbackCalls } = await createPlayer({ native: true });
   await player.play({ ...parsedMidi(songs[0]), mergeNotes: true, mergeToleranceMs: 200,
-    autoChord: true, chordDetectionMilliseconds: 80 });
+    chordDetectionMilliseconds: 80 });
   let loadIndex = playbackCalls.findLastIndex(([method]) => method === 'loadMidiFile');
   assert.equal(playbackCalls.slice(0, loadIndex).some(([method]) => method === 'setNoteProcessing'), false);
   assert.deepEqual(playbackCalls.slice(loadIndex).filter(([method]) => ['setNoteProcessing', 'play'].includes(method)), [
-    ['setNoteProcessing', true, 200, true, 80], ['play', 'a'],
+    ['setNoteProcessing', true, 200, 80], ['play', 'a'],
   ]);
   const switchIndex = playbackCalls.length;
   await player.play(parsedMidi(songs[1]));
@@ -279,7 +274,7 @@ test('native loading reapplies processing before playback and song switches do n
   assert.equal(playbackCalls.slice(switchIndex, loadIndex).some(([method]) => method === 'setNoteProcessing'), false,
     'Selecting a different song must not apply its effects to the previously loaded native song');
   assert.deepEqual(playbackCalls.slice(loadIndex).filter(([method]) => ['setNoteProcessing', 'play'].includes(method)), [
-    ['setNoteProcessing', false, 100, false, 30], ['play', 'b'],
+    ['setNoteProcessing', false, 100, 30], ['play', 'b'],
   ]);
 });
 
@@ -290,12 +285,11 @@ test('processing edits to an unloaded preview cannot change the previous native 
   playbackCalls.length = 0;
   player.setMergeNotes(true);
   player.setMergeToleranceMs(180);
-  player.setAutoChord(true);
   await player.applyEditedSong({ ...player.activeSong, chordDetectionMilliseconds: 75 });
   assert.equal(playbackCalls.some(([method]) => method === 'setNoteProcessing'), false);
   await player.play();
   assert.deepEqual(playbackCalls.findLast(([method]) => method === 'setNoteProcessing'),
-    ['setNoteProcessing', true, 180, true, 75]);
+    ['setNoteProcessing', true, 180, 75]);
   await player.flushPendingSongSettings();
 });
 
@@ -770,15 +764,65 @@ test('hold-note timing reaches the engine and persists in the selected song scop
   assert.equal(player.tapThresholdMs, 0, 'An older song must not inherit the previous threshold');
 });
 
-test('a deleted game configuration blocks playback until the selection is replaced', async () => {
-  const { player, songs, playbackCalls, gameStore } = await createPlayer();
-  gameStore.hasDeletedSelection = true;
-  gameStore.layoutDeletionTooltip = 'The entry for this keyboard layout has been deleted.';
-  await player.play(songs[0]);
+test('a missing layout at launch explains how to recover and blocked navigation preserves the queue position', async () => {
+  const { player, songs, playbackCalls, gameStore, notifications } = await createPlayer({ preferences: { playback: { isListenMode: true } } });
+  gameStore.hasPlaybackMapping = async () => false;
+  await player.initialize();
+  assert.deepEqual(notifications.at(-1), ['error', 'player.playbackUnavailable', 'player.chooseValidLayout']);
+  await player.setQueueList(songs);
+  await player.nextTrack();
+  assert.equal(player.activeQueueIndex, 0);
+  assert.equal(player.activeSong.id, songs[0].id);
+  assert.deepEqual(player.historyStack, []);
   assert.equal(playbackCalls.some(([method]) => method === 'play'), false);
-  gameStore.hasDeletedSelection = false;
-  await player.play(songs[0]);
-  assert.equal(playbackCalls.some(([method]) => method === 'play'), true);
+  gameStore.hasPlaybackMapping = async () => true;
+  await player.togglePlay();
+  assert.deepEqual(playbackCalls.filter(([method]) => method === 'play'), [['play', songs[0].id]]);
+  await player.nextTrack();
+  gameStore.hasPlaybackMapping = async () => false;
+  await player.prevTrack();
+  assert.equal(player.activeQueueIndex, 1);
+  assert.deepEqual(ids(player.historyStack), [songs[0].id]);
+  gameStore.hasPlaybackMapping = async () => true;
+  await player.prevTrack();
+  assert.equal(player.activeSong.id, songs[0].id);
+  assert.deepEqual(player.historyStack, []);
+});
+
+test('Play during instrument switching waits for the refreshed settings and the mapping acknowledgement', async () => {
+  const { player, songs, gameStore, libraryStore, playbackCalls } = await createPlayer();
+  let releaseSettings;
+  libraryStore.reload = () => new Promise(resolve => { releaseSettings = resolve; });
+  let releaseMapping;
+  const mapping = new Promise(resolve => { releaseMapping = resolve; });
+  gameStore.hasPlaybackMapping = () => mapping;
+  const refresh = player.refreshSongSettingsContext();
+  const superseded = player.play(songs[1]);
+  const play = player.play(songs[0]);
+  await new Promise(resolve => setImmediate(resolve));
+  releaseSettings();
+  await refresh;
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(playbackCalls.some(([method]) => method === 'play'), false);
+  releaseMapping(true);
+  assert.equal(await superseded, false);
+  assert.equal(await play, true);
+  assert.deepEqual(playbackCalls.filter(([method]) => method === 'play'), [['play', songs[0].id]]);
+});
+
+test('Windows can retry the same song with Play after the engine rejects its start', async () => {
+  let valid = false;
+  const h = await createPlayer({ playback: { play: () => {
+    if (!valid) throw new Error('Choose an instrument with a valid layout in Instrument View.');
+    return true;
+  } } });
+  h.settingsStore.isWindows = true;
+  await h.player.play(h.songs[0]);
+  assert.equal(h.player.status, 'Stopped');
+  assert.match(h.notifications.at(-1)[2], /valid layout/);
+  valid = true;
+  await h.player.togglePlay();
+  assert.equal(h.player.status, 'Playing');
 });
 
 test('library removal flushes settings and queued writes before closing only affected playback', async () => {
@@ -834,7 +878,7 @@ test('switching instruments flushes old edits before loading the new instrument 
   const { player, songs, gameStore, songSettingsWrites, playbackCalls } = await createPlayer({
     writeSongSettings: () => gate,
     readSong: id => ({ ...songs.find(song => song.id === id), speed: 0.75, keyOffset: -3,
-      disabledTracks: '1', keyMarkers: [], autoChord: true, chordDetectionMilliseconds: 70,
+      disabledTracks: '1', keyMarkers: [], chordDetectionMilliseconds: 70,
       mergeNotes: true, mergeToleranceMs: 140, enableKeyChangeMarkers: false }),
   });
   songs[0].tracks = [{ index: 0, isMuted: true }, { index: 1, isMuted: false }];
@@ -852,9 +896,8 @@ test('switching instruments flushes old edits before loading the new instrument 
   assert.equal(player.activeSong.keyOffset, -3);
   assert.equal(player.activeSong.tracks[0].isMuted, false);
   assert.equal(player.activeSong.tracks[1].isMuted, true);
-  assert.equal(player.autoChord, true);
   assert.deepEqual(playbackCalls.findLast(([method]) => method === 'setNoteProcessing'),
-    ['setNoteProcessing', true, 140, true, 70]);
+    ['setNoteProcessing', true, 140, 70]);
   assert.equal(player.enableKeyChangeMarkers, false);
   assert.equal(player.getTrackVolume(0), 1);
   assert.ok(playbackCalls.some(([method, track, volume]) => method === 'setTrackVolume' && track === 0 && volume === 1));
@@ -1087,7 +1130,7 @@ test('editing a song synchronizes every displayed copy and keeps parsed notes an
   player.activeSong.tracks = [{ index: 7 }];
   await player.applyEditedSong({ ...song, title: 'Updated', baseKey: -2, baseKeyOffset: -2,
     keyOffset: 5, bpmOverride: 180, speed: 1.5, mergeNotes: true, mergeToleranceMs: 250, holdNotes: true,
-    autoChord: true, chordDetectionMilliseconds: 90 });
+    chordDetectionMilliseconds: 90 });
   assert.equal(player.activeSong.title, 'Updated');
   assert.equal(player.queue[0].title, 'Updated');
   assert.equal(libraryStore.songsByPlaylist.favorites[0].mergeToleranceMs, 250);
@@ -1095,7 +1138,7 @@ test('editing a song synchronizes every displayed copy and keeps parsed notes an
   assert.equal(player.mergeNotes, true);
   assert.equal(player.mergeToleranceMs, 250);
   assert.deepEqual(playbackCalls.findLast(([method]) => method === 'setNoteProcessing'),
-    ['setNoteProcessing', true, 250, true, 90]);
+    ['setNoteProcessing', true, 250, 90]);
   assert.deepEqual(playbackCalls.filter(call => call[0] === 'setSpeed').at(-1), ['setSpeed', 2.25]);
   assert.deepEqual(playbackCalls.filter(call => call[0] === 'setKeyOffset').at(-1), ['setKeyOffset', 3]);
 });

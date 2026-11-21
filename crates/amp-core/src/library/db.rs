@@ -15,7 +15,7 @@ const SONG_COLUMNS: &[(&str, &str)] = &[
     ("Transpose", "INTEGER NOT NULL DEFAULT 0"), ("Speed", "REAL DEFAULT 1.0"), ("Bpm", "REAL"),
     ("DisabledTracks", "TEXT"), ("MergeNotes", "INTEGER"), ("MergeMilliseconds", "INTEGER"),
     ("HoldNotes", "INTEGER"), ("TapThresholdMs", "INTEGER DEFAULT 0"), ("ImagePath", "TEXT"),
-    ("CachedDurationMs", "INTEGER"), ("CachedNativeBpm", "REAL"), ("AutoChord", "INTEGER"),
+    ("CachedDurationMs", "INTEGER"), ("CachedNativeBpm", "REAL"),
     ("ChordDetectionMilliseconds", "INTEGER"), ("KeyChanges", "TEXT"),
     ("EnableKeyChangeMarkers", "INTEGER DEFAULT 1"),
 ];
@@ -23,9 +23,46 @@ const LEGACY_SONG_SETTINGS_MIGRATION: &str = "legacy-instrument-song-settings-v1
 const MARKER_LABEL_MIGRATION: &str = "marker-label-offsets-v1";
 const TECHNICAL_SONG_FIELDS: &[&str] = &[
     "baseKey", "key", "transpose", "speed", "bpm", "disabledTracks", "mergeNotes",
-    "mergeMilliseconds", "holdNotes", "tapThresholdMs", "autoChord",
+    "mergeMilliseconds", "holdNotes", "tapThresholdMs",
     "chordDetectionMilliseconds", "keyChanges", "enableKeyChangeMarkers",
 ];
+const SONG_SELECT_COLUMNS: &str =
+    "s.Id, s.BaseKey, s.Key, s.Path, s.FileHash, s.Title, s.Artist, s.Album, s.AlbumId, s.DateAdded,
+     s.Transpose, s.Speed, s.Bpm, s.DisabledTracks, s.MergeNotes, s.MergeMilliseconds, s.HoldNotes,
+     s.ImagePath, s.CachedDurationMs, s.CachedNativeBpm, s.ChordDetectionMilliseconds,
+     s.KeyChanges, s.EnableKeyChangeMarkers, s.TapThresholdMs";
+
+fn song_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SongRecord> {
+    let path_str: String = row.get(3)?;
+    let is_missing = !Path::new(&path_str).exists();
+    Ok(SongRecord {
+        id: row.get(0)?,
+        base_key: row.get(1)?,
+        key: row.get(2)?,
+        path: path_str,
+        file_hash: row.get(4)?,
+        title: row.get(5)?,
+        artist: row.get(6)?,
+        album: row.get(7)?,
+        album_id: row.get(8)?,
+        date_added: row.get(9)?,
+        transpose: row.get::<_, Option<i32>>(10)?.unwrap_or(0),
+        speed: row.get(11)?,
+        bpm: row.get(12)?,
+        disabled_tracks: row.get(13)?,
+        merge_notes: row.get::<_, Option<i32>>(14)?.map(|v| v != 0),
+        merge_milliseconds: row.get(15)?,
+        hold_notes: row.get::<_, Option<i32>>(16)?.map(|v| v != 0),
+        tap_threshold_ms: row.get(23)?,
+        image_path: row.get(17)?,
+        cached_duration_ms: row.get(18)?,
+        cached_native_bpm: row.get(19)?,
+        chord_detection_milliseconds: row.get(20)?,
+        key_changes: row.get(21)?,
+        enable_key_change_markers: row.get::<_, Option<i32>>(22)?.map(|v| v != 0),
+        is_missing,
+    })
+}
 
 fn merge_json_object(target: &mut Value, patch: &Value) {
     let (Value::Object(target), Value::Object(patch)) = (target, patch) else {
@@ -252,7 +289,6 @@ impl LibraryDatabase {
                 ImagePath TEXT,
                 CachedDurationMs INTEGER,
                 CachedNativeBpm REAL,
-                AutoChord INTEGER,
                 ChordDetectionMilliseconds INTEGER,
                 KeyChanges TEXT,
                 EnableKeyChangeMarkers INTEGER DEFAULT 1,
@@ -267,7 +303,7 @@ impl LibraryDatabase {
             let rows = pragma.query_map([], |row| row.get::<_, String>(1))?;
             rows.collect::<Result<Vec<_>, _>>()?
         };
-        for (old, new) in [("Author", "Artist"), ("DefaultKey", "BaseKey"), ("DetectChordPads", "AutoChord")] {
+        for (old, new) in [("Author", "Artist"), ("DefaultKey", "BaseKey")] {
             if let Some(index) = columns.iter().position(|c| c.eq_ignore_ascii_case(old)) {
                 if columns.iter().any(|c| c.eq_ignore_ascii_case(new)) {
                     // A partial older upgrade may contain both; prefer the canonical value.
@@ -406,7 +442,7 @@ impl LibraryDatabase {
         on_migration();
         let songs = {
             let mut stmt = transaction.prepare("SELECT Id, BaseKey, Key, Transpose, Speed, Bpm, DisabledTracks,
-                MergeNotes, MergeMilliseconds, HoldNotes, TapThresholdMs, AutoChord,
+                MergeNotes, MergeMilliseconds, HoldNotes, TapThresholdMs,
                 ChordDetectionMilliseconds, KeyChanges, EnableKeyChangeMarkers FROM Songs")?;
             let rows = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, serde_json::json!({
                 "baseKey": row.get::<_, Option<i32>>(1)?, "key": row.get::<_, i32>(2)?,
@@ -414,8 +450,8 @@ impl LibraryDatabase {
                 "bpm": row.get::<_, Option<f64>>(5)?, "disabledTracks": row.get::<_, Option<String>>(6)?,
                 "mergeNotes": row.get::<_, Option<bool>>(7)?, "mergeMilliseconds": row.get::<_, Option<u32>>(8)?,
                 "holdNotes": row.get::<_, Option<bool>>(9)?, "tapThresholdMs": row.get::<_, Option<u32>>(10)?,
-                "autoChord": row.get::<_, Option<bool>>(11)?, "chordDetectionMilliseconds": row.get::<_, Option<u32>>(12)?,
-                "keyChanges": row.get::<_, Option<String>>(13)?, "enableKeyChangeMarkers": row.get::<_, Option<bool>>(14)?,
+                "chordDetectionMilliseconds": row.get::<_, Option<u32>>(11)?,
+                "keyChanges": row.get::<_, Option<String>>(12)?, "enableKeyChangeMarkers": row.get::<_, Option<bool>>(13)?,
             }))))?;
             rows.collect::<Result<Vec<_>, _>>()?
         };
@@ -518,7 +554,6 @@ impl LibraryDatabase {
             ("speed", settings.speed.map(Value::from)),
             ("holdNotes", settings.hold_notes.map(Value::from)),
             ("tapThresholdMs", settings.tap_threshold_ms.map(Value::from)),
-            ("autoChord", settings.auto_chord.map(Value::from)),
             ("chordDetectionMilliseconds", settings.chord_detection_milliseconds.map(Value::from)),
             ("enableKeyChangeMarkers", settings.enable_key_change_markers.map(Value::from)),
         ] {
@@ -542,7 +577,7 @@ impl LibraryDatabase {
             "bpm": details.bpm, "speed": details.speed, "mergeNotes": details.merge_notes,
             "mergeMilliseconds": details.merge_milliseconds, "holdNotes": details.hold_notes,
             "tapThresholdMs": details.tap_threshold_ms,
-            "autoChord": details.auto_chord, "enableKeyChangeMarkers": details.enable_key_change_markers,
+            "enableKeyChangeMarkers": details.enable_key_change_markers,
         });
         Self::write_song_settings_patch(&tx, id, scope, &patch)?;
         tx.commit()
@@ -637,201 +672,38 @@ impl LibraryDatabase {
     /// Retrieve all songs from database with active missing-file check
     pub fn get_all_songs(&self) -> Result<Vec<SongRecord>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT Id, BaseKey, Key, Path, FileHash, Title, Artist, Album, AlbumId, DateAdded,
-                    Transpose, Speed, Bpm, DisabledTracks, MergeNotes, MergeMilliseconds, HoldNotes,
-                    ImagePath, CachedDurationMs, CachedNativeBpm, AutoChord, ChordDetectionMilliseconds,
-                    KeyChanges, EnableKeyChangeMarkers, TapThresholdMs
-             FROM Songs
-             ORDER BY DateAdded DESC",
-        )?;
-
-        let rows = stmt.query_map([], |row| {
-            let path_str: String = row.get(3)?;
-            let is_missing = !Path::new(&path_str).exists();
-
-            Ok(SongRecord {
-                id: row.get(0)?,
-                base_key: row.get(1)?,
-                key: row.get(2)?,
-                path: path_str,
-                file_hash: row.get(4)?,
-                title: row.get(5)?,
-                artist: row.get(6)?,
-                album: row.get(7)?,
-                album_id: row.get(8)?,
-                date_added: row.get(9)?,
-                transpose: row.get::<_, Option<i32>>(10)?.unwrap_or(0),
-                speed: row.get(11)?,
-                bpm: row.get(12)?,
-                disabled_tracks: row.get(13)?,
-                merge_notes: row.get::<_, Option<i32>>(14)?.map(|v| v != 0),
-                merge_milliseconds: row.get(15)?,
-                hold_notes: row.get::<_, Option<i32>>(16)?.map(|v| v != 0),
-                tap_threshold_ms: row.get(24)?,
-                image_path: row.get(17)?,
-                cached_duration_ms: row.get(18)?,
-                cached_native_bpm: row.get(19)?,
-                auto_chord: row.get::<_, Option<i32>>(20)?.map(|v| v != 0),
-                chord_detection_milliseconds: row.get(21)?,
-                key_changes: row.get(22)?,
-                enable_key_change_markers: row.get::<_, Option<i32>>(23)?.map(|v| v != 0),
-                is_missing,
-            })
-        })?;
-
-        let mut songs = Vec::new();
-        for r in rows {
-            songs.push(r?);
-        }
-        Ok(songs)
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {SONG_SELECT_COLUMNS} FROM Songs s ORDER BY s.DateAdded DESC"
+        ))?;
+        let songs = stmt.query_map([], song_from_row)?.collect();
+        songs
     }
 
     /// Find song by ID
     pub fn get_song_by_id(&self, id: &str) -> Result<Option<SongRecord>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT Id, BaseKey, Key, Path, FileHash, Title, Artist, Album, AlbumId, DateAdded,
-                    Transpose, Speed, Bpm, DisabledTracks, MergeNotes, MergeMilliseconds, HoldNotes,
-                    ImagePath, CachedDurationMs, CachedNativeBpm, AutoChord, ChordDetectionMilliseconds,
-                    KeyChanges, EnableKeyChangeMarkers, TapThresholdMs
-             FROM Songs
-             WHERE Id = ?1",
-        )?;
-
-        let song = stmt.query_row([id], |row| {
-            let path_str: String = row.get(3)?;
-            let is_missing = !Path::new(&path_str).exists();
-
-            Ok(SongRecord {
-                id: row.get(0)?,
-                base_key: row.get(1)?,
-                key: row.get(2)?,
-                path: path_str,
-                file_hash: row.get(4)?,
-                title: row.get(5)?,
-                artist: row.get(6)?,
-                album: row.get(7)?,
-                album_id: row.get(8)?,
-                date_added: row.get(9)?,
-                transpose: row.get::<_, Option<i32>>(10)?.unwrap_or(0),
-                speed: row.get(11)?,
-                bpm: row.get(12)?,
-                disabled_tracks: row.get(13)?,
-                merge_notes: row.get::<_, Option<i32>>(14)?.map(|v| v != 0),
-                merge_milliseconds: row.get(15)?,
-                hold_notes: row.get::<_, Option<i32>>(16)?.map(|v| v != 0),
-                tap_threshold_ms: row.get(24)?,
-                image_path: row.get(17)?,
-                cached_duration_ms: row.get(18)?,
-                cached_native_bpm: row.get(19)?,
-                auto_chord: row.get::<_, Option<i32>>(20)?.map(|v| v != 0),
-                chord_detection_milliseconds: row.get(21)?,
-                key_changes: row.get(22)?,
-                enable_key_change_markers: row.get::<_, Option<i32>>(23)?.map(|v| v != 0),
-                is_missing,
-            })
-        }).optional()?;
-
-        Ok(song)
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {SONG_SELECT_COLUMNS} FROM Songs s WHERE s.Id = ?1"
+        ))?;
+        stmt.query_row([id], song_from_row).optional()
     }
 
     /// Find song by file path
     pub fn get_song_by_path(&self, path: &str) -> Result<Option<SongRecord>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT Id, BaseKey, Key, Path, FileHash, Title, Artist, Album, AlbumId, DateAdded,
-                    Transpose, Speed, Bpm, DisabledTracks, MergeNotes, MergeMilliseconds, HoldNotes,
-                    ImagePath, CachedDurationMs, CachedNativeBpm, AutoChord, ChordDetectionMilliseconds,
-                    KeyChanges, EnableKeyChangeMarkers, TapThresholdMs
-             FROM Songs
-             WHERE Path = ?1",
-        )?;
-
-        let song = stmt.query_row([path], |row| {
-            let path_str: String = row.get(3)?;
-            let is_missing = !Path::new(&path_str).exists();
-
-            Ok(SongRecord {
-                id: row.get(0)?,
-                base_key: row.get(1)?,
-                key: row.get(2)?,
-                path: path_str,
-                file_hash: row.get(4)?,
-                title: row.get(5)?,
-                artist: row.get(6)?,
-                album: row.get(7)?,
-                album_id: row.get(8)?,
-                date_added: row.get(9)?,
-                transpose: row.get::<_, Option<i32>>(10)?.unwrap_or(0),
-                speed: row.get(11)?,
-                bpm: row.get(12)?,
-                disabled_tracks: row.get(13)?,
-                merge_notes: row.get::<_, Option<i32>>(14)?.map(|v| v != 0),
-                merge_milliseconds: row.get(15)?,
-                hold_notes: row.get::<_, Option<i32>>(16)?.map(|v| v != 0),
-                tap_threshold_ms: row.get(24)?,
-                image_path: row.get(17)?,
-                cached_duration_ms: row.get(18)?,
-                cached_native_bpm: row.get(19)?,
-                auto_chord: row.get::<_, Option<i32>>(20)?.map(|v| v != 0),
-                chord_detection_milliseconds: row.get(21)?,
-                key_changes: row.get(22)?,
-                enable_key_change_markers: row.get::<_, Option<i32>>(23)?.map(|v| v != 0),
-                is_missing,
-            })
-        }).optional()?;
-
-        Ok(song)
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {SONG_SELECT_COLUMNS} FROM Songs s WHERE s.Path = ?1"
+        ))?;
+        stmt.query_row([path], song_from_row).optional()
     }
 
     /// Find song by SHA-256 hash
     pub fn get_song_by_hash(&self, hash: &str) -> Result<Option<SongRecord>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT Id, BaseKey, Key, Path, FileHash, Title, Artist, Album, AlbumId, DateAdded,
-                    Transpose, Speed, Bpm, DisabledTracks, MergeNotes, MergeMilliseconds, HoldNotes,
-                    ImagePath, CachedDurationMs, CachedNativeBpm, AutoChord, ChordDetectionMilliseconds,
-                    KeyChanges, EnableKeyChangeMarkers, TapThresholdMs
-             FROM Songs
-             WHERE FileHash = ?1",
-        )?;
-
-        let song = stmt.query_row([hash], |row| {
-            let path_str: String = row.get(3)?;
-            let is_missing = !Path::new(&path_str).exists();
-
-            Ok(SongRecord {
-                id: row.get(0)?,
-                base_key: row.get(1)?,
-                key: row.get(2)?,
-                path: path_str,
-                file_hash: row.get(4)?,
-                title: row.get(5)?,
-                artist: row.get(6)?,
-                album: row.get(7)?,
-                album_id: row.get(8)?,
-                date_added: row.get(9)?,
-                transpose: row.get::<_, Option<i32>>(10)?.unwrap_or(0),
-                speed: row.get(11)?,
-                bpm: row.get(12)?,
-                disabled_tracks: row.get(13)?,
-                merge_notes: row.get::<_, Option<i32>>(14)?.map(|v| v != 0),
-                merge_milliseconds: row.get(15)?,
-                hold_notes: row.get::<_, Option<i32>>(16)?.map(|v| v != 0),
-                tap_threshold_ms: row.get(24)?,
-                image_path: row.get(17)?,
-                cached_duration_ms: row.get(18)?,
-                cached_native_bpm: row.get(19)?,
-                auto_chord: row.get::<_, Option<i32>>(20)?.map(|v| v != 0),
-                chord_detection_milliseconds: row.get(21)?,
-                key_changes: row.get(22)?,
-                enable_key_change_markers: row.get::<_, Option<i32>>(23)?.map(|v| v != 0),
-                is_missing,
-            })
-        }).optional()?;
-
-        Ok(song)
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {SONG_SELECT_COLUMNS} FROM Songs s WHERE s.FileHash = ?1"
+        ))?;
+        stmt.query_row([hash], song_from_row).optional()
     }
 
     /// Insert a new song or update an existing one
@@ -844,14 +716,14 @@ impl LibraryDatabase {
             "INSERT INTO Songs (
                 Id, BaseKey, Key, Path, FileHash, Title, Artist, Album, AlbumId, DateAdded,
                 Transpose, Speed, Bpm, DisabledTracks, MergeNotes, MergeMilliseconds, HoldNotes,
-                ImagePath, CachedDurationMs, CachedNativeBpm, AutoChord, ChordDetectionMilliseconds,
+                ImagePath, CachedDurationMs, CachedNativeBpm, ChordDetectionMilliseconds,
                 KeyChanges, EnableKeyChangeMarkers, TapThresholdMs
             ) VALUES (
                 COALESCE((SELECT Id FROM Songs WHERE Path = ?4 LIMIT 1), ?1),
                 ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
                 ?11, ?12, ?13, ?14, ?15, ?16, ?17,
-                ?18, ?19, ?20, ?21, ?22,
-                ?23, ?24, ?25
+                ?18, ?19, ?20, ?21,
+                ?22, ?23, ?24
             )
             ON CONFLICT(Id) DO UPDATE SET
                 Path = excluded.Path,
@@ -883,7 +755,6 @@ impl LibraryDatabase {
                 song.image_path,
                 song.cached_duration_ms,
                 song.cached_native_bpm,
-                song.auto_chord.map(|b| if b { 1 } else { 0 }),
                 song.chord_detection_milliseconds,
                 song.key_changes,
                 song.enable_key_change_markers.map(|b| if b { 1 } else { 0 }),
@@ -913,11 +784,10 @@ impl LibraryDatabase {
                 KeyChanges = ?5,
                 Speed = COALESCE(?6, Speed),
                 HoldNotes = COALESCE(?7, HoldNotes),
-                AutoChord = COALESCE(?8, AutoChord),
-                EnableKeyChangeMarkers = COALESCE(?9, EnableKeyChangeMarkers),
-                TapThresholdMs = COALESCE(?10, TapThresholdMs),
-                ChordDetectionMilliseconds = COALESCE(?11, ChordDetectionMilliseconds)
-             WHERE Id = ?12",
+                EnableKeyChangeMarkers = COALESCE(?8, EnableKeyChangeMarkers),
+                TapThresholdMs = COALESCE(?9, TapThresholdMs),
+                ChordDetectionMilliseconds = COALESCE(?10, ChordDetectionMilliseconds)
+             WHERE Id = ?11",
             params![
                 settings.key,
                 settings.base_key,
@@ -926,7 +796,6 @@ impl LibraryDatabase {
                 settings.key_changes,
                 settings.speed,
                 settings.hold_notes.map(|b| if b { 1 } else { 0 }),
-                settings.auto_chord.map(|b| if b { 1 } else { 0 }),
                 settings.enable_key_change_markers.map(|b| if b { 1 } else { 0 }),
                 settings.tap_threshold_ms,
                 settings.chord_detection_milliseconds,
@@ -966,10 +835,10 @@ impl LibraryDatabase {
             "UPDATE Songs SET Title = ?1, Artist = NULLIF(?2, ''), Album = NULLIF(?3, ''),
                 AlbumId = ?4, BaseKey = ?5, Key = ?6, Transpose = ?7, Bpm = ?8,
                 Speed = ?9, MergeNotes = ?10, MergeMilliseconds = ?11, HoldNotes = ?12,
-                AutoChord = ?13, EnableKeyChangeMarkers = ?14, DateAdded = ?15, TapThresholdMs = ?17 WHERE Id = ?16",
+                EnableKeyChangeMarkers = ?13, DateAdded = ?14, TapThresholdMs = ?16 WHERE Id = ?15",
             params![details.title, details.artist, details.album, album_id, details.base_key,
                 details.key, details.transpose, details.bpm, details.speed, details.merge_notes,
-                details.merge_milliseconds, details.hold_notes, details.auto_chord,
+                details.merge_milliseconds, details.hold_notes,
                 details.enable_key_change_markers, details.date_added, id, details.tap_threshold_ms],
         )?;
         if changed == 0 { return Err(rusqlite::Error::QueryReturnedNoRows); }
@@ -1150,111 +1019,29 @@ impl LibraryDatabase {
 
     pub fn get_playlist_songs(&self, playlist_id: &str) -> Result<Vec<SongRecord>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT s.Id, s.BaseKey, s.Key, s.Path, s.FileHash, s.Title, s.Artist, s.Album, s.AlbumId, s.DateAdded,
-                    s.Transpose, s.Speed, s.Bpm, s.DisabledTracks, s.MergeNotes, s.MergeMilliseconds, s.HoldNotes,
-                    s.ImagePath, s.CachedDurationMs, s.CachedNativeBpm, s.AutoChord, s.ChordDetectionMilliseconds,
-                    s.KeyChanges, s.EnableKeyChangeMarkers, s.TapThresholdMs
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {SONG_SELECT_COLUMNS}
              FROM Songs s
              INNER JOIN PlaylistSongs ps ON s.Id = ps.SongId
              WHERE ps.PlaylistId = ?1
-             ORDER BY ps.SortOrder ASC",
-        )?;
-
-        let rows = stmt.query_map([playlist_id], |row| {
-            let path_str: String = row.get(3)?;
-            let is_missing = !Path::new(&path_str).exists();
-
-            Ok(SongRecord {
-                id: row.get(0)?,
-                base_key: row.get(1)?,
-                key: row.get(2)?,
-                path: path_str,
-                file_hash: row.get(4)?,
-                title: row.get(5)?,
-                artist: row.get(6)?,
-                album: row.get(7)?,
-                album_id: row.get(8)?,
-                date_added: row.get(9)?,
-                transpose: row.get::<_, Option<i32>>(10)?.unwrap_or(0),
-                speed: row.get(11)?,
-                bpm: row.get(12)?,
-                disabled_tracks: row.get(13)?,
-                merge_notes: row.get::<_, Option<i32>>(14)?.map(|v| v != 0),
-                merge_milliseconds: row.get(15)?,
-                hold_notes: row.get::<_, Option<i32>>(16)?.map(|v| v != 0),
-                tap_threshold_ms: row.get(24)?,
-                image_path: row.get(17)?,
-                cached_duration_ms: row.get(18)?,
-                cached_native_bpm: row.get(19)?,
-                auto_chord: row.get::<_, Option<i32>>(20)?.map(|v| v != 0),
-                chord_detection_milliseconds: row.get(21)?,
-                key_changes: row.get(22)?,
-                enable_key_change_markers: row.get::<_, Option<i32>>(23)?.map(|v| v != 0),
-                is_missing,
-            })
-        })?;
-
-        let mut songs = Vec::new();
-        for r in rows {
-            songs.push(r?);
-        }
-        Ok(songs)
+             ORDER BY ps.SortOrder ASC"
+        ))?;
+        let songs = stmt.query_map([playlist_id], song_from_row)?.collect();
+        songs
     }
 
     // --- Queue ---
 
     pub fn get_queue_songs(&self) -> Result<Vec<SongRecord>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT s.Id, s.BaseKey, s.Key, s.Path, s.FileHash, s.Title, s.Artist, s.Album, s.AlbumId, s.DateAdded,
-                    s.Transpose, s.Speed, s.Bpm, s.DisabledTracks, s.MergeNotes, s.MergeMilliseconds, s.HoldNotes,
-                    s.ImagePath, s.CachedDurationMs, s.CachedNativeBpm, s.AutoChord, s.ChordDetectionMilliseconds,
-                    s.KeyChanges, s.EnableKeyChangeMarkers, s.TapThresholdMs
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {SONG_SELECT_COLUMNS}
              FROM Songs s
              INNER JOIN Queue q ON s.Id = q.SongId
-             ORDER BY q.SortOrder ASC",
-        )?;
-
-        let rows = stmt.query_map([], |row| {
-            let path_str: String = row.get(3)?;
-            let is_missing = !Path::new(&path_str).exists();
-
-            Ok(SongRecord {
-                id: row.get(0)?,
-                base_key: row.get(1)?,
-                key: row.get(2)?,
-                path: path_str,
-                file_hash: row.get(4)?,
-                title: row.get(5)?,
-                artist: row.get(6)?,
-                album: row.get(7)?,
-                album_id: row.get(8)?,
-                date_added: row.get(9)?,
-                transpose: row.get::<_, Option<i32>>(10)?.unwrap_or(0),
-                speed: row.get(11)?,
-                bpm: row.get(12)?,
-                disabled_tracks: row.get(13)?,
-                merge_notes: row.get::<_, Option<i32>>(14)?.map(|v| v != 0),
-                merge_milliseconds: row.get(15)?,
-                hold_notes: row.get::<_, Option<i32>>(16)?.map(|v| v != 0),
-                tap_threshold_ms: row.get(24)?,
-                image_path: row.get(17)?,
-                cached_duration_ms: row.get(18)?,
-                cached_native_bpm: row.get(19)?,
-                auto_chord: row.get::<_, Option<i32>>(20)?.map(|v| v != 0),
-                chord_detection_milliseconds: row.get(21)?,
-                key_changes: row.get(22)?,
-                enable_key_change_markers: row.get::<_, Option<i32>>(23)?.map(|v| v != 0),
-                is_missing,
-            })
-        })?;
-
-        let mut songs = Vec::new();
-        for r in rows {
-            songs.push(r?);
-        }
-        Ok(songs)
+             ORDER BY q.SortOrder ASC"
+        ))?;
+        let songs = stmt.query_map([], song_from_row)?.collect();
+        songs
     }
 
     pub fn set_queue(&self, song_ids: &[String]) -> Result<(), rusqlite::Error> {

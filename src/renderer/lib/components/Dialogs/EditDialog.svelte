@@ -39,7 +39,6 @@
     mergeMilliseconds: song.mergeToleranceMs ?? 100,
     holdNotes: song.holdNotes ?? false,
     tapThresholdMs: song.tapThresholdMs ?? 0,
-    autoChord: song.autoChord ?? settingsStore.settings.defaultAutoChord,
     enableKeyChangeMarkers: song.enableKeyChangeMarkers ?? settingsStore.settings.defaultEnableKeyChangeMarkers,
   };
   let title = $state(initial.title);
@@ -55,7 +54,6 @@
   let mergeMilliseconds = $state<number | undefined>(initial.mergeMilliseconds);
   let holdNotes = $state(initial.holdNotes);
   let tapThresholdMs = $state(initial.tapThresholdMs);
-  let autoChord = $state(initial.autoChord);
   let enableKeyChangeMarkers = $state(initial.enableKeyChangeMarkers);
   let fileDate = $state(song.dateAdded);
   let isSaving = $state(false);
@@ -128,7 +126,6 @@
     mergeMilliseconds = initial.mergeMilliseconds;
     holdNotes = initial.holdNotes;
     tapThresholdMs = initial.tapThresholdMs;
-    autoChord = initial.autoChord;
     enableKeyChangeMarkers = initial.enableKeyChangeMarkers;
     error = '';
     if (settingsStore.settings.autoDetectBaseKey) {
@@ -164,7 +161,7 @@
       title: savedTitle, artist: artist.trim(), album: album.trim(), baseKey, key,
       transpose: { Ignore: 0, Smart: 1, Up: 2, Down: 3 }[transpose],
       bpm: bpmOverride, speed, mergeNotes, mergeMilliseconds: validTolerance ? mergeMilliseconds! : 100, holdNotes, tapThresholdMs,
-      autoChord, enableKeyChangeMarkers,
+      enableKeyChangeMarkers,
       dateAdded: fileDate,
     };
     isSaving = true;
@@ -272,7 +269,6 @@
             </div>
           </div>
         </div>
-        <ToggleSwitch bind:checked={autoChord} label={t('studio.autoChord')} title={t('studio.autoChordDesc')} />
       </div>
     </section>
     <div class="file-info">

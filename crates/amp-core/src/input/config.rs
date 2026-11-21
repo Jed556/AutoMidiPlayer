@@ -24,12 +24,77 @@ pub struct GameConfig {
     pub default_layout: Option<String>,
 }
 
-/// Pre-composed chord pad definition on an instrument
+/// Pre-composed chord shared by pad, wheel, and guitar presentations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ChordPadConfigJson {
+pub struct ChordConfigJson {
     pub name: String,
     pub pitch_classes: Vec<u8>,
+    #[serde(default)]
+    pub bass_pitch_class: Option<u8>,
+}
+
+/// Guitar pitch data belongs to the instrument, not its physical controls.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GuitarConfigJson {
+    /// Open-string MIDI pitches, ordered from highest to lowest string.
+    pub tuning: Vec<u8>,
+    pub fret_count: u8,
+}
+
+impl GuitarConfigJson {
+    pub fn is_valid(&self) -> bool {
+        !self.tuning.is_empty() && self.tuning.len() <= 6 && self.fret_count > 0
+            && self.tuning.iter().all(|pitch| u16::from(*pitch) + u16::from(self.fret_count) <= 127)
+    }
+}
+
+/// String and mode bindings reuse an existing wheel layout's calibration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FretLayoutJson {
+    pub string_keys: Vec<String>,
+    pub wheel_layout: String,
+    pub mode_key: String,
+}
+
+impl FretLayoutJson {
+    pub fn is_valid(&self) -> bool {
+        !self.wheel_layout.trim().is_empty() && !self.string_keys.is_empty() && self.string_keys.len() <= 6
+            && self.string_keys.iter().all(|binding| super::mapping::parse_key_stroke(binding).is_some())
+            && super::mapping::parse_key_stroke(&self.mode_key).is_some()
+    }
+}
+
+/// Mouse positions are thousandths of the game window's client area.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChordWheelConfigJson {
+    pub positions: Vec<[u16; 2]>,
+    pub strum_position: [u16; 2],
+    pub move_delay_ms: u16,
+    pub select_hold_ms: u16,
+    pub after_select_ms: u16,
+    pub page_count: usize,
+    pub page_keys: [String; 2],
+    pub page_hold_ms: u16,
+    pub page_wait_ms: u16,
+}
+
+impl ChordWheelConfigJson {
+    pub fn is_valid(&self) -> bool {
+        !self.positions.is_empty()
+            && self.positions.iter().chain(std::iter::once(&self.strum_position))
+                .flatten().all(|&coordinate| coordinate <= 1000)
+            && (1..=1000).contains(&self.move_delay_ms)
+            && (1..=1000).contains(&self.select_hold_ms)
+            && (1..=1000).contains(&self.after_select_ms)
+            && (1..=12).contains(&self.page_count)
+            && self.page_keys.iter().all(|key| super::mapping::parse_key_stroke(key).is_some())
+            && (1..=1000).contains(&self.page_hold_ms)
+            && (1..=1000).contains(&self.page_wait_ms)
+    }
 }
 
 /// Visual appearance is independent of the playable pitch set and keyboard bindings.
@@ -40,6 +105,7 @@ pub enum InstrumentLayoutStyle {
     Genshin,
     Heartopia,
     Drums,
+    Guitar,
     None,
 }
 
@@ -61,9 +127,17 @@ pub struct InstrumentConfigJson {
     #[serde(default)]
     pub notes: Vec<u8>,
     #[serde(default)]
-    pub supported_layouts: Vec<String>,
+    pub keyboard_layouts: Vec<String>,
     #[serde(default)]
-    pub chord_pads: Vec<ChordPadConfigJson>,
+    pub chord_layouts: Vec<String>,
+    #[serde(default)]
+    pub fret_layouts: Vec<String>,
+    #[serde(default)]
+    pub chords: Vec<ChordConfigJson>,
+    #[serde(default)]
+    pub guitar: Option<GuitarConfigJson>,
+    #[serde(default)]
+    pub chord_mode: ChordMode,
     #[serde(default)]
     pub supports_pedals: Option<bool>,
     #[serde(default)]
@@ -77,6 +151,22 @@ pub struct InstrumentConfigJson {
 }
 
 impl InstrumentConfigJson {
+    pub fn all_layouts(&self) -> impl Iterator<Item = &String> {
+        self.keyboard_layouts.iter().chain(&self.chord_layouts).chain(&self.fret_layouts)
+    }
+
+    pub fn supports_keyboard_layout(&self, id: &str) -> bool {
+        self.keyboard_layouts.iter().any(|layout| layout.eq_ignore_ascii_case(id))
+    }
+
+    pub fn supports_chord_layout(&self, id: &str) -> bool {
+        self.chord_layouts.iter().any(|layout| layout.eq_ignore_ascii_case(id))
+    }
+
+    pub fn supports_fret_layout(&self, id: &str) -> bool {
+        self.fret_layouts.iter().any(|layout| layout.eq_ignore_ascii_case(id))
+    }
+
     pub fn normalize_keys(&mut self) {
         if let Some(rows) = &self.keys {
             self.notes = rows.iter().flatten().filter_map(|pitch| *pitch).collect();
@@ -100,9 +190,20 @@ struct InstrumentConfigSource {
     #[serde(default)]
     notes: Vec<u8>,
     #[serde(default)]
-    supported_layouts: Vec<String>,
+    keyboard_layouts: Option<Vec<String>>,
     #[serde(default)]
-    chord_pads: Vec<ChordPadConfigJson>,
+    chord_layouts: Option<Vec<String>>,
+    #[serde(default)]
+    fret_layouts: Vec<String>,
+    /// Read compatibility for existing app-data JSON; never serialized.
+    #[serde(default)]
+    supported_layouts: Vec<String>,
+    #[serde(default, alias = "chordPads")]
+    chords: Vec<ChordConfigJson>,
+    #[serde(default)]
+    guitar: Option<GuitarConfigJson>,
+    #[serde(default)]
+    chord_mode: ChordMode,
     #[serde(default)]
     supports_pedals: Option<bool>,
     #[serde(default)]
@@ -115,14 +216,29 @@ struct InstrumentConfigSource {
 
 impl From<InstrumentConfigSource> for InstrumentConfigJson {
     fn from(source: InstrumentConfigSource) -> Self {
+        // Old definitions used one list for melody and chords. An explicit new
+        // chordLayouts array, including [], is always authoritative.
+        let chord_layouts = source.chord_layouts.unwrap_or_else(|| {
+            if source.chords.is_empty() { Vec::new() } else { source.supported_layouts.clone() }
+        });
         let mut instrument = Self { id: source.id, name: source.name, category: source.category,
             instrument_type: source.instrument_type, layout_style: source.layout_style, keys: source.keys,
-            notes: source.notes, supported_layouts: source.supported_layouts, chord_pads: source.chord_pads,
+            notes: source.notes, keyboard_layouts: source.keyboard_layouts.unwrap_or(source.supported_layouts),
+            chord_layouts, fret_layouts: source.fret_layouts, chords: source.chords, guitar: source.guitar, chord_mode: source.chord_mode,
             supports_pedals: source.supports_pedals, supports_chords: source.supports_chords,
             subfolder: source.subfolder, file_path: source.file_path };
         instrument.normalize_keys();
         instrument
     }
+}
+
+/// Physical chord interaction selected by the instrument; detection is shared.
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ChordMode {
+    #[default]
+    Pads,
+    Wheel,
 }
 
 /// Modular keyboard layout stored in `KeyboardLayouts/*.json`
@@ -139,6 +255,10 @@ pub struct KeyboardLayoutJson {
     pub key_rows: Option<Vec<Vec<Option<String>>>>,
     #[serde(default)]
     pub chord_keys: Option<Vec<String>>,
+    #[serde(default)]
+    pub chord_wheel: Option<ChordWheelConfigJson>,
+    #[serde(default)]
+    pub fretboard: Option<FretLayoutJson>,
     #[serde(default)]
     pub sustain_key: Option<String>,
     #[serde(default)]
@@ -172,6 +292,10 @@ struct KeyboardLayoutSource {
     #[serde(default)]
     chord_keys: Option<Vec<String>>,
     #[serde(default)]
+    chord_wheel: Option<ChordWheelConfigJson>,
+    #[serde(default)]
+    fretboard: Option<FretLayoutJson>,
+    #[serde(default)]
     sustain_key: Option<String>,
     #[serde(default)]
     sostenuto_key: Option<String>,
@@ -189,7 +313,7 @@ impl From<KeyboardLayoutSource> for KeyboardLayoutJson {
             }
         };
         Self { id: source.id, name: source.name, file_path: source.file_path, keys, key_rows,
-            chord_keys: source.chord_keys, sustain_key: source.sustain_key,
+            chord_keys: source.chord_keys, chord_wheel: source.chord_wheel, fretboard: source.fretboard, sustain_key: source.sustain_key,
             sostenuto_key: source.sostenuto_key, una_corda_key: source.una_corda_key }
     }
 }

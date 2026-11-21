@@ -57,7 +57,6 @@ pub struct SongRecord {
     pub image_path: Option<String>,
     pub cached_duration_ms: Option<i64>,
     pub cached_native_bpm: Option<f64>,
-    pub auto_chord: Option<bool>,
     pub chord_detection_milliseconds: Option<u32>,
     pub key_changes: Option<String>,
     pub enable_key_change_markers: Option<bool>,
@@ -107,8 +106,6 @@ pub struct SongSettingsUpdate {
     #[serde(default)]
     pub tap_threshold_ms: Option<u32>,
     #[serde(default)]
-    pub auto_chord: Option<bool>,
-    #[serde(default)]
     pub chord_detection_milliseconds: Option<u32>,
     #[serde(default)]
     pub enable_key_change_markers: Option<bool>,
@@ -142,8 +139,6 @@ pub struct SongDetailsUpdate {
     pub hold_notes: bool,
     #[serde(default)]
     pub tap_threshold_ms: u32,
-    #[serde(default)]
-    pub auto_chord: bool,
     #[serde(default = "default_enable_key_change_markers")]
     pub enable_key_change_markers: bool,
     pub date_added: String,
@@ -164,7 +159,6 @@ pub struct SongDefaults {
     pub default_merge_tolerance_ms: u32,
     pub default_hold_notes: bool,
     pub default_tap_threshold_ms: u32,
-    pub default_auto_chord: bool,
     pub default_chord_detection_milliseconds: u32,
     pub default_enable_key_change_markers: bool,
 }
@@ -181,7 +175,6 @@ impl Default for SongDefaults {
             default_merge_tolerance_ms: crate::settings::defaults::value("/defaultMergeToleranceMs"),
             default_hold_notes: crate::settings::defaults::value("/defaultHoldNotes"),
             default_tap_threshold_ms: crate::settings::defaults::value("/defaultTapThresholdMs"),
-            default_auto_chord: crate::settings::defaults::value("/defaultAutoChord"),
             default_chord_detection_milliseconds: crate::settings::defaults::value("/defaultChordDetectionMilliseconds"),
             default_enable_key_change_markers: crate::settings::defaults::value("/defaultEnableKeyChangeMarkers"),
         }

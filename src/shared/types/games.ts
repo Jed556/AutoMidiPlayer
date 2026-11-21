@@ -1,9 +1,11 @@
-export interface ChordPadDefinition {
+export interface ChordDefinition {
   name: string;
   pitchClasses: number[];
+  bassPitchClass?: number;
 }
 
-export type InstrumentLayoutStyle = 'sky' | 'genshin' | 'heartopia' | 'drums' | 'none';
+export type InstrumentLayoutStyle = 'sky' | 'genshin' | 'heartopia' | 'drums' | 'guitar' | 'none';
+export type InstrumentInputMode = 'keyboard' | 'chords' | 'frets';
 export type KeyMatrix<T> = Array<Array<T | null>>;
 
 export interface InstrumentConfig {
@@ -14,8 +16,12 @@ export interface InstrumentConfig {
   layoutStyle?: InstrumentLayoutStyle;
   keys?: KeyMatrix<number>;
   notes?: number[];
-  supportedLayouts?: string[];
-  chordPads?: ChordPadDefinition[];
+  keyboardLayouts?: string[];
+  chordLayouts?: string[];
+  fretLayouts?: string[];
+  guitar?: { tuning: number[]; fretCount: number };
+  chords?: ChordDefinition[];
+  chordMode?: 'pads' | 'wheel';
   supportsChords?: boolean;
   supportsPedals?: boolean;
   supportsSustain?: boolean;
@@ -35,6 +41,18 @@ export interface KeyboardLayoutConfig {
   keyRows?: KeyMatrix<string>;
   filePath?: string;
   chordKeys?: string[];
+  fretboard?: { stringKeys: string[]; wheelLayout: string; modeKey: string };
+  chordWheel?: {
+    positions: Array<[number, number]>;
+    strumPosition: [number, number];
+    moveDelayMs: number;
+    selectHoldMs: number;
+    afterSelectMs: number;
+    pageCount: number;
+    pageKeys: [string, string];
+    pageHoldMs: number;
+    pageWaitMs: number;
+  };
   sustainKey?: string | null;
   sostenutoKey?: string | null;
   unaCordaKey?: string | null;
@@ -74,6 +92,45 @@ export interface ConfigIssue {
 export interface GameConfigState {
   games: GameInfo[];
   issues: ConfigIssue[];
+}
+
+export interface DefaultConfigConflict {
+  id: string;
+  path: string;
+  kind: 'layout' | 'instrument' | 'game';
+  name: string;
+  currentJson: string;
+  bundledJson: string;
+  token: string;
+}
+
+export interface DefaultConfigUpdates {
+  addedFiles: string[];
+  conflicts: DefaultConfigConflict[];
+  duplicates: DuplicateConfig[];
+  issues: ConfigIssue[];
+  backupDirectory: string | null;
+}
+
+export interface DuplicateConfigFile {
+  path: string;
+  json: string;
+  modifiedMs: number;
+}
+
+export interface DuplicateConfig {
+  id: string;
+  configId: string;
+  kind: 'layout' | 'instrument' | 'game';
+  keep: DuplicateConfigFile;
+  olderFiles: DuplicateConfigFile[];
+  token: string;
+}
+
+export interface DefaultConfigChoice {
+  id: string;
+  token: string;
+  action: 'keep' | 'replace';
 }
 
 export interface GameInfo extends GameDefinition {

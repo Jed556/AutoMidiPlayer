@@ -8,5 +8,7 @@
     [60, 62, 64, 65],
     [67, 69, 71, 72]
   ],
-  "supportedLayouts": ["Genshin_QWERTY_Drums"]
+  "keyboardLayouts": ["Genshin_QWERTY_Drums"],
+  "chordLayouts": [],
+  "fretLayouts": []
 }

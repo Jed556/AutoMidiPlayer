@@ -9,5 +9,7 @@
     [60, 62, 63, 65, 67, 69, 70],
     [48, 50, 51, 53, 55, 57, 58]
   ],
-  "supportedLayouts": ["QWERTY_21Keys", "Genshin_QWERTZ", "Genshin_AZERTY", "Genshin_DVORAK", "Genshin_DVORAKLeft", "Genshin_DVORAKRight", "Genshin_Colemak"]
+  "keyboardLayouts": ["QWERTY_21Keys","Genshin_QWERTZ","Genshin_AZERTY","Genshin_DVORAK","Genshin_DVORAKLeft","Genshin_DVORAKRight","Genshin_Colemak"],
+  "chordLayouts": [],
+  "fretLayouts": []
 }

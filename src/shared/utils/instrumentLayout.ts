@@ -1,7 +1,25 @@
-import type { InstrumentConfig, InstrumentLayoutStyle, KeyboardLayoutConfig, KeyMatrix } from '../types/games.js';
+import type { InstrumentConfig, InstrumentInputMode, InstrumentLayoutStyle, KeyboardLayoutConfig, KeyMatrix } from '../types/games.js';
+
+export function instrumentLayoutIds(instrument: InstrumentConfig | null, mode: InstrumentInputMode | 'all'): string[] {
+  if (!instrument) return [];
+  if (mode === 'all') return [...new Set([...(instrument.keyboardLayouts ?? []), ...(instrument.chordLayouts ?? []), ...(instrument.fretLayouts ?? [])])];
+  return instrument[mode === 'keyboard' ? 'keyboardLayouts' : mode === 'chords' ? 'chordLayouts' : 'fretLayouts'] ?? [];
+}
+
+export function guitarNotes(instrument: InstrumentConfig | null): number[] {
+  if (!instrument?.guitar) return instrumentNotes(instrument);
+  return [...new Set(instrument.guitar.tuning.flatMap(open => Array.from({ length: instrument.guitar!.fretCount + 1 }, (_, fret) => open + fret)))].sort((a, b) => a - b);
+}
 
 export function instrumentNotes(instrument: InstrumentConfig | null): number[] {
   return instrument?.keys ? instrument.keys.flat().filter((pitch): pitch is number => pitch !== null) : instrument?.notes ?? [];
+}
+
+/** Detection is shared; only the physical chord controls differ by layout. */
+export function instrumentChordMode(instrument: InstrumentConfig | null, layout: KeyboardLayoutConfig | null): 'pads' | 'wheel' | null {
+  if (!instrument || instrument.supportsChords === false || !instrument.chords?.length || !layout) return null;
+  if (instrument.chordMode === 'wheel') return layout.chordWheel?.positions.length ? 'wheel' : null;
+  return layout.chordKeys?.some(key => key.trim()) ? 'pads' : null;
 }
 
 export function instrumentLayoutStyle(instrument: InstrumentConfig | null): InstrumentLayoutStyle {
@@ -51,6 +69,7 @@ export function instrumentKeyRows(instrument: InstrumentConfig | null, layout: K
 }
 
 export function instrumentKeyPairs(instrument: InstrumentConfig | null, layout: KeyboardLayoutConfig | null): Array<[number, string]> {
+  if (layout?.fretboard || layout?.chordWheel) return [];
   return instrumentKeyRows(instrument, layout).flat().flatMap(key => key?.label ? [[key.pitch, key.label] as [number, string]] : []);
 }
 

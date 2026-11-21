@@ -1,13 +1,12 @@
 //! Song-only note preparation. The source MIDI and its control events remain unchanged.
 use std::collections::{HashMap, VecDeque};
 
-use crate::{input::{KeyStroke, mapping::ChordPad}, midi::TimedNoteEvent};
+use crate::{input::mapping::{ChordBinding, ChordPad, FretMapping}, midi::TimedNoteEvent};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NoteProcessingSettings {
     pub merge_notes: bool,
     pub merge_tolerance_ms: u64,
-    pub auto_chord: bool,
     pub chord_detection_milliseconds: u64,
 }
 
@@ -16,7 +15,6 @@ impl Default for NoteProcessingSettings {
         Self {
             merge_notes: crate::settings::defaults::value("/defaultMergeNotes"),
             merge_tolerance_ms: crate::settings::defaults::value("/defaultMergeToleranceMs"),
-            auto_chord: crate::settings::defaults::value("/defaultAutoChord"),
             chord_detection_milliseconds: crate::settings::defaults::value("/defaultChordDetectionMilliseconds"),
         }
     }
@@ -25,7 +23,7 @@ impl Default for NoteProcessingSettings {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct ChordNote {
     pub chord_id: usize,
-    pub stroke: KeyStroke,
+    pub binding: ChordBinding,
     /// Only the first NoteOn presses the pad. Every other member is suppressed.
     pub trigger: bool,
 }
@@ -103,6 +101,52 @@ fn pitch_classes(notes: impl IntoIterator<Item = u8>) -> u16 {
     notes.into_iter().fold(0, |mask, pitch| mask | (1 << (pitch % 12)))
 }
 
+/// The game selects one common fret for all strings. Find an exact voicing for
+/// each onset group; unsupported groups remain silent rather than arpeggiated.
+pub(super) fn detect_frets<F, G>(events: &[TimedNoteEvent], frets: &FretMapping,
+    slots: usize, tolerance_ms: u64, enabled: F, transform: G) -> Vec<Option<ChordNote>>
+where F: Fn(usize, &TimedNoteEvent) -> bool, G: Fn(u8, u64) -> Option<u8> {
+    let mut result = vec![None; events.len()];
+    if slots == 0 { return result; }
+    let partners = partners(events);
+    let candidates: Vec<_> = events.iter().enumerate().filter_map(|(index, event)| {
+        (event.is_note_on && event.velocity > 0 && partners[index].is_some() && enabled(index, event)).then_some(index)
+    }).collect();
+    let tolerance_us = tolerance_ms.saturating_mul(1000);
+    let mut cursor = 0;
+    let mut previous_fret = 0;
+    let mut group_id = 0;
+    while cursor < candidates.len() {
+        let first = cursor;
+        let at = events[candidates[first]].time_us;
+        cursor += 1;
+        while cursor < candidates.len() && events[candidates[cursor]].time_us <= at.saturating_add(tolerance_us) { cursor += 1; }
+        let members = &candidates[first..cursor];
+        let Some(pitches) = members.iter().map(|&index| transform(events[index].note, at)).collect::<Option<Vec<_>>>() else { continue };
+        let mut choices = Vec::new();
+        for fret in 0..=frets.fret_count {
+            let mut strings = 0u8;
+            let valid = pitches.iter().all(|&pitch| {
+                if let Some(string) = frets.tuning.iter().position(|&open| open.checked_add(fret) == Some(pitch)) {
+                    strings |= 1 << string;
+                    true
+                } else { false }
+            });
+            if valid { choices.push((fret, strings)); }
+        }
+        let Some((fret, strings)) = choices.into_iter().min_by_key(|&(fret, _)| (fret.abs_diff(previous_fret), fret)) else { continue };
+        previous_fret = fret;
+        let slot = if fret == 0 { usize::from(frets.fret_count).div_ceil(slots) * slots } else { usize::from(fret - 1) };
+        for (member, &index) in members.iter().enumerate() {
+            let assignment = ChordNote { chord_id: group_id, binding: ChordBinding::Frets { slot, strings }, trigger: member == 0 };
+            result[index] = Some(assignment);
+            result[partners[index].expect("Complete fret candidate")] = Some(ChordNote { trigger: false, ..assignment });
+        }
+        group_id += 1;
+    }
+    result
+}
+
 /// Plan pad replacement without modifying events used by the synthesizer or UI.
 /// Chord membership spans enabled tracks, but only note starts within the first
 /// member's tolerance form a group. Transposition/markers are evaluated at that
@@ -138,13 +182,21 @@ where
             cursor += 1;
         }
         let members = &candidates[first..cursor];
-        if members.len() < 3 { continue; }
+        if members.len() < 2 { continue; }
         let Some(transformed) = members.iter().map(|index| transform(events[*index].note, start_us))
             .collect::<Option<Vec<_>>>() else { continue };
+        // Octave folding can put an accompaniment voice below the source bass.
+        // Keep the original voice ordering when choosing a slash chord.
+        let bass = members.iter().zip(&transformed).min_by_key(|(index, _)| events[**index].note)
+            .map(|(_, pitch)| pitch % 12);
         let mask = pitch_classes(transformed);
-        let Some(pad) = pad_masks.iter().position(|pad_mask| *pad_mask == mask && mask != 0) else { continue };
+        let Some(pad) = pad_masks.iter().enumerate()
+            .filter(|(index, pad_mask)| **pad_mask == mask && mask != 0
+                && pads[*index].bass_pitch_class.is_none_or(|pitch| Some(pitch) == bass))
+            .max_by_key(|(index, _)| (pads[*index].bass_pitch_class.is_some(), std::cmp::Reverse(*index)))
+            .map(|(index, _)| index) else { continue };
         for (member, &index) in members.iter().enumerate() {
-            let assignment = ChordNote { chord_id, stroke: pads[pad].stroke, trigger: member == 0 };
+            let assignment = ChordNote { chord_id, binding: pads[pad].binding, trigger: member == 0 };
             result[index] = Some(assignment);
             result[partners[index].expect("Complete candidate note")] = Some(ChordNote { trigger: false, ..assignment });
         }
@@ -170,7 +222,7 @@ mod tests {
     fn sorted(mut events: Vec<TimedNoteEvent>) -> Vec<TimedNoteEvent> { events.sort(); events }
 
     fn pad(pitches: &[u8]) -> ChordPad {
-        ChordPad { pitch_classes: pitches.to_vec(), stroke: parse_key_stroke("q").unwrap() }
+        ChordPad { pitch_classes: pitches.to_vec(), binding: ChordBinding::Key(parse_key_stroke("q").unwrap()), bass_pitch_class: None }
     }
 
     #[test]

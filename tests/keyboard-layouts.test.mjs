@@ -32,8 +32,8 @@ test('shared layouts preserve the original rows, modifiers and pedal defaults', 
     QWERTY_88Keys: [[...['^1', '^2', '^3', '^4', '^5', '^6', '^7', '^8', '^9', '^0', '^q', '^w', '^e', '^r', '^t'],
       ...piano61, ...['^y', '^u', '^i', '^o', '^p', '^a', '^s', '^d', '^f', '^g', '^h', '^j']]],
   };
-  assert.equal(layoutFiles.length, 23);
-  assert.equal(new Set(layouts.map(layout => layout.id)).size, 23);
+  assert.equal(layoutFiles.length, 26);
+  assert.equal(new Set(layouts.map(layout => layout.id)).size, 26);
   for (const [id, keys] of Object.entries(expected)) {
     const piano = id === 'QWERTY_61Keys' || id === 'QWERTY_88Keys';
     assert.deepEqual(read(`KeyboardLayouts/${id}.json`), {
@@ -55,12 +55,25 @@ test('every bundled reference resolves and every instrument retains its configur
     assert.ok(allLayouts[config.defaultLayout.toLowerCase()], config.defaultLayout);
     const game = loadedBundleToGameInfo({ config, instruments }, allLayouts);
     for (const instrument of game.instruments) {
-      for (const id of instrument.supportedLayouts) {
+      for (const id of [...instrument.keyboardLayouts, ...instrument.chordLayouts, ...instrument.fretLayouts]) {
+        assert.ok(game.layouts.some(layout => layout.id === id), `Missing ${id}`);
+      }
+      for (const id of instrument.fretLayouts) {
+        const fret = game.layouts.find(layout => layout.id === id).fretboard;
+        assert.equal(fret.stringKeys.length, instrument.guitar.tuning.length);
+        assert.ok(game.layouts.some(layout => layout.id === fret.wheelLayout && layout.chordWheel));
+      }
+      for (const id of instrument.keyboardLayouts) {
         const layout = game.layouts.find(layout => layout.id === id);
         assert.equal(layout?.id, id);
         const pitches = instrument.keys?.flat().filter(pitch => pitch !== null) ?? instrument.notes;
-        const expected = pitches.map((pitch, index) => [pitch, layout.keys[index]]);
+        const expected = layout.chordWheel ? [] : pitches.map((pitch, index) => [pitch, layout.keys[index]]);
         assert.deepEqual(instrumentKeyPairs(instrument, layout), expected, `${folder}/${instrument.id}/${id}`);
+        if (layout.chordWheel) {
+          assert.equal(instrument.chords.length, layout.chordWheel.positions.length * layout.chordWheel.pageCount);
+          assert.equal(instrument.supportsChords, true);
+          assert.equal(layout.chordWheel.positions.length, 6);
+        }
         if (sharedLayoutIds.includes(id)) covered.add(id);
       }
     }

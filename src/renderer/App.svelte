@@ -507,7 +507,7 @@
 
   <!-- Global Modals & Notifications -->
   <DialogHost onreset={clearAppData} />
-  <TooltipHost />
+  <TooltipHost pedals={playbackStore.pedals} />
 </div>
 {/if}
 

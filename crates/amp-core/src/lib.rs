@@ -10,7 +10,7 @@ pub mod settings;
 
 pub use midi::{ParsedMidi, TrackInfo, TimedNoteEvent, TimedControlEvent, ControlEventKind, TempoMap, TransposeMode, detect_best_scale, build_scale_pitch_classes, process_note_pitch, parse_midi_file, parse_midi_bytes, MidiError, get_gm_instrument_name, GENERAL_MIDI_INSTRUMENTS, KeyChangeMarker, RawKeySignature, detect_key_changes};
 pub use input::{
-    char_to_key, parse_key_str, parse_key_stroke, KeyStroke, scan_games, scan_keyboard_layouts, ChordPadConfigJson, GameConfig,
+    char_to_key, parse_key_str, parse_key_stroke, KeyStroke, scan_games, scan_keyboard_layouts, ChordConfigJson, FretLayoutJson, GameConfig, GuitarConfigJson,
     InstrumentConfigJson, KeySimulator, KeyboardLayout, KeyboardLayoutJson, LoadedGameBundle,
     NoteKeyMapping,
 };

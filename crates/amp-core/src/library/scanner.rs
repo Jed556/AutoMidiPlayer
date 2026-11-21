@@ -61,7 +61,6 @@ fn create_new_song_record(
         image_path: None,
         cached_duration_ms: Some(meta.duration_ms),
         cached_native_bpm: Some(meta.native_bpm),
-        auto_chord: Some(defaults.default_auto_chord),
         chord_detection_milliseconds: Some(defaults.default_chord_detection_milliseconds),
         // Timeline markers are created explicitly in Studio, independently of base-key detection.
         key_changes: None,

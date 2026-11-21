@@ -21,6 +21,7 @@ mod log_privacy;
 pub mod logging;
 pub mod telemetry;
 use config_manager::{ConfigManager, ConfigSnapshot};
+use amp_core::input::defaults_sync::{DefaultConfigAction, DefaultConfigChoice, DefaultConfigUpdates};
 use process_monitor::{
     focus_window_by_pid, GameProcessTarget, GameStatusPayload,
     ProcessMonitor,
@@ -510,11 +511,17 @@ fn read_midi_payload(
     Ok(payload)
 }
 
+async fn start_engine_playback(engine: &PlaybackEngine) -> Result<bool, String> {
+    let result = engine.request_play();
+    tauri::async_runtime::spawn_blocking(move || {
+        result.recv().map_err(|_| "The playback engine stopped.".to_string())?.map(|()| true)
+    }).await.map_err(|e| e.to_string())?
+}
+
 #[cfg(windows)]
 #[tauri::command]
-fn play_song(state: State<AppState>) -> Result<bool, String> {
-    state.engine.play();
-    Ok(true)
+async fn play_song(state: State<'_, AppState>) -> Result<bool, String> {
+    start_engine_playback(&state.engine).await
 }
 
 #[cfg(not(windows))]
@@ -542,8 +549,7 @@ async fn play_song(state: State<'_, AppState>) -> Result<bool, String> {
     if epoch.load(Ordering::Acquire) != request {
         return Err("Playback request cancelled.".into());
     }
-    state.engine.play();
-    Ok(true)
+    start_engine_playback(&state.engine).await
 }
 
 fn cancel_pending_playback(state: &AppState) {
@@ -624,7 +630,6 @@ fn set_note_timing(hold_notes: bool, tap_threshold_ms: u64, state: State<AppStat
 fn set_note_processing(
     merge_notes: bool,
     merge_tolerance_ms: u64,
-    auto_chord: bool,
     chord_detection_milliseconds: u64,
     state: State<AppState>,
 ) -> Result<bool, String> {
@@ -635,7 +640,7 @@ fn set_note_processing(
         return Err("Chord detection tolerance must be between 0 and 1000 ms".into());
     }
     state.engine.set_note_processing(amp_core::player::NoteProcessingSettings {
-        merge_notes, merge_tolerance_ms, auto_chord, chord_detection_milliseconds,
+        merge_notes, merge_tolerance_ms, chord_detection_milliseconds,
     });
     Ok(true)
 }
@@ -1588,6 +1593,83 @@ fn focus_game(pid: u32) -> Result<bool, String> {
 }
 
 #[tauri::command]
+async fn get_chord_wheel_state(state: State<'_, AppState>) -> Result<amp_core::input::chord_wheel::ChordWheelState, String> {
+    let engine = Arc::clone(&state.engine);
+    tauri::async_runtime::spawn_blocking(move || engine.chord_wheel_state()).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn set_chord_wheel_page(page: usize, send: bool, state: State<'_, AppState>) -> Result<bool, String> {
+    let engine = Arc::clone(&state.engine);
+    let monitor = Arc::clone(&state.process_monitor);
+    let configs = Arc::clone(&state.config_manager);
+    let sources = Arc::clone(&state.config_sources);
+    tauri::async_runtime::spawn_blocking(move || {
+        if engine.get_status() == PlaybackStatus::Playing { return Err("Pause playback before changing the page manually.".into()); }
+        if send {
+            let selected_sources = sources.lock().map_err(|e| e.to_string())?.clone();
+            let game_id = configs.lock().map_err(|e| e.to_string())?.games.iter()
+                .find(|game| game.instruments.iter().any(|instrument| instrument.file_path.as_ref()
+                    .is_some_and(|path| selected_sources.iter().any(|source| source == Path::new(path)))))
+                .map(|game| game.config.id.clone()).ok_or("The selected instrument's game is unavailable.")?;
+            let target = monitor.lock().map_err(|e| e.to_string())?.check_statuses().into_iter()
+                .find(|game| game.id == game_id && game.is_running).and_then(|game| game.pid)
+                .ok_or("Start the selected game and open its chord wheel first.")?;
+            if !focus_window_by_pid(target) { return Err("Could not focus the selected game window.".into()); }
+        }
+        engine.set_chord_wheel_page(page, send)?;
+        Ok(true)
+    }).await.map_err(|e| e.to_string())?
+}
+
+/// Explicit guitar sub-mode changes use the instrument's fret-layout binding.
+/// Startup and ordinary config reloads never send this toggle to the game.
+#[tauri::command]
+async fn set_guitar_mode(mode: String, state: State<'_, AppState>) -> Result<bool, String> {
+    if !matches!(mode.as_str(), "chords" | "frets") { return Err("Unknown guitar mode.".into()); }
+    #[cfg(not(windows))]
+    { let _ = state; return Err("Guitar game output is currently supported on Windows only.".into()); }
+    #[cfg(windows)]
+    {
+        let engine = Arc::clone(&state.engine);
+        let monitor = Arc::clone(&state.process_monitor);
+        let configs = Arc::clone(&state.config_manager);
+        let sources = Arc::clone(&state.config_sources);
+        tauri::async_runtime::spawn_blocking(move || {
+            if engine.get_status() == PlaybackStatus::Playing { return Err("Pause playback before changing guitar mode.".into()); }
+            let selected_sources = sources.lock().map_err(|e| e.to_string())?.clone();
+            let (game_id, binding) = {
+                let manager = configs.lock().map_err(|e| e.to_string())?;
+                let (game, instrument) = manager.games.iter().flat_map(|game| game.instruments.iter().map(move |instrument| (game, instrument)))
+                    .find(|(_, instrument)| instrument.file_path.as_ref().is_some_and(|path| selected_sources.iter().any(|source| source == Path::new(path))))
+                    .ok_or("The selected guitar is unavailable.")?;
+                let current = selected_sources.iter().find_map(|source| manager.layouts.values().find(|layout|
+                    layout.file_path.as_ref().is_some_and(|path| source == Path::new(path))));
+                if current.is_some_and(|layout| layout.fretboard.is_some() == (mode == "frets")) { return Ok(true); }
+                let fret_layout = current.filter(|layout| layout.fretboard.is_some())
+                    .or_else(|| instrument.fret_layouts.iter().find_map(|id| manager.layouts.get(&id.to_lowercase())))
+                    .and_then(|layout| layout.fretboard.as_ref()).ok_or("The guitar has no fret mode binding.")?;
+                let binding = amp_core::parse_key_stroke(&fret_layout.mode_key).ok_or("Invalid guitar mode binding.")?;
+                (game.config.id.clone(), binding)
+            };
+            let pid = monitor.lock().map_err(|e| e.to_string())?.check_statuses().into_iter()
+                .find(|game| game.id == game_id && game.is_running).and_then(|game| game.pid)
+                .ok_or("Start the selected game and open its guitar controls first.")?;
+            if !focus_window_by_pid(pid) { return Err("Could not focus the selected game window.".into()); }
+            let mut output = amp_core::KeySimulator::new();
+            output.prepare()?;
+            output.press_stroke(binding);
+            std::thread::sleep(std::time::Duration::from_millis(35));
+            output.send_key(binding.key, true);
+            output.release_all(&[binding.key]);
+            if let Some(error) = output.take_error() { return Err(error); }
+            std::thread::sleep(std::time::Duration::from_millis(120));
+            Ok(true)
+        }).await.map_err(|e| e.to_string())?
+    }
+}
+
+#[tauri::command]
 fn tap_note_preview(pitch: u8, is_listen_mode: bool, state: State<AppState>) -> Result<bool, String> {
     state.engine.tap_note(pitch, is_listen_mode);
     Ok(true)
@@ -1656,20 +1738,43 @@ fn set_game_instrument_mapping(
         let mapping = mapping.with_pedal_bindings(layout_cfg);
         // The renderer already supplies the selected instrument's config path.
         // Resolve pads from that instrument, never another instrument sharing its layout.
-        if let Some(instrument) = cm.games.iter().flat_map(|game| &game.instruments)
-            .find(|instrument| instrument.file_path.as_ref()
+        if let Some((game, instrument)) = cm.games.iter().flat_map(|game| game.instruments.iter().map(move |instrument| (game, instrument)))
+            .find(|(_, instrument)| instrument.file_path.as_ref()
                 .is_some_and(|path| sources.iter().any(|source| source == Path::new(path)))) {
-            mapping.with_chord_pads(instrument, layout_cfg)
+            let mut processes = game.config.process_names.clone();
+            processes.extend(state.process_monitor.lock().map_err(|e| e.to_string())?.process_names_for_game(&game.config.id));
+            processes.sort();
+            processes.dedup();
+            let mapping = if instrument.supports_fret_layout(&layout_cfg.id) {
+                let unavailable = |reason: &str| {
+                    state.engine.set_config_available(false);
+                    state.engine.set_mapping(NoteKeyMapping::from_pairs(KeyboardLayout::Diatonic21, &[]));
+                    reason.to_owned()
+                };
+                let fretboard = layout_cfg.fretboard.as_ref()
+                    .ok_or_else(|| unavailable("The selected fret layout has no fretboard bindings."))?;
+                let wheel_layout = cm.layouts.get(&fretboard.wheel_layout.to_lowercase())
+                    .ok_or_else(|| unavailable("The fret layout's referenced wheel layout is unavailable."))?;
+                let wheel = wheel_layout.chord_wheel.as_ref()
+                    .ok_or_else(|| unavailable("The referenced layout has no wheel controls."))?;
+                if let Some(path) = &wheel_layout.file_path {
+                    if !Path::new(path).is_file() { return Err(unavailable("The referenced wheel layout file is unavailable.")); }
+                    if !sources.iter().any(|source| source == Path::new(path)) { sources.push(PathBuf::from(path)); }
+                }
+                mapping.with_frets(instrument, layout_cfg, wheel)
+            } else { mapping.with_chord_pads(instrument, layout_cfg) };
+            mapping.with_game_target(&game.config).with_game_process_names(&processes)
         } else { mapping }
     } else {
         mapping
     };
 
     // Stop while the old mapping is still installed so its held keys are released.
-    if layout.is_empty() { state.engine.set_config_available(false); }
+    let available = !layout.is_empty() && mapping.has_playable_bindings();
+    if !available { state.engine.set_config_available(false); }
     state.engine.set_mapping(mapping);
-    if !layout.is_empty() { state.engine.set_config_available(true); }
-    Ok(true)
+    if available { state.engine.set_config_available(true); }
+    Ok(available)
 }
 
 #[tauri::command]
@@ -1689,6 +1794,32 @@ fn get_keyboard_layouts(
 #[tauri::command]
 fn get_game_configs(state: State<AppState>) -> Result<ConfigSnapshot, String> {
     Ok(state.config_manager.lock().map_err(|e| e.to_string())?.snapshot())
+}
+
+#[tauri::command]
+async fn get_default_config_updates(app: AppHandle) -> Result<DefaultConfigUpdates, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let report = config_manager::check_startup_defaults()?;
+        if !report.added_files.is_empty() {
+            if let Some(state) = app.try_state::<AppState>() { reload_configs(&app, &state.config_manager, &state.process_monitor)?; }
+        }
+        Ok(report)
+    }).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn resolve_default_config_updates(
+    choices: Vec<DefaultConfigChoice>, duplicate_choices: Vec<DefaultConfigChoice>, app: AppHandle,
+) -> Result<DefaultConfigUpdates, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Some(state) = app.try_state::<AppState>() {
+            if choices.iter().chain(&duplicate_choices).any(|choice| choice.action == DefaultConfigAction::Replace) { state.engine.stop(); }
+        }
+        let result = config_manager::resolve_startup_defaults(&choices, &duplicate_choices);
+        // Refresh even after a partial I/O failure so the mapping matches files already saved.
+        if let Some(state) = app.try_state::<AppState>() { reload_configs(&app, &state.config_manager, &state.process_monitor)?; }
+        result
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -1940,6 +2071,7 @@ struct StartupStatus {
     ready: bool,
     error: Option<String>,
     update_resume: Option<updates::UpdateResume>,
+    configuration_review_required: Option<bool>,
 }
 
 type StartupState = Arc<Mutex<StartupStatus>>;
@@ -1954,6 +2086,7 @@ fn start_runtime(app: AppHandle, gate: State<RuntimeGate>) -> Result<(), String>
         let mut status = state.lock().map_err(|e| e.to_string())?;
         status.ready = false;
         status.stage = "Initializing application\u{2026}".into();
+        status.configuration_review_required = Some(false);
         *started = true;
         wake.notify_one();
     }
@@ -2040,6 +2173,7 @@ pub fn run() {
                 ready: false,
                 error: None,
                 update_resume: updates::load_resume(env!("CARGO_PKG_VERSION")),
+                configuration_review_required: None,
             }));
             app.manage(startup.clone());
             let runtime_gate: RuntimeGate = Arc::new((Mutex::new(false), Condvar::new()));
@@ -2050,13 +2184,18 @@ pub fn run() {
                     let launch_settings = read_launch_settings().expect("Failed to read launch settings");
                     let completed = launch_settings.get("onboardingCompleted")
                         .and_then(serde_json::Value::as_bool).unwrap_or(false);
+                    // Check configurations before creating audio, DB, player, or process monitors.
+                    let review_required = config_manager::check_startup_defaults()
+                        .map(|report| report.needs_review()).unwrap_or(true);
+                    startup.lock().unwrap().configuration_review_required = Some(review_required);
                     let (lock, wake) = &*runtime_gate;
                     let mut started = lock.lock().unwrap();
-                    if !completed {
+                    if !completed || review_required {
                         {
                             let mut status = startup.lock().unwrap();
                             status.ready = true; // Preferences and window commands are available.
-                            status.stage = "Waiting for setup\u{2026}".into();
+                            status.stage = if review_required { "Waiting for configuration review\u{2026}" }
+                                else { "Waiting for setup\u{2026}" }.into();
                         }
                         while !*started {
                             started = wake.wait(started).unwrap();
@@ -2110,6 +2249,9 @@ pub fn run() {
                             }
                             PlayerEvent::PedalsChanged(state) => {
                                 let _ = app_handle.emit("playback:pedals", state);
+                            }
+                            PlayerEvent::ChordWheelChanged(state) => {
+                                let _ = app_handle.emit("playback:chord_wheel", state);
                             }
                             PlayerEvent::ActiveNotes(notes) => {
                                 let _ = app_handle.emit("playback:notes", notes);
@@ -2434,11 +2576,16 @@ pub fn run() {
             get_game_statuses,
             set_game_targets,
             focus_game,
+            get_chord_wheel_state,
+            set_chord_wheel_page,
+            set_guitar_mode,
             tap_note_preview,
             set_game_instrument_mapping,
             // Phase 9 modular config commands
             get_games,
             get_game_configs,
+            get_default_config_updates,
+            resolve_default_config_updates,
             get_keyboard_layouts,
             get_layout_pedal_defaults,
             save_layout_pedal_bindings,

@@ -1,11 +1,13 @@
 <script lang="ts">
   import FluentIcon from '../Icons/FluentIcon.svelte';
+  import { tooltip } from '../../actions/tooltip';
 
   interface Tab {
     id: string;
     label: string;
     icon?: string;
     count?: number;
+    title?: string;
   }
 
   interface Props {
@@ -14,14 +16,27 @@
     onselect: (id: string) => void;
     label: string;
     divider?: boolean;
+    variant?: 'underline' | 'pill';
+    disabled?: boolean;
     idPrefix?: string;
     panelId?: string;
   }
 
-  let { tabs, value, onselect, label, divider = true, idPrefix, panelId }: Props = $props();
+  let {
+    tabs,
+    value,
+    onselect,
+    label,
+    divider = true,
+    variant = 'underline',
+    disabled = false,
+    idPrefix,
+    panelId,
+  }: Props = $props();
   const activeIndex = $derived(Math.max(0, tabs.findIndex(tab => tab.id === value)));
 
   function handleKeydown(event: KeyboardEvent, index: number) {
+    if (disabled) return;
     let nextIndex: number;
     switch (event.key) {
       case 'ArrowRight': nextIndex = (index + 1) % tabs.length; break;
@@ -37,14 +52,15 @@
   }
 </script>
 
-<div class="sliding-tabs" class:divider role="tablist" aria-label={label}
+<div class="sliding-tabs" class:divider={divider && variant === 'underline'} class:pill={variant === 'pill'}
+  role="tablist" aria-label={label}
   style:--tab-index={activeIndex} style:--tab-count={tabs.length}>
   {#each tabs as tab, index (tab.id)}
     <button type="button" class="tab-btn" class:active={value === tab.id}
       id={idPrefix ? `${idPrefix}-${tab.id}` : undefined}
       role="tab" aria-selected={value === tab.id} aria-controls={panelId}
       aria-label={tab.count !== undefined ? `${tab.label} (${tab.count})` : tab.label}
-      tabindex={value === tab.id ? 0 : -1} title={tab.label}
+      tabindex={value === tab.id ? 0 : -1} use:tooltip={variant === 'pill' ? tab.title : (tab.title ?? tab.label)} {disabled}
       onclick={() => onselect(tab.id)} onkeydown={event => handleKeydown(event, index)}>
       {#if tab.icon}<FluentIcon name={tab.icon} size={14} />{/if}
       <span class="tab-label">{tab.label}{#if tab.count !== undefined}<span class="tab-count">{tab.count}</span>{/if}</span>
@@ -66,7 +82,18 @@
     border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
   }
 
+  .sliding-tabs.pill {
+    display: inline-grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    padding: 2px;
+    border-radius: var(--radius-sm);
+    background: var(--control-fill);
+  }
+
   .tab-btn {
+    position: relative;
+    z-index: 1;
     flex: 1;
     min-width: 0;
     border: 0;
@@ -84,9 +111,28 @@
     transition: color var(--transition-fast), background var(--transition-fast);
   }
 
-  .tab-btn:hover {
+  .sliding-tabs.pill .tab-btn {
+    flex-direction: row;
+    justify-content: center;
+    padding: 6px 12px;
+    border-bottom: 0;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .tab-btn:hover:not(:disabled) {
     color: var(--text-primary);
     background: var(--bg-hover);
+  }
+
+  .sliding-tabs.pill .tab-btn:hover:not(:disabled).active {
+    background: transparent;
+  }
+
+  .tab-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
 
   .tab-label {
@@ -106,6 +152,11 @@
     color: var(--accent);
   }
 
+  .sliding-tabs.pill .tab-btn.active {
+    color: #ffffff;
+    font-weight: 600;
+  }
+
   .tab-indicator {
     position: absolute;
     bottom: 0;
@@ -119,9 +170,24 @@
     transition: transform var(--transition-slow);
   }
 
+  .sliding-tabs.pill .tab-indicator {
+    top: 2px;
+    bottom: 2px;
+    left: 2px;
+    height: auto;
+    width: calc((100% - 4px) / var(--tab-count));
+    border-radius: 3px;
+    background: var(--accent);
+    z-index: 0;
+  }
+
   .tab-btn:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: -3px;
+  }
+
+  .sliding-tabs.pill .tab-btn:focus-visible {
+    outline-offset: -2px;
   }
 
   @media (prefers-reduced-motion: reduce) {

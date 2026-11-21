@@ -37,7 +37,7 @@ fn settings(key: i32) -> SongSettingsUpdate {
     SongSettingsUpdate {
         key, base_key: Some(2), transpose: 1, disabled_tracks: Some("0,2".into()),
         key_changes: Some("[]".into()), speed: Some(1.5), hold_notes: Some(true), tap_threshold_ms: Some(100),
-        auto_chord: Some(true), chord_detection_milliseconds: Some(45), enable_key_change_markers: Some(false),
+        chord_detection_milliseconds: Some(45), enable_key_change_markers: Some(false),
     }
 }
 
@@ -46,7 +46,7 @@ fn details(key: i32) -> SongDetailsUpdate {
         title: "Edited".into(), artist: "Artist".into(), album: "".into(),
         base_key: None, key, transpose: 3, bpm: None, speed: 0.75,
         merge_notes: true, merge_milliseconds: 50, hold_notes: false, tap_threshold_ms: 0,
-        auto_chord: true, enable_key_change_markers: true,
+        enable_key_change_markers: true,
         date_added: "2026-10-23T00:00:00Z".into(),
     }
 }
@@ -59,7 +59,6 @@ fn instrument_settings_are_isolated_by_both_game_and_instrument() {
     assert_eq!(saved.key, 5);
     assert_eq!(saved.speed, Some(1.5));
     assert_eq!(saved.disabled_tracks.as_deref(), Some("0,2"));
-    assert_eq!(saved.auto_chord, Some(true));
     assert_eq!(saved.chord_detection_milliseconds, Some(45));
     assert_eq!(saved.enable_key_change_markers, Some(false));
     assert_eq!(f.resolved("game-a", "piano").key, 1);
@@ -86,7 +85,6 @@ fn game_save_applies_to_its_instruments_and_preserves_studio_only_fields() {
     let lyre = f.resolved("a", "lyre");
     assert_eq!(lyre.disabled_tracks.as_deref(), Some("0,2"));
     assert_eq!(lyre.key_changes.as_deref(), Some("[]"));
-    assert_eq!(lyre.auto_chord, Some(true));
     assert_eq!(f.resolved("b", "lyre").key, 5);
     let global = f.db.get_song_by_id("song").unwrap().unwrap();
     assert_eq!(global.key, 1);

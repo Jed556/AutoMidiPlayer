@@ -8,5 +8,7 @@
     [60, 62, 64, 65],
     [67, 69, 71, 72]
   ],
-  "supportedLayouts": ["Sky_QWERTY_8"]
+  "keyboardLayouts": ["Sky_QWERTY_8"],
+  "chordLayouts": [],
+  "fretLayouts": []
 }
