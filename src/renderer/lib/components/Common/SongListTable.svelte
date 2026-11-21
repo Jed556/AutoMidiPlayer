@@ -2,8 +2,11 @@
   import { loadUiPreferences, saveUiPreferences } from '../../backend/preferences.js';
   import { onDestroy, onMount, tick } from 'svelte';
   import { playbackStore } from '../../state/playbackStore.svelte';
+  import { libraryStore, LIKED_SONGS_PLAYLIST_ID } from '../../state/libraryStore.svelte';
   import { notificationCenter } from '../../ui/notificationCenter.svelte';
   import { t } from '../../i18n';
+  import { popupScaleIn, popupScaleOut } from '../../utils/transitions';
+  import { computeContextMenuPosition } from '../../utils/contextMenu';
   import FluentIcon from '../Icons/FluentIcon.svelte';
   import CustomScrollViewer from './CustomScrollViewer.svelte';
   import RollingIndex from './RollingIndex.svelte';
@@ -141,10 +144,17 @@
   // ==========================================
   let activeMenuId = $state<string | null>(null);
   let contextMenuPos = $state<{ x: number; y: number } | null>(null);
+  let contextMenuKey = $state(0);
   let anchorId = $state<string | null>(null);
 
   let selectedIdSet = $derived(new Set(selectedIds));
   let isMultiSelect = $derived(selectedIds.length > 1);
+  let floatingMenu = $derived.by(() => {
+    if (!activeMenuId || !contextMenuPos) return null;
+    const index = songs.findIndex(s => s.id === activeMenuId);
+    if (index === -1) return null;
+    return { key: contextMenuKey, song: songs[index], index, pos: contextMenuPos };
+  });
 
   // Sync selectedId with selectedIds
   $effect(() => {
@@ -220,11 +230,52 @@
       anchorId = song.id;
     }
     activeMenuId = song.id;
-    const menuWidth = 200;
-    const menuHeight = 208;
-    const x = Math.max(8, Math.min(e.clientX, window.innerWidth - menuWidth - 8));
-    const y = Math.max(8, Math.min(e.clientY, window.innerHeight - menuHeight - 8));
-    contextMenuPos = { x, y };
+    contextMenuKey += 1;
+    contextMenuPos = { x: e.clientX, y: e.clientY };
+  }
+
+  function applyContextMenuLayout(node: HTMLElement, anchor: { x: number; y: number }) {
+    const width = node.offsetWidth || 200;
+    const height = node.offsetHeight || 260;
+    const layout = computeContextMenuPosition(
+      anchor,
+      { width, height },
+      { width: window.innerWidth, height: window.innerHeight }
+    );
+    node.style.left = `${layout.left}px`;
+    node.style.top = `${layout.top}px`;
+    node.style.transformOrigin = `${layout.originX}px ${layout.originY}px`;
+  }
+
+  function positionContextMenu(node: HTMLElement, anchor: { x: number; y: number }) {
+    applyContextMenuLayout(node, anchor);
+    return {
+      update(nextAnchor: { x: number; y: number }) {
+        applyContextMenuLayout(node, nextAnchor);
+      }
+    };
+  }
+
+  function getInitialContextMenuStyle(anchor: { x: number; y: number }): string {
+    const viewport = typeof window !== 'undefined'
+      ? { width: window.innerWidth, height: window.innerHeight }
+      : { width: 1280, height: 720 };
+    const layout = computeContextMenuPosition(anchor, { width: 200, height: 260 }, viewport);
+    return `position: fixed; left: ${layout.left}px; top: ${layout.top}px; transform-origin: ${layout.originX}px ${layout.originY}px;`;
+  }
+
+  function prefersReducedMotion(): boolean {
+    return typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  function contextMenuIn(node: Element) {
+    return prefersReducedMotion() ? { duration: 0 } : popupScaleIn(node);
+  }
+
+  function contextMenuOut(node: Element) {
+    return floatingMenu !== null || prefersReducedMotion() ? { duration: 0 } : popupScaleOut(node);
   }
 
   function handleRowDoubleClick(song: MidiFile, index: number) {
@@ -269,10 +320,67 @@
     contextMenuPos = null;
   }
 
-  function handlePlayNextAction(fallbackSong: MidiFile) {
-    const targetSongs = isMultiSelect && selectedIds.includes(fallbackSong.id)
+  function getActionSongs(fallbackSong: MidiFile): MidiFile[] {
+    return isMultiSelect && selectedIds.includes(fallbackSong.id)
       ? songs.filter(s => selectedIds.includes(s.id))
       : [fallbackSong];
+  }
+
+  function areAllTargetSongsLiked(fallbackSong: MidiFile): boolean {
+    const targetSongs = getActionSongs(fallbackSong);
+    return targetSongs.length > 0 && targetSongs.every(song => libraryStore.isSongLiked(song.id));
+  }
+
+  function getLikedSongsLabel(fallbackSong: MidiFile, allLiked: boolean): string {
+    const targetSongs = getActionSongs(fallbackSong);
+    if (targetSongs.length > 1) {
+      return allLiked
+        ? t('songs.removeSelectedFromLikedSongs', { count: targetSongs.length })
+        : t('songs.addSelectedToLikedSongs', { count: targetSongs.length });
+    }
+    return allLiked ? t('songs.removeFromLikedSongs') : t('songs.addToLikedSongs');
+  }
+
+  async function handleToggleLikedSongsAction(fallbackSong: MidiFile) {
+    const targetSongs = getActionSongs(fallbackSong);
+    const targetIds = targetSongs.map(s => s.id);
+    const shouldRemove = targetSongs.length > 0 && targetSongs.every(song => libraryStore.isSongLiked(song.id));
+    closeMenu();
+
+    try {
+      if (shouldRemove) {
+        const removedCount = await libraryStore.removeSongsFromPlaylist(LIKED_SONGS_PLAYLIST_ID, targetIds);
+        notificationCenter.info(
+          t('songs.removedFromLikedSongsTitle'),
+          targetSongs.length === 1
+            ? t('songs.removedFromLikedSongsSingle', { title: targetSongs[0].title })
+            : t('songs.removedFromLikedSongsMultiple', { count: removedCount || targetSongs.length })
+        );
+        await tick();
+        const remainingIds = selectedIds.filter(id => songs.some(s => s.id === id));
+        if (remainingIds.length !== selectedIds.length) {
+          const primary = remainingIds.length > 0
+            ? (songs.find(s => s.id === remainingIds[remainingIds.length - 1]) ?? null)
+            : null;
+          updateSelection(remainingIds, primary);
+        }
+      } else {
+        const unlikedSongs = targetSongs.filter(s => !libraryStore.isSongLiked(s.id));
+        const addedCount = await libraryStore.addSongsToPlaylist(LIKED_SONGS_PLAYLIST_ID, targetIds);
+        notificationCenter.success(
+          t('songs.addedToLikedSongsTitle'),
+          unlikedSongs.length === 1
+            ? t('songs.addedToLikedSongsSingle', { title: unlikedSongs[0].title })
+            : t('songs.addedToLikedSongsMultiple', { count: addedCount || targetSongs.length })
+        );
+      }
+    } catch (error) {
+      notificationCenter.error(t('common.error'), String(error));
+    }
+  }
+
+  function handlePlayNextAction(fallbackSong: MidiFile) {
+    const targetSongs = getActionSongs(fallbackSong);
 
     void playbackStore.playNext(targetSongs);
     notificationCenter.info(t('songs.playNext'), `${targetSongs.length} track(s) will play next.`);
@@ -280,9 +388,7 @@
   }
 
   function handleAddToQueueAction(fallbackSong: MidiFile) {
-    const targetSongs = isMultiSelect && selectedIds.includes(fallbackSong.id)
-      ? songs.filter(s => selectedIds.includes(s.id))
-      : [fallbackSong];
+    const targetSongs = getActionSongs(fallbackSong);
 
     void playbackStore.addToQueue(targetSongs);
     notificationCenter.info(
@@ -1023,6 +1129,8 @@
         {@const visIdx = isDragging && draggedIndex !== null ? (absoluteIdx < draggedIndex ? absoluteIdx : absoluteIdx - 1) : absoluteIdx}
         {@const showDropBefore = isDragging && !isOrigin && targetSlot === visIdx && targetSlot < songs.length - 1}
         {@const showDropAfter = isDragging && !isOrigin && visIdx === songs.length - 2 && targetSlot === songs.length - 1}
+        {@const isInlineMenuOpen = activeMenuId === song.id && !contextMenuPos}
+        {@const isRowLiked = isInlineMenuOpen ? areAllTargetSongsLiked(song) : libraryStore.isSongLiked(song.id)}
 
         <SongListRow
           {song}
@@ -1036,8 +1144,10 @@
           {isOrigin}
           {showDropBefore}
           {showDropAfter}
-          isMenuOpen={activeMenuId === song.id && !contextMenuPos}
+          isMenuOpen={isInlineMenuOpen}
           {isQueue}
+          isLiked={isRowLiked}
+          likedActionLabel={isInlineMenuOpen ? getLikedSongsLabel(song, isRowLiked) : undefined}
           hasStudioOption={!!onviewinstudio && !isMultiSelect}
           hasEditOption={!!onedit && !isMultiSelect}
           onclick={(e) => handleRowClick(e, song, absoluteIdx)}
@@ -1048,6 +1158,7 @@
           onmenuclick={(e) => handleMenuButtonClick(e, song)}
           onplaynext={() => handlePlayNextAction(song)}
           onaddtoqueue={() => handleAddToQueueAction(song)}
+          ontoggleliked={() => handleToggleLikedSongsAction(song)}
           onviewinstudio={() => { onviewinstudio?.(song); closeMenu(); }}
           onedit={() => { onedit?.(song); closeMenu(); }}
           onremove={() => handleRemoveAction(song, absoluteIdx)}
@@ -1156,66 +1267,72 @@
   {/if}
 
   <!-- Floating Right-Click Context Menu -->
-  {#if activeMenuId && contextMenuPos}
-    {@const activeSong = songs.find(s => s.id === activeMenuId)}
-    {#if activeSong}
-      {@const activeSongIdx = songs.findIndex(s => s.id === activeMenuId)}
-      {@const isTargetPlaying = playbackStore.activeSong?.id === activeSong.id && playbackStore.isPlaying}
-      <div
-        class="row-context-menu floating"
-        style="position: fixed; left: {contextMenuPos.x}px; top: {contextMenuPos.y}px;"
-        role="menu"
-        tabindex="-1"
-        onclick={(e) => e.stopPropagation()}
-        onkeydown={(e) => { if (e.key === 'Escape') closeMenu(); }}
+  {#each floatingMenu ? [floatingMenu] : [] as menu (menu.key)}
+    {@const activeSong = menu.song}
+    {@const activeSongIdx = menu.index}
+    {@const isTargetPlaying = playbackStore.activeSong?.id === activeSong.id && playbackStore.isPlaying}
+    {@const isTargetLiked = areAllTargetSongsLiked(activeSong)}
+    <div
+      class="row-context-menu floating"
+      style={getInitialContextMenuStyle(menu.pos)}
+      role="menu"
+      tabindex="-1"
+      use:positionContextMenu={menu.pos}
+      in:contextMenuIn
+      out:contextMenuOut
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => { if (e.key === 'Escape') closeMenu(); }}
+    >
+      <button
+        class="context-item"
+        onclick={() => { handleRowDoubleClick(activeSong, activeSongIdx); closeMenu(); }}
       >
+        <FluentIcon name="Play" size={14} />
+        <span>{isTargetPlaying ? t('player.pause') : t('player.play')}</span>
+      </button>
+
+      <button class="context-item" onclick={() => handlePlayNextAction(activeSong)}>
+        <FluentIcon name="Next" size={14} />
+        <span>{t('songs.playNext')}</span>
+      </button>
+      <button class="context-item" onclick={() => handleAddToQueueAction(activeSong)}>
+        <FluentIcon name="TextBulletListSquare" size={14} />
+        <span>{isMultiSelect ? `Add ${selectedIds.length} tracks to Queue` : t('songs.addToQueue')}</span>
+      </button>
+      <button class="context-item" onclick={() => handleToggleLikedSongsAction(activeSong)}>
+        <FluentIcon name="Heart" size={14} filled={isTargetLiked} class={isTargetLiked ? 'liked-heart-icon' : ''} />
+        <span>{getLikedSongsLabel(activeSong, isTargetLiked)}</span>
+      </button>
+      {#if onviewinstudio && !isMultiSelect}
+        <button class="context-item" onclick={() => { onviewinstudio?.(activeSong); closeMenu(); }}>
+          <FluentIcon name="CalendarMonth" size={14} />
+          <span>{t('songs.viewInStudio')}</span>
+        </button>
+      {/if}
+
+      {#if onedit && !isMultiSelect}
         <button
           class="context-item"
-          onclick={() => { handleRowDoubleClick(activeSong, activeSongIdx); closeMenu(); }}
+          onclick={() => { onedit?.(activeSong); closeMenu(); }}
         >
-          <FluentIcon name="Play" size={14} />
-          <span>{isTargetPlaying ? t('player.pause') : t('player.play')}</span>
+          <FluentIcon name="Edit" size={14} />
+          <span>{t('songs.editDetails')}</span>
         </button>
-
-        <button class="context-item" onclick={() => handlePlayNextAction(activeSong)}>
-          <FluentIcon name="Next" size={14} />
-          <span>{t('songs.playNext')}</span>
+      {/if}
+      {#if ondelete}
+        <button class="context-item danger" onclick={() => handleDeleteAction(activeSong)}>
+          <FluentIcon name="Delete" size={14} />
+          <span>{t('songs.deleteFromLibrary')}</span>
         </button>
-        <button class="context-item" onclick={() => handleAddToQueueAction(activeSong)}>
-          <FluentIcon name="TextBulletListSquare" size={14} />
-          <span>{isMultiSelect ? `Add ${selectedIds.length} tracks to Queue` : t('songs.addToQueue')}</span>
+      {/if}
+      {#if isQueue}
+        <button class="context-item danger" onclick={() => handleRemoveAction(activeSong, activeSongIdx)}>
+          <FluentIcon name="Delete" size={14} />
+          <span>{isMultiSelect ? `Remove ${selectedIds.length} tracks from Queue` : t('songs.removeFromQueue')}</span>
         </button>
-        {#if onviewinstudio && !isMultiSelect}
-          <button class="context-item" onclick={() => { onviewinstudio?.(activeSong); closeMenu(); }}>
-            <FluentIcon name="CalendarMonth" size={14} />
-            <span>{t('songs.viewInStudio')}</span>
-          </button>
-        {/if}
-
-        {#if onedit && !isMultiSelect}
-          <button
-            class="context-item"
-            onclick={() => { onedit?.(activeSong); closeMenu(); }}
-          >
-            <FluentIcon name="Edit" size={14} />
-            <span>{t('songs.editDetails')}</span>
-          </button>
-        {/if}
-        {#if ondelete}
-          <button class="context-item danger" onclick={() => handleDeleteAction(activeSong)}>
-            <FluentIcon name="Delete" size={14} />
-            <span>{t('songs.deleteFromLibrary')}</span>
-          </button>
-        {/if}
-        {#if isQueue}
-          <button class="context-item danger" onclick={() => handleRemoveAction(activeSong, activeSongIdx)}>
-            <FluentIcon name="Delete" size={14} />
-            <span>{isMultiSelect ? `Remove ${selectedIds.length} tracks from Queue` : t('songs.removeFromQueue')}</span>
-          </button>
-        {/if}
-      </div>
-    {/if}
-  {/if}
+      {/if}
+    </div>
+  {/each}
 </div>
 
 <style>
@@ -1662,6 +1779,8 @@
   /* Right-Click Floating Context Menu */
   .row-context-menu.floating {
     z-index: 10000;
+    transform-origin: top left;
+    will-change: transform, opacity;
     background: var(--bg-dialog, #282828);
     border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
     border-radius: 6px;
@@ -1671,6 +1790,10 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+  }
+
+  .row-context-menu :global(.liked-heart-icon) {
+    color: var(--accent-color, var(--accent, #1DB954));
   }
 
   .context-item {

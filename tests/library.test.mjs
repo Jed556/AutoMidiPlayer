@@ -198,9 +198,9 @@ async function storeHarness() {
       (_, names, path) => `const {${names}} = globalThis.${key}[${JSON.stringify(path)}];`);
   const compiled = compileModule(source, { filename: 'libraryStore.svelte.js', generate: 'client' }).js.code
     .replace("'svelte/internal/client'", JSON.stringify(import.meta.resolve('svelte/internal/client')));
-  const { libraryStore: store } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
+  const { libraryStore: store, LIKED_SONGS_PLAYLIST_ID } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
   delete globalThis[key];
-  return { store, api, calls, toasts };
+  return { store, LIKED_SONGS_PLAYLIST_ID, api, calls, toasts };
 }
 
 test('library changes show batched add/remove toasts and quiet scans show none', async () => {
@@ -269,4 +269,58 @@ test('playlist ordering goes through the playlist API and refreshes its stored m
   h.api.playlists.reorderPlaylist = async () => false;
   await assert.rejects(h.store.reorderPlaylist('liked-songs', ['a', 'b']), /could not be saved/);
   assert.deepEqual(h.store.songsByPlaylist['liked-songs'].map(song => song.id), ['b', 'a']);
+});
+
+test('Liked Songs batch helpers deduplicate, skip duplicates, preserve order, and report failures', async () => {
+  const h = await storeHarness();
+  const catalog = [{ id: 'a', title: 'Song A' }, { id: 'b', title: 'Song B' }, { id: 'c', title: 'Song C' }];
+  let liked = [catalog[0]];
+  let reloadCount = 0;
+
+  h.api.songs.getSongs = async () => catalog;
+  h.api.playlists.getPlaylists = async () => [{ id: 'liked-songs', title: 'Liked Songs' }];
+  h.api.playlists.getPlaylistSongs = async (playlistId) => {
+    reloadCount++;
+    return playlistId === 'liked-songs' ? [...liked] : [];
+  };
+  h.api.playlists.addToPlaylist = async (playlistId, songId) => {
+    h.calls.push(['add', playlistId, songId]);
+    const song = catalog.find(item => item.id === songId);
+    if (song && !liked.some(item => item.id === songId)) liked = [...liked, song];
+    return true;
+  };
+  h.api.playlists.removeFromPlaylist = async (playlistId, songId) => {
+    h.calls.push(['remove', playlistId, songId]);
+    liked = liked.filter(item => item.id !== songId);
+    return true;
+  };
+
+  await h.store.init();
+  reloadCount = 0;
+  assert.equal(h.LIKED_SONGS_PLAYLIST_ID, 'liked-songs');
+  assert.equal(h.store.isSongLiked('a'), true);
+  assert.equal(h.store.isSongLiked('b'), false);
+
+  assert.equal(await h.store.addSongsToPlaylist('liked-songs', ['a', 'c', 'b', 'c']), 2);
+  assert.deepEqual(h.calls, [['add', 'liked-songs', 'c'], ['add', 'liked-songs', 'b']]);
+  assert.equal(reloadCount, 1);
+  assert.deepEqual([...h.store.likedSongIds], ['a', 'c', 'b']);
+  assert.equal(h.store.isSongLiked('b'), true);
+
+  h.calls.length = 0;
+  assert.equal(await h.store.addSongsToPlaylist('liked-songs', ['a', 'b']), 0);
+  assert.deepEqual(h.calls, []);
+  assert.equal(reloadCount, 1);
+
+  assert.equal(await h.store.removeSongsFromPlaylist('liked-songs', ['a', 'missing', 'a']), 1);
+  assert.deepEqual(h.calls, [['remove', 'liked-songs', 'a']]);
+  assert.equal(reloadCount, 2);
+  assert.equal(h.store.isSongLiked('a'), false);
+  assert.equal(h.store.isSongLiked('c'), true);
+
+  h.api.playlists.addToPlaylist = async () => false;
+  await assert.rejects(h.store.addSongsToPlaylist('liked-songs', ['a']), /could not be added/);
+
+  h.api.playlists.removeFromPlaylist = async () => false;
+  await assert.rejects(h.store.removeSongsFromPlaylist('liked-songs', ['c']), /could not be removed/);
 });

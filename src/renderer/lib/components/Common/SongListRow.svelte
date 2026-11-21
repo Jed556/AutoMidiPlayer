@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { MidiFile } from '$shared/types/midi';
   import { t } from '../../i18n';
+  import { popupScaleIn, popupScaleOut } from '../../utils/transitions';
   import FluentIcon from '../Icons/FluentIcon.svelte';
   import PlayPauseIcon from '../Icons/PlayPauseIcon.svelte';
   import EqualizerControl from './EqualizerControl.svelte';
@@ -21,6 +22,8 @@
     showDropAfter: boolean;
     isMenuOpen: boolean;
     isQueue?: boolean;
+    isLiked?: boolean;
+    likedActionLabel?: string;
     hasStudioOption?: boolean;
     hasEditOption?: boolean;
     onclick: (e: MouseEvent) => void;
@@ -31,6 +34,7 @@
     onmenuclick: (e: MouseEvent) => void;
     onplaynext?: () => void;
     onaddtoqueue?: () => void;
+    ontoggleliked?: () => void;
     onviewinstudio?: () => void;
     onedit?: () => void;
     onremove?: () => void;
@@ -52,6 +56,8 @@
     showDropAfter,
     isMenuOpen,
     isQueue = false,
+    isLiked = false,
+    likedActionLabel,
     hasStudioOption = true,
     hasEditOption = true,
     onclick,
@@ -62,6 +68,7 @@
     onmenuclick,
     onplaynext,
     onaddtoqueue,
+    ontoggleliked,
     onviewinstudio,
     onedit,
     onremove,
@@ -70,6 +77,20 @@
   }: Props = $props();
 
   let isActivelyPlaying = $derived(isCurrentSong && isPlaying);
+
+  function prefersReducedMotion(): boolean {
+    return typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  function rowMenuIn(node: Element) {
+    return prefersReducedMotion() ? { duration: 0 } : popupScaleIn(node);
+  }
+
+  function rowMenuOut(node: Element) {
+    return prefersReducedMotion() ? { duration: 0 } : popupScaleOut(node);
+  }
 
   function formatDuration(sec?: number): string {
     if (sec === undefined || sec === null || isNaN(sec)) return '0:00';
@@ -227,6 +248,8 @@
         class="row-context-menu"
         role="menu"
         tabindex="-1"
+        in:rowMenuIn
+        out:rowMenuOut
         onclick={(e) => e.stopPropagation()}
         onkeydown={(e) => { if (e.key === 'Escape') onclosemenu?.(); }}
       >
@@ -248,6 +271,12 @@
           <button class="context-item" onclick={() => { onaddtoqueue?.(); onclosemenu?.(); }}>
             <FluentIcon name="TextBulletListSquare" size={14} />
             <span>{t('songs.addToQueue')}</span>
+          </button>
+        {/if}
+        {#if ontoggleliked}
+          <button class="context-item" onclick={() => { ontoggleliked?.(); onclosemenu?.(); }}>
+            <FluentIcon name="Heart" size={14} filled={isLiked} class={isLiked ? 'liked-heart-icon' : ''} />
+            <span>{likedActionLabel ?? (isLiked ? t('songs.removeFromLikedSongs') : t('songs.addToLikedSongs'))}</span>
           </button>
         {/if}
         {#if onviewinstudio && hasStudioOption}
@@ -610,6 +639,8 @@
     position: absolute;
     top: calc(100% + 4px);
     right: 8px;
+    transform-origin: top right;
+    will-change: transform, opacity;
     background: var(--bg-dialog, #282828);
     border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
     border-radius: 6px;
@@ -620,6 +651,10 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+  }
+
+  .row-context-menu :global(.liked-heart-icon) {
+    color: var(--accent-color, var(--accent, #1DB954));
   }
 
   .context-item {

@@ -5,6 +5,8 @@ import type { LibraryFileIssue, LibraryScanSummary, FileIssueAction } from '../.
 import { notificationCenter } from '../ui/notificationCenter.svelte';
 import { t } from '../i18n';
 
+export const LIKED_SONGS_PLAYLIST_ID = 'liked-songs';
+
 export interface PlaylistInfo {
   id: string;
   title: string;
@@ -19,12 +21,17 @@ export interface PlaylistInfo {
 class LibraryStore {
   songs = $state<MidiFile[]>([]);
   songsByPlaylist = $state<Record<string, MidiFile[]>>({});
+  likedSongIds = $derived(new Set((this.songsByPlaylist[LIKED_SONGS_PLAYLIST_ID] ?? []).map((song) => song.id)));
   selectedPlaylistId = $state<string>(DEFAULT_UI_PREFERENCES.selectedPlaylistId);
   isScanning = $state<boolean>(false);
   playlists = $state<PlaylistInfo[]>([]);
   fileIssues = $state<LibraryFileIssue[]>([]);
   hasFileIssues = $derived(this.fileIssues.length > 0);
   onSongsUnavailable?: (ids: string[]) => Promise<void>;
+
+  isSongLiked(songId: string): boolean {
+    return this.likedSongIds.has(songId);
+  }
 
   private _isInitialized = false;
   private reloadId = 0;
@@ -180,10 +187,40 @@ class LibraryStore {
     return res;
   }
 
+  async addSongsToPlaylist(playlistId: string, songIds: string[]): Promise<number> {
+    const existingIds = new Set((this.songsByPlaylist[playlistId] ?? []).map((song) => song.id));
+    const uniqueIds = [...new Set(songIds)];
+    const toAdd = uniqueIds.filter((id) => !existingIds.has(id));
+    if (!toAdd.length) return 0;
+
+    for (const songId of toAdd) {
+      const ok = await api.playlists.addToPlaylist(playlistId, songId);
+      if (!ok) throw new Error('The song could not be added to the playlist.');
+    }
+    await this.reload();
+    return toAdd.length;
+  }
+
   async removeFromPlaylist(playlistId: string, songId: string) {
     const res = await api.playlists.removeFromPlaylist(playlistId, songId);
     await this.reload();
     return res;
+  }
+
+  async removeSongsFromPlaylist(playlistId: string, songIds: string[]): Promise<number> {
+    const uniqueIds = [...new Set(songIds)];
+    const existing = this.songsByPlaylist[playlistId];
+    const toRemove = existing
+      ? uniqueIds.filter((id) => existing.some((song) => song.id === id))
+      : uniqueIds;
+    if (!toRemove.length) return 0;
+
+    for (const songId of toRemove) {
+      const ok = await api.playlists.removeFromPlaylist(playlistId, songId);
+      if (!ok) throw new Error('The song could not be removed from the playlist.');
+    }
+    await this.reload();
+    return toRemove.length;
   }
 
   async reorderPlaylist(playlistId: string, songIds: string[]) {

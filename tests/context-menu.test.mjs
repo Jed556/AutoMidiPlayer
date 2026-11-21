@@ -2,7 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { compile } from 'svelte/compiler';
-import { handleAppContextMenu, shouldAllowNativeContextMenu } from '../src/renderer/lib/utils/contextMenu.ts';
+import {
+  computeContextMenuPosition,
+  handleAppContextMenu,
+  shouldAllowNativeContextMenu,
+} from '../src/renderer/lib/utils/contextMenu.ts';
 
 function makeElement({ tagName = 'DIV', type = '', classes = [], attrs = {}, isContentEditable = false, parent = null } = {}) {
   const el = {
@@ -100,4 +104,55 @@ test('NavigationDrawer and App wire up context menu suppression and compile clea
   const appCompiled = compile(appSource, { filename: 'App.svelte', generate: 'client' });
   assert.ok(navCompiled.js.code.length > 0);
   assert.ok(appCompiled.js.code.length > 0);
+});
+
+test('computeContextMenuPosition anchors at cursor and flips or clamps near viewport edges', () => {
+  const menuSize = { width: 200, height: 260 };
+  const viewport = { width: 1280, height: 720 };
+
+  assert.deepEqual(
+    computeContextMenuPosition({ x: 300, y: 200 }, menuSize, viewport),
+    { left: 300, top: 200, originX: 0, originY: 0 },
+  );
+
+  assert.deepEqual(
+    computeContextMenuPosition({ x: 1200, y: 200 }, menuSize, viewport),
+    { left: 1000, top: 200, originX: 200, originY: 0 },
+  );
+
+  assert.deepEqual(
+    computeContextMenuPosition({ x: 300, y: 650 }, menuSize, viewport),
+    { left: 300, top: 390, originX: 0, originY: 260 },
+  );
+
+  assert.deepEqual(
+    computeContextMenuPosition({ x: 1240, y: 680 }, menuSize, viewport),
+    { left: 1040, top: 420, originX: 200, originY: 260 },
+  );
+
+  const clamped = computeContextMenuPosition({ x: 4, y: 3 }, menuSize, { width: 180, height: 220 });
+  assert.deepEqual(clamped, { left: 8, top: 8, originX: 0, originY: 0 });
+});
+
+test('SongListTable and SongListRow animate context menus and wire Liked Songs actions cleanly', () => {
+  const tableSource = readFileSync(new URL('../src/renderer/lib/components/Common/SongListTable.svelte', import.meta.url), 'utf8');
+  const rowSource = readFileSync(new URL('../src/renderer/lib/components/Common/SongListRow.svelte', import.meta.url), 'utf8');
+
+  assert.match(tableSource, /\{#each floatingMenu \? \[floatingMenu\] : \[\] as menu \(menu\.key\)\}/);
+  assert.match(tableSource, /use:positionContextMenu=\{menu\.pos\}/);
+  assert.match(tableSource, /in:contextMenuIn/);
+  assert.match(tableSource, /out:contextMenuOut/);
+  assert.match(tableSource, /handleToggleLikedSongsAction/);
+  assert.match(tableSource, /LIKED_SONGS_PLAYLIST_ID/);
+
+  assert.match(rowSource, /in:rowMenuIn/);
+  assert.match(rowSource, /out:rowMenuOut/);
+  assert.match(rowSource, /ontoggleliked/);
+  assert.match(rowSource, /songs\.addToLikedSongs/);
+  assert.match(rowSource, /songs\.removeFromLikedSongs/);
+
+  const tableCompiled = compile(tableSource, { filename: 'SongListTable.svelte', generate: 'client' });
+  const rowCompiled = compile(rowSource, { filename: 'SongListRow.svelte', generate: 'client' });
+  assert.ok(tableCompiled.js.code.length > 0);
+  assert.ok(rowCompiled.js.code.length > 0);
 });
