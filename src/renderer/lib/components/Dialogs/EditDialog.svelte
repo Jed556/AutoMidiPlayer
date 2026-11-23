@@ -47,11 +47,11 @@
   let baseKey = $state<number | null>(initial.baseKey);
   let key = $state(initial.key);
   let transpose = $state<TransposeMode>(initial.transpose);
-  let bpm = $state<number | undefined>(initial.bpm);
+  let bpm = $state<number | null | undefined>(initial.bpm);
   let nativeBpm = $state(song.nativeBpm ?? song.bpm ?? 120);
   let speed = $state(initial.speed);
   let mergeNotes = $state(initial.mergeNotes);
-  let mergeMilliseconds = $state<number | undefined>(initial.mergeMilliseconds);
+  let mergeMilliseconds = $state<number | null | undefined>(initial.mergeMilliseconds);
   let holdNotes = $state(initial.holdNotes);
   let tapThresholdMs = $state(initial.tapThresholdMs);
   let enableKeyChangeMarkers = $state(initial.enableKeyChangeMarkers);
@@ -146,7 +146,7 @@
     if (kind !== 'global' && !context) return;
     const scope: SongSettingsScope = kind === 'global' ? { kind }
       : kind === 'game' ? { kind, gameId: context!.gameId } : { kind, ...context! };
-    if (bpm !== undefined && (!Number.isFinite(bpm) || bpm <= 0 || bpm > 999)) {
+    if (bpm != null && (!Number.isFinite(bpm) || bpm <= 0 || bpm > 999)) {
       error = 'BPM must be between 0 and 999, or blank to use the native BPM.';
       return;
     }
@@ -156,7 +156,7 @@
       return;
     }
     const savedTitle = title.trim() || song.filePath.split(/[/\\]/).pop()?.replace(/\.midi?$/i, '') || song.title;
-    const bpmOverride = bpm === undefined || Math.abs(bpm - nativeBpm) < 0.01 ? null : bpm;
+    const bpmOverride = bpm == null || Math.abs(bpm - nativeBpm) < 0.01 ? null : bpm;
     const details: SongDetailsUpdate = {
       title: savedTitle, artist: artist.trim(), album: album.trim(), baseKey, key,
       transpose: { Ignore: 0, Smart: 1, Up: 2, Down: 3 }[transpose],
@@ -244,7 +244,7 @@
       <div class="field-pair">
         <div class="form-field">
           <label for="edit-song-bpm">BPM</label>
-          <input id="edit-song-bpm" type="number" min="0.1" max="999" step="0.01" bind:value={() => bpm === undefined ? undefined : Number(formatBpm(bpm)), value => bpm = value} placeholder={formatBpm(nativeBpm)} />
+          <input id="edit-song-bpm" type="number" min="0.1" max="999" step="0.01" bind:value={() => bpm == null ? null : Number(formatBpm(bpm)), value => bpm = value ?? undefined} placeholder={formatBpm(nativeBpm)} />
         </div>
         <div class="form-field">
           <label for="edit-song-speed">Speed</label>

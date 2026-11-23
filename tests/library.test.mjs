@@ -6,7 +6,8 @@ import { stripTypeScriptTypes } from 'node:module';
 import { compileModule } from 'svelte/compiler';
 import { dedupeIssuesByKind, groupDuplicateFiles } from '../src/renderer/lib/utils/fileIssueGroups.ts';
 import { filterMidiFilePaths, normalizeTargetPlaylistId, resolveDropTargetPlaylistId } from '../src/renderer/lib/utils/midiImport.ts';
-import { getMarkerNoteDisplay } from '../src/renderer/lib/utils/musicConstants.ts';
+import { getMarkerNoteDisplay, formatBpm } from '../src/renderer/lib/utils/musicConstants.ts';
+import { compile } from 'svelte/compiler';
 
 const duplicateIssue = (path, songId, relatedPath) => ({
   kind: 'duplicate', path, songId, relatedPath, title: 'Same title', details: null,
@@ -522,4 +523,29 @@ test('libraryStore.importFiles adds imported songs to both All Songs and the tar
   ]);
   assert.equal(h.store.songs.some(song => song.id === customImported[0].id), true);
   assert.equal(h.store.songsByPlaylist['pl-custom'].some(song => song.id === customImported[0].id), true);
+});
+
+test('formatBpm safely handles valid, null, undefined, and non-finite BPM values', () => {
+  assert.equal(formatBpm(120), '120');
+  assert.equal(formatBpm(128.5714), '128.57');
+  assert.equal(formatBpm(120.00), '120');
+  assert.equal(formatBpm(95.4), '95.4');
+
+  assert.equal(formatBpm(null), '');
+  assert.equal(formatBpm(undefined), '');
+  assert.equal(formatBpm(Number.NaN), '');
+  assert.equal(formatBpm(Number.POSITIVE_INFINITY), '');
+  assert.equal(formatBpm(Number.NEGATIVE_INFINITY), '');
+});
+
+test('EditDialog handles cleared BPM input without throwing toFixed on null', () => {
+  const editDialogSource = readFileSync(new URL('../src/renderer/lib/components/Dialogs/EditDialog.svelte', import.meta.url), 'utf8');
+
+  // Verify the binding handles null and doesn't invoke toFixed on null
+  assert.match(editDialogSource, /bind:value=\{\(\) => bpm == null \? null : Number\(formatBpm\(bpm\)\), value => bpm = value \?\? undefined\}/);
+  assert.match(editDialogSource, /if \(bpm != null && \(!Number\.isFinite\(bpm\)/);
+  assert.match(editDialogSource, /const bpmOverride = bpm == null \|\| Math\.abs\(bpm - nativeBpm\) < 0\.01 \? null : bpm;/);
+
+  const compiled = compile(editDialogSource, { filename: 'EditDialog.svelte', generate: 'client' });
+  assert.ok(compiled.js.code.length > 0);
 });

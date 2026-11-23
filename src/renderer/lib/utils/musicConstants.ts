@@ -22,7 +22,8 @@ export function formatSignedOffset(offset: number): string {
 }
 
 /** Keep MIDI tempo conversion precision in the model, not in the UI. */
-export function formatBpm(bpm: number): string {
+export function formatBpm(bpm: number | null | undefined): string {
+  if (bpm == null || !Number.isFinite(bpm)) return '';
   return String(Number(bpm.toFixed(2)));
 }
 
