@@ -11,6 +11,7 @@
   import PedalSettingsDialog from './PedalSettingsDialog.svelte';
   import SheetLegendDialog from './SheetLegendDialog.svelte';
   import PlaylistDialog from './PlaylistDialog.svelte';
+  import ReleaseNotesDialog from './ReleaseNotesDialog.svelte';
 
   let { onreset }: { onreset: () => Promise<void> } = $props();
 
@@ -63,6 +64,8 @@
         <SheetLegendDialog />
       {:else if uiStore.activeDialog === 'playlist'}
         <PlaylistDialog />
+      {:else if uiStore.activeDialog === 'releaseNotes'}
+        <ReleaseNotesDialog />
       {/if}
     </div>
   </div>
@@ -101,7 +104,15 @@
   }
 
   .dialog-box.dialog-update {
-    width: 480px;
+    width: min(580px, calc(100vw - 32px));
+    max-height: min(720px, calc(100dvh - 32px));
+  }
+
+  .dialog-box.dialog-releaseNotes {
+    width: min(760px, 80vw);
+    min-width: min(500px, calc(100vw - 32px));
+    height: min(740px, 84vh);
+    min-height: min(420px, 65vh);
   }
 
   .dialog-box.dialog-fileIssues {

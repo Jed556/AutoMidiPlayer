@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { dispatchedGuitarPositions, guitarVoicing, guitarChord } from '../src/renderer/lib/utils/guitarLayout.ts';
+import {
+  backtrackGuitarSlot,
+  dispatchedGuitarPositions,
+  guitarVoicing,
+  guitarChord,
+  fretRomanNumeral,
+  resolveGuitarSlotFromPitches,
+  wheelAngleDelta,
+} from '../src/renderer/lib/utils/guitarLayout.ts';
 import { instrumentLayoutIds, guitarNotes } from '../src/shared/utils/instrumentLayout.ts';
 
 const guitar = { guitar: { tuning: [64, 59, 55, 50, 45, 40], fretCount: 24 },
@@ -47,4 +55,66 @@ test('guitar display uses the dispatched shape, string mask, and open selector',
     { string: 0, fret: 0, pitch: 64 }, { string: 5, fret: 0, pitch: 40 },
   ]);
   assert.deepEqual(dispatchedGuitarPositions(instrument, { ...attack, slot: null }), []);
+});
+
+test('fret wheel labels use Roman numerals I through XXIV', () => {
+  const expected = [
+    'I', 'II', 'III', 'IV', 'V', 'VI',
+    'VII', 'VIII', 'IX', 'X', 'XI', 'XII',
+    'XIII', 'XIV', 'XV', 'XVI', 'XVII', 'XVIII',
+    'XIX', 'XX', 'XXI', 'XXII', 'XXIII', 'XXIV',
+  ];
+  assert.deepEqual(Array.from({ length: 24 }, (_, idx) => fretRomanNumeral(idx + 1)), expected);
+  assert.equal(fretRomanNumeral(0), '');
+  assert.equal(fretRomanNumeral(-3), '');
+});
+
+test('wheel highlight rotor takes the shortest angular path around the ring', () => {
+  // Stepping clockwise 0 -> 1 -> ... -> 5 -> 0 accumulates +60° per step without spinning backward
+  let angle = 0;
+  for (const slot of [1, 2, 3, 4, 5, 0, 1]) {
+    angle += wheelAngleDelta(angle, slot, 6);
+  }
+  assert.equal(angle, 420);
+
+  // Stepping counter-clockwise 0 -> 5 takes -60° instead of +300°
+  assert.equal(wheelAngleDelta(0, 5, 6), -60);
+  // Stepping clockwise 5 (300°) -> 0 takes +60° instead of -300°
+  assert.equal(wheelAngleDelta(300, 0, 6), 60);
+  // Opposite slot (180°) takes +180°
+  assert.equal(wheelAngleDelta(0, 3, 6), 180);
+  assert.equal(wheelAngleDelta(60, 1, 6), 0);
+});
+
+test('backtrackGuitarSlot resolves the active fret or chord at or before the playhead', () => {
+  const notes = [
+    { noteNumber: 55, startMs: 0, lengthMs: 200, trackIndex: 0 },
+    { noteNumber: 59, startMs: 0, lengthMs: 200, trackIndex: 0 },
+    { noteNumber: 62, startMs: 0, lengthMs: 200, trackIndex: 0 },
+    { noteNumber: 59, startMs: 500, lengthMs: 200, trackIndex: 0 },
+    { noteNumber: 62, startMs: 500, lengthMs: 200, trackIndex: 0 },
+    { noteNumber: 67, startMs: 500, lengthMs: 200, trackIndex: 0 },
+    { noteNumber: 88, startMs: 1000, lengthMs: 200, trackIndex: 0 },
+  ];
+
+  // At 300ms (after first G chord at 0ms, before G/B at 500ms), backtracks to G (slot 0)
+  assert.equal(
+    backtrackGuitarSlot({ instrument: guitar, fretMode: false, notes, currentTimeMs: 300 }),
+    0,
+  );
+
+  // At 750ms (after G/B at 500ms), backtracks to G/B (slot 1)
+  assert.equal(
+    backtrackGuitarSlot({ instrument: guitar, fretMode: false, notes, currentTimeMs: 750 }),
+    1,
+  );
+
+  // In fret mode at 1200ms (after pitch 88 = fret 24 = slot 23), backtracks to slot 23
+  assert.equal(
+    backtrackGuitarSlot({ instrument: guitar, fretMode: true, notes, currentTimeMs: 1200 }),
+    23,
+  );
+
+  // Open string pitch 40 resolves to openSlot (24) in fret mode
+  assert.equal(resolveGuitarSlotFromPitches(guitar, [40], true, 6), 24);
 });

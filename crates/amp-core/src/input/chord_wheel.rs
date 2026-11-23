@@ -16,6 +16,7 @@ pub enum WheelButton {
 #[serde(rename_all = "camelCase")]
 pub struct ChordWheelState {
     pub page: Option<usize>,
+    pub selected: Option<usize>,
     pub busy: bool,
     pub error: Option<String>,
 }
@@ -91,9 +92,35 @@ impl ChordWheelOutput {
     pub fn state(&self) -> ChordWheelState {
         ChordWheelState {
             page: self.page,
+            selected: self.selected,
             busy: self.is_active(),
             error: None,
         }
+    }
+    pub fn selected(&self) -> Option<usize> {
+        self.selected
+    }
+    pub fn reconcile_in_flight(
+        &mut self,
+        target_page: usize,
+        index: usize,
+        owner: Option<usize>,
+    ) -> bool {
+        let Some(attack) = &mut self.attack else {
+            return false;
+        };
+        let slot = index % attack.config.positions.len();
+        if (attack.expired || attack.owner.is_none()) && !matches!(attack.stage, Stage::StrumUp) {
+            if attack.target_page == target_page && attack.slot == Some(slot) {
+                attack.owner = owner;
+                attack.expired = false;
+                return true;
+            }
+            if self.held.is_none() && self.page_key.is_none() && self.held_strings.is_empty() {
+                self.attack = None;
+            }
+        }
+        false
     }
     pub fn assume_page(&mut self, page: usize) {
         self.page = Some(page);
@@ -139,7 +166,8 @@ impl ChordWheelOutput {
             return Err("The selected game has no process target for chord playback.".into());
         }
         output.wheel_move(processes, config.strum_position)?;
-        let already_selected = index.is_some() && self.selected == index;
+        let already_selected =
+            index.is_some() && self.selected == index && self.page == Some(target_page);
         if !already_selected {
             self.selected = None;
         }
@@ -232,7 +260,7 @@ impl ChordWheelOutput {
                 attack.stage = Stage::Ready;
                 attack.at = now + Duration::from_millis(attack.config.after_select_ms.into());
             }
-            Stage::Ready if attack.expired => self.attack = None,
+            Stage::Ready if attack.expired || attack.owner.is_none() => self.attack = None,
             Stage::Ready => {}
             Stage::StrumUp => {
                 if self.held == Some(WheelButton::Right) {

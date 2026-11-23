@@ -5,7 +5,11 @@
   import Button from '../Common/Button.svelte';
   import FluentIcon from '../Icons/FluentIcon.svelte';
   import ContentDialog from './ContentDialog.svelte';
+  import MarkdownReader from '../Common/MarkdownReader.svelte';
+  import { getReleaseNotesMarkdown } from '../../data/releaseNotesData';
   import { t } from '../../i18n';
+
+  let releaseNotes = $derived(getReleaseNotesMarkdown(updateStore.latestRelease?.body));
 
   function downloadUpdate() {
     void updateStore.downloadUpdate(() => playbackStore.prepareForUpdate());
@@ -13,7 +17,7 @@
   }
 
   function openReleaseNotes() {
-    updateStore.openReleaseNotes();
+    uiStore.openDialog('releaseNotes');
   }
 </script>
 
@@ -52,22 +56,9 @@
       {/if}
     </div>
 
-    <!-- Changelog Box -->
-    <div class="changelog-box">
-      <h4 class="cl-title">{t('dialogs.whatsNew', { version: updateStore.latestVersion })}</h4>
-      <ul class="cl-list">
-        {#if updateStore.changelogList.length > 0}
-          {#each updateStore.changelogList as item}
-            <li>{item}</li>
-          {/each}
-        {:else}
-          <li>{t('dialogs.clItem1')}</li>
-          <li>{t('dialogs.clItem2')}</li>
-          <li>{t('dialogs.clItem3')}</li>
-          <li>{t('dialogs.clItem4')}</li>
-          <li>{t('dialogs.clItem5')}</li>
-        {/if}
-      </ul>
+    <!-- Release Notes Box (1:1 Markdown Reader) -->
+    <div class="release-notes-box">
+      <MarkdownReader markdown={releaseNotes} />
     </div>
   </div>
 
@@ -148,29 +139,10 @@
     font-size: 11.5px;
   }
 
-  .changelog-box {
+  .release-notes-box {
     background: var(--bg-tertiary);
     border-radius: var(--radius-sm);
-    padding: 12px 14px;
-  }
-
-  .cl-title {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0 0 6px 0;
-  }
-
-  .cl-list {
-    margin: 0;
-    padding-left: 18px;
-    font-size: 11.5px;
-    color: var(--text-secondary);
-    line-height: 1.6;
-  }
-
-  .cl-list li {
-    margin-bottom: 3px;
+    padding: 14px 16px;
   }
 
   .footer-actions {

@@ -1171,10 +1171,74 @@ fn run_playback_loop(
         if rebuild_chords {
             key_sim.cancel_wheel();
             rebuild_chords = false;
+            if chord_notes.is_empty() && event_idx > 0 && mapping.chord_wheel().is_some() {
+                if let Some(song) = current_song.as_ref() {
+                    let enabled = |_: usize, event: &crate::midi::TimedNoteEvent| {
+                        !muted_tracks.contains(&event.track_index)
+                            && ((event.velocity as f32)
+                                * track_volumes.get(&event.track_index).copied().unwrap_or(1.0))
+                            .round()
+                                > 0.0
+                    };
+                    let transform = |pitch, time_us: u64| {
+                        let marker = key_markers_enabled
+                            .then(|| get_active_marker(&key_markers, (time_us + 10_000) / 1000))
+                            .flatten();
+                        let offset = marker.map(|m| m.key_offset).unwrap_or(key_offset);
+                        process_note_pitch(
+                            pitch,
+                            offset,
+                            marker.and_then(|m| m.transpose).unwrap_or(transpose_mode),
+                            min_pitch,
+                            max_pitch,
+                            &playable_notes,
+                        )
+                    };
+                    let start = GuitarPlanStart {
+                        from_index: 0,
+                        initial_fret_mode: key_sim.fret_mode().unwrap_or(false),
+                        initial_chord_page: key_sim
+                            .page_for_context(wheel_contexts[0].as_deref())
+                            .unwrap_or(0),
+                        initial_fret_page: key_sim
+                            .page_for_context(wheel_contexts[1].as_deref())
+                            .unwrap_or(0),
+                        speed,
+                        hold_ms: tap_duration_ms,
+                    };
+                    chord_notes = plan_guitar(
+                        song,
+                        &mapping,
+                        start,
+                        note_processing.chord_detection_milliseconds,
+                        enabled,
+                        transform,
+                    )
+                    .notes;
+                }
+            }
             // A pad attack replaces the whole chord. Keep its remaining members
-            // suppressed if controls change between their staggered onsets.
-            let frozen: Vec<_> = chord_notes.iter().map(|note|
-                note.filter(|note| triggered_chords.contains(&note.chord_id))).collect();
+            // suppressed if controls change between their staggered onsets, and
+            // preserve historical guitar attacks (< event_idx) for backtracking.
+            let past_chords: HashSet<usize> = if mapping.chord_wheel().is_some() {
+                chord_notes
+                    .iter()
+                    .take(event_idx)
+                    .flatten()
+                    .map(|note| note.chord_id)
+                    .collect()
+            } else {
+                HashSet::new()
+            };
+            let frozen: Vec<_> = chord_notes
+                .iter()
+                .map(|note| {
+                    note.filter(|note| {
+                        triggered_chords.contains(&note.chord_id)
+                            || past_chords.contains(&note.chord_id)
+                    })
+                })
+                .collect();
             let next_chord_id = frozen.iter().flatten().map(|note| note.chord_id + 1).max().unwrap_or(0);
             let mut omissions = (0, 0);
             let mut planned = current_song.as_ref().map(|song| {
@@ -1417,28 +1481,78 @@ fn run_playback_loop(
         };
 
         if send_input && !listen_mode && mapping.chord_wheel().is_some() {
-            if let Some(&attack) = wheel_attacks.get(wheel_attacks.partition_point(|attack| attack.owner < event_idx)) {
+            let next_pos = wheel_attacks.partition_point(|attack| attack.owner < event_idx);
+            let next_attack = wheel_attacks.get(next_pos).copied();
+            let prev_attack = next_pos.checked_sub(1).and_then(|i| wheel_attacks.get(i)).copied();
+            let mut prepared_next = false;
+
+            if let Some(attack) = next_attack {
                 if let Some(config) = mapping.wheel_for_mode(attack.fret) {
                     let context = wheel_contexts[attack.fret as usize].as_deref();
                     let budget_us = key_sim.target_preparation_ms(config, attack.slot, attack.fret, context) * 1000;
                     let until_us = (attack.at.saturating_sub(current_us) as f64 / speed) as u64;
-                    if until_us <= budget_us && !key_sim.wheel_active() {
-                        if mapping.is_mixed() && key_sim.fret_mode() != Some(attack.fret) {
-                            if let (Some(_), Some(context), Some(key)) = (key_sim.fret_mode(), context, mapping.frets().and_then(|f| f.mode_key)) {
-                                key_sim.begin_mode_switch(attack.fret, context, key, config, mapping.game_process_names());
+                    if until_us <= budget_us {
+                        prepared_next = true;
+                        if !mapping.is_mixed() || key_sim.fret_mode() == Some(attack.fret) {
+                            key_sim.reconcile_wheel(config, attack.slot, Some(attack.owner));
+                        }
+                        if !key_sim.wheel_active() {
+                            if mapping.is_mixed() && key_sim.fret_mode() != Some(attack.fret) {
+                                if let (Some(_), Some(context), Some(key)) = (key_sim.fret_mode(), context, mapping.frets().and_then(|f| f.mode_key)) {
+                                    key_sim.begin_mode_switch(attack.fret, context, key, config, mapping.game_process_names());
+                                } else {
+                                    key_sim.fail_wheel("Synchronize the current guitar mode before Mixed playback.");
+                                }
                             } else {
-                                key_sim.fail_wheel("Synchronize the current guitar mode before Mixed playback.");
+                                key_sim.prepare_wheel(config, mapping.game_process_names(), attack.slot, attack.owner);
                             }
-                        } else {
-                            key_sim.prepare_wheel(config, mapping.game_process_names(), attack.slot, attack.owner);
+                        }
+                        // Starting and seeking get preparation time before the song
+                        // clock runs. Later page changes must fit between attacks.
+                        if wheel_starting && !key_sim.wheel_ready(attack.owner) {
+                            sleeper.sleep(Duration::from_millis(1));
+                            last_instant = Instant::now();
+                            continue;
                         }
                     }
-                    // Starting and seeking get preparation time before the song
-                    // clock runs. Later page changes must fit between attacks.
-                    if wheel_starting && until_us <= budget_us && !key_sim.wheel_ready(attack.owner) {
-                        sleeper.sleep(Duration::from_millis(1));
-                        last_instant = Instant::now();
-                        continue;
+                }
+            }
+
+            if !prepared_next {
+                if let Some(prev) = prev_attack {
+                    if let Some(config) = mapping.wheel_for_mode(prev.fret) {
+                        let target_page = prev.slot / config.positions.len();
+                        let out_of_sync = (mapping.is_mixed() && key_sim.fret_mode() != Some(prev.fret))
+                            || key_sim.wheel_state().page != Some(target_page)
+                            || key_sim.wheel_selected() != Some(prev.slot);
+                        if out_of_sync || (wheel_starting && key_sim.wheel_active()) {
+                            let prev_context = wheel_contexts[prev.fret as usize].as_deref();
+                            let can_correct = wheel_starting
+                                || next_attack.is_none_or(|next| next.fret == prev.fret && next.slot == prev.slot);
+                            if can_correct {
+                                if out_of_sync {
+                                    if !mapping.is_mixed() || key_sim.fret_mode() == Some(prev.fret) {
+                                        key_sim.reconcile_wheel(config, prev.slot, None);
+                                    }
+                                    if !key_sim.wheel_active() {
+                                        if mapping.is_mixed() && key_sim.fret_mode() != Some(prev.fret) {
+                                            if let (Some(_), Some(context), Some(key)) = (key_sim.fret_mode(), prev_context, mapping.frets().and_then(|f| f.mode_key)) {
+                                                key_sim.begin_mode_switch(prev.fret, context, key, config, mapping.game_process_names());
+                                            } else {
+                                                key_sim.fail_wheel("Synchronize the current guitar mode before Mixed playback.");
+                                            }
+                                        } else {
+                                            key_sim.sync_wheel_slot(config, mapping.game_process_names(), prev.slot);
+                                        }
+                                    }
+                                }
+                                if wheel_starting && (out_of_sync || key_sim.wheel_active()) {
+                                    sleeper.sleep(Duration::from_millis(1));
+                                    last_instant = Instant::now();
+                                    continue;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1649,6 +1763,19 @@ fn run_playback_loop(
                             triggered_chords.insert(chord.chord_id);
                             if let Ok(index) = wheel_attacks.binary_search_by_key(&owner_index, |a| a.owner) {
                                 let attack = wheel_attacks[index];
+                                key_sim.tick_wheel();
+                                if !key_sim.wheel_ready(owner_index) && (!mapping.is_mixed() || key_sim.fret_mode() == Some(attack.fret)) {
+                                    if let Some(config) = mapping.wheel_for_mode(attack.fret) {
+                                        key_sim.reconcile_wheel(config, attack.slot, Some(owner_index));
+                                        let target_page = attack.slot / config.positions.len();
+                                        if !key_sim.wheel_active()
+                                            && key_sim.wheel_state().page == Some(target_page)
+                                            && key_sim.wheel_selected() == Some(attack.slot)
+                                        {
+                                            key_sim.prepare_wheel(config, mapping.game_process_names(), attack.slot, owner_index);
+                                        }
+                                    }
+                                }
                                 if !key_sim.wheel_ready(owner_index) {
                                     // An overloaded scheduler must never turn a missed attack into a late one.
                                     key_sim.expire_wheel(owner_index);

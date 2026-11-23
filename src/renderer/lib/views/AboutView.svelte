@@ -102,15 +102,26 @@
       <h2 class="section-title">{t('about.links')}</h2>
       <div class="links-row">
         {#each ABOUT_LINKS as item}
-          <a
-            href={item.url}
-            target="_blank"
-            rel="noreferrer"
-            class="action-button"
-          >
-            <FluentIcon name={item.icon} size={18} class="btn-icon" />
-            <span class="btn-text">{item.name}</span>
-          </a>
+          {#if item.name.toLowerCase().includes('release note')}
+            <button
+              type="button"
+              class="action-button"
+              onclick={() => uiStore.openDialog('releaseNotes')}
+            >
+              <FluentIcon name={item.icon} size={18} class="btn-icon" />
+              <span class="btn-text">{item.name}</span>
+            </button>
+          {:else}
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noreferrer"
+              class="action-button"
+            >
+              <FluentIcon name={item.icon} size={18} class="btn-icon" />
+              <span class="btn-text">{item.name}</span>
+            </a>
+          {/if}
         {/each}
       </div>
     </section>
@@ -326,6 +337,8 @@
     color: var(--text-primary);
     text-decoration: none;
     font-size: 14px;
+    font-family: inherit;
+    text-align: left;
     display: inline-flex;
     align-items: center;
     gap: 10px;

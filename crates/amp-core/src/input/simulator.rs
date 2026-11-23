@@ -346,9 +346,22 @@ impl KeySimulator {
     }
 
     pub fn prepare_wheel(&mut self, config: &ChordWheelConfigJson, processes: &[String], index: usize, owner: usize) {
+        if self.reconcile_wheel(config, index, Some(owner)) { return; }
         let result = self.prepare().and_then(|_| self.wheel.prepare(self.output.as_mut().unwrap().as_mut(),
             config, processes, Some(index), index / config.positions.len(), Some(owner), Instant::now()));
         if let Err(error) = result { self.cancel_wheel(); self.error = Some(error); }
+    }
+
+    pub fn sync_wheel_slot(&mut self, config: &ChordWheelConfigJson, processes: &[String], index: usize) {
+        if self.reconcile_wheel(config, index, None) { return; }
+        let result = self.prepare().and_then(|_| self.wheel.prepare(self.output.as_mut().unwrap().as_mut(),
+            config, processes, Some(index), index / config.positions.len(), None, Instant::now()));
+        if let Err(error) = result { self.cancel_wheel(); self.error = Some(error); }
+    }
+
+    pub fn wheel_selected(&self) -> Option<usize> { self.wheel.selected() }
+    pub fn reconcile_wheel(&mut self, config: &ChordWheelConfigJson, index: usize, owner: Option<usize>) -> bool {
+        self.wheel.reconcile_in_flight(index / config.positions.len(), index, owner)
     }
 
     pub fn strum_wheel(&mut self, owner: usize, hold_ms: u64) {

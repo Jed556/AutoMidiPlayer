@@ -35,6 +35,7 @@ export interface ArrangementState {
 
 export interface ChordWheelState {
   page: number | null;
+  selected?: number | null;
   busy: boolean;
   error: string | null;
 }

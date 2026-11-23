@@ -14,7 +14,7 @@
   const columnWeights = $derived(Array.from({ length: columns }, (_, column) =>
     rows.some(row => row[column] && !row[column]!.sharp) ? 1 : rows.some(row => row[column]?.sharp) ? 0.625 : 1));
   const heartopiaColumns = $derived(columnWeights.map(weight => `${weight}fr`).join(' '));
-  const heartopiaWidth = $derived(columnWeights.reduce((sum, weight) => sum + weight * 64, 0) + (columns - 1) * 8);
+  const heartopiaWidth = $derived(columnWeights.reduce((sum, weight) => sum + weight * 88, 0) + (columns - 1) * 5);
 </script>
 
 <div class="instrument-layout" class:sky={layoutStyle === 'sky'} class:genshin={layoutStyle === 'genshin'}
@@ -51,11 +51,11 @@
 </div>
 
 <style>
-  .instrument-layout { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 720px; }
-  .instrument-row { display: grid; grid-template-columns: repeat(var(--columns), minmax(0, 1fr)); gap: 8px; }
+  .instrument-layout { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 760px; }
+  .instrument-row { display: grid; grid-template-columns: repeat(var(--columns), minmax(0, 1fr)); gap: 5px; }
   .instrument-key {
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-    min-width: 0; height: 72px; padding: 6px 0; border: none; border-radius: var(--radius-md);
+    min-width: 0; height: 76px; padding: 6px 0; border: none; border-radius: var(--radius-md);
     background: var(--bg-card); color: var(--text-primary); font: inherit; cursor: pointer;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); user-select: none;
     transition: transform var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
@@ -71,20 +71,39 @@
   }
   .instrument-key.active .key-solfege { background: rgba(255,255,255,0.25); }
   .instrument-key.active span { color: white; }
-  .genshin .instrument-row-group { padding: 10px 14px; }
-  .row-header { margin-bottom: 8px; font-size: 11px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.04em; }
-  .sky { width: max-content; max-width: 100%; padding: 20px; border-radius: var(--radius-lg); background: var(--bg-secondary); }
-  .sky .instrument-row { gap: 12px; grid-template-columns: repeat(var(--columns), 68px); }
-  .sky .instrument-key { height: 68px; border-radius: 50%; box-shadow: none; gap: 0; }
-  .sky .key-binding { font-size: 13px; }
-  .sky .key-solfege { background: transparent; width: auto; height: auto; font-size: 11px; }
-  .sky .key-note { font-size: 9px; }
+  .genshin .instrument-row-group { padding: 5px 7px; }
+  .row-header { margin-bottom: 4px; font-size: 11px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.04em; }
+  .sky {
+    width: 100%;
+    max-width: min(680px, calc(var(--columns) * 116px));
+    padding: 12px 14px;
+    gap: 8px;
+    border-radius: var(--radius-lg);
+    background: var(--bg-secondary);
+    box-sizing: border-box;
+  }
+  .sky .instrument-row { gap: 8px; grid-template-columns: repeat(var(--columns), minmax(0, 1fr)); }
+  .sky .instrument-key {
+    width: 100%;
+    max-width: 92px;
+    height: auto;
+    aspect-ratio: 1;
+    margin: 0 auto;
+    border-radius: 50%;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-subtle);
+    box-shadow: none;
+    gap: 1px;
+  }
+  .sky .key-binding { font-size: 14px; }
+  .sky .key-solfege { background: transparent; width: auto; height: auto; font-size: 12px; }
+  .sky .key-note { font-size: 9.5px; }
   .sky .instrument-key:hover { transform: scale(1.05); }
-  .sky .instrument-key.active { transform: scale(0.96); }
-  .drums { max-width: 600px; gap: 14px; }
-  .drums .instrument-row { gap: 14px; }
-  .drums .instrument-key { height: 100px; }
-  .heartopia { max-width: var(--heartopia-width); gap: 18px; }
+  .sky .instrument-key.active { background: var(--accent); border-color: var(--accent); transform: scale(0.96); }
+  .drums { max-width: 680px; gap: 7px; }
+  .drums .instrument-row { gap: 7px; }
+  .drums .instrument-key { height: 104px; }
+  .heartopia { max-width: min(760px, var(--heartopia-width)); gap: 9px; }
   .heartopia .instrument-row { grid-template-columns: var(--heartopia-columns); align-items: start; }
   .heartopia .instrument-key { height: auto; aspect-ratio: 1; border-radius: 24%; gap: 2px; }
   .heartopia .key-solfege { height: auto; width: auto; background: transparent; font-size: 16px; }

@@ -603,3 +603,30 @@ fn focus_loss_during_selection_pauses_and_releases_mouse_ownership() {
         .iter()
         .any(|error| error.contains("focus")));
 }
+
+#[test]
+fn pausing_and_resuming_backtracks_to_reselect_active_ring_slot() {
+    let h = Harness::with_mode(
+        [notes(0, &[59]), notes(400_000, &[40])].concat(),
+        false,
+        true,
+        false,
+    );
+    let first_string = parse_key_stroke("5").unwrap().key;
+    h.engine.play();
+    h.wait("first pluck", || h.count(Input::Key(first_string, false)) == 1);
+    h.engine.pause();
+    h.engine.flush().unwrap();
+    assert_eq!(h.engine.chord_wheel_state().unwrap().selected, None);
+
+    // Resuming after pause must backtrack and re-select slot 5 before the next pluck on slot 5.
+    let second_string = parse_key_stroke("1").unwrap().key;
+    h.engine.request_play().recv_timeout(Duration::from_secs(5)).unwrap().unwrap();
+    h.wait("backtracked ring selection", || {
+        h.engine.chord_wheel_state().unwrap().selected == Some(5)
+    });
+    h.wait("playback completion", || h.engine.get_status() == PlaybackStatus::Stopped);
+    assert!(h.errors.lock().unwrap().is_empty());
+    assert_eq!(h.count(Input::Button(WheelButton::Left, false)), 2);
+    assert_eq!(h.count(Input::Key(second_string, false)), 1);
+}

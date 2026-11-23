@@ -34,6 +34,7 @@
   import ChordPadsLayout from '../components/Instrument/ChordPadsLayout.svelte';
   import type { InstrumentInputMode } from '../../../shared/types/games';
   import ChordWheelControls from '../components/Instrument/ChordWheelControls.svelte';
+  import { fretRomanNumeral } from '../utils/guitarLayout';
 
   let topBarWidth = $state(0);
   const showTopLabels = $derived(topBarWidth >= 700);
@@ -100,7 +101,16 @@
 
   function fitInstrumentStage(
     viewport: HTMLDivElement,
-    options: { stage: 'game' | 'piano'; gameSelected: boolean; pianoSelected: boolean; hasGame: boolean; duration: number },
+    options: {
+      stage: 'game' | 'piano';
+      gameSelected: boolean;
+      pianoSelected: boolean;
+      hasGame: boolean;
+      duration: number;
+      instrumentId?: string;
+      layoutId?: string;
+      inputMode?: string;
+    },
   ) {
     const content = viewport.querySelector('.inst-stage') as HTMLDivElement;
     const game = content.querySelector('.game-stage') as HTMLDivElement;
@@ -108,21 +118,69 @@
     const gameSlot = game.parentElement!;
     const pianoSlot = piano.parentElement!;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const BASE_WHEEL_SIZE = 260;
+    const MAX_WHEEL_SIZE = 430;
+    const MAX_GAME_SCALE = 1.45;
     type StageReveal = [game: number, piano: number, gap: number];
     let availableWidth = 0;
     let availableHeight = 0;
     let stageWidth = 0;
+    let naturalGameWidth = 0;
     let naturalGameHeight = 0;
     let naturalPianoHeight = 0;
+    let wheelOverhead = 0;
+    let hasWheel = false;
     let current: StageReveal | null = null;
     let target: StageReveal = [0, 0, 0];
     let frame: number | null = null;
+
+    function syncGameDomMetrics() {
+      const wrap = game.querySelector('.wheel-canvas-wrap') as HTMLElement | null;
+      const inner = game.firstElementChild as HTMLElement | null;
+      hasWheel = Boolean(wrap);
+      if (wrap && game.offsetHeight > 0) {
+        wheelOverhead = Math.max(0, game.offsetHeight - wrap.offsetHeight);
+      }
+      if (inner && inner.offsetWidth > 0) {
+        naturalGameWidth = inner.offsetWidth;
+      }
+      if (!hasWheel && game.offsetHeight > 0) {
+        naturalGameHeight = game.offsetHeight;
+      }
+    }
+
+    function resolveGameMetrics(pianoReveal: number, gapReveal: number): { height: number; scale: number } {
+      const reservedBelow = pianoReveal * naturalPianoHeight + gapReveal * 24;
+      if (hasWheel) {
+        const verticalPad = pianoReveal > 0.01 ? 28 : 70;
+        const freeHeight = (availableHeight - reservedBelow - wheelOverhead - verticalPad) * 0.88;
+        const freeWidth = (availableWidth - 70) * 0.88;
+        const wheelSize = Math.round(
+          Math.max(BASE_WHEEL_SIZE, Math.min(freeWidth, freeHeight, MAX_WHEEL_SIZE)),
+        );
+        content.style.setProperty('--wheel-size', `${wheelSize}px`);
+        return { height: wheelSize + wheelOverhead, scale: 1 };
+      }
+      content.style.removeProperty('--wheel-size');
+      if (naturalGameHeight <= 0 || naturalGameWidth <= 0) {
+        return { height: naturalGameHeight, scale: 1 };
+      }
+      const verticalPad = pianoReveal > 0.01 ? 18 : 52;
+      const freeHeight = Math.max(naturalGameHeight, (availableHeight - reservedBelow - verticalPad) * 0.92);
+      const freeWidth = Math.max(naturalGameWidth, (availableWidth - 56) * 0.93);
+      const gameScale = Math.max(
+        1,
+        Math.min(freeWidth / naturalGameWidth, freeHeight / naturalGameHeight, MAX_GAME_SCALE),
+      );
+      return { height: naturalGameHeight * gameScale, scale: gameScale };
+    }
 
     function draw(reveal: StageReveal) {
       if (!current) content.style.visibility = 'visible';
       current = reveal;
       const [gameReveal, pianoReveal, gapReveal] = reveal;
-      const gameHeight = gameReveal * naturalGameHeight;
+      const { height: effectiveGameHeight, scale: gameScale } = resolveGameMetrics(pianoReveal, gapReveal);
+      const gameHeight = gameReveal * effectiveGameHeight;
       const pianoHeight = pianoReveal * naturalPianoHeight;
       const gap = gapReveal * 24;
       const height = Math.max(1, gameHeight + pianoHeight + gap);
@@ -135,8 +193,10 @@
       const travel = (availableHeight + 40) / Math.max(scale, 0.001);
       game.style.visibility = gameReveal === 0 ? 'hidden' : '';
       piano.style.visibility = pianoReveal === 0 ? 'hidden' : '';
+      const scaleTransform = gameScale > 1.001 ? `scale(${gameScale})` : '';
       game.style.transform = gameReveal > 0 && gameReveal < 1
-        ? `translateY(${-travel * (1 - gameReveal)}px)` : '';
+        ? `translateY(${-travel * (1 - gameReveal)}px)${scaleTransform ? ` ${scaleTransform}` : ''}`
+        : scaleTransform;
       piano.style.transform = pianoReveal > 0 && pianoReveal < 1
         ? `translateY(${travel * (1 - pianoReveal)}px)` : '';
     }
@@ -153,11 +213,13 @@
         return;
       }
 
+      syncGameDomMetrics();
       pianoAvailableWidth = Math.min(stageWidth, availableWidth);
       pianoAvailableHeight = availableHeight;
       pianoStageWidth = stageWidth;
       const widthScale = Math.min(1, availableWidth / stageWidth);
-      compactStage = options.hasGame && availableHeight < (naturalGameHeight + naturalPianoHeight + 24) * widthScale * 0.85;
+      const baseGameHeight = hasWheel ? BASE_WHEEL_SIZE + wheelOverhead : naturalGameHeight;
+      compactStage = options.hasGame && availableHeight < (baseGameHeight + naturalPianoHeight + 24) * widthScale * 0.85;
       uiStore.instrumentCompactStage = compactStage;
       const next: StageReveal = [showGame ? 1 : 0, showPiano ? 1 : 0, showGame && showPiano ? 1 : 0];
       const duration = reducedMotion.matches ? 0 : options.duration;
@@ -201,9 +263,25 @@
           availableWidth = width;
           availableHeight = height;
           changed = true;
-        } else if (target === game && height !== naturalGameHeight) {
-          naturalGameHeight = height;
-          changed = true;
+        } else if (target === game) {
+          const wrap = game.querySelector('.wheel-canvas-wrap') as HTMLElement | null;
+          const inner = game.firstElementChild as HTMLElement | null;
+          const nextGameWidth = inner ? inner.offsetWidth : width;
+          const nextHasWheel = Boolean(wrap);
+          const nextOverhead = wrap ? Math.max(0, height - wrap.offsetHeight) : 0;
+          if (
+            nextHasWheel !== hasWheel ||
+            Math.abs(nextGameWidth - naturalGameWidth) > 0.5 ||
+            (nextHasWheel ? Math.abs(nextOverhead - wheelOverhead) > 0.5 : height !== naturalGameHeight)
+          ) {
+            hasWheel = nextHasWheel;
+            wheelOverhead = nextOverhead;
+            naturalGameWidth = nextGameWidth;
+            naturalGameHeight = height;
+            changed = true;
+          } else {
+            naturalGameHeight = height;
+          }
         } else if (target === piano && (width !== stageWidth || height !== naturalPianoHeight)) {
           stageWidth = width;
           naturalPianoHeight = height;
@@ -338,7 +416,7 @@
     pageCount: !paged ? 1 : fretMode ? openSlot / wheel.positions.length + 1 : wheel.pageCount,
   } : null);
   const wheelItems = $derived(fretMode ? [
-    ...Array.from({ length: openSlot }, (_, index) => ({ name: index < fretCount ? String(index + 1) : '', pitchClasses: [] })),
+    ...Array.from({ length: openSlot }, (_, index) => ({ name: index < fretCount ? fretRomanNumeral(index + 1) : '', pitchClasses: [] })),
     { name: t('instrument.guitarOpen'), pitchClasses: [] },
   ] : guitarMode === 'chords' ? selectedInstrument?.chords ?? [] : []);
 
@@ -449,6 +527,7 @@
   const instrumentNotes = $derived(gameStore.activeInputMode === 'frets' || mixed || (gameStore.activeInputMode === 'chords' && selectedInstrument?.pluckStrings)
     ? guitarNotes(selectedInstrument) : getInstrumentNotes(selectedInstrument));
   const layoutStyle = $derived(instrumentLayoutStyle(selectedInstrument));
+  const isGuitarStage = $derived(layoutStyle === 'guitar' && Boolean(selectedInstrument) && gameStore.activeInputMode !== 'keyboard');
   const mappedRows = $derived(instrumentKeyRows(selectedInstrument, selectedGameLayout));
   const mappedKeys = $derived(mappedRows.flat().filter(key => key !== null));
 
@@ -462,7 +541,7 @@
   }));
   const pianoRowColumns = $derived(Math.max(1, ...pianoRows.map(row => row.length)));
   const pianoRangeLabel = $derived(pianoRange(instrumentNotes));
-  const stageMaxWidth = $derived(Math.max(960, Math.min(1600, pianoSlots.length * 32 + 26)));
+  const stageMaxWidth = $derived(isGuitarStage ? 1440 : Math.max(1280, Math.min(1680, pianoSlots.length * 56 + 26)));
   const gameBindings = $derived(new Map(mappedKeys.map(key => [key.pitch, key.label])));
 
   let manuallyActivePitches = $state(new Set<number>());
@@ -658,16 +737,16 @@
           {#if hasInGameLayout}
             <button type="button" aria-pressed={showGame} onclick={() => selectStage('game')}>
               <FluentIcon name="Keyboard" size={13} />
-              <span>In-game</span>
+              <span>{t('instrument.inGameView')}</span>
             </button>
             <button type="button" aria-pressed={showPiano} onclick={() => selectStage('piano')}>
-              <FluentIcon name="MusicNote2" size={13} />
-              <span>Piano</span>
+              <FluentIcon name={isGuitarStage ? 'Guitar' : 'MusicNote2'} size={13} />
+              <span>{isGuitarStage ? t('instrument.guitarView') : t('instrument.pianoView')}</span>
             </button>
           {:else}
             <span class="stage-label">
               <FluentIcon name="MusicNote2" size={13} />
-              <span>Piano</span>
+              <span>{t('instrument.pianoView')}</span>
             </span>
           {/if}
         </div>
@@ -695,13 +774,18 @@
   </div>
 
   <!-- Main Instrument Display Area -->
-  {#if displayWheel && gameStore.activeInputMode !== 'keyboard'}
-    <ChordWheelControls wheel={displayWheel} pads={wheelItems} {fretMode} {paged} {mixed} needsModeSync={modeRead && syncedMode === null} physicalMode={guitarMode === 'frets' || guitarMode === 'chords' ? guitarMode : null}
-      onsyncmode={syncMode} action={displayingDispatch ? displayedAction : null} {activeSlots} />
-  {/if}
   <div
     class="inst-stage-viewer"
-    use:fitInstrumentStage={{ stage: selectedStage, gameSelected, pianoSelected, hasGame: hasInGameLayout, duration: animationStore.durationMs }}
+    use:fitInstrumentStage={{
+      stage: selectedStage,
+      gameSelected,
+      pianoSelected,
+      hasGame: hasInGameLayout,
+      duration: animationStore.durationMs,
+      instrumentId: selectedInstrumentId,
+      layoutId: selectedLayoutId,
+      inputMode: gameStore.activeInputMode,
+    }}
   >
     <div class="inst-stage" style:--stage-max-width={`${stageMaxWidth}px`}>
     <div class="stage-slot game-slot" inert={!showGame}>
@@ -709,33 +793,60 @@
     {#if hasInGameLayout}
       {#if gameStore.activeInputMode === 'chords' && chordMode === 'pads' && selectedInstrument}
         <ChordPadsLayout chords={selectedInstrument.chords ?? []} bindings={gameStore.activeLayout?.chordKeys ?? []} activePitches={litPitches} dispatchedPads={displayingDispatch ? activeSlots : undefined} onpreview={pitches => pitches.forEach(triggerKey)} />
-      {:else if layoutStyle === 'guitar' && selectedInstrument && gameStore.activeInputMode !== 'keyboard'}
-        <GuitarLayout instrument={selectedInstrument} mode={guitarMode} performing={displayingDispatch} action={playbackStore.arrangement} attacks={highlightedActions}
-          activePitches={litPitches} accessibleChords={selectedInstrument.pagedChords === false ? wheel?.positions.length : undefined} />
-      {:else}
+      {:else if isGuitarStage && selectedInstrument && displayWheel}
+        <ChordWheelControls
+          wheel={displayWheel}
+          pads={wheelItems}
+          instrument={selectedInstrument}
+          {fretMode}
+          {paged}
+          {mixed}
+          needsModeSync={modeRead && syncedMode === null}
+          physicalMode={guitarMode === 'frets' || guitarMode === 'chords' ? guitarMode : null}
+          onsyncmode={syncMode}
+          performing={displayingDispatch}
+          action={displayingDispatch ? displayedAction : null}
+          attacks={highlightedActions}
+          activePitches={litPitches}
+          {activeSlots}
+          onpreview={pitches => pitches.forEach(triggerKey)}
+        />
+      {:else if !isGuitarStage}
         <InstrumentLayout {layoutStyle} rows={mappedRows} activePitches={highlightedPitches} onplay={triggerKey} />
       {/if}
     {/if}
 
     </div>
     </div>
-    <!-- Chromatic Piano Strip -->
+    <!-- Bottom Instrument Strip (Guitar Fretboard in guitar mode, Chromatic Piano Strip otherwise) -->
     <div class="stage-slot piano-slot" inert={!showPiano}>
     <div class="piano-strip-section">
-      <div class="piano-strip-header">
-        <div class="piano-strip-title-row">
-          <FluentIcon name="MusicNote2" size={13} class="piano-strip-icon" />
-          <span class="piano-strip-title">{t('instrument.pianoStrip')}</span>
-          {#if pianoRangeLabel}<span class="piano-strip-range-badge">{pianoRangeLabel}</span>{/if}
+      {#if isGuitarStage && selectedInstrument}
+        <GuitarLayout
+          instrument={selectedInstrument}
+          mode={guitarMode}
+          performing={displayingDispatch}
+          action={playbackStore.arrangement}
+          attacks={highlightedActions}
+          activePitches={litPitches}
+          accessibleChords={selectedInstrument.pagedChords === false ? wheel?.positions.length : undefined}
+        />
+      {:else}
+        <div class="piano-strip-header">
+          <div class="piano-strip-title-row">
+            <FluentIcon name="MusicNote2" size={13} class="piano-strip-icon" />
+            <span class="piano-strip-title">{t('instrument.pianoStrip')}</span>
+            {#if pianoRangeLabel}<span class="piano-strip-range-badge">{pianoRangeLabel}</span>{/if}
+          </div>
+
         </div>
 
-      </div>
-
-      <div class="piano-rows">
-        {#each pianoRows as row}
-          {@render pianoKeyboard(row, !hasInGameLayout)}
-        {/each}
-      </div>
+        <div class="piano-rows">
+          {#each pianoRows as row}
+            {@render pianoKeyboard(row, !hasInGameLayout)}
+          {/each}
+        </div>
+      {/if}
     </div>
     </div>
     </div>
@@ -1295,9 +1406,9 @@
     display: flex;
     flex-direction: column;
   }
-  .game-slot { justify-content: flex-end; }
+  .game-slot { justify-content: center; }
   .game-stage, .piano-strip-section { flex-shrink: 0; }
-  .game-stage { width: 100%; display: flex; justify-content: center; }
+  .game-stage { width: 100%; display: flex; justify-content: center; transform-origin: center center; }
   .stage-selector {
     display: inline-flex;
     align-items: center;

@@ -74,8 +74,8 @@
 </section>
 
 <style>
-  .guitar-layout { width: 100%; max-width: 960px; padding: 16px 0; }
-  .guitar-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+  .guitar-layout { width: 100%; max-width: 1440px; margin: 0 auto; padding: 6px 0 4px; }
+  .guitar-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
   .guitar-title { color: var(--text-primary); font-size: 14px; font-weight: 600; }
   .guitar-status { font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
   .guitar-chords { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }

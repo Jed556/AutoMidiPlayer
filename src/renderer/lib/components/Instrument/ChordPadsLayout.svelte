@@ -33,7 +33,7 @@
 </div>
 
 <style>
-  .chord-pads { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 10px; width: 100%; max-width: 720px; }
+  .chord-pads { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 5px; width: 100%; max-width: 760px; }
   button { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 22px 10px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-primary); cursor: pointer; font: inherit; transition: transform var(--transition-fast), background var(--transition-fast); }
   button:hover { background: var(--bg-tertiary); }
   button:active { transform: translateY(2px); }
