@@ -238,7 +238,11 @@ export function createAppApi(): AppWindowApi {
           const { open } = await import('@tauri-apps/plugin-dialog');
           const selection = await open({
             multiple: true,
-            filters: [{ name: 'MIDI Files', extensions: ['mid', 'midi'] }],
+            filters: [
+              { name: 'Supported Songs', extensions: ['mid', 'midi', 'gp', 'gpx', 'gp5', 'gp4', 'gp3'] },
+              { name: 'MIDI Files', extensions: ['mid', 'midi'] },
+              { name: 'Guitar Pro Files', extensions: ['gp', 'gpx', 'gp5', 'gp4', 'gp3'] },
+            ],
           });
           if (!selection) return [];
           selectedPaths = Array.isArray(selection) ? selection : [selection];

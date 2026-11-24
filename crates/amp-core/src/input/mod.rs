@@ -9,5 +9,6 @@ pub use config::{
     scan_games, scan_keyboard_layouts, ChordConfigJson, FretLayoutJson, GameConfig, GuitarConfigJson, InstrumentConfigJson,
     KeyboardLayoutJson, LoadedGameBundle,
 };
+pub use chord_wheel::StrumDirection;
 pub use mapping::{char_to_key, parse_key_str, parse_key_stroke, KeyStroke, KeyboardLayout, NoteKeyMapping};
 pub use simulator::KeySimulator;

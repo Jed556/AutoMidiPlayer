@@ -1,6 +1,6 @@
 //! Arrangement of source attacks for layouts with chord pads or physical guitar strings.
-use super::{detect_chords, partners, ChordNote};
-use crate::input::chord_wheel::wheel_transition_ms;
+use super::{detect_chords, partners, pitch_classes, ChordNote};
+use crate::input::chord_wheel::{wheel_transition_ms, StrumDirection};
 use crate::input::mapping::{ChordBinding, ChordPad, NoteKeyMapping};
 use crate::midi::{ParsedMidi, TimedNoteEvent};
 use std::collections::{BTreeMap, HashMap};
@@ -11,6 +11,7 @@ struct SourceNote {
     off: usize,
     start: u64,
     end: u64,
+    track_index: usize,
     original: u8,
     pitch: Option<u8>,
 }
@@ -38,6 +39,7 @@ fn source_notes(
                 off,
                 start: event.time_us,
                 end: song.events[off].time_us,
+                track_index: event.track_index,
                 original: event.note,
                 pitch: transform(event.note, event.time_us),
             })
@@ -272,9 +274,12 @@ pub(in crate::player) struct GuitarPlanResult {
 #[derive(Clone, Copy)]
 struct Choice {
     binding: ChordBinding,
-    // Exact voiced pitches, including unisons across source tracks.
+    // Exact voiced pitches (or source pitches matched via octave shift), including unisons.
     pitches: u128,
     kept: usize,
+    missed_bass: u64,
+    octave_shifts: u64,
+    mark_miss: u64,
 }
 
 struct Onset<'a> {
@@ -283,27 +288,210 @@ struct Onset<'a> {
     choices: Vec<Choice>,
 }
 
+fn note_name_pc(raw: &str) -> Option<(u8, usize)> {
+    let bytes = raw.as_bytes();
+    let base = match *bytes.first()? {
+        b'C' | b'c' => 0i32,
+        b'D' | b'd' => 2,
+        b'E' | b'e' => 4,
+        b'F' | b'f' => 5,
+        b'G' | b'g' => 7,
+        b'A' | b'a' => 9,
+        b'B' | b'b' => 11,
+        _ => return None,
+    };
+    let (acc, used) = match bytes.get(1) {
+        Some(b'#') => (1, 2),
+        Some(b'b') => (-1, 2),
+        _ => (0, 1),
+    };
+    Some(((base + acc).rem_euclid(12) as u8, used))
+}
+
+#[derive(Clone, PartialEq, Eq)]
+struct CanonicalChord {
+    root_pc: u8,
+    quality: String,
+    bass_pc: Option<u8>,
+}
+
+fn parse_canonical_chord(name: &str, transpose: i32) -> Option<CanonicalChord> {
+    let clean = name.trim().replace('♯', "#").replace('♭', "b");
+    let (base_part, bass_part) = match clean.split_once('/') {
+        Some((l, r)) => (l.trim(), Some(r.trim())),
+        None => (clean.as_str(), None),
+    };
+    let (root_pc, used) = note_name_pc(base_part)?;
+    let quality = base_part[used..]
+        .trim()
+        .to_ascii_lowercase()
+        .replace("maj", "M")
+        .replace("min", "m");
+    let bass_pc = bass_part
+        .and_then(note_name_pc)
+        .map(|(pc, _)| ((i32::from(pc) + transpose).rem_euclid(12)) as u8);
+    Some(CanonicalChord {
+        root_pc: ((i32::from(root_pc) + transpose).rem_euclid(12)) as u8,
+        quality,
+        bass_pc,
+    })
+}
+
+fn chord_mark_penalty(
+    mark_slots: &[usize],
+    choice_binding: ChordBinding,
+    choice_slot: usize,
+) -> u64 {
+    if mark_slots.is_empty() {
+        return 0;
+    }
+    match choice_binding {
+        ChordBinding::Wheel(_)
+        | ChordBinding::WheelUp(_)
+        | ChordBinding::Pluck { .. } => {
+            if mark_slots.contains(&choice_slot) {
+                0
+            } else {
+                2
+            }
+        }
+        ChordBinding::Frets { .. } => 2,
+        ChordBinding::Key(_) => 0,
+    }
+}
+
+fn strum_binding(slot: usize, direction: StrumDirection) -> ChordBinding {
+    match direction {
+        StrumDirection::Down => ChordBinding::Wheel(slot),
+        StrumDirection::Up => ChordBinding::WheelUp(slot),
+    }
+}
+
+fn sweep_choice(
+    strings: &[Option<u8>],
+    notes: &[SourceNote],
+    lead: u8,
+    slot: usize,
+    direction: StrumDirection,
+    approximate: bool,
+    mark_slots: &[usize],
+) -> Option<Choice> {
+    let sounding: Vec<u8> = strings.iter().flatten().copied().collect();
+    if sounding.is_empty() {
+        return None;
+    }
+    let mut wanted: Vec<u8> = notes.iter().filter_map(|n| n.pitch).collect();
+    if wanted.len() < 2 {
+        return None;
+    }
+    wanted.sort_unstable();
+    wanted.dedup();
+    let mut sounding_sorted = sounding.clone();
+    sounding_sorted.sort_unstable();
+    sounding_sorted.dedup();
+
+    let exact_match = sounding_sorted == wanted;
+    if !exact_match {
+        let wanted_min = wanted[0];
+        let wanted_max = *wanted.last().unwrap();
+        let sounding_min = sounding_sorted[0];
+        let sounding_max = *sounding_sorted.last().unwrap();
+        let approx_ok = approximate
+            && sounding_sorted.contains(&lead)
+            && sounding_min == wanted_min
+            && sounding_max == wanted_max
+            && pitch_classes(sounding_sorted.iter().copied())
+                == pitch_classes(wanted.iter().copied());
+        if !approx_ok {
+            return None;
+        }
+    }
+
+    let kept_mask = pitch_bits(&sounding_sorted);
+    let kept = notes
+        .iter()
+        .filter(|n| n.pitch.is_some_and(|p| kept_mask & (1u128 << p) != 0))
+        .count();
+    let wanted_bass = wanted[0];
+    let missed_bass = u64::from(notes.len() >= 3 && (kept_mask & (1u128 << wanted_bass)) == 0);
+    let binding = strum_binding(slot, direction);
+    Some(Choice {
+        binding,
+        pitches: u128::MAX,
+        kept,
+        missed_bass,
+        octave_shifts: 0,
+        mark_miss: chord_mark_penalty(mark_slots, binding, slot),
+    })
+}
+
+fn pitch_bits(pitches: &[u8]) -> u128 {
+    pitches
+        .iter()
+        .fold(0u128, |mask, &p| mask | (1u128 << p))
+}
+
 fn choose_strings(
     strings: &[Option<u8>],
     pitches: &[SourceNote],
     lead: u8,
     slot: usize,
     fret: bool,
+    allow_octaves: bool,
+    mark_slots: &[usize],
 ) -> Option<Choice> {
     if !strings.contains(&Some(lead)) {
         return None;
     }
+    let bass = pitches.iter().filter_map(|n| n.pitch).min();
+    let mut ordered: Vec<&SourceNote> = pitches.iter().collect();
+    ordered.sort_by_key(|note| {
+        let p = note.pitch.unwrap_or(0);
+        (
+            std::cmp::Reverse(note.pitch == Some(lead)),
+            std::cmp::Reverse(bass.is_some() && note.pitch == bass),
+            std::cmp::Reverse(p),
+        )
+    });
+
     let mut voiced = 0u128;
     let mut selected = 0u8;
-    let mut kept = 0;
-    for note in pitches {
+    let mut kept = 0usize;
+    let mut octave_shifts = 0u64;
+
+    for note in ordered {
         let Some(pitch) = note.pitch else { continue };
-        if let Some(string) = strings.iter().position(|&value| value == Some(pitch)) {
+        if voiced & (1u128 << pitch) != 0 {
+            kept += 1;
+            continue;
+        }
+        if let Some(string) = strings
+            .iter()
+            .enumerate()
+            .find_map(|(s, &value)| ((selected & (1 << s) == 0) && value == Some(pitch)).then_some(s))
+        {
             voiced |= 1u128 << pitch;
             selected |= 1 << string;
             kept += 1;
+        } else if allow_octaves {
+            if let Some(string) = strings.iter().enumerate().find_map(|(s, &value)| {
+                let cand = value?;
+                ((selected & (1 << s) == 0) && cand <= lead && cand.abs_diff(pitch) == 12)
+                    .then_some(s)
+            }) {
+                voiced |= 1u128 << pitch;
+                selected |= 1 << string;
+                kept += 1;
+                octave_shifts += 1;
+            }
         }
     }
+
+    let missed_bass = u64::from(
+        allow_octaves
+            && pitches.len() >= 3
+            && bass.is_some_and(|b| voiced & (1u128 << b) == 0),
+    );
     let binding = if fret {
         ChordBinding::Frets {
             slot,
@@ -319,12 +507,17 @@ fn choose_strings(
         binding,
         pitches: voiced,
         kept,
+        missed_bass,
+        octave_shifts,
+        mark_miss: chord_mark_penalty(mark_slots, binding, slot),
     })
 }
 
 fn selector(binding: ChordBinding) -> (bool, usize) {
     match binding {
-        ChordBinding::Wheel(slot) | ChordBinding::Pluck { slot, .. } => (false, slot),
+        ChordBinding::Wheel(slot)
+        | ChordBinding::WheelUp(slot)
+        | ChordBinding::Pluck { slot, .. } => (false, slot),
         ChordBinding::Frets { slot, .. } => (true, slot),
         ChordBinding::Key(_) => unreachable!("guitar wheel action"),
     }
@@ -343,7 +536,8 @@ struct Position {
 #[derive(Clone, Copy)]
 struct Route {
     position: Position,
-    loss: [u64; 4], // missed melody, missed backing, missed written strums, physical movement
+    // missed melody, missed backing (bass-weighted for GP), octave shifts, missed written strums, physical movement + hint penalty
+    loss: [u64; 5],
     parent: usize,
     choice: Option<usize>,
 }
@@ -394,10 +588,11 @@ fn route_phrase(
     position: Position,
     phrase: &[Onset<'_>],
     commit: usize,
+    is_guitar_pro: bool,
 ) -> (Position, Vec<Option<usize>>) {
     let mut layers = vec![vec![Route {
         position,
-        loss: [0; 4],
+        loss: [0; 5],
         parent: 0,
         choice: None,
     }]];
@@ -405,8 +600,8 @@ fn route_phrase(
         let mut best = HashMap::<Position, Route>::new();
         let written_strum = onset
             .choices
-            .first()
-            .is_some_and(|option| matches!(option.binding, ChordBinding::Wheel(_)));
+            .iter()
+            .any(|option| option.binding.is_wheel_strum());
         let mut insert = |route: Route| {
             let entry = best.entry(route.position).or_insert(route);
             if route.loss < entry.loss {
@@ -416,7 +611,12 @@ fn route_phrase(
         for (parent, route) in layers.last().unwrap().iter().enumerate() {
             let mut missed = route.loss;
             missed[0] += 1;
-            missed[1] += (onset.notes.len() - 1) as u64;
+            let omitted_backing = (onset.notes.len() - 1) as u64;
+            missed[1] += if is_guitar_pro {
+                omitted_backing * 10 + 20 * u64::from(onset.notes.len() >= 3)
+            } else {
+                omitted_backing
+            };
             insert(Route {
                 position: route.position,
                 loss: missed,
@@ -430,10 +630,15 @@ fn route_phrase(
                     continue;
                 };
                 let mut loss = route.loss;
-                loss[1] += (onset.notes.len() - option.kept) as u64;
-                loss[2] +=
-                    u64::from(written_strum && !matches!(option.binding, ChordBinding::Wheel(_)));
-                loss[3] += cost;
+                let backing_omits = (onset.notes.len().saturating_sub(option.kept)) as u64;
+                loss[1] += if is_guitar_pro {
+                    backing_omits * 10 + option.missed_bass * 20
+                } else {
+                    backing_omits
+                };
+                loss[2] += option.octave_shifts;
+                loss[3] += u64::from(written_strum && !option.binding.is_wheel_strum());
+                loss[4] += cost + option.mark_miss;
                 insert(Route {
                     position,
                     loss,
@@ -475,6 +680,7 @@ pub(in crate::player) fn plan_guitar(
     tolerance_ms: u64,
     enabled: impl Fn(usize, &TimedNoteEvent) -> bool,
     transform: impl Fn(u8, u64) -> Option<u8>,
+    key_offset_at: impl Fn(u64) -> i8,
 ) -> GuitarPlanResult {
     let source = source_notes(song, &enabled, &transform);
     let pads = mapping.chord_pads();
@@ -523,6 +729,20 @@ pub(in crate::player) fn plan_guitar(
             }
         }
     }
+    let gp_meta = song.guitar_pro.as_ref();
+    let is_guitar_pro = gp_meta.is_some();
+    let accessible_pad_chords: Vec<(usize, CanonicalChord)> = pads
+        .iter()
+        .filter_map(|pad| {
+            let ChordBinding::Wheel(slot) = pad.binding else {
+                return None;
+            };
+            let name = mapping.chord_name(slot)?;
+            let parsed = parse_canonical_chord(name, 0)?;
+            Some((slot, parsed))
+        })
+        .collect();
+
     let mut result = GuitarPlanResult {
         notes: vec![None; song.events.len()],
         omitted_melody: 0,
@@ -545,24 +765,118 @@ pub(in crate::player) fn plan_guitar(
         .skip_while(|notes| notes[0].index < start.from_index)
         .map(|notes| {
             let at = notes[0].start;
+            let lead = notes
+                .iter()
+                .max_by_key(|note| note.original)
+                .and_then(|note| note.pitch);
+
+            let gp_brush = gp_meta.and_then(|meta| {
+                meta.brushes.iter().find_map(|brush| {
+                    (brush.time_us == at
+                        && notes.iter().any(|n| n.track_index == brush.track_index))
+                    .then_some(brush.direction)
+                })
+            });
+
+            let mark_slots: Vec<usize> = gp_meta
+                .and_then(|meta| {
+                    let pos = meta.chord_marks.partition_point(|m| m.time_us <= at);
+                    meta.chord_marks[..pos]
+                        .iter()
+                        .rev()
+                        .find(|m| notes.iter().any(|n| n.track_index == m.track_index))
+                })
+                .and_then(|mark| {
+                    let shift = i32::from(key_offset_at(at)) + mark.capo;
+                    parse_canonical_chord(&mark.name, shift)
+                })
+                .map(|target| {
+                    accessible_pad_chords
+                        .iter()
+                        .filter_map(|(slot, cand)| (*cand == target).then_some(*slot))
+                        .collect()
+                })
+                .unwrap_or_default();
+
             let mut choices = Vec::new();
+            let mut seen_strum_slots: Vec<usize> = Vec::new();
             if let Some(chord) = exact[notes[0].index] {
-                choices.push(Choice {
-                    binding: chord.binding,
-                    kept: notes.len(),
-                    pitches: u128::MAX,
-                });
+                let (dir, slot) = match chord.binding {
+                    ChordBinding::Wheel(slot) => (gp_brush.unwrap_or(StrumDirection::Down), slot),
+                    ChordBinding::WheelUp(slot) => (StrumDirection::Up, slot),
+                    other => {
+                        choices.push(Choice {
+                            binding: other,
+                            kept: notes.len(),
+                            pitches: u128::MAX,
+                            missed_bass: 0,
+                            octave_shifts: 0,
+                            mark_miss: 0,
+                        });
+                        return Onset {
+                            at,
+                            notes,
+                            choices,
+                        };
+                    }
+                };
+                // Avoid full-strumming chords with unknown/anomalous strings (e.g. NTE Bm string 2)
+                // when brushed Guitar Pro voicings can pluck/fret around them cleanly.
+                let skip_anomalous_strum = is_guitar_pro
+                    && gp_brush.is_some()
+                    && mapping.frets().is_some()
+                    && mapping.chord_has_unknown_string(slot);
+                if !skip_anomalous_strum {
+                    let binding = strum_binding(slot, dir);
+                    seen_strum_slots.push(slot);
+                    choices.push(Choice {
+                        binding,
+                        kept: notes.len(),
+                        pitches: u128::MAX,
+                        missed_bass: 0,
+                        octave_shifts: 0,
+                        mark_miss: chord_mark_penalty(&mark_slots, binding, slot),
+                    });
+                }
             }
+
+            if let (Some(direction), Some(lead_pitch)) = (gp_brush, lead) {
+                for (fret, slot, pitches) in &positions {
+                    if *fret || mapping.chord_has_unknown_string(*slot) || seen_strum_slots.contains(slot) {
+                        continue;
+                    }
+                    if let Some(choice) = sweep_choice(
+                        pitches,
+                        notes,
+                        lead_pitch,
+                        *slot,
+                        direction,
+                        true,
+                        &mark_slots,
+                    ) {
+                        seen_strum_slots.push(*slot);
+                        choices.push(choice);
+                    }
+                }
+            }
+
             // A strum may combine staggered attacks inside the detection tolerance.
             // Plucking that whole set at once would move the later notes off time.
-            if choices.is_empty() || (mapping.is_mixed() && notes.last().unwrap().start == at) {
-                if let Some(lead) = notes
-                    .iter()
-                    .max_by_key(|note| note.original)
-                    .and_then(|note| note.pitch)
-                {
+            if choices.is_empty()
+                || ((mapping.is_mixed() || gp_brush.is_some())
+                    && notes.last().unwrap().start == at)
+            {
+                if let Some(lead) = lead {
                     choices.extend(positions.iter().filter_map(|(fret, slot, pitches)| {
-                        choose_strings(pitches, notes, lead, *slot, *fret)
+                        choose_strings(
+                            pitches,
+                            notes,
+                            lead,
+                            *slot,
+                            *fret,
+                            is_guitar_pro,
+                            &mark_slots,
+                        )
                     }));
                 }
             }
@@ -579,13 +893,20 @@ pub(in crate::player) fn plan_guitar(
         } else {
             LOOKAHEAD / 2
         };
-        let (last, choices) = route_phrase(mapping, start, position, &phrase, commit);
+        let (last, choices) = route_phrase(
+            mapping,
+            start,
+            position,
+            &phrase,
+            commit,
+            is_guitar_pro,
+        );
         position = last;
         for (onset, choice) in phrase.drain(..commit).zip(choices) {
             if let Some(i) = choice {
                 let option = onset.choices[i];
                 let members = onset.notes.iter().filter(|n| {
-                    matches!(option.binding, ChordBinding::Wheel(_))
+                    option.binding.is_wheel_strum()
                         || n.pitch
                             .is_some_and(|pitch| option.pitches & (1u128 << pitch) != 0)
                 });
@@ -595,7 +916,7 @@ pub(in crate::player) fn plan_guitar(
                     option.binding,
                     onset.notes[0].index,
                 );
-                result.omitted_accompaniment += onset.notes.len() - option.kept;
+                result.omitted_accompaniment += onset.notes.len().saturating_sub(option.kept);
             } else {
                 result.omitted_melody += 1;
                 result.omitted_accompaniment += onset.notes.len() - 1;
@@ -645,6 +966,7 @@ mod tests {
             control_events: vec![],
             tempo_map: TempoMap::new(480, &[]),
             key_signatures: vec![],
+            guitar_pro: None,
         }
     }
 
@@ -861,6 +1183,7 @@ mod tests {
             30,
             |_, _| true,
             |pitch, _| Some(pitch),
+            |_| 0,
         )
     }
 

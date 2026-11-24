@@ -3,7 +3,7 @@ use std::io::Read;
 use std::path::Path;
 use sha2::{Digest, Sha256};
 use regex::Regex;
-use crate::midi::parser::parse_midi_bytes;
+use crate::midi::parser::parse_midi_file;
 
 pub struct ExtractedMetadata {
     pub title: String,
@@ -54,12 +54,32 @@ pub fn extract_metadata(path: &Path) -> Result<ExtractedMetadata, String> {
         (clean_stem, None)
     };
 
-    // Read bytes for MIDI inspection
-    let bytes = std::fs::read(path).map_err(|e| format!("Failed to read file {}: {}", path.display(), e))?;
-    let parsed = parse_midi_bytes(&bytes).map_err(|e| format!("Failed to parse MIDI {}: {}", path.display(), e))?;
+    // Parse MIDI or Guitar Pro song file
+    let parsed = parse_midi_file(path).map_err(|e| format!("Failed to parse song {}: {}", path.display(), e))?;
 
     let duration_ms = (parsed.duration_us / 1000) as i64;
     let native_bpm = parsed.bpm;
+
+    if let Some(ref gp) = parsed.guitar_pro {
+        let mut artist_from_gp = false;
+        if artist.is_none() {
+            if let Some(ref gp_artist) = gp.artist {
+                let cleaned_artist = sanitize_tag(gp_artist);
+                if !cleaned_artist.is_empty() {
+                    artist = Some(cleaned_artist);
+                    artist_from_gp = true;
+                }
+            }
+        }
+        let gp_title = sanitize_tag(&parsed.title);
+        if !gp_title.is_empty()
+            && !gp_title.eq_ignore_ascii_case("untitled")
+            && !gp_title.eq_ignore_ascii_case("unknown song")
+            && (artist_from_gp || title.is_empty() || title.eq_ignore_ascii_case("untitled"))
+        {
+            title = gp_title;
+        }
+    }
 
     // Fall back to track name if title was blank or generic
     if title.is_empty() || title.eq_ignore_ascii_case("untitled") {

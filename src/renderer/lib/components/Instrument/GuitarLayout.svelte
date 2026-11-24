@@ -16,6 +16,7 @@
   const latest = $derived(attacks.at(-1) ?? null);
   const positions = $derived(performing ? dispatchedGuitarPositions(instrument, latest) : guitarVoicing(instrument, activePitches));
   const chord = $derived(performing ? (latest?.slot != null && latest.mode === 'chords' ? instrument.chords?.[latest.slot]?.name : null) : guitarChord(instrument, activePitches));
+  const strumArrow = $derived(performing && latest?.mode === 'chords' ? (latest?.strum === 'down' ? ' ↓' : latest?.strum === 'up' ? ' ↑' : '') : '');
   let previewHighlights = $state.raw<(GuitarPosition | string)[]>([]);
   const preview = new PressHighlights<GuitarPosition | string>(
     value => typeof value === 'string' ? value : `${value.string}/${value.fret}`,
@@ -41,7 +42,7 @@
 <section class="guitar-layout" aria-label={t('instrument.guitarView')}>
   <div class="guitar-heading">
     <span class="guitar-title">{t(mode === 'chords' ? 'instrument.chordWheel' : mode === 'frets' ? 'instrument.fretboard' : 'instrument.guitarView')}</span>
-    <span class="guitar-status" aria-live="polite">{mode === 'chords' ? chord ?? t('instrument.guitarWaiting') : positions.length ? t('instrument.guitarFret', { fret: positions[0].fret }) : t('instrument.guitarWaiting')}</span>
+    <span class="guitar-status" aria-live="polite">{mode === 'chords' ? (chord ? `${chord}${strumArrow}` : t('instrument.guitarWaiting')) : positions.length ? t('instrument.guitarFret', { fret: positions[0].fret }) : t('instrument.guitarWaiting')}</span>
   </div>
   {#if mode === 'chords'}
     <div class="guitar-chords" aria-label={t('instrument.chordWheelAvailableChords')}>

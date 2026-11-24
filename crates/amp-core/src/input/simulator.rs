@@ -1,7 +1,7 @@
 use enigo::{Direction, Enigo, Key, Keyboard, Settings};
 #[cfg(windows)]
 use enigo::{Mouse, Coordinate, Button};
-use super::{chord_wheel::{ChordWheelOutput, WheelButton}, config::ChordWheelConfigJson};
+use super::{chord_wheel::{ChordWheelOutput, StrumDirection, WheelButton}, config::ChordWheelConfigJson};
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 use super::mapping::KeyStroke;
@@ -365,8 +365,12 @@ impl KeySimulator {
     }
 
     pub fn strum_wheel(&mut self, owner: usize, hold_ms: u64) {
+        self.strum_wheel_direction(owner, StrumDirection::Down, hold_ms);
+    }
+
+    pub fn strum_wheel_direction(&mut self, owner: usize, direction: StrumDirection, hold_ms: u64) {
         let result = self.output.as_mut().ok_or_else(|| "Mouse output is unavailable".to_string())
-            .and_then(|output| self.wheel.strum(output.as_mut(), owner, hold_ms, Instant::now()));
+            .and_then(|output| self.wheel.strum_direction(output.as_mut(), owner, direction, hold_ms, Instant::now()));
         if let Err(error) = result { self.cancel_wheel(); self.error = Some(error); }
     }
     pub fn pluck_wheel(&mut self, owner: usize, strokes: &[KeyStroke], hold_ms: u64) {

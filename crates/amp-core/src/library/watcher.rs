@@ -21,10 +21,10 @@ fn needs_scan(event: &Event) -> bool {
     if event.need_rescan() {
         return true;
     }
-    let has_midi_path = event.paths.iter().any(|path| {
-        path.extension().and_then(|ext| ext.to_str())
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("mid") || ext.eq_ignore_ascii_case("midi"))
-    });
+    let has_midi_path = event
+        .paths
+        .iter()
+        .any(|path| crate::midi::is_supported_song_path(path));
     match event.kind {
         EventKind::Create(CreateKind::File) | EventKind::Remove(RemoveKind::File)
         | EventKind::Modify(ModifyKind::Data(_) | ModifyKind::Metadata(_)) => has_midi_path,
@@ -103,7 +103,7 @@ impl DirectoryWatcher {
         }, on_change)
     }
 
-    /// Creates and starts watching a folder for changes to .mid and .midi files with debouncing.
+    /// Creates and starts watching a folder for changes to supported song files with debouncing.
     pub fn watch<F>(folder: &Path, on_change: F) -> Result<Self, String>
     where
         F: Fn() + Send + 'static,
@@ -215,7 +215,7 @@ impl Drop for DirectoryWatcher {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_config_removal_event, is_relevant_config_event};
+    use super::{is_config_removal_event, is_relevant_config_event, needs_scan};
     use notify::event::{
         AccessKind, CreateKind, DataChange, Flag, MetadataKind, ModifyKind, RemoveKind, RenameMode,
     };
@@ -224,6 +224,27 @@ mod tests {
 
     fn event(kind: EventKind, path: &Path) -> Event {
         Event::new(kind).add_path(path.to_path_buf())
+    }
+
+    #[test]
+    fn needs_scan_accepts_midi_and_guitar_pro_extensions_case_insensitively() {
+        for name in [
+            "song.mid",
+            "song.MIDI",
+            "tab.gp",
+            "tab.GPX",
+            "tab.gp5",
+            "tab.Gp4",
+            "tab.gp3",
+        ] {
+            let p = Path::new(name);
+            assert!(needs_scan(&event(EventKind::Create(CreateKind::File), p)), "{name}");
+            assert!(needs_scan(&event(EventKind::Modify(ModifyKind::Data(DataChange::Content)), p)), "{name}");
+        }
+        for ignored in ["notes.txt", "audio.mp3", "tab.gp2", "cover.png"] {
+            let p = Path::new(ignored);
+            assert!(!needs_scan(&event(EventKind::Create(CreateKind::File), p)), "{ignored}");
+        }
     }
 
     #[test]

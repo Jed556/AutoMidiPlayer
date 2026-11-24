@@ -42,6 +42,7 @@ fn song() -> ParsedMidi {
         bpm: 120.0, ppqn: 480, tracks: vec![],
         events: vec![event(0, true), event(1_500_000, false)],
         control_events: vec![], tempo_map: TempoMap::new(480, &[]), key_signatures: vec![],
+        guitar_pro: None,
     }
 }
 

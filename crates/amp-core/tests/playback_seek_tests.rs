@@ -17,6 +17,7 @@ fn held_player(events: Vec<TimedNoteEvent>) -> (PlaybackEngine, mpsc::Receiver<P
         duration_us: events.last().unwrap().time_us + 100_000,
         bpm: 120.0, ppqn: 480, tracks: vec![], events, control_events: vec![],
         tempo_map: TempoMap::new(480, &[]), key_signatures: vec![],
+        guitar_pro: None,
     };
     let (tx, rx) = mpsc::channel();
     let engine = PlaybackEngine::new(Some(song), NoteKeyMapping::new(KeyboardLayout::Diatonic21),
@@ -158,6 +159,7 @@ fn backward_seek_resets_sync_clock_and_echoes_latest_request() {
         control_events: vec![],
         tempo_map: TempoMap::new(480, &[]),
         key_signatures: vec![],
+        guitar_pro: None,
     };
     let (tx, rx) = mpsc::channel();
     // Empty key mapping, input disabled, and no audio device: no external effects.

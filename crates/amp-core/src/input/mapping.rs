@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use enigo::Key;
+use super::chord_wheel::StrumDirection;
 
 /// A game binding is a physical key plus modifiers, not a text character.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -22,8 +23,23 @@ pub struct ChordPad {
 pub enum ChordBinding {
     Key(KeyStroke),
     Wheel(usize),
+    WheelUp(usize),
     Pluck { slot: usize, strings: u8 },
     Frets { slot: usize, strings: u8 },
+}
+
+impl ChordBinding {
+    pub fn strum_direction(self) -> Option<StrumDirection> {
+        match self {
+            Self::Wheel(_) => Some(StrumDirection::Down),
+            Self::WheelUp(_) => Some(StrumDirection::Up),
+            _ => None,
+        }
+    }
+
+    pub fn is_wheel_strum(self) -> bool {
+        matches!(self, Self::Wheel(_) | Self::WheelUp(_))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -122,6 +138,8 @@ pub struct NoteKeyMapping {
     chord_wheel: Option<super::config::ChordWheelConfigJson>,
     fret_wheel: Option<super::config::ChordWheelConfigJson>,
     chord_strings: Vec<Vec<Option<u8>>>,
+    chord_names: Vec<String>,
+    chord_has_unknown_string: Vec<bool>,
     mixed: bool,
     frets: Option<FretMapping>,
     game_process_names: Vec<String>,
@@ -208,6 +226,8 @@ impl NoteKeyMapping {
             chord_wheel: None,
             fret_wheel: None,
             chord_strings: Vec::new(),
+            chord_names: Vec::new(),
+            chord_has_unknown_string: Vec::new(),
             mixed: false,
             frets: None,
             game_process_names: Vec::new(),
@@ -242,6 +262,8 @@ impl NoteKeyMapping {
             chord_wheel: None,
             fret_wheel: None,
             chord_strings: Vec::new(),
+            chord_names: Vec::new(),
+            chord_has_unknown_string: Vec::new(),
             mixed: false,
             frets: None,
             game_process_names: Vec::new(),
@@ -268,6 +290,8 @@ impl NoteKeyMapping {
         self.chord_wheel = None;
         self.fret_wheel = None;
         self.chord_strings.clear();
+        self.chord_names.clear();
+        self.chord_has_unknown_string.clear();
         self.mixed = false;
         self.frets = None;
         self
@@ -295,6 +319,17 @@ impl NoteKeyMapping {
                 Some(ChordPad { slot: index, pitch_classes: pad.pitch_classes.clone(), binding, bass_pitch_class: pad.bass_pitch_class })
             }).collect();
         self = self.with_chord_bindings(pads);
+        self.chord_names = instrument.chords.iter().map(|chord| chord.name.clone()).collect();
+        self.chord_has_unknown_string = instrument
+            .chords
+            .iter()
+            .map(|shape| {
+                shape
+                    .string_pitches
+                    .as_ref()
+                    .is_some_and(|sp| sp.iter().any(Option::is_none))
+            })
+            .collect();
         // Pad-only layouts still need the instrument's pitch set for chord
         // detection and adapted listening, without acquiring melody key output.
         if self.map.is_empty() {
@@ -334,6 +369,12 @@ impl NoteKeyMapping {
     pub fn is_chord_only(&self) -> bool { self.map.is_empty() && !self.chord_pads.is_empty() }
     pub fn string_pitches(&self, slot: usize) -> &[Option<u8>] {
         self.chord_strings.get(slot).map(Vec::as_slice).unwrap_or_default()
+    }
+    pub fn chord_name(&self, slot: usize) -> Option<&str> {
+        self.chord_names.get(slot).map(String::as_str)
+    }
+    pub fn chord_has_unknown_string(&self, slot: usize) -> bool {
+        self.chord_has_unknown_string.get(slot).copied().unwrap_or(false)
     }
     pub fn frets(&self) -> Option<&FretMapping> { self.frets.as_ref() }
 

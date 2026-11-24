@@ -16,6 +16,7 @@ fn engine(controls: Vec<TimedControlEvent>) -> (PlaybackEngine, mpsc::Receiver<P
         title: "Pedal regression".into(), duration_us: 10_000_000, bpm: 120.0,
         ppqn: 480, tracks: vec![], events: vec![], control_events: controls,
         tempo_map: TempoMap::new(480, &[]), key_signatures: vec![],
+        guitar_pro: None,
     };
     let (tx, rx) = mpsc::channel();
     let engine = PlaybackEngine::new(

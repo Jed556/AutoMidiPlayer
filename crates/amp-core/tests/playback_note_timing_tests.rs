@@ -10,6 +10,7 @@ fn player(duration_us: u64) -> (PlaybackEngine, mpsc::Receiver<(bool, Instant)>)
         title: "Note timing regression".into(), duration_us: duration_us + 2_000_000,
         bpm: 120.0, ppqn: 480, tracks: vec![], events: vec![event(0, true), event(duration_us, false)],
         control_events: vec![], tempo_map: TempoMap::new(480, &[]), key_signatures: vec![],
+        guitar_pro: None,
     };
     let (tx, rx) = mpsc::channel();
     let engine = PlaybackEngine::new(Some(song), NoteKeyMapping::new(KeyboardLayout::Diatonic21),

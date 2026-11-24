@@ -29,6 +29,7 @@ export interface ArrangementState {
   slot: number | null;
   strings: number;
   page: number | null;
+  strum?: 'down' | 'up' | null;
   omittedMelody: number;
   omittedAccompaniment: number;
 }

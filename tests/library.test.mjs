@@ -5,7 +5,13 @@ import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import { compileModule } from 'svelte/compiler';
 import { dedupeIssuesByKind, groupDuplicateFiles } from '../src/renderer/lib/utils/fileIssueGroups.ts';
-import { filterMidiFilePaths, normalizeTargetPlaylistId, resolveDropTargetPlaylistId } from '../src/renderer/lib/utils/midiImport.ts';
+import {
+  filterMidiFilePaths,
+  isGuitarProFilePath,
+  isSupportedSongFilePath,
+  normalizeTargetPlaylistId,
+  resolveDropTargetPlaylistId,
+} from '../src/renderer/lib/utils/midiImport.ts';
 import { getMarkerNoteDisplay, formatBpm } from '../src/renderer/lib/utils/musicConstants.ts';
 import { compile } from 'svelte/compiler';
 
@@ -409,19 +415,37 @@ test('custom playlists can be created, edited, deleted, and built-in playlists a
   assert.deepEqual([...h.store.customPlaylists], []);
 });
 
-test('filterMidiFilePaths filters .mid/.midi case-insensitively, ignores non-MIDI files, and deduplicates', () => {
+test('filterMidiFilePaths filters .mid/.midi and Guitar Pro extensions case-insensitively, ignores unsupported files, and deduplicates', () => {
   assert.deepEqual(
     filterMidiFilePaths([
       'C:\\MIDIs\\One.MID',
       ' C:\\MIDIs\\One.MID ',
       'C:\\MIDIs\\Two.midi',
+      'C:\\Tabs\\Three.GP',
+      'C:\\Tabs\\Four.gpX',
+      'C:\\Tabs\\Five.gp5',
+      'C:\\Tabs\\Six.GP4',
+      'C:\\Tabs\\Seven.gp3',
       'C:\\MIDIs\\readme.txt',
       'C:\\MIDIs\\cover.png',
       'C:\\MIDIs\\Three.MiDi',
       '',
     ]),
-    ['C:\\MIDIs\\One.MID', 'C:\\MIDIs\\Two.midi', 'C:\\MIDIs\\Three.MiDi'],
+    [
+      'C:\\MIDIs\\One.MID',
+      'C:\\MIDIs\\Two.midi',
+      'C:\\Tabs\\Three.GP',
+      'C:\\Tabs\\Four.gpX',
+      'C:\\Tabs\\Five.gp5',
+      'C:\\Tabs\\Six.GP4',
+      'C:\\Tabs\\Seven.gp3',
+      'C:\\MIDIs\\Three.MiDi',
+    ],
   );
+  assert.equal(isGuitarProFilePath('song.gp5'), true);
+  assert.equal(isGuitarProFilePath('song.mid'), false);
+  assert.equal(isSupportedSongFilePath('song.gp'), true);
+  assert.equal(isSupportedSongFilePath('song.txt'), false);
   assert.deepEqual(filterMidiFilePaths([]), []);
   assert.deepEqual(filterMidiFilePaths(null), []);
 });

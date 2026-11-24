@@ -31,6 +31,7 @@ walkdir = "2.5"
 notify = "8.2"
 regex = "1.11"
 quick-xml = "0.42"
+flate2 = "1.1"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading"] }

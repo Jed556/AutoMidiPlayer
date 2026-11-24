@@ -395,13 +395,30 @@ fn read_midi_payload(
         *state.current_song.lock().unwrap() = Some(parsed.clone());
     }
 
+    let gp_artist = parsed
+        .guitar_pro
+        .as_ref()
+        .and_then(|gp| gp.artist.as_deref())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| "Unknown Artist".to_string());
+    let gp_album = parsed
+        .guitar_pro
+        .as_ref()
+        .and_then(|gp| gp.album.as_deref())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .unwrap_or_default();
+
     // Resolve song ID, metadata, and disabled tracks from SQLite database
     let (db_id, title, artist, album, disabled_tracks_str) = match state.db.get_song_by_path(&path) {
         Ok(Some(record)) => (
             record.id,
             record.title.unwrap_or_else(|| parsed.title.clone()),
-            record.artist.unwrap_or_else(|| "Unknown Artist".to_string()),
-            record.album.unwrap_or_default(),
+            record.artist.unwrap_or_else(|| gp_artist.clone()),
+            record.album.unwrap_or_else(|| gp_album.clone()),
             record.disabled_tracks,
         ),
         _ => {
@@ -414,15 +431,15 @@ fn read_midi_payload(
                 Ok(Some(r)) => (
                     r.id,
                     r.title.unwrap_or_else(|| parsed.title.clone()),
-                    r.artist.unwrap_or_else(|| "Unknown Artist".to_string()),
-                    r.album.unwrap_or_default(),
+                    r.artist.unwrap_or_else(|| gp_artist.clone()),
+                    r.album.unwrap_or_else(|| gp_album.clone()),
                     r.disabled_tracks,
                 ),
                 _ => (
                     format!("{:x}", md5_hash(&path)),
                     parsed.title.clone(),
-                    "Unknown Artist".to_string(),
-                    "".to_string(),
+                    gp_artist,
+                    gp_album,
                     None,
                 ),
             }

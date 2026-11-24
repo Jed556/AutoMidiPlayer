@@ -94,6 +94,7 @@ fn test_detect_from_meta_key_signatures() {
                 label: "C maj".to_string(),
             },
         ],
+        guitar_pro: None,
     };
 
     let markers = detect_key_changes(&midi);
@@ -151,6 +152,7 @@ fn test_detect_from_pitch_profile_fallback() {
         duration_us: 1_000_000,
         tempo_map: TempoMap::new(480, &[]),
         key_signatures: vec![], // No meta events -> triggers fallback profile
+        guitar_pro: None,
     };
 
     let markers = detect_key_changes(&midi);

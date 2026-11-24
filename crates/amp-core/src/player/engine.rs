@@ -140,6 +140,8 @@ pub struct ArrangementState {
     pub slot: Option<usize>,
     pub strings: u8,
     pub page: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub strum: Option<&'static str>,
     pub omitted_melody: usize,
     pub omitted_accompaniment: usize,
 }
@@ -1213,6 +1215,13 @@ fn run_playback_loop(
                         note_processing.chord_detection_milliseconds,
                         enabled,
                         transform,
+                        |time_us| {
+                            key_markers_enabled
+                                .then(|| get_active_marker(&key_markers, (time_us + 10_000) / 1000))
+                                .flatten()
+                                .map(|m| m.key_offset)
+                                .unwrap_or(key_offset)
+                        },
                     )
                     .notes;
                 }
@@ -1264,8 +1273,21 @@ fn run_playback_loop(
                         initial_fret_page: key_sim.page_for_context(wheel_contexts[1].as_deref()).unwrap_or(0),
                         speed, hold_ms: tap_duration_ms,
                     };
-                    let plan = plan_guitar(song, &mapping, start, note_processing.chord_detection_milliseconds,
-                        enabled, transform);
+                    let plan = plan_guitar(
+                        song,
+                        &mapping,
+                        start,
+                        note_processing.chord_detection_milliseconds,
+                        enabled,
+                        transform,
+                        |time_us| {
+                            key_markers_enabled
+                                .then(|| get_active_marker(&key_markers, (time_us + 10_000) / 1000))
+                                .flatten()
+                                .map(|m| m.key_offset)
+                                .unwrap_or(key_offset)
+                        },
+                    );
                     omissions = (plan.omitted_melody, plan.omitted_accompaniment);
                     plan.notes
                 } else if pad_only {
@@ -1298,7 +1320,9 @@ fn run_playback_loop(
                 for (owner, note) in chord_notes.iter().enumerate() {
                     let Some(note) = note.filter(|n| n.trigger) else { continue };
                     let (slot, fret) = match note.binding {
-                        ChordBinding::Wheel(slot) | ChordBinding::Pluck { slot, .. } => (slot, false),
+                        ChordBinding::Wheel(slot)
+                        | ChordBinding::WheelUp(slot)
+                        | ChordBinding::Pluck { slot, .. } => (slot, false),
                         ChordBinding::Frets { slot, .. } => (slot, true),
                         ChordBinding::Key(_) => continue,
                     };
@@ -1414,6 +1438,7 @@ fn run_playback_loop(
         if arrangement_clear_at.is_some_and(|deadline| now >= deadline || status != PlaybackStatus::Playing || !send_input || listen_mode) {
             arrangement.slot = None;
             arrangement.strings = 0;
+            arrangement.strum = None;
             arrangement_clear_at = None;
             callback(PlayerEvent::Arrangement(arrangement.clone()));
         }
@@ -1437,6 +1462,7 @@ fn run_playback_loop(
                         arrangement.slot = Some(slot);
                         arrangement.page = None;
                         arrangement.strings = 0;
+                        arrangement.strum = None;
                         arrangement_clear_at = Some(now + Duration::from_millis(tap_duration_ms));
                         callback(PlayerEvent::Arrangement(arrangement.clone()));
                     }
@@ -1718,7 +1744,10 @@ fn run_playback_loop(
                         // Pads are one timed attack, never retriggered by a historical seek/resume.
                         Some(note) => match note.binding {
                             ChordBinding::Key(stroke) => (note.trigger && !restoring).then_some(stroke),
-                            ChordBinding::Wheel(_) | ChordBinding::Pluck { .. } | ChordBinding::Frets { .. } => None,
+                            ChordBinding::Wheel(_)
+                            | ChordBinding::WheelUp(_)
+                            | ChordBinding::Pluck { .. }
+                            | ChordBinding::Frets { .. } => None,
                         },
                         None => mapped_note.and_then(|n| mapping.get_stroke(n)),
                     };
@@ -1787,18 +1816,27 @@ fn run_playback_loop(
                                         ChordBinding::Pluck { strings, .. } | ChordBinding::Frets { strings, .. } => strings,
                                         _ => 0,
                                     };
-                                    if strings == 0 {
-                                        key_sim.strum_wheel(owner_index, tap_duration_ms);
-                                    } else if let Some(frets) = mapping.frets() {
-                                        let strokes: Vec<_> = frets.string_strokes.iter().enumerate()
-                                            .filter_map(|(index, &stroke)| (strings & (1 << index) != 0).then_some(stroke)).collect();
-                                        key_sim.pluck_wheel(owner_index, &strokes, tap_duration_ms);
-                                    }
+                                    let strum_dir = if strings == 0 {
+                                        let dir = chord
+                                            .binding
+                                            .strum_direction()
+                                            .unwrap_or(crate::input::StrumDirection::Down);
+                                        key_sim.strum_wheel_direction(owner_index, dir, tap_duration_ms);
+                                        Some(dir.as_str())
+                                    } else {
+                                        if let Some(frets) = mapping.frets() {
+                                            let strokes: Vec<_> = frets.string_strokes.iter().enumerate()
+                                                .filter_map(|(index, &stroke)| (strings & (1 << index) != 0).then_some(stroke)).collect();
+                                            key_sim.pluck_wheel(owner_index, &strokes, tap_duration_ms);
+                                        }
+                                        None
+                                    };
                                     if key_sim.dispatch_succeeded() {
                                         arrangement.mode = Some(if attack.fret { "frets" } else { "chords" });
                                         arrangement.slot = Some(attack.slot);
                                         arrangement.page = key_sim.wheel_state().page;
                                         arrangement.strings = strings;
+                                        arrangement.strum = strum_dir;
                                         arrangement_clear_at = Some(started + Duration::from_millis(tap_duration_ms));
                                         callback(PlayerEvent::Arrangement(arrangement.clone()));
                                     }
@@ -1835,6 +1873,7 @@ fn run_playback_loop(
                                 arrangement.slot = mapping.chord_slot(ChordBinding::Key(stroke));
                                 arrangement.page = None;
                                 arrangement.strings = 0;
+                                arrangement.strum = None;
                                 arrangement_clear_at = Some(started + Duration::from_millis(tap_duration_ms));
                                 callback(PlayerEvent::Arrangement(arrangement.clone()));
                             }

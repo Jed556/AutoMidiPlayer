@@ -112,6 +112,7 @@ fn preview_taps_stay_short_when_midi_sustain_arrives_after_playback_starts() {
                     kind: ControlEventKind::ControlChange { controller: 64, value: 0 } },
             ],
             tempo_map: TempoMap::new(480, &[]), key_signatures: vec![],
+            guitar_pro: None,
         };
         let (tx, rx) = mpsc::channel();
         let player = PlaybackEngine::new(Some(song), NoteKeyMapping::new(KeyboardLayout::Diatonic21),
@@ -185,6 +186,7 @@ fn rapid_track_muting_sends_note_off_only_after_the_last_shared_synth_owner() {
             title: "Muted synth owners".into(), duration_us: 5_000_000, bpm: 120.0, ppqn: 480, tracks: vec![],
             events: vec![event(0, 0, true), event(0, 1, true), event(5_000_000, 0, false), event(5_000_000, 1, false)],
             control_events: vec![], tempo_map: TempoMap::new(480, &[]), key_signatures: vec![],
+            guitar_pro: None,
         };
         let (tx, rx) = mpsc::channel();
         let player = PlaybackEngine::new(Some(song), NoteKeyMapping::new(KeyboardLayout::Diatonic21),

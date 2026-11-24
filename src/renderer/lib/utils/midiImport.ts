@@ -1,5 +1,16 @@
+export const GUITAR_PRO_EXTENSIONS = ['gp', 'gpx', 'gp5', 'gp4', 'gp3'] as const;
+export const SUPPORTED_SONG_EXTENSIONS = ['mid', 'midi', 'gp', 'gpx', 'gp5', 'gp4', 'gp3'] as const;
+
+export function isGuitarProFilePath(path: string): boolean {
+  return /\.gp(?:x|[345])?$/i.test(path.trim());
+}
+
+export function isSupportedSongFilePath(path: string): boolean {
+  return /\.(?:midi?|gp(?:x|[345])?)$/i.test(path.trim());
+}
+
 export function isMidiFilePath(path: string): boolean {
-  return /\.midi?$/i.test(path.trim());
+  return isSupportedSongFilePath(path);
 }
 
 export function filterMidiFilePaths(paths: readonly string[] | null | undefined): string[] {

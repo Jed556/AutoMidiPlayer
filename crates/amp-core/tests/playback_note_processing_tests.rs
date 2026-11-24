@@ -46,6 +46,7 @@ fn song(mut events: Vec<TimedNoteEvent>) -> ParsedMidi {
         duration_us: events.last().map_or(1_000_000, |event| event.time_us + 50_000),
         bpm: 120.0, ppqn: 480, tracks: vec![], events, control_events: vec![],
         tempo_map: TempoMap::new(480, &[]), key_signatures: vec![],
+        guitar_pro: None,
     }
 }
 

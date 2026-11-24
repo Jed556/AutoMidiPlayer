@@ -8,11 +8,18 @@ pub mod paths;
 pub mod legacy_migration;
 pub mod settings;
 
-pub use midi::{ParsedMidi, TrackInfo, TimedNoteEvent, TimedControlEvent, ControlEventKind, TempoMap, TransposeMode, detect_best_scale, build_scale_pitch_classes, process_note_pitch, parse_midi_file, parse_midi_bytes, MidiError, get_gm_instrument_name, GENERAL_MIDI_INSTRUMENTS, KeyChangeMarker, RawKeySignature, detect_key_changes};
+pub use midi::{
+    build_scale_pitch_classes, detect_best_scale, detect_key_changes, get_gm_instrument_name,
+    is_guitar_pro_path, is_supported_song_extension, is_supported_song_path, parse_midi_bytes,
+    parse_midi_file, process_note_pitch, ControlEventKind, GuitarProBrush, GuitarProChordMark,
+    GuitarProMeta, KeyChangeMarker, MidiError, ParsedMidi, RawKeySignature, TempoMap,
+    TimedControlEvent, TimedNoteEvent, TrackInfo, TransposeMode, GENERAL_MIDI_INSTRUMENTS,
+    GUITAR_PRO_EXTENSIONS, SUPPORTED_SONG_EXTENSIONS,
+};
 pub use input::{
     char_to_key, parse_key_str, parse_key_stroke, KeyStroke, scan_games, scan_keyboard_layouts, ChordConfigJson, FretLayoutJson, GameConfig, GuitarConfigJson,
     InstrumentConfigJson, KeySimulator, KeyboardLayout, KeyboardLayoutJson, LoadedGameBundle,
-    NoteKeyMapping,
+    NoteKeyMapping, StrumDirection,
 };
 pub use player::{PlaybackEngine, PlaybackStatus, PlayerEvent, ActiveTrackNote, note_durations, OverlapBehavior};
 pub use audio::{AudioDevice, AudioSynth, SynthMode, AudioError};

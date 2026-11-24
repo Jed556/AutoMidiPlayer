@@ -12,6 +12,42 @@ pub enum WheelButton {
     Right,
 }
 
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum StrumDirection {
+    #[default]
+    Down,
+    Up,
+}
+
+impl StrumDirection {
+    pub fn button(self) -> WheelButton {
+        match self {
+            Self::Down => WheelButton::Right,
+            Self::Up => WheelButton::Left,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Down => "down",
+            Self::Up => "up",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChordWheelState {
@@ -263,8 +299,8 @@ impl ChordWheelOutput {
             Stage::Ready if attack.expired || attack.owner.is_none() => self.attack = None,
             Stage::Ready => {}
             Stage::StrumUp => {
-                if self.held == Some(WheelButton::Right) {
-                    output.wheel_button(WheelButton::Right, true)?;
+                if let Some(button) = self.held {
+                    output.wheel_button(button, true)?;
                     self.held = None;
                 }
                 for stroke in &self.held_strings { output.key(stroke.key, true)?; }
@@ -285,10 +321,22 @@ impl ChordWheelOutput {
             attack.expired = true;
         }
     }
+    #[cfg(test)]
     pub fn strum(
         &mut self,
         output: &mut dyn KeyboardOutput,
         owner: usize,
+        hold_ms: u64,
+        now: Instant,
+    ) -> Result<(), String> {
+        self.strum_direction(output, owner, StrumDirection::Down, hold_ms, now)
+    }
+
+    pub fn strum_direction(
+        &mut self,
+        output: &mut dyn KeyboardOutput,
+        owner: usize,
+        direction: StrumDirection,
         hold_ms: u64,
         now: Instant,
     ) -> Result<(), String> {
@@ -297,8 +345,9 @@ impl ChordWheelOutput {
         }
         let attack = self.attack.as_mut().unwrap();
         output.wheel_move(&attack.processes, attack.config.strum_position)?;
-        self.held = Some(WheelButton::Right);
-        output.wheel_button(WheelButton::Right, false)?;
+        let button = direction.button();
+        self.held = Some(button);
+        output.wheel_button(button, false)?;
         attack.stage = Stage::StrumUp;
         attack.at = now + Duration::from_millis(hold_ms.max(1));
         Ok(())
@@ -784,5 +833,29 @@ mod tests {
             .prepare(&mut output, &config(), &[], Some(0), 0, Some(1), start)
             .is_err());
         assert!(output.events.is_empty());
+    }
+
+    #[test]
+    fn up_strum_clicks_and_releases_left_mouse_button_at_strum_position() {
+        let start = Instant::now();
+        let config = config();
+        let mut output = Output::default();
+        let mut wheel = ChordWheelOutput::default();
+        prepare_first_page(&mut wheel, &mut output, start, 9);
+        let before = output.events.len();
+        wheel
+            .strum_direction(&mut output, 9, StrumDirection::Up, 12, at(start, 15))
+            .unwrap();
+        assert!(wheel.is_active());
+        wheel.tick(&mut output, at(start, 27)).unwrap();
+        assert!(!wheel.is_active());
+        assert_eq!(
+            output.events[before..],
+            [
+                Event::Move(config.strum_position),
+                Event::Button(WheelButton::Left, false),
+                Event::Button(WheelButton::Left, true),
+            ]
+        );
     }
 }

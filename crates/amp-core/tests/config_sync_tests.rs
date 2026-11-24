@@ -153,6 +153,7 @@ fn unavailable_config_stops_playback_and_blocks_native_restarts_until_replaced()
         tracks: vec![], events: vec![TimedNoteEvent {
             time_us: 19_000_000, track_index: 0, channel: 0, note: 60, velocity: 80, is_note_on: true,
         }], control_events: vec![], tempo_map: TempoMap::new(480, &[]), key_signatures: vec![],
+        guitar_pro: None,
     };
     let (tx, rx) = mpsc::channel();
     let engine = PlaybackEngine::new(Some(song),

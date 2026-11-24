@@ -161,6 +161,7 @@ impl Harness {
             control_events: vec![],
             tempo_map: TempoMap::new(480, &[]),
             key_signatures: vec![],
+            guitar_pro: None,
         };
         let inputs = Arc::new(Mutex::new(Vec::new()));
         let focused = Arc::new(AtomicBool::new(true));

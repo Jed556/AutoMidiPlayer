@@ -38,6 +38,29 @@ pub enum MidiError {
     Midly(#[from] midly::Error),
     #[error("Unsupported timing mode (only Metrical / PPQN is supported)")]
     UnsupportedTiming,
+    #[error("Failed to parse Guitar Pro score: {0}")]
+    GuitarPro(String),
+}
+
+pub const GUITAR_PRO_EXTENSIONS: [&str; 5] = ["gp", "gpx", "gp5", "gp4", "gp3"];
+pub const SUPPORTED_SONG_EXTENSIONS: [&str; 7] = ["mid", "midi", "gp", "gpx", "gp5", "gp4", "gp3"];
+
+pub fn is_supported_song_extension(ext: &str) -> bool {
+    SUPPORTED_SONG_EXTENSIONS
+        .iter()
+        .any(|candidate| ext.eq_ignore_ascii_case(candidate))
+}
+
+pub fn is_guitar_pro_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|s| s.to_str())
+        .is_some_and(super::guitar_pro::is_guitar_pro_extension)
+}
+
+pub fn is_supported_song_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|s| s.to_str())
+        .is_some_and(is_supported_song_extension)
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -70,10 +93,27 @@ pub struct ParsedMidi {
     pub control_events: Vec<TimedControlEvent>,
     pub tempo_map: TempoMap,
     pub key_signatures: Vec<super::detect::RawKeySignature>,
+    pub guitar_pro: Option<super::guitar_pro::GuitarProMeta>,
 }
 
 pub fn parse_midi_file<P: AsRef<Path>>(path: P) -> Result<ParsedMidi, MidiError> {
-    let bytes = std::fs::read(path)?;
+    let path_ref = path.as_ref();
+    if is_guitar_pro_path(path_ref) {
+        return super::guitar_pro::parse_guitar_pro_file(path_ref);
+    }
+    let meta = std::fs::metadata(path_ref)?;
+    let bytes = std::fs::read(path_ref)?;
+    if super::guitar_pro::is_guitar_pro_bytes(&bytes) {
+        if meta.len() > super::guitar_pro::MAX_INPUT_BYTES as u64 {
+            return Err(MidiError::GuitarPro(
+                "Guitar Pro file exceeds the 64 MB size limit".into(),
+            ));
+        }
+        return super::guitar_pro::parse_guitar_pro_bytes(
+            &bytes,
+            path_ref.file_stem().and_then(|s| s.to_str()),
+        );
+    }
     parse_midi_bytes(&bytes)
 }
 
@@ -96,6 +136,9 @@ fn push_note_off(
 }
 
 pub fn parse_midi_bytes(bytes: &[u8]) -> Result<ParsedMidi, MidiError> {
+    if super::guitar_pro::is_guitar_pro_bytes(bytes) {
+        return super::guitar_pro::parse_guitar_pro_bytes(bytes, None);
+    }
     let smf = Smf::parse(bytes)?;
 
     let ppqn = match smf.header.timing {
@@ -380,5 +423,6 @@ pub fn parse_midi_bytes(bytes: &[u8]) -> Result<ParsedMidi, MidiError> {
         control_events,
         tempo_map,
         key_signatures,
+        guitar_pro: None,
     })
 }

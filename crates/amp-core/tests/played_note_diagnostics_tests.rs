@@ -33,6 +33,7 @@ fn note_logging_is_opt_in_reports_mapping_and_drift_and_can_be_disabled_live() {
             TimedNoteEvent { time_us: 0, track_index: 0, channel: 0, note: 60, velocity: 80, is_note_on: true },
             TimedNoteEvent { time_us: 30_000, track_index: 0, channel: 0, note: 60, velocity: 0, is_note_on: false },
         ],
+        guitar_pro: None,
     };
     let finished = Arc::new(AtomicUsize::new(0));
     let observed = finished.clone();

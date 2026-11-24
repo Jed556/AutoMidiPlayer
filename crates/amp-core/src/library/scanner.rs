@@ -69,7 +69,7 @@ fn create_new_song_record(
     }
 }
 
-/// Recursively scans a folder for MIDI files (.mid and .midi) and updates the library database.
+/// Recursively scans a folder for supported song files (.mid, .midi, .gp, .gpx, .gp5, .gp4, .gp3) and updates the library database.
 pub fn scan_folder(
     db: &LibraryDatabase,
     folder: &Path,
@@ -79,7 +79,7 @@ pub fn scan_folder(
         return Err(format!("Directory does not exist or is not a folder: {}", folder.display()));
     }
 
-    // 1. Gather all .mid and .midi file paths
+    // 1. Gather all supported song file paths
     // A failed traversal must not be treated as an empty folder during reconciliation.
     let walked = WalkDir::new(folder)
         .follow_links(true)
@@ -87,16 +87,7 @@ pub fn scan_folder(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| format!("Failed to scan {}: {}", folder.display(), error))?;
     let entries: Vec<PathBuf> = walked.into_iter()
-        .filter(|e| {
-            if !e.file_type().is_file() {
-                return false;
-            }
-            if let Some(ext) = e.path().extension().and_then(|s| s.to_str()) {
-                ext.eq_ignore_ascii_case("mid") || ext.eq_ignore_ascii_case("midi")
-            } else {
-                false
-            }
-        })
+        .filter(|e| e.file_type().is_file() && crate::midi::is_supported_song_path(e.path()))
         .map(|e| e.into_path())
         .collect();
 
