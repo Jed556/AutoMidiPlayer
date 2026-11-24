@@ -136,6 +136,12 @@
     margin-top: 6px;
   }
 
+  .markdown-reader :global(blockquote.markdown-alert .markdown-alert-title) {
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+
   .markdown-reader :global(a) {
     color: var(--accent);
     text-decoration: none;

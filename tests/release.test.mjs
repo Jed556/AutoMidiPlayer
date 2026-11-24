@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { generateKeyPairSync, sign, createHash } from 'node:crypto';
-import { releaseVersion, nextReleaseVersion, replaceCargoVersion, renderNotes, mergeManifests, platforms, sha256, verifyUpdaterSignature } from '../scripts/release-lib.mjs';
+import { releaseVersion, compareReleaseVersions, nextReleaseVersion, replaceCargoVersion, renderNotes, mergeManifests, platforms, sha256, verifyUpdaterSignature } from '../scripts/release-lib.mjs';
 
 test('native package workflow removes empty Apple credentials and preserves signing keys and platform arguments', t => {
   let bash = 'bash';
@@ -58,7 +58,7 @@ test('native package workflow removes empty Apple credentials and preserves sign
 });
 
 test('release versions reject ambiguous tags, legacy versions and command-like input', () => {
-  for (const value of ['8.1.0', 'v8.1.0', '8.1.0-beta.2']) assert.equal(releaseVersion(value), value.replace(/^v/, ''));
+  for (const value of ['8.1.0', 'v8.1.0', '8.1.0-beta', '8.1.0-beta.2']) assert.equal(releaseVersion(value), value.replace(/^v/, ''));
   for (const value of ['7.15.0', '8.01.0', '8.0.0-01', '8.0.0+build', '8.1', '--help', '8.0.0;echo bad']) {
     assert.throws(() => releaseVersion(value));
   }
@@ -110,7 +110,7 @@ function releaseRepository(t, version = '8.1.2') {
   writeFileSync(join(directory, 'src-tauri/tauri.conf.json'), JSON.stringify({ version }));
   writeFileSync(join(directory, 'src-tauri/Cargo.toml'), `[package]\nname = "auto-midi-player"\nversion = "${version}"\n`);
   writeFileSync(join(directory, 'Cargo.lock'), `version = 4\n\n[[package]]\nname = "amp-core"\nversion = "0.1.0"\n\n[[package]]\nname = "auto-midi-player"\nversion = "${version}"\n`);
-  writeFileSync(join(directory, 'RELEASE.md'), `# Release v${version}\n\n<!-- release-prepared: v${version} -->\n`);
+  writeFileSync(join(directory, 'RELEASE.md'), `<!-- release-prepared: v${version} -->\n`);
   writeFileSync(join(directory, 'THIRD-PARTY-LICENSES.md'), '# Original notices\n');
   const git = (...args) => execFileSync('git', args, { cwd: directory, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
   git('init', '-b', 'main'); git('config', 'user.name', 'Test'); git('config', 'user.email', 'test@example.com');
@@ -173,7 +173,7 @@ test('stable baseline is ordered numerically and ignores malformed stable tags',
   assert.equal(result.stdout.trim(), '8.10.1');
 });
 
-test('beta checkbox increments counters, reuses tagged commits, and promotes the same target to stable', t => {
+test('beta checkbox appends -beta, reuses tagged commits, rejects collisions on the same version, and promotes to stable', t => {
   const { git, run, beta } = releaseRepository(t);
   git('tag', 'v8.1.2');
   const released = beta('next-version');
@@ -185,21 +185,16 @@ test('beta checkbox increments counters, reuses tagged commits, and promotes the
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout.trim(), version);
   };
-  check('8.2.0-beta.1');
-  git('tag', 'v8.2.0-beta.1');
-  check('8.2.0-beta.1');
+  check('8.2.0-beta');
+  git('tag', 'v8.2.0-beta');
+  check('8.2.0-beta');
   git('commit', '--allow-empty', '-m', 'fix: beta regression');
-  check('8.2.0-beta.2');
-  git('tag', 'v8.2.0-beta.2');
+  const collided = beta('next-version');
+  assert.notEqual(collided.status, 0);
+  assert.match(collided.stderr, /Beta tag v8\.2\.0-beta already exists/);
   check('8.2.0', run);
-  // Tags on other branches still reserve their counters to prevent collisions.
-  const unrelated = git('commit-tree', 'HEAD^{tree}', '-m', 'Other branch');
-  for (const tag of ['v8.2.0-beta.9', 'v8.2.0-beta.10', 'v8.2.0-beta.011', 'v8.2.0-beta.99.extra']) git('tag', tag, unrelated);
-  check('8.2.0-beta.2');
-  git('commit', '--allow-empty', '-m', 'ui: improve beta layout');
-  check('8.2.0-beta.11');
   git('commit', '--allow-empty', '-m', 'feat!: replace device API');
-  check('9.0.0-beta.1');
+  check('9.0.0-beta');
 });
 
 test('first beta release, explicit overrides and validation respect the beta checkbox', t => {
@@ -209,13 +204,16 @@ test('first beta release, explicit overrides and validation respect the beta che
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout.trim(), version);
   };
-  check('8.0.0-beta.1');
-  git('tag', 'v8.0.0-beta.1');
-  check('8.0.0-beta.1');
+  check('8.0.0-beta');
+  git('tag', 'v8.0.0-beta');
+  check('8.0.0-beta');
   git('commit', '--allow-empty', '-m', 'fix: initial beta regression');
-  check('8.0.0-beta.2');
-  check('8.3.0-beta.1', '8.3.0');
-  check('8.3.0-beta.5', '8.3.0-beta.5');
+  const collided = beta('next-version');
+  assert.notEqual(collided.status, 0);
+  assert.match(collided.stderr, /Beta tag v8\.0\.0-beta already exists/);
+  check('8.3.0-beta', '8.3.0');
+  check('8.3.0-beta', '8.3.0-beta');
+  assert.notEqual(beta('next-version', '8.3.0-beta.2').status, 0);
   assert.notEqual(beta('next-version', '8.3.0-rc.1').status, 0);
   const rc = run('next-version', '8.3.0-rc.1');
   assert.equal(rc.status, 0, rc.stderr);
@@ -229,12 +227,12 @@ test('beta retries at the original source commit reuse the bot release tag', t =
   git('tag', 'v8.1.2');
   git('commit', '--allow-empty', '-m', 'feat: add instrument');
   const source = git('rev-parse', 'HEAD');
-  git('commit', '--allow-empty', '-m', 'chore(release): v8.2.0-beta.1');
-  git('tag', '-a', 'v8.2.0-beta.1', '-m', 'Release v8.2.0-beta.1');
+  git('commit', '--allow-empty', '-m', 'chore(release): v8.2.0-beta');
+  git('tag', '-a', 'v8.2.0-beta', '-m', 'Release v8.2.0-beta');
   git('checkout', '--detach', source);
   const result = beta('next-version');
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stdout.trim(), '8.2.0-beta.1');
+  assert.equal(result.stdout.trim(), '8.2.0-beta');
 });
 
 test('maintenance-only history stops automatic preparation before changing files and allows an override', t => {
@@ -253,7 +251,7 @@ test('maintenance-only history stops automatic preparation before changing files
 
 for (const isBeta of [false, true]) test(`build-only automatic ${isBeta ? 'beta' : 'stable'} preparation synchronizes files and outputs, and tagged reruns reuse the release`, t => {
   const { directory, git, run, beta } = releaseRepository(t);
-  const version = isBeta ? '8.2.0-beta.1' : '8.2.0';
+  const version = isBeta ? '8.2.0-beta' : '8.2.0';
   // Stub only git-cliff's external process; exercise version selection, Git,
   // synchronization and validation through the real release CLI.
   writeFileSync(join(directory, 'dist/mock-cliff.mjs'), `
@@ -303,33 +301,182 @@ for (const isBeta of [false, true]) test(`build-only automatic ${isBeta ? 'beta'
   assert.equal(git('status', '--porcelain'), '');
 });
 
-test('build-only prepare current uses existing package.json version without bumping or modifying version files', t => {
-  const { directory, git, run } = releaseRepository(t, '8.2.0');
-  writeFileSync(join(directory, 'dist/mock-cliff.mjs'), `
+test('build-only prepare current uses existing package.json version and appends -beta when BETA_RELEASE is true', t => {
+  for (const isBeta of [false, true]) {
+    const { directory, git, run, beta } = releaseRepository(t, '8.2.0');
+    writeFileSync(join(directory, 'dist/mock-cliff.mjs'), `
+      import childProcess from 'node:child_process';
+      import { syncBuiltinESMExports } from 'node:module';
+      const original = childProcess.execFileSync;
+      childProcess.execFileSync = (command, args, options) => {
+        if (command === process.env.GIT_CLIFF_BIN) return JSON.stringify([{ version: args[args.indexOf('--tag') + 1], commits: [] }]);
+        return original(command, args, options);
+      };
+      syncBuiltinESMExports();
+    `);
+    git('tag', 'v8.1.0');
+    git('commit', '--allow-empty', '-m', 'feat: already committed feature');
+    const sha = git('rev-parse', 'HEAD');
+    const expected = isBeta ? '8.2.0-beta' : '8.2.0';
+    const result = spawnSync(process.execPath, ['--import', pathToFileURL(join(directory, 'dist/mock-cliff.mjs')).href, 'scripts/release.mjs', 'prepare', 'current'], {
+      cwd: directory, encoding: 'utf8', env: {
+        ...process.env, BUILD_ONLY: 'true', BETA_RELEASE: String(isBeta), SOURCE_BRANCH: 'main', GITHUB_TOKEN: '', GITHUB_REPOSITORY: 'example/app',
+        GITHUB_OUTPUT: join(directory, 'dist/github-output'), RELEASE_LICENSE_MANIFEST: '', GIT_CLIFF_BIN: 'mock-git-cliff',
+      },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(result.stdout.includes(`Preparing v${expected}`));
+    assert.equal(JSON.parse(readFileSync(join(directory, 'package.json'))).version, expected);
+    assert.equal((isBeta ? beta : run)('validate', expected).status, 0);
+    assert.equal(git('rev-parse', 'HEAD'), sha);
+    const output = readFileSync(join(directory, 'dist/github-output'), 'utf8');
+    assert.ok(output.includes(`version=${expected}\ntag=v${expected}\nsha=`));
+    assert.ok(output.includes(`prerelease=${isBeta}\n`));
+    for (const path of ['package.json', 'src-tauri/tauri.conf.json', 'src-tauri/Cargo.toml', 'Cargo.lock', 'RELEASE.md', 'THIRD-PARTY-LICENSES.md']) {
+      assert.equal(readFileSync(join(directory, 'dist/release-input', path), 'utf8'), readFileSync(join(directory, path), 'utf8'));
+    }
+  }
+});
+
+test('prepare current with BETA_RELEASE pushes detached -beta tag without advancing main, reuses on retry, and rejects duplicate -beta on same version', t => {
+  const { directory, git, beta } = releaseRepository(t, '8.2.0');
+  git('update-ref', 'refs/remotes/origin/main', 'HEAD');
+  writeFileSync(join(directory, 'dist/mock-release-io.mjs'), `
     import childProcess from 'node:child_process';
+    import { appendFileSync } from 'node:fs';
     import { syncBuiltinESMExports } from 'node:module';
     const original = childProcess.execFileSync;
     childProcess.execFileSync = (command, args, options) => {
       if (command === process.env.GIT_CLIFF_BIN) return JSON.stringify([{ version: args[args.indexOf('--tag') + 1], commits: [] }]);
+      if (command === 'git' && args[0] === 'push') {
+        appendFileSync(process.env.PUSH_LOG, JSON.stringify(args) + '\\n');
+        return '';
+      }
       return original(command, args, options);
     };
     syncBuiltinESMExports();
   `);
-  git('tag', 'v8.1.0');
-  git('commit', '--allow-empty', '-m', 'feat: already committed feature');
-  const sha = git('rev-parse', 'HEAD');
-  const result = spawnSync(process.execPath, ['--import', pathToFileURL(join(directory, 'dist/mock-cliff.mjs')).href, 'scripts/release.mjs', 'prepare', 'current'], {
+
+  const pushLog = join(directory, 'dist/pushes.jsonl');
+  const sourceSha = git('rev-parse', 'HEAD');
+  const runPrepare = outputPath => spawnSync(process.execPath, ['--import', pathToFileURL(join(directory, 'dist/mock-release-io.mjs')).href, 'scripts/release.mjs', 'prepare', 'current'], {
     cwd: directory, encoding: 'utf8', env: {
-      ...process.env, BUILD_ONLY: 'true', SOURCE_BRANCH: 'main', GITHUB_TOKEN: '', GITHUB_REPOSITORY: 'example/app',
-      GITHUB_OUTPUT: join(directory, 'dist/github-output'), RELEASE_LICENSE_MANIFEST: '', GIT_CLIFF_BIN: 'mock-git-cliff',
+      ...process.env, BUILD_ONLY: 'false', BETA_RELEASE: 'true', SOURCE_BRANCH: 'main', GITHUB_TOKEN: '', GITHUB_REPOSITORY: 'example/app',
+      GITHUB_OUTPUT: outputPath, PUSH_LOG: pushLog, RELEASE_LICENSE_MANIFEST: '', GIT_CLIFF_BIN: 'mock-git-cliff',
     },
   });
-  assert.equal(result.status, 0, result.stderr);
-  assert.ok(result.stdout.includes('Preparing v8.2.0'));
-  assert.equal(JSON.parse(readFileSync(join(directory, 'package.json'))).version, '8.2.0');
-  assert.equal(git('rev-parse', 'HEAD'), sha);
-  const output = readFileSync(join(directory, 'dist/github-output'), 'utf8');
-  assert.ok(output.includes('version=8.2.0\ntag=v8.2.0\nsha='));
+
+  const first = runPrepare(join(directory, 'dist/github-output-1'));
+  assert.equal(first.status, 0, first.stderr);
+  const taggedSha = git('rev-parse', 'refs/tags/v8.2.0-beta^{commit}');
+  assert.notEqual(taggedSha, sourceSha);
+  assert.equal(git('rev-parse', 'refs/remotes/origin/main'), sourceSha);
+  assert.equal(git('rev-parse', 'refs/heads/main'), sourceSha);
+  assert.equal(JSON.parse(git('show', 'refs/heads/main:package.json')).version, '8.2.0');
+  assert.equal(JSON.parse(git('show', `${taggedSha}:package.json`)).version, '8.2.0-beta');
+  const pushes = readFileSync(pushLog, 'utf8').trim().split(/\r?\n/).map(line => JSON.parse(line));
+  assert.deepEqual(pushes, [['push', 'origin', 'refs/tags/v8.2.0-beta']]);
+
+  // Retrying on the same main commit reuses v8.2.0-beta.
+  git('checkout', 'main');
+  const retry = runPrepare(join(directory, 'dist/github-output-2'));
+  assert.equal(retry.status, 0, retry.stderr);
+  assert.ok(retry.stdout.includes('Preparing v8.2.0-beta'));
+  assert.equal(git('rev-parse', 'HEAD'), taggedSha);
+  assert.equal(beta('validate', '8.2.0-beta').status, 0);
+
+  // Pushing a non-bumping commit on main keeps package.json at 8.2.0, so a second beta on 8.2.0 is rejected.
+  git('checkout', 'main');
+  git('commit', '--allow-empty', '-m', 'ci: tweak workflow');
+  git('update-ref', 'refs/remotes/origin/main', 'HEAD');
+  const second = runPrepare(join(directory, 'dist/github-output-3'));
+  assert.notEqual(second.status, 0);
+  assert.match(second.stderr, /Beta tag v8\.2\.0-beta already exists/);
+});
+
+test('beta notes include only changes since the previous release while stable notes aggregate all intermediate betas', t => {
+  const { directory, git } = releaseRepository(t, '8.1.0');
+  const stableSha = git('rev-parse', 'HEAD');
+  git('tag', 'v8.1.0', stableSha);
+
+  git('commit', '--allow-empty', '-m', 'feat: first beta feature');
+  const beta1Source = git('rev-parse', 'HEAD');
+  const beta1TagCommit = git('commit-tree', `${beta1Source}^{tree}`, '-p', beta1Source, '-m', 'chore(release): v8.2.0-beta');
+  git('tag', 'v8.2.0-beta', beta1TagCommit);
+
+  git('commit', '--allow-empty', '-m', 'fix: second beta repair');
+  const beta2Source = git('rev-parse', 'HEAD');
+  const beta2TagCommit = git('commit-tree', `${beta2Source}^{tree}`, '-p', beta2Source, '-m', 'chore(release): v8.2.1-beta');
+  git('tag', 'v8.2.1-beta', beta2TagCommit);
+
+  // Unrelated branch beta tags must never affect main's release notes range.
+  git('tag', 'v8.99.0-beta', git('commit-tree', `${beta2Source}^{tree}`, '-m', 'Unrelated branch beta'));
+
+  git('commit', '--allow-empty', '-m', 'ui: final polish before stable');
+
+  writeFileSync(join(directory, 'dist/mock-cliff-range.mjs'), `
+    import childProcess from 'node:child_process';
+    import { writeFileSync } from 'node:fs';
+    import { syncBuiltinESMExports } from 'node:module';
+    const original = childProcess.execFileSync;
+    childProcess.execFileSync = (command, args, options) => {
+      if (command === process.env.GIT_CLIFF_BIN) {
+        const range = args.find(arg => arg.includes('..HEAD'));
+        if (range && args.includes('--unreleased')) throw new Error('git-cliff range must not be combined with --unreleased');
+        const log = range ? original('git', ['log', '--reverse', '--format=%H%x1f%s', range], { encoding: 'utf8' }).trim() : '';
+        const commits = log ? log.split(/\\r?\\n/).map(line => {
+          const [id, subject] = line.split('\\x1f');
+          const m = /^([a-z]+):\\s*(.+)$/.exec(subject);
+          const group = m?.[1] === 'feat' ? "What's New?" : m?.[1] === 'fix' ? 'Bug Fixes' : 'Changes';
+          return { id, group, message: m?.[2] || subject };
+        }) : [];
+        writeFileSync(process.env.RANGE_FILE, range || '');
+        return JSON.stringify([{ version: args[args.indexOf('--tag') + 1], commits }]);
+      }
+      return original(command, args, options);
+    };
+    syncBuiltinESMExports();
+  `);
+
+  const preview = (target, rangeFile) => spawnSync(process.execPath, [
+    '--import', pathToFileURL(join(directory, 'dist/mock-cliff-range.mjs')).href,
+    'scripts/release.mjs', 'preview', target,
+  ], {
+    cwd: directory, encoding: 'utf8', env: {
+      ...process.env, GITHUB_TOKEN: '', GITHUB_REPOSITORY: 'example/app', GIT_CLIFF_BIN: 'mock-git-cliff', RANGE_FILE: rangeFile,
+    },
+  });
+
+  // First beta since v8.1.0 only sees commits after v8.1.0.
+  const b2Range = join(directory, 'dist/range-b2');
+  const beta2Preview = preview('8.2.1-beta', b2Range);
+  assert.equal(beta2Preview.status, 0, beta2Preview.stderr);
+  assert.equal(readFileSync(b2Range, 'utf8'), `${beta1Source}..HEAD`);
+  assert.match(beta2Preview.stdout, /second beta repair/);
+  assert.doesNotMatch(beta2Preview.stdout, /first beta feature/);
+  assert.match(beta2Preview.stdout, /compare\/v8\.2\.0-beta\.\.\.v8\.2\.1-beta/);
+
+  // Subsequent beta sees only commits after v8.2.1-beta.
+  const b3Range = join(directory, 'dist/range-b3');
+  const beta3Preview = preview('8.2.2-beta', b3Range);
+  assert.equal(beta3Preview.status, 0, beta3Preview.stderr);
+  assert.equal(readFileSync(b3Range, 'utf8'), `${beta2Source}..HEAD`);
+  assert.match(beta3Preview.stdout, /final polish before stable/);
+  assert.doesNotMatch(beta3Preview.stdout, /first beta feature|second beta repair/);
+  assert.match(beta3Preview.stdout, /compare\/v8\.2\.1-beta\.\.\.v8\.2\.2-beta/);
+
+  // Stable release aggregates everything since the previous stable release (v8.1.0).
+  const stableRange = join(directory, 'dist/range-stable');
+  const stablePreview = preview('8.2.2', stableRange);
+  assert.equal(stablePreview.status, 0, stablePreview.stderr);
+  assert.equal(readFileSync(stableRange, 'utf8'), `${stableSha}..HEAD`);
+  assert.match(stablePreview.stdout, /first beta feature/);
+  assert.match(stablePreview.stdout, /second beta repair/);
+  assert.match(stablePreview.stdout, /final polish before stable/);
+  assert.match(stablePreview.stdout, /compare\/v8\.1\.0\.\.\.v8\.2\.2/);
+
+  assert.ok(compareReleaseVersions('8.2.0', '8.2.0-beta') > 0);
+  assert.ok(compareReleaseVersions('8.2.1-beta', '8.2.0') > 0);
 });
 
 test('version synchronization changes only the desktop Cargo package', () => {
@@ -351,16 +498,41 @@ test('notes omit empty groups and maintenance, retain breaking changes and dedup
     { username: 'Copilot', is_first_time: true },
     { username: 'copilot-swe-agent[bot]', is_first_time: true },
   ] } }, '8.1.0', 'Jed556/AutoMidiPlayer', 'v8.0.0');
-  assert.match(notes, /## What's New\?/);
+  assert.match(notes, /^<!-- release-prepared: v8\.1\.0 -->\n/);
+  assert.doesNotMatch(notes, /^# /m);
+  assert.match(notes, /### ✨ What's New/);
   assert.match(notes, /\*\*Breaking:\*\* \*\*games:\*\*/);
   assert.match(notes, /pull\/42/);
+  assert.match(notes, /### 🐛 Bug Fixes/);
+  assert.match(notes, /### ❤️ New Contributors/);
   assert.equal(notes.match(/@new-user/g).length, 1);
-  assert.doesNotMatch(notes, /## Changes|Update documentation|@existing|dependabot|Copilot/i);
-  assert.match(notes, /compare\/v8.0.0\.\.\.v8.1.0/);
-  assert.match(notes, /\*\*macOS:\*\*.*Open Anyway.*wiki\/Getting-Started#macos-first-launch/);
+  assert.doesNotMatch(notes, /### .*Changes|Update documentation|@existing|dependabot|Copilot/i);
+  assert.match(notes, /### 📥 Downloads & Installation/);
+  for (const asset of [
+    'AutoMidiPlayer_v8.1.0_windows-x64-setup.exe',
+    'AutoMidiPlayer_v8.1.0_windows-x64-portable.zip',
+    'AutoMidiPlayer_v8.1.0_macos-arm64.dmg',
+    'AutoMidiPlayer_v8.1.0_macos-x64.dmg',
+    'AutoMidiPlayer_v8.1.0_linux-x64.AppImage',
+    'AutoMidiPlayer_v8.1.0_linux-x64.deb',
+  ]) {
+    assert.ok(
+      notes.includes(`[\`${asset}\`](https://github.com/Jed556/AutoMidiPlayer/releases/download/v8.1.0/${asset})`),
+      `Missing clickable download link for ${asset}`
+    );
+  }
+  assert.match(notes, /Open Anyway.*wiki\/Getting-Started#macos-first-launch/);
+  assert.match(notes, /> \[!NOTE\]\n> macOS and Linux support should work in theory/);
+  assert.match(notes, /### 📖 Documentation & Wiki/);
+  assert.match(notes, /https:\/\/github\.com\/Jed556\/AutoMidiPlayer\/wiki/);
+  assert.match(notes, /https:\/\/github\.com\/Jed556\/AutoMidiPlayer\/issues/);
+  assert.match(notes, /compare\/v8\.0\.0\.\.\.v8\.1\.0/);
   const first = renderNotes({}, '8.0.0', 'Jed556/AutoMidiPlayer');
-  assert.doesNotMatch(first, /## /);
-  assert.match(first, /commits\/v8.0.0/);
+  assert.doesNotMatch(first, /### ✨|### 🛠️|### 🐛|### ❤️/);
+  assert.doesNotMatch(first, /<!-- release-prepared: v8\.0\.0 -->\n\n---/);
+  assert.match(first, /### 📥 Downloads & Installation/);
+  assert.match(first, /### 📖 Documentation & Wiki/);
+  assert.match(first, /commits\/v8\.0\.0/);
 });
 
 function fixtures() {
@@ -513,8 +685,9 @@ test('real git-cliff parsing and build-only preparation use rewrite history and 
     assert.match(preview.stdout, /commits\/v8\.1\.0/);
     assert.doesNotMatch(preview.stdout, /compare\//);
 
-    // Once there is a stable release, every later beta/RC/final uses that
-    // stable baseline, including tags sharing a commit with a prerelease.
+    // Once there is a stable release, each pre-release covers only commits since
+    // the previous release, while the stable release aggregates everything since
+    // the previous stable tag.
     git('tag', 'v8.1.0');
     git('commit', '--allow-empty', '-m', 'feat: new beta feature');
     git('tag', 'v8.2.0-beta.1');
@@ -522,16 +695,21 @@ test('real git-cliff parsing and build-only preparation use rewrite history and 
     git('tag', 'v8.2.0-beta.2');
     git('commit', '--allow-empty', '-m', 'ui: release candidate layout');
     git('tag', 'v8.2.0-rc.1');
-    for (const target of ['8.2.0-rc.2', '8.2.0']) {
-      const cumulative = spawnSync(process.execPath, ['scripts/release.mjs', 'preview', target], { cwd: directory, env, encoding: 'utf8' });
-      assert.equal(cumulative.status, 0, cumulative.stderr);
-      for (const message of ['new beta feature', 'beta regression', 'release candidate layout']) {
-        assert.equal(cumulative.stdout.split(message).length - 1, 1, cumulative.stdout);
-      }
-      assert.doesNotMatch(cumulative.stdout, /add instrument|post-beta repair/);
-      assert.ok(cumulative.stdout.includes(`/compare/v8.1.0...v${target}`), cumulative.stdout);
-      assert.doesNotMatch(cumulative.stdout, /compare\/v8\.2\.0-(beta|rc)/);
+    git('commit', '--allow-empty', '-m', 'fix: rc polish');
+    const rcPreview = spawnSync(process.execPath, ['scripts/release.mjs', 'preview', '8.2.0-rc.2'], { cwd: directory, env, encoding: 'utf8' });
+    assert.equal(rcPreview.status, 0, rcPreview.stderr);
+    assert.match(rcPreview.stdout, /rc polish/);
+    assert.doesNotMatch(rcPreview.stdout, /new beta feature|beta regression|release candidate layout|add instrument|post-beta repair/);
+    assert.ok(rcPreview.stdout.includes('/compare/v8.2.0-rc.1...v8.2.0-rc.2'), rcPreview.stdout);
+
+    const cumulative = spawnSync(process.execPath, ['scripts/release.mjs', 'preview', '8.2.0'], { cwd: directory, env, encoding: 'utf8' });
+    assert.equal(cumulative.status, 0, cumulative.stderr);
+    for (const message of ['new beta feature', 'beta regression', 'release candidate layout', 'rc polish']) {
+      assert.equal(cumulative.stdout.split(message).length - 1, 1, cumulative.stdout);
     }
+    assert.doesNotMatch(cumulative.stdout, /add instrument|post-beta repair/);
+    assert.ok(cumulative.stdout.includes('/compare/v8.1.0...v8.2.0'), cumulative.stdout);
+    assert.doesNotMatch(cumulative.stdout, /compare\/v8\.2\.0-(beta|rc)/);
     git('tag', 'v8.2.0');
     git('commit', '--allow-empty', '-m', 'fix: next stable patch');
     const next = spawnSync(process.execPath, ['scripts/release.mjs', 'preview', '8.2.1'], { cwd: directory, env, encoding: 'utf8' });

@@ -59,6 +59,27 @@ export function stripHtmlComments(input: string): string {
   return result;
 }
 
+function formatEmphasis(text: string): string {
+  let s = text;
+
+  // Triple asterisks / underscores: bold italic
+  s = s.replace(/\*\*\*([^*]+)\*\*\*/g, '<strong><em>$1</em></strong>');
+  s = s.replace(/___([^_]+)___/g, '<strong><em>$1</em></strong>');
+
+  // Double asterisks / underscores: bold
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+
+  // Single asterisk / underscore: italic
+  s = s.replace(/(^|[^\w*])\*([^*]+)\*([^\w*]|$)/g, '$1<em>$2</em>$3');
+  s = s.replace(/(^|[^\w_])_([^_]+)_([^\w_]|$)/g, '$1<em>$2</em>$3');
+
+  // Strikethrough: ~~text~~
+  s = s.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+
+  return s;
+}
+
 /**
  * Parses inline markdown: bold, italic, strikethrough, inline code, links, and autolinks.
  */
@@ -69,7 +90,7 @@ export function parseInline(text: string): string {
   const makePlaceholder = (html: string) => {
     const idx = placeholders.length;
     placeholders.push(html);
-    return `\x1aTOK_${idx}\x1a`;
+    return `\x1aTOK${idx}\x1a`;
   };
 
   // 1. Strip HTML comments within inline text
@@ -86,8 +107,7 @@ export function parseInline(text: string): string {
   // 4. Extract explicit markdown links: [label](url)
   s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, url) => {
     const safeUrl = sanitizeUrl(url);
-    // Recursively parse inline markup in the link label (e.g. bolded version)
-    const formattedLabel = parseInline(label);
+    const formattedLabel = formatEmphasis(label).replace(/\x1aTOK(\d+)\x1a/g, (_, idx) => placeholders[Number(idx)] ?? '');
     return makePlaceholder(`<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${formattedLabel}</a>`);
   });
 
@@ -97,24 +117,11 @@ export function parseInline(text: string): string {
     return `${prefix}${makePlaceholder(`<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${url}</a>`)}`;
   });
 
-  // 6. Bold and italic formatting
-  // Triple asterisks / underscores: bold italic
-  s = s.replace(/\*\*\*([^*]+)\*\*\*/g, '<strong><em>$1</em></strong>');
-  s = s.replace(/___([^_]+)___/g, '<strong><em>$1</em></strong>');
-
-  // Double asterisks / underscores: bold
-  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  s = s.replace(/__([^_]+)__/g, '<strong>$1</strong>');
-
-  // Single asterisk / underscore: italic
-  s = s.replace(/(^|[^\w*])\*([^*]+)\*([^\w*]|$)/g, '$1<em>$2</em>$3');
-  s = s.replace(/(^|[^\w_])_([^_]+)_([^\w_]|$)/g, '$1<em>$2</em>$3');
-
-  // Strikethrough: ~~text~~
-  s = s.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+  // 6. Bold, italic, and strikethrough formatting
+  s = formatEmphasis(s);
 
   // 7. Restore placeholders
-  s = s.replace(/\x1aTOK_(\d+)\x1a/g, (_, idx) => placeholders[Number(idx)] ?? '');
+  s = s.replace(/\x1aTOK(\d+)\x1a/g, (_, idx) => placeholders[Number(idx)] ?? '');
 
   return s;
 }
@@ -197,8 +204,16 @@ export function parseMarkdown(markdown: string, options: MarkdownParserOptions =
         }
         i++;
       }
-      const quoteHtml = parseMarkdown(quoteLines.join('\n'), options);
-      out.push(`<blockquote>${quoteHtml}</blockquote>`);
+      const alertMatch = quoteLines[0]?.trim().match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]$/i);
+      if (alertMatch) {
+        const alertType = alertMatch[1].toLowerCase();
+        const alertLabel = alertType.charAt(0).toUpperCase() + alertType.slice(1);
+        const bodyHtml = parseMarkdown(quoteLines.slice(1).join('\n'), options);
+        out.push(`<blockquote class="markdown-alert markdown-alert-${alertType}"><p class="markdown-alert-title">${alertLabel}</p>${bodyHtml}</blockquote>`);
+      } else {
+        const quoteHtml = parseMarkdown(quoteLines.join('\n'), options);
+        out.push(`<blockquote>${quoteHtml}</blockquote>`);
+      }
       continue;
     }
 

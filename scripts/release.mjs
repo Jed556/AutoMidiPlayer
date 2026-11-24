@@ -1,12 +1,15 @@
 import { readFile, writeFile, appendFile, mkdir } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { releaseVersion, nextReleaseVersion, replaceCargoVersion, renderNotes } from './release-lib.mjs';
+import { releaseVersion, compareReleaseVersions, nextReleaseVersion, replaceCargoVersion, renderNotes } from './release-lib.mjs';
 
 process.chdir(fileURLToPath(new URL('../', import.meta.url)));
 const run = (command, args) => execFileSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim();
 const git = (...args) => run('git', args);
 const existsRef = ref => { try { return git('rev-parse', '--verify', ref); } catch { return null; } };
+const isAncestor = (ancestor, descendant) => {
+  try { git('merge-base', '--is-ancestor', ancestor, descendant); return true; } catch { return false; }
+};
 const text = path => readFile(path, 'utf8');
 const [command, input] = process.argv.slice(2);
 if (!['next-version', 'preview', 'prepare', 'validate'].includes(command)) {
@@ -24,35 +27,57 @@ const tag = `v${version}`;
 const repo = process.env.GITHUB_REPOSITORY || 'Jed556/AutoMidiPlayer';
 if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error('Invalid GitHub repository');
 
+function releaseAnchor(tagName, mergedTags) {
+  const commit = existsRef(`refs/tags/${tagName}^{commit}`);
+  if (!commit) return null;
+  if (mergedTags.has(tagName)) return commit;
+  // Detached beta tags point to a chore(release) commit off the source branch.
+  const info = git('log', '-1', '--format=%P%n%s', commit).split('\n');
+  if (info[0] && !/\s/.test(info[0]) && info[1] === `chore(release): ${tagName}` && isAncestor(info[0], 'HEAD')) {
+    return info[0];
+  }
+  return null;
+}
+
+function reachableReleaseTags({ stableOnly = false } = {}) {
+  const tags = git('tag', '--list', 'v[0-9]*').split('\n').filter(Boolean);
+  const mergedTags = new Set(git('tag', '--merged', 'HEAD', '--list', 'v[0-9]*').split('\n').filter(Boolean));
+  const pattern = stableOnly ? /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/ : null;
+  const matched = [];
+  for (const name of tags) {
+    if (pattern && !pattern.test(name)) continue;
+    let parsed;
+    try { parsed = releaseVersion(name); } catch { continue; }
+    if (Number(parsed.split('.')[0]) < 8) continue;
+    const anchor = releaseAnchor(name, mergedTags);
+    if (anchor) matched.push({ tag: name, anchor });
+  }
+  matched.sort((a, b) => compareReleaseVersions(b.tag, a.tag));
+  return matched;
+}
+
 function stableTags() {
-  return git('tag', '--merged', 'HEAD', '--sort=-version:refname').split('\n')
-    .filter(value => /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(value) && Number(value.slice(1).split('.')[0]) >= 8);
+  return reachableReleaseTags({ stableOnly: true }).map(entry => entry.tag);
 }
 
 function betaVersion(base) {
-  // Explicit beta versions remain exact overrides; other prerelease channels
+  // Explicit -beta versions remain exact overrides; other prerelease channels
   // require the checkbox to be off so the requested channel is unambiguous.
   if (base.includes('-')) {
-    if (!/^\d+\.\d+\.\d+-beta\.(0|[1-9]\d*)$/.test(base)) throw new Error('Uncheck beta when specifying a non-beta prerelease such as an RC.');
+    if (!/^\d+\.\d+\.\d+-beta$/.test(base)) throw new Error('Uncheck beta when specifying a custom prerelease.');
     return base;
   }
-  const pattern = new RegExp(`^v${base.replaceAll('.', '\\.')}-beta\\.(0|[1-9]\\d*)$`);
-  // All tags reserve their version numbers, even on other branches. Sort beta
-  // counters numerically so beta.10 follows beta.9.
-  const tags = git('tag', '--list', `v${base}-beta.*`).split('\n').filter(value => pattern.test(value))
-    .sort((a, b) => BigInt(a.split('.').at(-1)) < BigInt(b.split('.').at(-1)) ? 1 : -1);
+  const target = `${base}-beta`;
+  const tagName = `v${target}`;
+  const tagged = existsRef(`refs/tags/${tagName}^{commit}`);
+  if (!tagged) return target;
   const head = git('rev-parse', 'HEAD');
-  const atHead = git('tag', '--points-at', 'HEAD').split('\n');
-  const existing = tags.find(value => atHead.includes(value));
-  if (existing) return releaseVersion(existing);
-  if (tags[0]) {
-    // A workflow retry can still be checked out at the source commit just
-    // before the bot's release commit. Reuse that release instead of bumping.
-    const release = git('log', '-1', '--format=%P%n%s', tags[0]).split('\n');
-    if (release[0] === head && release[1] === `chore(release): ${tags[0]}`) return releaseVersion(tags[0]);
-  }
-  const next = tags[0] ? BigInt(tags[0].split('.').at(-1)) + 1n : 1n;
-  return `${base}-beta.${next}`;
+  if (tagged === head) return target;
+  // A workflow retry can still be checked out at the source commit just
+  // before the bot's release commit. Reuse that release instead of failing.
+  const release = git('log', '-1', '--format=%P%n%s', tagged).split('\n');
+  if (release[0] === head && release[1] === `chore(release): ${tagName}`) return target;
+  throw new Error(`Beta tag ${tagName} already exists on another commit; push a version-bumping commit or specify an explicit version.`);
 }
 
 async function automaticVersion() {
@@ -80,15 +105,23 @@ async function validate() {
     if (replaceCargoVersion(source, 'auto-midi-player', version) !== source) throw new Error(`${path} version does not match ${tag}`);
   }
   const releaseNotes = (await text('RELEASE.md')).replaceAll('\r\n', '\n');
-  if (!releaseNotes.startsWith(`# Release ${tag}\n`) || !releaseNotes.includes(`<!-- release-prepared: ${tag} -->`)) throw new Error('RELEASE.md was not prepared for this tag');
+  if (!releaseNotes.startsWith(`<!-- release-prepared: ${tag} -->\n`)) throw new Error('RELEASE.md was not prepared for this tag');
 }
 
 async function notes() {
-  const previous = stableTags().find(value => value !== tag);
-  const args = ['--config', 'cliff.toml', '--unreleased', '--tag', tag, '--use-branch-tags', '--context'];
-  // Prerelease tags never partition this range: every beta/RC and the final
-  // release carry all commits since the previous reachable stable tag.
-  if (previous) args.push(`${previous}..HEAD`);
+  const isPrerelease = version.includes('-');
+  const previousEntry = reachableReleaseTags({ stableOnly: !isPrerelease }).find(entry => entry.tag !== tag);
+  const previous = previousEntry?.tag;
+  if (previousEntry && previousEntry.anchor === git('rev-parse', 'HEAD')) {
+    return renderNotes({ version: tag, commits: [] }, version, repo, previous);
+  }
+  const args = ['--config', 'cliff.toml', '--tag', tag, '--use-branch-tags', '--context'];
+  // Pre-release notes cover only commits since the previous release (stable or
+  // pre-release); stable notes aggregate everything since the previous stable tag.
+  // Avoid --unreleased with an explicit range because git-cliff lets --unreleased
+  // override the range back to the latest tag matching cliff.toml's tag_pattern.
+  if (previousEntry) args.push(`${previousEntry.anchor}..HEAD`);
+  else args.push('--unreleased');
   if (process.env.GITHUB_TOKEN) args.push('--github-repo', repo);
   else args.push('--offline');
   const context = JSON.parse(run(process.env.GIT_CLIFF_BIN || 'git-cliff', args));
@@ -117,7 +150,9 @@ if (command === 'next-version') {
   if (git('status', '--porcelain')) throw new Error('Release preparation requires a clean checkout');
   const existing = existsRef(`refs/tags/${tag}^{commit}`);
   if (existing) {
-    git('merge-base', '--is-ancestor', existing, `refs/remotes/origin/${branch}`);
+    const release = git('log', '-1', '--format=%P%n%s', existing).split('\n');
+    const detachedBeta = isCurrent && beta && release[0] && !/\s/.test(release[0]) && release[1] === `chore(release): ${tag}`;
+    git('merge-base', '--is-ancestor', detachedBeta ? release[0] : existing, `refs/remotes/origin/${branch}`);
     git('checkout', '--detach', existing);
     await validate();
     await output(existing);
@@ -126,7 +161,8 @@ if (command === 'next-version') {
       await writeFile('THIRD-PARTY-LICENSES.md', await readFile(process.env.RELEASE_LICENSE_MANIFEST));
     } else run(process.execPath, ['scripts/generate-licenses.mjs']);
     const releaseNotes = await notes();
-    if (!isCurrent) {
+    const syncVersionFiles = !isCurrent || version !== baseVersion;
+    if (syncVersionFiles) {
       for (const path of ['package.json', 'src-tauri/tauri.conf.json']) {
         const source = await text(path);
         await writeFile(path, source.replace(/("version"\s*:\s*")[^"]+(")/, (_, prefix, suffix) => `${prefix}${version}${suffix}`));
@@ -145,6 +181,14 @@ if (command === 'next-version') {
         git('commit', '-m', `chore(release): ${tag}`);
         git('tag', '-a', tag, '-m', `Release ${tag}`);
         git('push', '--atomic', 'origin', `HEAD:refs/heads/${branch}`, `refs/tags/${tag}`);
+      } else if (syncVersionFiles) {
+        // Keep the source branch at its commit-bumped version; attach the
+        // -beta release commit only to the pushed tag.
+        git('checkout', '--detach', 'HEAD');
+        git('add', '--', 'package.json', 'src-tauri/tauri.conf.json', 'src-tauri/Cargo.toml', 'Cargo.lock', 'RELEASE.md', 'THIRD-PARTY-LICENSES.md');
+        git('commit', '-m', `chore(release): ${tag}`);
+        git('tag', '-a', tag, '-m', `Release ${tag}`);
+        git('push', 'origin', `refs/tags/${tag}`);
       } else {
         const tagExists = existsRef(`refs/tags/${tag}^{commit}`);
         if (!tagExists) {

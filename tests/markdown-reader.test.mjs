@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseMarkdown, parseInline, escapeHtml, sanitizeUrl, stripHtmlComments } from '../src/renderer/lib/utils/markdownParser.ts';
+import { renderNotes } from '../scripts/release-lib.mjs';
 
 test('HTML escaping prevents any injected markup', () => {
   assert.equal(escapeHtml('<script>alert("xss")</script>'), '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
@@ -115,42 +116,41 @@ test('Parses actual repo RELEASE.md accurately 1:1', () => {
 });
 
 test('Parses git-cliff / renderNotes output 1:1', () => {
-  const generatedNotes = [
-    '# Release v8.18.0',
-    '',
-    '<!-- release-prepared: v8.18.0 -->',
-    '',
-    "## What's New?",
-    '',
-    '- **Breaking:** **games:** New instrument ([#42](https://github.com/Jed556/AutoMidiPlayer/pull/42))',
-    '- **audio:** High performance synthesis ([#43](https://github.com/Jed556/AutoMidiPlayer/pull/43))',
-    '',
-    '## Bug Fixes',
-    '',
-    '- Repair playback ([1234567](https://github.com/Jed556/AutoMidiPlayer/commit/1234567))',
-    '',
-    '## New Contributors',
-    '',
-    '- @new-user made their first contribution in [#42](https://github.com/Jed556/AutoMidiPlayer/pull/42).',
-    '',
-    "> **macOS:** The first launch is blocked by Gatekeeper because the app isn't notarized. Open it once, then choose **Open Anyway** in System Settings → Privacy & Security. [More details](https://github.com/Jed556/AutoMidiPlayer/wiki/Getting-Started#macos-first-launch)",
-    '',
-    '**Full Changelog**: [v8.17.0...v8.18.0](https://github.com/Jed556/AutoMidiPlayer/compare/v8.17.0...v8.18.0)',
-  ].join('\n');
+  const generatedNotes = renderNotes({
+    commits: [
+      { id: 'abcdef123456', group: "What's New?", message: 'New instrument', scope: 'games', breaking: true, remote: { pr_number: 42 } },
+      { id: 'fedcba654321', group: "What's New?", message: 'High performance synthesis', scope: 'audio', remote: { pr_number: 43 } },
+      { id: '123456789abc', group: 'Bug Fixes', message: 'Repair playback' },
+    ],
+    github: {
+      contributors: [{ username: 'new-user', is_first_time: true, pr_number: 42 }],
+    },
+  }, '8.18.0', 'Jed556/AutoMidiPlayer', 'v8.17.0');
 
   const html = parseMarkdown(generatedNotes);
 
   // Verified 1:1 preservation of elements:
   assert.doesNotMatch(html, /<!--/);
-  assert.match(html, /<h1>Release v8\.18\.0<\/h1>/);
-  assert.match(html, /<h2>What&#39;s New\?<\/h2>/);
+  assert.doesNotMatch(html, /<h1>/);
+  assert.match(html, /<h3>✨ What&#39;s New<\/h3>/);
   assert.match(html, /<strong>Breaking:<\/strong> <strong>games:<\/strong> New instrument/);
   assert.match(html, /<a href="https:\/\/github\.com\/Jed556\/AutoMidiPlayer\/pull\/42"/);
-  assert.match(html, /<h2>Bug Fixes<\/h2>/);
-  assert.match(html, /<h2>New Contributors<\/h2>/);
+  assert.match(html, /<h3>🐛 Bug Fixes<\/h3>/);
+  assert.match(html, /<h3>❤️ New Contributors<\/h3>/);
   assert.match(html, /@new-user made their first contribution/);
-  assert.match(html, /<blockquote>/);
-  assert.match(html, /<strong>macOS:<\/strong>/);
+  assert.match(html, /<h3>📥 Downloads &amp; Installation<\/h3>/);
+  assert.match(html, /<table><thead><tr><th>Platform<\/th><th>Package<\/th><th>Notes<\/th><\/tr><\/thead>/);
+  assert.match(
+    html,
+    /<a href="https:\/\/github\.com\/Jed556\/AutoMidiPlayer\/releases\/download\/v8\.18\.0\/AutoMidiPlayer_v8\.18\.0_windows-x64-setup\.exe" target="_blank" rel="noopener noreferrer"><code>AutoMidiPlayer_v8\.18\.0_windows-x64-setup\.exe<\/code><\/a>/
+  );
+  assert.match(html, /<blockquote class="markdown-alert markdown-alert-note"><p class="markdown-alert-title">Note<\/p>/);
+  assert.match(html, /macOS and Linux support should work in theory/);
+  assert.match(html, /<h3>📖 Documentation &amp; Wiki<\/h3>/);
+  assert.match(
+    html,
+    /<a href="https:\/\/github\.com\/Jed556\/AutoMidiPlayer\/wiki" target="_blank" rel="noopener noreferrer">Wiki &amp; Getting Started Guide<\/a>/
+  );
   assert.match(html, /<strong>Full Changelog<\/strong>:/);
   assert.match(html, /<a href="https:\/\/github\.com\/Jed556\/AutoMidiPlayer\/compare\/v8\.17\.0\.\.\.v8\.18\.0"/);
 });

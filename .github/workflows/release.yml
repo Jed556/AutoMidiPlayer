@@ -11,7 +11,7 @@ on:
         default: 'current'
         type: string
       beta:
-        description: 'Publish a beta prerelease (automatically adds/increments -beta.N)'
+        description: 'Publish a beta pre-release (appends -beta)'
         type: boolean
         default: false
       build_only:

@@ -56,6 +56,14 @@ Preview the calculation locally without changing version files or rewriting comm
 pnpm version:preview
 ```
 
+### Releases and Beta Pre-releases
+
+The [Release workflow](.github/workflows/release.yml) publishes packages using the commit-bumped version already in `package.json` by default (`version: current`).
+
+* **Stable release (`beta: false`):** Tags and publishes `vX.Y.Z` as the latest release.
+* **Beta pre-release (`beta: true`):** Appends `-beta` (for example, `v8.19.3-beta`), marks the GitHub release as a pre-release, and leaves `main` at its commit-bumped version without adding a release commit to the branch. Because the Bump Version workflow already advances `X.Y.Z` on each eligible commit, the next beta uses the next bumped version (for example, `v8.19.4-beta`); if `vX.Y.Z-beta` already exists on another commit, push a version-bumping commit before cutting another beta.
+* **Per-beta vs. cumulative stable notes:** Each beta pre-release lists only the changes since the previous release (stable or beta), while the next stable release combines all features, changes, and bug fixes across every intermediate beta since the previous stable release. SemVer ordering (`8.19.3-beta` < `8.19.4-beta` < `8.19.4`) ensures beta testers auto-update cleanly to newer betas and to the final stable release.
+
 ### Sync After an Automated Amendment
 
 If you push directly to a managed branch, wait for the workflow to finish before continuing work on that branch. The bot pushes with a lease against the original tip, so it refuses to overwrite a newer push. Maintainers must configure branch rules to allow the workflow's force pushes.
@@ -63,12 +71,12 @@ If you push directly to a managed branch, wait for the workflow to finish before
 Save the exact tip you are pushing on an unused backup branch. For example, on `main`:
 
 ```bash
-git branch codex/backup-before-version-amend
+git branch backup/before-version-amend
 git push origin HEAD:main
 
 # After the Bump Version workflow finishes:
 git fetch origin
-git rebase --onto origin/main codex/backup-before-version-amend main
+git rebase --onto origin/main backup/before-version-amend main
 ```
 
 Commit or stash uncommitted edits before rebasing. This moves the local branch onto the amended history and replays only commits made after the saved push tip, if any. Rebasing those additional local commits can change their committer dates. Keep the backup until you have checked the result, and use a fresh backup name for each push. See Git's [upstream rebase recovery guidance](https://git-scm.com/docs/git-rebase#_recovering_from_upstream_rebase) for more detail.

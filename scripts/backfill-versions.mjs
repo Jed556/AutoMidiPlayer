@@ -169,7 +169,7 @@ export async function prepareBackfill() {
   const backupRoot = resolve('..', 'bak');
   await mkdir(backupRoot, { recursive: true });
   const directory = await mkdtemp(join(backupRoot, 'version-backfill-'));
-  const backupBranch = `codex/backup-${plan.branch}-before-version-backfill-${directory.split(/[\\/]/).at(-1)}`;
+  const backupBranch = `backup/${plan.branch}-before-version-backfill-${directory.split(/[\\/]/).at(-1)}`;
   updateRef(`refs/heads/${backupBranch}`, plan.afterSha, zeroSha);
   await captureCheckout(join(directory, 'checkout-at-prepare'));
   const report = { ...await buildAmendedHistory(plan), backupBranch, directory };

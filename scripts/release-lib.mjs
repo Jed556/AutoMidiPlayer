@@ -8,9 +8,43 @@ export function releaseVersion(input) {
   if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/.test(version)
     || Number(version.split('.')[0]) < 8
     || version.split('-').slice(1).join('-').split('.').some(id => /^0\d+$/.test(id))) {
-    throw new Error('Use a rewrite version such as 8.1.0 or 8.1.0-beta.1 (major >= 8, no leading zeros).');
+    throw new Error('Use a rewrite version such as 8.1.0 or 8.1.0-beta (major >= 8, no leading zeros).');
   }
   return version;
+}
+
+export function compareReleaseVersions(a, b) {
+  const parse = input => {
+    const clean = releaseVersion(input);
+    const dash = clean.indexOf('-');
+    const core = (dash === -1 ? clean : clean.slice(0, dash)).split('.').map(n => BigInt(n));
+    const pre = dash === -1 ? [] : clean.slice(dash + 1).split('.');
+    return { core, pre };
+  };
+  const va = parse(a);
+  const vb = parse(b);
+  for (let i = 0; i < 3; i++) {
+    if (va.core[i] !== vb.core[i]) return va.core[i] > vb.core[i] ? 1 : -1;
+  }
+  if (!va.pre.length && !vb.pre.length) return 0;
+  if (!va.pre.length) return 1;
+  if (!vb.pre.length) return -1;
+  const len = Math.max(va.pre.length, vb.pre.length);
+  for (let i = 0; i < len; i++) {
+    if (va.pre[i] === undefined) return -1;
+    if (vb.pre[i] === undefined) return 1;
+    const na = /^\d+$/.test(va.pre[i]);
+    const nb = /^\d+$/.test(vb.pre[i]);
+    if (na && nb) {
+      const diff = BigInt(va.pre[i]) - BigInt(vb.pre[i]);
+      if (diff !== 0n) return diff > 0n ? 1 : -1;
+    } else if (na !== nb) {
+      return na ? -1 : 1;
+    } else if (va.pre[i] !== vb.pre[i]) {
+      return va.pre[i] > vb.pre[i] ? 1 : -1;
+    }
+  }
+  return 0;
 }
 
 export function nextReleaseVersion(base, messages) {
@@ -44,15 +78,27 @@ export function replaceCargoVersion(source, name, version) {
 
 const escape = value => String(value).replace(/[\\`*\[\]<>]/g, '\\$&').replace(/[\r\n]+/g, ' ');
 
+const noteGroups = [
+  ["What's New?", "✨ What's New"],
+  ['Changes', '🛠️ Changes'],
+  ['Bug Fixes', '🐛 Bug Fixes'],
+];
+
 export function renderNotes(release, version, repo, previous) {
   const tag = `v${releaseVersion(version)}`;
   const base = `https://github.com/${repo}`;
-  const lines = [`# Release ${tag}`, ''];
-  lines.push(`<!-- release-prepared: ${tag} -->`, '');
-  for (const group of ["What's New?", 'Changes', 'Bug Fixes']) {
+  const downloadLink = asset => `[\`${asset}\`](${base}/releases/download/${tag}/${encodeURIComponent(asset)})`;
+  const lines = [
+    `<!-- release-prepared: ${tag} -->`,
+    '',
+  ];
+
+  let hasReleaseEntries = false;
+  for (const [group, heading] of noteGroups) {
     const commits = (release.commits ?? []).filter(commit => commit.group === group);
     if (!commits.length) continue;
-    lines.push(`## ${group}`, '');
+    hasReleaseEntries = true;
+    lines.push(`### ${heading}`, '');
     for (const commit of commits) {
       const remote = commit.remote ?? commit.github ?? {};
       const link = remote.pr_number
@@ -62,20 +108,47 @@ export function renderNotes(release, version, repo, previous) {
     }
     lines.push('');
   }
+
   const contributors = new Map();
   for (const person of (release.github?.contributors ?? [])) {
     if (person.is_first_time && person.username && !/\[bot\]$|copilot/i.test(person.username)) contributors.set(person.username, person);
   }
   if (contributors.size) {
-    lines.push('## New Contributors', '');
+    hasReleaseEntries = true;
+    lines.push('### ❤️ New Contributors', '');
     for (const [name, person] of contributors) {
-      lines.push(`- @${name} made their first contribution${person.pr_number ? ` in [#${person.pr_number}](${base}/pull/${person.pr_number})` : ''}.`);
+      lines.push(`- @${name} made their first contribution${person.pr_number ? ` in [#${person.pr_number}](${base}/pull/${person.pr_number})` : ''}!`);
     }
     lines.push('');
   }
+
+  if (hasReleaseEntries) lines.push('---', '');
+
+  lines.push(
+    '### 📥 Downloads & Installation',
+    '',
+    '| Platform | Package | Notes |',
+    '| :--- | :--- | :--- |',
+    `| **Windows x64** | ${downloadLink(`AutoMidiPlayer_${tag}_windows-x64-setup.exe`)} | Standard silent-updating installer |`,
+    `| **Windows x64** | ${downloadLink(`AutoMidiPlayer_${tag}_windows-x64-portable.zip`)} | Extract and run \`Auto MIDI Player.exe\` (no install required) |`,
+    `| **macOS (Apple Silicon)** | ${downloadLink(`AutoMidiPlayer_${tag}_macos-arm64.dmg`)} | Drag to \`/Applications\` (first launch needs **Open Anyway** — see [macOS launch notes](${base}/wiki/Getting-Started#macos-first-launch)) |`,
+    `| **macOS (Intel)** | ${downloadLink(`AutoMidiPlayer_${tag}_macos-x64.dmg`)} | Drag to \`/Applications\` (first launch needs **Open Anyway** — see [macOS launch notes](${base}/wiki/Getting-Started#macos-first-launch)) |`,
+    `| **Linux (AppImage)** | ${downloadLink(`AutoMidiPlayer_${tag}_linux-x64.AppImage`)} | Standalone AppImage |`,
+    `| **Linux (Debian / Ubuntu)** | ${downloadLink(`AutoMidiPlayer_${tag}_linux-x64.deb`)} | Debian package |`,
+    '',
+    '> [!NOTE]',
+    "> macOS and Linux support should work in theory, however it isn't tested due to my system's limitations, so help in testing would be appreciated!",
+    '',
+    '---',
+    '',
+    '### 📖 Documentation & Wiki',
+    '',
+    `- Check out the [Wiki & Getting Started Guide](${base}/wiki) for detailed setup and usage tutorials.`,
+    `- Found a bug or have a suggestion? Open an issue on our [GitHub Issues](${base}/issues) page!`,
+    '',
+  );
+
   const url = previous ? `${base}/compare/${previous}...${tag}` : `${base}/commits/${tag}`;
-  // macOS builds are ad-hoc signed (not notarized), so Gatekeeper needs a one-time approval.
-  lines.push(`> **macOS:** The first launch is blocked by Gatekeeper because the app isn't notarized. Open it once, then choose **Open Anyway** in System Settings → Privacy & Security. [More details](${base}/wiki/Getting-Started#macos-first-launch)`, '');
   lines.push(`**Full Changelog**: [${previous ? `${previous}...${tag}` : tag}](${url})`, '');
   return lines.join('\n');
 }
