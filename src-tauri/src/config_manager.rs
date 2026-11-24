@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 static DEFAULTS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/resources/defaults");
 static DEFAULT_SYNC_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -289,6 +290,72 @@ fn open_folder_in_explorer(path: &Path) -> Result<(), String> {
         fs::create_dir_all(path).map_err(|error| format!("Failed to create folder: {error}"))?;
         crate::desktop_open::open_path(path)
     }
+}
+
+type BundledTelemetryCatalog = HashMap<String, (String, HashMap<String, String>)>;
+
+fn collect_bundled_instrument_ids(dir: &include_dir::Dir<'_>, instruments: &mut HashMap<String, String>) {
+    for file in dir.files() {
+        if file.path().extension().and_then(|ext| ext.to_str()) != Some("json") {
+            continue;
+        }
+        if let Some(id) = serde_json::from_slice::<serde_json::Value>(file.contents())
+            .ok()
+            .and_then(|v| v.get("id").and_then(|id| id.as_str()).map(str::trim).map(str::to_string))
+            .filter(|id| !id.is_empty())
+        {
+            instruments.insert(id.to_lowercase(), id);
+        }
+    }
+    for sub in dir.dirs() {
+        collect_bundled_instrument_ids(sub, instruments);
+    }
+}
+
+fn bundled_telemetry_catalog() -> &'static BundledTelemetryCatalog {
+    static CATALOG: OnceLock<BundledTelemetryCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        let mut catalog = HashMap::new();
+        let Some(games_dir) = DEFAULTS_DIR.get_dir("Games") else {
+            return catalog;
+        };
+        for game_dir in games_dir.dirs() {
+            let game_json_path = game_dir.path().join("game.json");
+            let Some(game_file) = game_dir.get_file(&game_json_path) else {
+                continue;
+            };
+            let Some(game_id) = serde_json::from_slice::<serde_json::Value>(game_file.contents())
+                .ok()
+                .and_then(|v| v.get("id").and_then(|id| id.as_str()).map(str::trim).map(str::to_string))
+                .filter(|id| !id.is_empty())
+            else {
+                continue;
+            };
+            let mut instruments = HashMap::new();
+            let instruments_path = game_dir.path().join("Instruments");
+            if let Some(instruments_dir) = game_dir.get_dir(&instruments_path) {
+                collect_bundled_instrument_ids(instruments_dir, &mut instruments);
+            }
+            catalog.insert(game_id.to_lowercase(), (game_id, instruments));
+        }
+        catalog
+    })
+}
+
+/// Maps bundled game/instrument IDs to canonical names while bucketing user-created entries as `"custom"`.
+pub fn sanitize_telemetry_target(game_id: &str, instrument_id: Option<&str>) -> (String, String) {
+    let normalized_game = game_id.trim().to_lowercase();
+    let Some((canonical_game, instruments)) = bundled_telemetry_catalog().get(&normalized_game) else {
+        return ("custom".to_string(), "custom".to_string());
+    };
+    let sanitized_instrument = match instrument_id.map(str::trim).filter(|id| !id.is_empty()) {
+        Some(inst) => instruments
+            .get(&inst.to_lowercase())
+            .cloned()
+            .unwrap_or_else(|| "custom".to_string()),
+        None => "unknown".to_string(),
+    };
+    (canonical_game.clone(), sanitized_instrument)
 }
 
 #[cfg(test)]
@@ -574,5 +641,25 @@ mod tests {
         assert!(manager.games.is_empty());
         assert_eq!(root.parent(), Some(std::env::temp_dir().as_path()));
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn sanitize_telemetry_target_canonicalizes_bundled_and_buckets_custom() {
+        assert_eq!(
+            sanitize_telemetry_target("genshin impact", Some("WINDSONG-LYRE")),
+            ("Genshin Impact".to_string(), "windsong-lyre".to_string())
+        );
+        assert_eq!(
+            sanitize_telemetry_target("BPSR", Some("My Custom Piano")),
+            ("BPSR".to_string(), "custom".to_string())
+        );
+        assert_eq!(
+            sanitize_telemetry_target("Genshin Impact", None),
+            ("Genshin Impact".to_string(), "unknown".to_string())
+        );
+        assert_eq!(
+            sanitize_telemetry_target("My Custom Game", Some("windsong-lyre")),
+            ("custom".to_string(), "custom".to_string())
+        );
     }
 }

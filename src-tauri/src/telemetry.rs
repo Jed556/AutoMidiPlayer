@@ -87,13 +87,14 @@ fn get_or_create_anonymous_id() -> String {
 struct TelemetryClient {
     hub: Arc<Hub>,
     guard: ClientInitGuard,
+    anonymous_user_id: Option<String>,
 }
 
 impl TelemetryClient {
     fn new(options: ClientOptions, anonymous_user_id: Option<String>) -> Self {
         // Populate the scope before `sentry::init` so auto-started Release Health sessions capture `distinct_id`.
         let mut scope = Scope::default();
-        if let Some(user_id) = anonymous_user_id {
+        if let Some(user_id) = anonymous_user_id.clone() {
             scope.set_user(Some(User {
                 id: Some(user_id),
                 ..Default::default()
@@ -101,13 +102,169 @@ impl TelemetryClient {
         }
         let hub = Arc::new(Hub::new(None, Arc::new(scope)));
         let guard = Hub::run(hub.clone(), || sentry::init(options));
-        Self { hub, guard }
+        Self {
+            hub,
+            guard,
+            anonymous_user_id,
+        }
     }
 
     fn capture_message(&self, message: &str, level: Level) -> sentry::types::Uuid {
         // Give each operation its own scope while sharing the live client/session.
         Hub::new_from_top(&self.hub).capture_message(&crate::log_privacy::redact_paths(message), level)
     }
+
+    fn capture_metric<M: sentry::metrics::IntoProtocolMetric>(&self, metric: M) {
+        Hub::new_from_top(&self.hub).capture_metric(metric);
+    }
+
+    fn track_app_started(&self) {
+        let mut metric = sentry::metrics::counter("app.started", 1)
+            .attribute("opted", "in")
+            .attribute("distribution", logging::get_distribution_type())
+            .attribute("os.name", std::env::consts::OS);
+        if let Some(user_id) = &self.anonymous_user_id {
+            metric = metric.attribute("user.id", user_id.clone());
+        }
+        self.capture_metric(metric);
+    }
+
+    fn track_playback_started(&self, event: &PlaybackMetricEvent) {
+        let mut metric = sentry::metrics::counter("playback.started", 1)
+            .attribute("game", event.game.clone())
+            .attribute("instrument", event.instrument.clone())
+            .attribute("mode", event.mode)
+            .attribute("opted", "in")
+            .attribute("distribution", logging::get_distribution_type())
+            .attribute("os.name", std::env::consts::OS);
+        if let Some(user_id) = &self.anonymous_user_id {
+            metric = metric.attribute("user.id", user_id.clone());
+            if let Some(song_key) = event.song_key.as_deref().filter(|s| !s.is_empty()) {
+                metric = metric.attribute("song.id", salted_song_id(user_id, song_key));
+            }
+        }
+        self.capture_metric(metric);
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PlaybackMetricEvent {
+    pub game: String,
+    pub instrument: String,
+    pub mode: &'static str,
+    pub song_key: Option<String>,
+}
+
+#[derive(Default)]
+pub struct PlaybackTelemetryTracker {
+    active_game: Option<String>,
+    active_instrument: Option<String>,
+    listen_mode: bool,
+    current_song_key: Option<String>,
+    is_playing: bool,
+    recorded_in_run: std::collections::HashSet<(String, String, &'static str)>,
+}
+
+impl PlaybackTelemetryTracker {
+    pub fn new(initial_listen_mode: bool) -> Self {
+        Self {
+            listen_mode: initial_listen_mode,
+            ..Default::default()
+        }
+    }
+
+    pub fn set_target(
+        &mut self,
+        game: Option<String>,
+        instrument: Option<String>,
+    ) -> Option<PlaybackMetricEvent> {
+        self.active_game = game;
+        self.active_instrument = instrument;
+        if self.is_playing {
+            self.maybe_record()
+        } else {
+            None
+        }
+    }
+
+    pub fn set_listen_mode(&mut self, enabled: bool) -> Option<PlaybackMetricEvent> {
+        self.listen_mode = enabled;
+        if self.is_playing {
+            self.maybe_record()
+        } else {
+            None
+        }
+    }
+
+    pub fn on_song_loaded(&mut self, song_key: String) -> Option<PlaybackMetricEvent> {
+        self.current_song_key = Some(song_key);
+        self.recorded_in_run.clear();
+        if self.is_playing {
+            self.maybe_record()
+        } else {
+            None
+        }
+    }
+
+    pub fn on_playing(&mut self) -> Option<PlaybackMetricEvent> {
+        self.is_playing = true;
+        self.maybe_record()
+    }
+
+    pub fn on_paused(&mut self) {
+        self.is_playing = false;
+    }
+
+    pub fn on_stopped(&mut self) {
+        self.is_playing = false;
+        self.recorded_in_run.clear();
+    }
+
+    pub fn on_finished(&mut self) {
+        self.is_playing = false;
+        self.recorded_in_run.clear();
+    }
+
+    fn maybe_record(&mut self) -> Option<PlaybackMetricEvent> {
+        let game = self
+            .active_game
+            .clone()
+            .unwrap_or_else(|| "unknown".to_string());
+        let instrument = self
+            .active_instrument
+            .clone()
+            .unwrap_or_else(|| "unknown".to_string());
+        let mode = if self.listen_mode { "listen" } else { "game" };
+        if self
+            .recorded_in_run
+            .insert((game.clone(), instrument.clone(), mode))
+        {
+            Some(PlaybackMetricEvent {
+                game,
+                instrument,
+                mode,
+                song_key: self.current_song_key.clone(),
+            })
+        } else {
+            None
+        }
+    }
+}
+
+fn salted_song_id(user_id: &str, song_key: &str) -> String {
+    const OFFSET: u128 = 0x6c62272e07bb014262b821756295c58d;
+    const PRIME: u128 = 0x0000000001000000000000000000013b;
+    let mut hash = OFFSET;
+    for &byte in user_id
+        .as_bytes()
+        .iter()
+        .chain(std::iter::once(&0u8))
+        .chain(song_key.as_bytes().iter())
+    {
+        hash ^= u128::from(byte);
+        hash = hash.wrapping_mul(PRIME);
+    }
+    format!("{hash:032x}")
 }
 
 impl Drop for TelemetryClient {
@@ -200,9 +357,9 @@ fn ensure_monthly_monitor_started() {
 }
 
 /// Initializes the telemetry service with the user's opt-in preference.
-/// If opted in: starts Sentry and logs "User started app" for DAU metrics.
+/// If opted in: starts Sentry and records the `app.started` metric.
 /// If opted out: checks persisted 30-day refresh timer. If >= 30 days have elapsed
-/// since last report, sends an anonymized "User opted out of telemetry" ping to refresh active metrics.
+/// since last report, sends an anonymized `telemetry.opted_out` metric ping to refresh active metrics.
 pub fn init(telemetry_opt_in: bool) {
     if telemetry_opt_in {
         start_sentry();
@@ -330,18 +487,21 @@ fn build_opt_out_options() -> ClientOptions {
     options.release = None;
     options.environment = Some(environment_str);
     options.server_name = None;
+    options.default_integrations = false;
+    options.auto_session_tracking = false;
     options.send_default_pii = false;
-    options.before_send = Some(Arc::new(|mut event: Event<'static>| {
-        event.contexts.clear();
-        event.user = None;
-        event.server_name = None;
-        event.release = None;
-        event.tags.insert("Opted".to_string(), "out".to_string());
-        event.tags.insert(
-            "distribution".to_string(),
-            logging::get_distribution_type().to_string(),
+    options.before_send_metric = Some(Arc::new(|mut metric: sentry::protocol::Metric| {
+        metric.attributes.remove("server.address");
+        metric.attributes.remove("sentry.release");
+        metric.attributes.remove("user.id");
+        metric.attributes.remove("user.name");
+        metric.attributes.remove("user.email");
+        metric.attributes.insert("opted".into(), "out".into());
+        metric.attributes.insert(
+            "distribution".into(),
+            logging::get_distribution_type().into(),
         );
-        Some(event)
+        Some(metric)
     }));
     options
 }
@@ -349,18 +509,29 @@ fn build_opt_out_options() -> ClientOptions {
 fn send_opt_out_with_options(options: ClientOptions) {
     // Keep the temporary opt-out client isolated from the opted-in client/hubs.
     let client = TelemetryClient::new(options, None);
-    client.capture_message("User opted out of telemetry", Level::Info);
+    client.capture_metric(sentry::metrics::counter("telemetry.opted_out", 1));
     client.guard.flush(Some(Duration::from_secs(2)));
 }
 
-/// Sends an anonymized event reporting opt-out
+/// Sends an anonymized metric reporting opt-out
 fn report_opt_out() {
     send_opt_out_with_options(build_opt_out_options());
 }
 
-/// Reports application startup for Daily Active User metrics
+/// Reports application startup as a Sentry counter metric
 pub fn track_app_started() {
-    capture_message("User started app", Level::Info);
+    let state = STATE.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(client) = &state.client {
+        client.track_app_started();
+    }
+}
+
+/// Reports a song play as a Sentry counter metric
+pub fn track_playback_started(event: &PlaybackMetricEvent) {
+    let state = STATE.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(client) = &state.client {
+        client.track_playback_started(event);
+    }
 }
 
 /// Sends a test message with a 10-minute cooldown
@@ -470,6 +641,7 @@ mod tests {
     struct RecordingTransport {
         events: Mutex<Vec<Event<'static>>>,
         sessions: Mutex<Vec<sentry::protocol::SessionUpdate<'static>>>,
+        metrics: Mutex<Vec<sentry::protocol::Metric>>,
         flush_succeeds: AtomicBool,
     }
 
@@ -478,6 +650,7 @@ mod tests {
             Arc::new(Self {
                 events: Mutex::new(Vec::new()),
                 sessions: Mutex::new(Vec::new()),
+                metrics: Mutex::new(Vec::new()),
                 flush_succeeds: AtomicBool::new(true),
             })
         }
@@ -492,6 +665,11 @@ mod tests {
                     }
                     sentry::protocol::EnvelopeItem::SessionUpdate(session) => {
                         self.sessions.lock().unwrap().push(session.clone());
+                    }
+                    sentry::protocol::EnvelopeItem::ItemContainer(
+                        sentry::protocol::ItemContainer::Metrics(metrics),
+                    ) => {
+                        self.metrics.lock().unwrap().extend(metrics.iter().cloned());
                     }
                     _ => {}
                 }
@@ -670,28 +848,261 @@ mod tests {
     }
 
     #[test]
-    fn opt_out_event_preserves_environment_and_strips_identifying_metadata() {
+    fn opt_out_metric_preserves_environment_and_strips_identifying_metadata() {
         let transport = RecordingTransport::new();
         let mut options = build_opt_out_options();
-        options.default_integrations = false;
         options.transport = Some(Arc::new(transport.clone()));
 
         send_opt_out_with_options(options);
 
-        let events = transport.events.lock().unwrap();
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0].message.as_deref(), Some("User opted out of telemetry"));
-        assert_eq!(events[0].level, Level::Info);
-        assert_eq!(events[0].environment.as_deref(), Some(get_environment()));
-        assert!(events[0].user.is_none());
-        assert!(events[0].release.is_none());
-        assert!(events[0].server_name.is_none());
-        assert!(events[0].contexts.is_empty());
-        assert_eq!(events[0].tags.get("Opted").map(String::as_str), Some("out"));
+        assert!(transport.events.lock().unwrap().is_empty());
+        assert!(transport.sessions.lock().unwrap().is_empty());
+
+        let metrics = transport.metrics.lock().unwrap();
+        assert_eq!(metrics.len(), 1);
+        assert_eq!(metrics[0].name.as_ref(), "telemetry.opted_out");
+        assert_eq!(metrics[0].r#type, sentry::protocol::MetricType::Counter);
+        assert_eq!(metrics[0].value, 1.0);
         assert_eq!(
-            events[0].tags.get("distribution").map(String::as_str),
+            metrics[0]
+                .attributes
+                .get("sentry.environment")
+                .and_then(|attr| attr.0.as_str()),
+            Some(get_environment())
+        );
+        assert_eq!(
+            metrics[0]
+                .attributes
+                .get("opted")
+                .and_then(|attr| attr.0.as_str()),
+            Some("out")
+        );
+        assert_eq!(
+            metrics[0]
+                .attributes
+                .get("distribution")
+                .and_then(|attr| attr.0.as_str()),
             Some(logging::get_distribution_type())
         );
+        assert!(!metrics[0].attributes.contains_key("sentry.release"));
+        assert!(!metrics[0].attributes.contains_key("server.address"));
+        assert!(!metrics[0].attributes.contains_key("user.id"));
+        assert!(!metrics[0].attributes.contains_key("user.name"));
+        assert!(!metrics[0].attributes.contains_key("user.email"));
+    }
+
+    #[test]
+    fn app_started_sends_counter_metric_without_creating_issue_event() {
+        let (state, transport) = test_state(false);
+        let client = state.client.as_ref().unwrap();
+        client.track_app_started();
+        assert!(client.guard.flush(Some(Duration::from_secs(2))));
+
+        assert!(transport.events.lock().unwrap().is_empty());
+
+        let metrics = transport.metrics.lock().unwrap();
+        assert_eq!(metrics.len(), 1);
+        assert_eq!(metrics[0].name.as_ref(), "app.started");
+        assert_eq!(metrics[0].r#type, sentry::protocol::MetricType::Counter);
+        assert_eq!(metrics[0].value, 1.0);
+        assert_eq!(
+            metrics[0]
+                .attributes
+                .get("opted")
+                .and_then(|attr| attr.0.as_str()),
+            Some("in")
+        );
+        assert_eq!(
+            metrics[0]
+                .attributes
+                .get("distribution")
+                .and_then(|attr| attr.0.as_str()),
+            Some(logging::get_distribution_type())
+        );
+        assert_eq!(
+            metrics[0]
+                .attributes
+                .get("os.name")
+                .and_then(|attr| attr.0.as_str()),
+            Some(std::env::consts::OS)
+        );
+        assert_eq!(
+            metrics[0]
+                .attributes
+                .get("user.id")
+                .and_then(|attr| attr.0.as_str()),
+            Some("test-anonymous-id")
+        );
+        assert_eq!(
+            metrics[0]
+                .attributes
+                .get("sentry.environment")
+                .and_then(|attr| attr.0.as_str()),
+            Some(get_environment())
+        );
+    }
+
+    #[test]
+    fn playback_started_sends_counter_metric_with_game_instrument_mode_and_ids() {
+        let (state, transport) = test_state(false);
+        let client = state.client.as_ref().unwrap();
+
+        let game_event = PlaybackMetricEvent {
+            game: "Genshin Impact".to_string(),
+            instrument: "windsong-lyre".to_string(),
+            mode: "game",
+            song_key: Some("song-abc".to_string()),
+        };
+        let listen_event = PlaybackMetricEvent {
+            game: "Sky".to_string(),
+            instrument: "piano".to_string(),
+            mode: "listen",
+            song_key: Some("song-xyz".to_string()),
+        };
+
+        client.track_playback_started(&game_event);
+        client.track_playback_started(&game_event);
+        client.track_playback_started(&listen_event);
+        assert!(client.guard.flush(Some(Duration::from_secs(2))));
+
+        assert!(transport.events.lock().unwrap().is_empty());
+
+        let metrics = transport.metrics.lock().unwrap();
+        assert_eq!(metrics.len(), 3);
+
+        for m in metrics.iter() {
+            assert_eq!(m.name.as_ref(), "playback.started");
+            assert_eq!(m.r#type, sentry::protocol::MetricType::Counter);
+            assert_eq!(m.value, 1.0);
+            assert_eq!(
+                m.attributes.get("opted").and_then(|a| a.0.as_str()),
+                Some("in")
+            );
+            assert_eq!(
+                m.attributes.get("distribution").and_then(|a| a.0.as_str()),
+                Some(logging::get_distribution_type())
+            );
+            assert_eq!(
+                m.attributes.get("os.name").and_then(|a| a.0.as_str()),
+                Some(std::env::consts::OS)
+            );
+            assert_eq!(
+                m.attributes.get("user.id").and_then(|a| a.0.as_str()),
+                Some("test-anonymous-id")
+            );
+            assert_eq!(
+                m.attributes
+                    .get("sentry.environment")
+                    .and_then(|a| a.0.as_str()),
+                Some(get_environment())
+            );
+        }
+
+        assert_eq!(
+            metrics[0].attributes.get("game").and_then(|a| a.0.as_str()),
+            Some("Genshin Impact")
+        );
+        assert_eq!(
+            metrics[0]
+                .attributes
+                .get("instrument")
+                .and_then(|a| a.0.as_str()),
+            Some("windsong-lyre")
+        );
+        assert_eq!(
+            metrics[0].attributes.get("mode").and_then(|a| a.0.as_str()),
+            Some("game")
+        );
+
+        let song_id_0 = metrics[0]
+            .attributes
+            .get("song.id")
+            .and_then(|a| a.0.as_str())
+            .expect("song.id should be present");
+        let song_id_1 = metrics[1]
+            .attributes
+            .get("song.id")
+            .and_then(|a| a.0.as_str())
+            .expect("song.id should be present");
+        let song_id_2 = metrics[2]
+            .attributes
+            .get("song.id")
+            .and_then(|a| a.0.as_str())
+            .expect("song.id should be present");
+        assert!(!song_id_0.is_empty());
+        assert_ne!(song_id_0, "song-abc");
+        assert_eq!(song_id_0, song_id_1);
+        assert_ne!(song_id_0, song_id_2);
+
+        assert_eq!(
+            metrics[2].attributes.get("game").and_then(|a| a.0.as_str()),
+            Some("Sky")
+        );
+        assert_eq!(
+            metrics[2]
+                .attributes
+                .get("instrument")
+                .and_then(|a| a.0.as_str()),
+            Some("piano")
+        );
+        assert_eq!(
+            metrics[2].attributes.get("mode").and_then(|a| a.0.as_str()),
+            Some("listen")
+        );
+    }
+
+    #[test]
+    fn playback_tracker_deduplicates_pause_resume_and_tracks_mode_and_song_changes() {
+        let mut tracker = PlaybackTelemetryTracker::new(false);
+        assert!(tracker
+            .set_target(
+                Some("Genshin Impact".to_string()),
+                Some("windsong-lyre".to_string())
+            )
+            .is_none());
+        assert!(tracker.on_song_loaded("song-1".to_string()).is_none());
+
+        let play_ev = tracker.on_playing().expect("initial play should emit");
+        assert_eq!(
+            play_ev,
+            PlaybackMetricEvent {
+                game: "Genshin Impact".to_string(),
+                instrument: "windsong-lyre".to_string(),
+                mode: "game",
+                song_key: Some("song-1".to_string()),
+            }
+        );
+
+        // Pause -> resume does not double-count.
+        tracker.on_paused();
+        assert!(tracker.on_playing().is_none());
+
+        // Switching to listen mode mid-play records a listen-mode play, toggling back in same run does not re-emit.
+        let listen_ev = tracker
+            .set_listen_mode(true)
+            .expect("listen mode switch while playing should emit");
+        assert_eq!(listen_ev.mode, "listen");
+        assert!(tracker.set_listen_mode(false).is_none());
+
+        // Stop resets the run so next play emits again.
+        tracker.on_stopped();
+        assert!(tracker.on_playing().is_some());
+
+        // Finish also resets the run.
+        tracker.on_finished();
+        assert!(tracker.on_playing().is_some());
+
+        // Loading a new song while already playing emits immediately for the new song.
+        let skip_ev = tracker
+            .on_song_loaded("song-2".to_string())
+            .expect("song change while playing should emit");
+        assert_eq!(skip_ev.song_key.as_deref(), Some("song-2"));
+
+        // Loading a song while stopped defers emission until play.
+        tracker.on_stopped();
+        assert!(tracker.on_song_loaded("song-3".to_string()).is_none());
+        let deferred_ev = tracker.on_playing().expect("deferred play should emit");
+        assert_eq!(deferred_ev.song_key.as_deref(), Some("song-3"));
     }
 
     #[test]
@@ -744,7 +1155,7 @@ mod tests {
             .client
             .as_ref()
             .unwrap()
-            .capture_message("User started app", Level::Info);
+            .capture_message("Unhandled playback error", Level::Error);
 
         let events = transport.events.lock().unwrap();
         assert_eq!(events.len(), 1);

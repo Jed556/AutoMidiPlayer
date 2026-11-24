@@ -325,6 +325,7 @@ pub struct AppState {
     pub soundfont_watchers: Mutex<Vec<DirectoryWatcher>>,
     pub config_sources: Arc<Mutex<Vec<PathBuf>>>,
     pub song_defaults: Arc<RwLock<SongDefaults>>,
+    pub playback_telemetry: Arc<Mutex<telemetry::PlaybackTelemetryTracker>>,
 }
 
 // Window commands
@@ -445,6 +446,17 @@ fn read_midi_payload(
             }
         }
     };
+
+    if load_for_playback {
+        let metric_event = state
+            .playback_telemetry
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .on_song_loaded(db_id.clone());
+        if let Some(ev) = metric_event {
+            telemetry::track_playback_started(&ev);
+        }
+    }
 
     let disabled_indices: std::collections::HashSet<usize> = disabled_tracks_str
         .as_deref()
@@ -731,10 +743,25 @@ fn detect_key_signatures(file_path: String, state: State<AppState>) -> Result<Ve
 fn set_listen_mode(enabled: bool, state: State<AppState>) -> Result<bool, String> {
     cancel_pending_playback(&state);
     #[cfg(not(windows))]
-    if !enabled { state.engine.pause(); }
+    if !enabled {
+        state
+            .playback_telemetry
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .on_paused();
+        state.engine.pause();
+    }
     state.engine.set_listen_mode(enabled);
     #[cfg(not(windows))]
     state.engine.flush()?;
+    let metric_event = state
+        .playback_telemetry
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .set_listen_mode(enabled);
+    if let Some(ev) = metric_event {
+        telemetry::track_playback_started(&ev);
+    }
     Ok(true)
 }
 
@@ -1754,8 +1781,14 @@ fn set_game_instrument_mapping(
     *sources = paths;
     // An IPC mapping queued before deletion must not re-enable its old keys afterward.
     if missing {
+        drop(sources);
         state.engine.set_config_available(false);
         state.engine.set_mapping(NoteKeyMapping::from_pairs(KeyboardLayout::Diatonic21, &[]));
+        state
+            .playback_telemetry
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .set_target(None, None);
         return Ok(false);
     }
     let layout_lower = layout.to_lowercase();
@@ -1857,9 +1890,54 @@ fn set_game_instrument_mapping(
     // Stop while the old mapping is still installed so its held keys are released.
     let available = !layout.is_empty() && mapping.has_playable_bindings()
         && (!mixed.unwrap_or(false) || mapping.is_mixed());
+    let telemetry_target = if !available {
+        None
+    } else if let Some((game, instrument)) = cm
+        .games
+        .iter()
+        .flat_map(|game| game.instruments.iter().map(move |instrument| (game, instrument)))
+        .find(|(_, instrument)| {
+            instrument
+                .file_path
+                .as_ref()
+                .is_some_and(|path| sources.iter().any(|source| source == Path::new(path)))
+        })
+    {
+        Some(config_manager::sanitize_telemetry_target(
+            &game.config.id,
+            Some(&instrument.id),
+        ))
+    } else if let Some(game) = cm.games.iter().find(|game| {
+        game.config_path
+            .as_ref()
+            .is_some_and(|path| sources.iter().any(|source| source == Path::new(path)))
+    }) {
+        Some(config_manager::sanitize_telemetry_target(
+            &game.config.id,
+            None,
+        ))
+    } else {
+        None
+    };
+    drop(cm);
+    drop(sources);
+
     if !available { state.engine.set_config_available(false); }
     state.engine.set_mapping(mapping);
     if available { state.engine.set_config_available(true); }
+
+    let (safe_game, safe_instrument) = match telemetry_target {
+        Some((game, instrument)) => (Some(game), Some(instrument)),
+        None => (None, None),
+    };
+    let metric_event = state
+        .playback_telemetry
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .set_target(safe_game, safe_instrument);
+    if let Some(ev) = metric_event {
+        telemetry::track_playback_started(&ev);
+    }
     Ok(available)
 }
 
@@ -2324,6 +2402,10 @@ pub fn run() {
                     let (audio_synth, audio_initialization_error) = synth_rx.recv().unwrap_or_else(|error| (None, Some(error.to_string())));
 
                     set_startup_stage(&app, "Initializing player\u{2026}");
+                    let playback_telemetry = Arc::new(Mutex::new(
+                        telemetry::PlaybackTelemetryTracker::new(defaults::value("/ui/playback/isListenMode")),
+                    ));
+                    let playback_telemetry_cb = Arc::clone(&playback_telemetry);
                     // Initialize amp-core playback engine
                     let app_handle = app.clone();
                     let engine = Arc::new(PlaybackEngine::new(
@@ -2354,6 +2436,29 @@ pub fn run() {
                                 let _ = app_handle.emit("playback:track_notes", notes);
                             }
                             PlayerEvent::StateChanged(status) => {
+                                match status {
+                                    PlaybackStatus::Playing => {
+                                        let metric_event = playback_telemetry_cb
+                                            .lock()
+                                            .unwrap_or_else(|e| e.into_inner())
+                                            .on_playing();
+                                        if let Some(ev) = metric_event {
+                                            telemetry::track_playback_started(&ev);
+                                        }
+                                    }
+                                    PlaybackStatus::Paused => {
+                                        playback_telemetry_cb
+                                            .lock()
+                                            .unwrap_or_else(|e| e.into_inner())
+                                            .on_paused();
+                                    }
+                                    PlaybackStatus::Stopped => {
+                                        playback_telemetry_cb
+                                            .lock()
+                                            .unwrap_or_else(|e| e.into_inner())
+                                            .on_stopped();
+                                    }
+                                }
                                 let status_str = match status {
                                     PlaybackStatus::Playing => "Playing",
                                     PlaybackStatus::Paused => "Paused",
@@ -2362,6 +2467,10 @@ pub fn run() {
                                 let _ = app_handle.emit("playback:state_changed", status_str);
                             }
                             PlayerEvent::Finished => {
+                                playback_telemetry_cb
+                                    .lock()
+                                    .unwrap_or_else(|e| e.into_inner())
+                                    .on_finished();
                                 let _ = app_handle.emit("playback:finished", ());
                             }
                             _ => {}
@@ -2535,6 +2644,7 @@ pub fn run() {
                         soundfont_watchers: Mutex::new(watch_soundfonts(&app, &preferences)),
                         config_sources,
                         song_defaults: Arc::new(RwLock::new(SongDefaults::default())),
+                        playback_telemetry,
                     });
                     tray::refresh(&app, &settings);
                 }));
