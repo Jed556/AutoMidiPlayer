@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseMarkdown, parseInline, escapeHtml, sanitizeUrl } from '../src/renderer/lib/utils/markdownParser.ts';
+import { parseMarkdown, parseInline, escapeHtml, sanitizeUrl, stripHtmlComments } from '../src/renderer/lib/utils/markdownParser.ts';
 
 test('HTML escaping prevents any injected markup', () => {
   assert.equal(escapeHtml('<script>alert("xss")</script>'), '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
@@ -57,6 +57,25 @@ test('HTML comments are stripped by default', () => {
   assert.doesNotMatch(html, /release-prepared/);
   assert.match(html, /<h1>Release v8\.18\.0<\/h1>/);
   assert.match(html, /<h2>What&#39;s New\?<\/h2>/);
+});
+
+test('Nested, overlapping, and HTML5 HTML comments are iteratively stripped', () => {
+  assert.equal(stripHtmlComments('before<!<!-- inner -->-- outer -->after'), 'beforeafter');
+  assert.equal(stripHtmlComments('before<!-- html5 comment --!>after'), 'beforeafter');
+  assert.equal(stripHtmlComments('a<!-- 1 -->b<!-- 2 -->c'), 'abc');
+
+  const nestedInline = parseInline('safe <!<!-- inner -->-- injected --> text');
+  assert.equal(nestedInline, 'safe  text');
+
+  // Unclosed comment tokens are safely HTML-escaped rather than left as raw HTML
+  assert.equal(parseInline('text <!-- unclosed'), 'text &lt;!-- unclosed');
+
+  const nestedMd = `Hello\n\n<!<!-- inner -->-- hidden -->\n\nWorld`;
+  const html = parseMarkdown(nestedMd);
+  assert.doesNotMatch(html, /<!--/);
+  assert.doesNotMatch(html, /hidden/);
+  assert.match(html, /<p>Hello<\/p>/);
+  assert.match(html, /<p>World<\/p>/);
 });
 
 test('Blockquotes and nested callouts are parsed correctly', () => {

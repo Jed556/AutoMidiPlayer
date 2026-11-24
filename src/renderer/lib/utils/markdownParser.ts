@@ -31,6 +31,35 @@ export function sanitizeUrl(url: string): string {
 }
 
 /**
+ * Iteratively strips HTML comments until none remain, preventing nested comment bypasses.
+ */
+export function stripHtmlComments(input: string): string {
+  let result = input;
+  while (true) {
+    const start = result.indexOf('<!--');
+    if (start === -1) break;
+
+    const stdEnd = result.indexOf('-->', start + 4);
+    const bangEnd = result.indexOf('--!>', start + 4);
+
+    let end: number;
+    let endLen: number;
+    if (stdEnd !== -1 && (bangEnd === -1 || stdEnd < bangEnd)) {
+      end = stdEnd;
+      endLen = 3;
+    } else if (bangEnd !== -1) {
+      end = bangEnd;
+      endLen = 4;
+    } else {
+      break;
+    }
+
+    result = result.slice(0, start) + result.slice(end + endLen);
+  }
+  return result;
+}
+
+/**
  * Parses inline markdown: bold, italic, strikethrough, inline code, links, and autolinks.
  */
 export function parseInline(text: string): string {
@@ -44,7 +73,7 @@ export function parseInline(text: string): string {
   };
 
   // 1. Strip HTML comments within inline text
-  let s = text.replace(/<!--[\s\S]*?-->/g, '');
+  let s = stripHtmlComments(text);
 
   // 2. Escape HTML entities
   s = escapeHtml(s);
@@ -106,7 +135,7 @@ export function parseMarkdown(markdown: string, options: MarkdownParserOptions =
   let raw = markdown.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
   if (options.stripComments !== false) {
-    raw = raw.replace(/<!--[\s\S]*?-->/g, '');
+    raw = stripHtmlComments(raw);
   }
 
   const lines = raw.split('\n');
