@@ -14,7 +14,7 @@
 </div>
 
 <div align="center">
-  <p>A feature-rich MIDI-to-key player for in-game instruments, built with Svelte 5, Tauri v2, and Rust.</p>
+  <p>A feature-rich MIDI and Guitar Pro player for in-game instruments, built with Svelte 5, Tauri v2, and Rust.</p>
   <i>If you liked this project, consider <a href="CONTRIBUTING.md">contributing</a> or giving a 🌟 star. Thank you~</i>
 </div>
 <br/>
@@ -26,9 +26,9 @@
 
 | Game | Bundled instruments |
 | --- | --- |
-| **Genshin Impact** | 11 instrument entries, including lyres, zithers, pianos, percussion, Nightwind Horn, plus Ukulele and Lingering Euphonia with Keyboard and Chords modes |
+| **Genshin Impact** | 11 instrument entries, including lyres, zithers, pianos, percussion, Nightwind Horn, plus Ukulele and Lingering Euphonia with Keyboard and pad-only Chords modes |
 | **Wuthering Waves** | 21-key instrument layout |
-| **Neverness to Everness (NTE)** | Piano (21-key and 36-key), Guitar |
+| **Neverness to Everness (NTE)** | Piano (21-key and 36-key), Guitar (Keyboard, Chords, Frets, and Mixed modes) |
 | **Where Winds Meet** | Guqin |
 | **Blue Protocol: Star Resonance** | Piano (61-key and 88-key) |
 | **Sky: Children of the Light** | String, keyboard, wind, and percussion instruments |
@@ -42,8 +42,8 @@ See the [Support wiki page][wiki-support] for details on supported games, instru
 ## Quick Start
 
 1. Launch the desktop app and finish setup. If an old AMP profile is found, you can choose to import it.
-2. Choose your game, instrument, and keyboard layout. Make sure they match what you have open in the game.
-3. Add your `.mid` or `.midi` files with the **+** button (**Import MIDI files**) in Songs, or set a MIDI folder in Settings.
+2. Choose your game, instrument, input mode (such as **Keyboard**, **Chords**, **Frets**, or **Mixed** where supported), and layout. Make sure they match what you have open in the game.
+3. Add your **MIDI** (`.mid`, `.midi`) or **Guitar Pro** (`.gp`, `.gpx`, `.gp5`, `.gp4`, `.gp3`) files with the **+** button (**Import MIDI / Guitar Pro files**) in Songs, drag and drop files into the app, or set a MIDI folder in Settings.
 4. Open **Tracks** and keep the parts you want to play. A melody track is a good place to start!
 5. Turn on **Listen Mode** to hear the song through your speakers first. Adjust the key, transpose, speed, and note settings as needed.
 6. To play in-game, open the game's instrument, turn Listen Mode off, and press **Play**. AMP tries to focus the selected game on Windows, macOS, and X11; losing game focus pauses playback.
@@ -67,13 +67,14 @@ Here's where the main controls live. The annotated screenshots use the current i
 * **Smart transpose and Auto Correct** - Help notes fit instruments with limited ranges or missing sharps and flats. You can also choose Up, Down, or Ignore transposition.
 * **Hold Notes and Tap Threshold** - Choose between short key taps and held notes, or tap short notes while holding longer ones.
 * **Merge Notes** - Join repeated notes of the same pitch when they overlap or fall within your chosen gap. Try it on songs where repeated taps sound too busy.
-* **Chord & Fret Instruments** - Switch between Keyboard and Chords modes on Genshin's Ukulele and Lingering Euphonia, or use Keyboard, Chords, and Frets modes on NTE's Guitar.
-* **Default configuration updates** - Add missing bundled layouts and instruments on launch. A setup screen reviews changed JSON and duplicate IDs before the player initializes, with opt-in replacement and backed-up removal of older duplicates. See [configuration update behavior](docs/instrument-configuration.md#existing-configurations).
+* **Guitar Pro & MIDI support** - Import and scan both standard MIDI (`.mid`, `.midi`) and Guitar Pro tabs (`.gp`, `.gpx`, `.gp5`, `.gp4`, `.gp3`). Guitar Pro files expand repeats, alternate endings, and Da Capo / Dal Segno / Coda jumps, and supply written chord marks and brush/strum directions to the guitar arranger.
+* **Chord & Fret Instruments** - Switch between **Keyboard** and pad-only **Chords** modes on Genshin's Ukulele and Lingering Euphonia, or use **Keyboard**, **Chords**, **Frets**, and **Mixed** modes on NTE's Guitar.
+* **Default configuration updates** - Add missing bundled layouts and instruments on launch. A setup screen reviews changed JSON and duplicate IDs before the player initializes, with opt-in replacement and backed-up removal of older duplicates. See [custom configurations][wiki-config].
 * **Pedals and layouts** - Use sustain, sostenuto, and soft pedals where supported. Edit pedal bindings for the selected keyboard layout, and choose from QWERTY, QWERTZ, AZERTY, Dvorak, and other available mappings.
 
 Every game's instrument behaves a little differently. Preview your changes, then try a short section in-game to find what sounds best.
 
-NTE's **Guitar** has separate Keyboard, Chords, and Frets controls, including 24 wheel chords and frets 0–24 with automatic paging. Its guitar display shows six strings and a string/fret readout. See the [NTE guitar setup guide](docs/nte-guitar.md) and [instrument JSON schema](docs/instrument-configuration.md).
+For setup, page/mode synchronization, and limitations on NTE's **Guitar** (**Keyboard**, **Chords**, **Frets**, and **Mixed** modes) and pad-only **Chords** instruments (Genshin Impact's **Ukulele** and **Lingering Euphonia**), see the [Guitar Modes][wiki-guitar], [Chord Pads Mode][wiki-chords], and [custom configurations][wiki-config] guides on the wiki.
 
 ### Listen Before You Play
 
@@ -102,10 +103,10 @@ Live input works with Listen Mode or game output, including note velocity and su
 
 ![Annotated Studio page showing key markers, song settings, and the timeline scrubber](https://raw.githubusercontent.com/wiki/Jed556/AutoMidiPlayer/Assets/Screenshots/rewrite-studio-annotated.svg)
 
-### Your Library and Queue
+### Your Library, Playlists, and Queue
 
-* Import MIDI files or scan a MIDI folder, search your library, and sort by title, artist, duration, or date added.
-* Switch to custom order to drag songs into the order you want. AMP remembers your ordering and scroll positions.
+* Import MIDI and Guitar Pro files (or drag and drop them in), scan a library folder, search your library, and sort by title, artist, duration, or date added.
+* Organize favorites into **Playlists** and **Liked Songs**, or switch to custom order to drag songs into the order you want. AMP remembers your ordering and scroll positions.
 * Add songs to the queue, reorder what's coming next, and use shuffle or repeat for longer listening sessions.
 * Schedule a play or pause action from the Instrument page. The timer keeps running while you change pages; keep AMP open for it to fire.
 
@@ -119,12 +120,12 @@ Live input works with Listen Mode or game output, including note velocity and su
 
 ### Still in Progress
 
-**Discover (online MIDI)** and **New Playlist** are not implemented yet. Discover is available in the legacy app.
+**Discover (online MIDI)** is not implemented yet. Discover is available in the legacy app.
 
 ## About
 
-### What are MIDI files?
-MIDI files (`.mid` and `.midi`) contain notes, timing, and instrument instructions rather than recorded audio. AMP lets you choose which tracks to play, then either turns their notes into game keys or plays them through a SoundFont. The selected instrument, keyboard layout, and tuning settings decide which notes fit.
+### What are MIDI and Guitar Pro files?
+MIDI files (`.mid`, `.midi`) and Guitar Pro tabs (`.gp`, `.gpx`, `.gp5`, `.gp4`, `.gp3`) store notes, timing, and instrument tracks rather than recorded audio. AMP lets you choose which tracks to play, then turns their notes into game keys, chord pads, guitar wheel actions, or SoundFont audio. For Guitar Pro files, AMP also uses written chord marks and strum directions to improve guitar playback. The selected instrument, mode, layout, and tuning settings decide which notes fit.
 
 ### Can this get me banned?
 There is no guarantee that a game permits automated input or that using AMP will avoid account restrictions. Check the game's current rules and use it at your own risk. See the [Disclaimer][wiki-disclaimer] for more information.
@@ -197,9 +198,6 @@ Special thanks to **[Lunaferlone](https://github.com/Lunaferlone)** for helping 
 > Older releases use the legacy C#/WPF app and have different features and setup steps.
 
 > [!NOTE]
-> macOS and Linux support should work in theory, however it isn't tested due to my system's limitations, so help in testing would be appreciated!
-
-> [!NOTE]
 > I don't have knowledge about music theory, if you find any issues with note mappings or transpositions, please open an issue or PR. Thank you! 💖
 
 [latest]: https://github.com/Jed556/AutoMidiPlayer/releases/latest
@@ -207,8 +205,11 @@ Special thanks to **[Lunaferlone](https://github.com/Lunaferlone)** for helping 
 [GenshinLyreMidiPlayer]: https://github.com/sabihoshi/GenshinLyreMidiPlayer
 [wiki-home]: https://github.com/Jed556/AutoMidiPlayer/wiki
 [wiki-getting-started]: https://github.com/Jed556/AutoMidiPlayer/wiki/Getting-Started
+[wiki-config]: https://github.com/Jed556/AutoMidiPlayer/wiki/Getting-Started#addding
 [wiki-macos-first-launch]: https://github.com/Jed556/AutoMidiPlayer/wiki/Getting-Started#macos-first-launch
 [wiki-how-to-use]: https://github.com/Jed556/AutoMidiPlayer/wiki/How-to-Use
+[wiki-chords]: https://github.com/Jed556/AutoMidiPlayer/wiki/How-to-Use#play-chords
+[wiki-guitar]: https://github.com/Jed556/AutoMidiPlayer/wiki/How-to-Use#play-guitar
 [wiki-how-it-works]: https://github.com/Jed556/AutoMidiPlayer/wiki/How-it-Works
 [wiki-support]: https://github.com/Jed556/AutoMidiPlayer/wiki/Support
 [wiki-faq]: https://github.com/Jed556/AutoMidiPlayer/wiki/FAQ-General
