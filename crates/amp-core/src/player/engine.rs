@@ -520,6 +520,111 @@ fn get_active_marker(markers: &[KeyChangeMarker], target_ms: u64) -> Option<&Key
     }
 }
 
+fn playback_sleeper() -> SpinSleeper {
+    #[cfg(target_os = "macos")]
+    {
+        // Avoid YieldThread on macOS (yield_now invokes XNU swtch_pri priority
+        // depression) and keep the spin tail short so low-core VMs are not starved.
+        SpinSleeper::new(250_000).with_spin_strategy(spin_sleep::SpinStrategy::SpinLoopHint)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        SpinSleeper::default()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WaitPlan {
+    Channel(u64),
+    Sleep(u64),
+    Precise(u64),
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WaitProfile {
+    Windows,
+    MacOs,
+    Other,
+}
+
+impl WaitProfile {
+    const fn current() -> Self {
+        #[cfg(windows)]
+        {
+            Self::Windows
+        }
+        #[cfg(target_os = "macos")]
+        {
+            Self::MacOs
+        }
+        #[cfg(not(any(windows, target_os = "macos")))]
+        {
+            Self::Other
+        }
+    }
+}
+
+fn wait_step(
+    cmd_rx: &Receiver<Command>,
+    sleeper: SpinSleeper,
+    plan: WaitPlan,
+) -> Option<Command> {
+    match plan {
+        WaitPlan::Channel(0) | WaitPlan::Sleep(0) | WaitPlan::Precise(0) => None,
+        WaitPlan::Channel(us) => cmd_rx.recv_timeout(Duration::from_micros(us)).ok(),
+        WaitPlan::Sleep(us) => {
+            std::thread::sleep(Duration::from_micros(us));
+            None
+        }
+        WaitPlan::Precise(us) => {
+            sleeper.sleep(Duration::from_micros(us));
+            None
+        }
+    }
+}
+
+fn schedule_step(next_boundary_us: u64) -> WaitPlan {
+    schedule_step_for(next_boundary_us, WaitProfile::current())
+}
+
+fn schedule_step_for(next_boundary_us: u64, profile: WaitProfile) -> WaitPlan {
+    match profile {
+        WaitProfile::Windows => {
+            let chunk_us = next_boundary_us.min(10_000);
+            if next_boundary_us <= 25_000 {
+                WaitPlan::Precise(chunk_us)
+            } else {
+                WaitPlan::Channel(chunk_us)
+            }
+        }
+        WaitProfile::MacOs => {
+            // macOS pthread_cond_timedwait (recv_timeout) can coalesce 10ms waits by
+            // 50-150ms on virtualized runners. Use 1ms nanosleep outside the final 15ms
+            // window (zero spin, <= 1ms command polling) and 1ms SpinSleeper slices inside it.
+            if next_boundary_us <= 15_000 {
+                WaitPlan::Precise(next_boundary_us.min(1_000))
+            } else {
+                WaitPlan::Sleep(1_000)
+            }
+        }
+        WaitProfile::Other => {
+            if next_boundary_us <= 10_000 {
+                WaitPlan::Precise(next_boundary_us)
+            } else {
+                WaitPlan::Channel((next_boundary_us - 10_000).clamp(1_000, 10_000))
+            }
+        }
+    }
+}
+
+fn wheel_step(key_sim: &KeySimulator, now: Instant) -> WaitPlan {
+    let remaining_us = key_sim
+        .wheel_next_deadline(now)
+        .map_or(1_000, |deadline| deadline.saturating_duration_since(now).as_micros() as u64);
+    schedule_step(remaining_us)
+}
+
 fn run_playback_loop(
     initial_song: Option<ParsedMidi>,
     mapping: NoteKeyMapping,
@@ -552,7 +657,7 @@ fn run_playback_loop(
     let mut pending_command = None;
     let mut preview_audio = HashMap::<u8, Instant>::new();
     let mut preview_keys = HashMap::<Key, Instant>::new();
-    let sleeper = SpinSleeper::default();
+    let sleeper = playback_sleeper();
 
     let mut durations = initial_song.as_ref().map(|song| note_durations(&song.events)).unwrap_or_default();
     // Retain the untouched MIDI so live toggles never accumulate transformations.
@@ -852,7 +957,7 @@ fn run_playback_loop(
                 }
                 Command::SetTrackMuted(track_idx, muted) => {
                     rebuild_chords = true;
-                    key_sim.cancel_wheel();
+                    if status == PlaybackStatus::Playing { key_sim.cancel_wheel(); }
                     if muted {
                         muted_tracks.insert(track_idx);
                         let owners: Vec<_> = live_notes.iter()
@@ -908,7 +1013,7 @@ fn run_playback_loop(
                             || ((note_processing.merge_notes || settings.merge_notes)
                                 && note_processing.merge_tolerance_ms != settings.merge_tolerance_ms);
                         rebuild_chords = true;
-                        key_sim.cancel_wheel();
+                        if status == PlaybackStatus::Playing { key_sim.cancel_wheel(); }
                         note_processing = settings;
                     }
                 }
@@ -1067,7 +1172,7 @@ fn run_playback_loop(
                 }
                 Command::SetTrackVolume(track_idx, vol) => {
                     rebuild_chords = true;
-                    key_sim.cancel_wheel();
+                    if status == PlaybackStatus::Playing { key_sim.cancel_wheel(); }
                     track_volumes.insert(track_idx, vol.clamp(0.0, 1.0));
                     if let Some(ref synth) = audio_synth {
                         synth.set_track_volume(track_idx, vol);
@@ -1171,7 +1276,7 @@ fn run_playback_loop(
             }
         }
         if rebuild_chords {
-            key_sim.cancel_wheel();
+            if status == PlaybackStatus::Playing { key_sim.cancel_wheel(); }
             rebuild_chords = false;
             if chord_notes.is_empty() && event_idx > 0 && mapping.chord_wheel().is_some() {
                 if let Some(song) = current_song.as_ref() {
@@ -1486,7 +1591,8 @@ fn run_playback_loop(
         // 2. If not playing, sleep coarse and continue
         if status != PlaybackStatus::Playing {
             if key_sim.wheel_active() {
-                sleeper.sleep(Duration::from_millis(1));
+                let plan = wheel_step(&key_sim, Instant::now());
+                pending_command = wait_step(&cmd_rx, sleeper, plan);
                 continue;
             }
             let wait = key_releases.next_deadline()
@@ -1506,6 +1612,7 @@ fn run_playback_loop(
             }
         };
 
+        let mut wheel_prep_wait_us: Option<u64> = None;
         if send_input && !listen_mode && mapping.chord_wheel().is_some() {
             let next_pos = wheel_attacks.partition_point(|attack| attack.owner < event_idx);
             let next_attack = wheel_attacks.get(next_pos).copied();
@@ -1536,10 +1643,13 @@ fn run_playback_loop(
                         // Starting and seeking get preparation time before the song
                         // clock runs. Later page changes must fit between attacks.
                         if wheel_starting && !key_sim.wheel_ready(attack.owner) {
-                            sleeper.sleep(Duration::from_millis(1));
+                            let plan = wheel_step(&key_sim, Instant::now());
+                            pending_command = wait_step(&cmd_rx, sleeper, plan);
                             last_instant = Instant::now();
                             continue;
                         }
+                    } else {
+                        wheel_prep_wait_us = Some(until_us - budget_us);
                     }
                 }
             }
@@ -1573,7 +1683,8 @@ fn run_playback_loop(
                                     }
                                 }
                                 if wheel_starting && (out_of_sync || key_sim.wheel_active()) {
-                                    sleeper.sleep(Duration::from_millis(1));
+                                    let plan = wheel_step(&key_sim, Instant::now());
+                                    pending_command = wait_step(&cmd_rx, sleeper, plan);
                                     last_instant = Instant::now();
                                     continue;
                                 }
@@ -1595,7 +1706,8 @@ fn run_playback_loop(
         // 3. Check if song finished
         if event_idx >= song.events.len() && control_idx >= song.control_events.len() {
             if key_sim.wheel_active() {
-                sleeper.sleep(Duration::from_millis(1));
+                let plan = wheel_step(&key_sim, Instant::now());
+                pending_command = wait_step(&cmd_rx, sleeper, plan);
                 continue;
             }
             // A tap may outlast its MIDI note, including the final note in the song.
@@ -1634,18 +1746,18 @@ fn run_playback_loop(
             let real_wait_us = ((delta_us as f64) / speed).round() as u64;
 
             if real_wait_us > 1_000 {
-                let release_wait = next_note_deadline(&key_releases, &live_notes)
-                    .map(|deadline| deadline.saturating_duration_since(Instant::now()).as_micros() as u64)
-                    .unwrap_or(10_000);
-                let chunk_us = real_wait_us.min(if key_sim.wheel_active() { 1_000 } else { 10_000 }).min(release_wait);
-                if key_sim.wheel_active() {
-                    // Windows channel timeouts can round a 1ms wait up to a
-                    // system timer tick. Use the transport's precise sleeper
-                    // while preparing the shared mouse so waits do not pile up.
-                    sleeper.sleep(Duration::from_micros(chunk_us));
-                } else {
-                    pending_command = cmd_rx.recv_timeout(Duration::from_micros(chunk_us)).ok();
-                }
+                let now_wait = Instant::now();
+                let release_wait_us = next_note_deadline(&key_releases, &live_notes)
+                    .map(|deadline| deadline.saturating_duration_since(now_wait).as_micros() as u64);
+                let wheel_wait_us = key_sim
+                    .wheel_next_deadline(now_wait)
+                    .map(|deadline| deadline.saturating_duration_since(now_wait).as_micros() as u64);
+                let next_boundary_us = real_wait_us
+                    .min(wheel_prep_wait_us.unwrap_or(u64::MAX))
+                    .min(wheel_wait_us.unwrap_or(u64::MAX))
+                    .min(release_wait_us.unwrap_or(u64::MAX));
+                let plan = schedule_step(next_boundary_us);
+                pending_command = wait_step(&cmd_rx, sleeper, plan);
                 let elapsed = last_instant.elapsed();
                 last_instant = Instant::now();
                 current_us += (elapsed.as_micros() as f64 * speed).round() as u64;
@@ -1923,6 +2035,32 @@ fn run_playback_loop(
         if current_us.saturating_sub(last_sync_us) >= sync_interval_us {
             last_sync_us = current_us;
             callback(PlayerEvent::TimeUpdate { time_us: current_us, seek_id });
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{schedule_step_for, WaitPlan, WaitProfile};
+
+    #[test]
+    fn schedule_step_uses_coarse_waits_until_final_deadline_window() {
+        for (boundary_us, expected_windows, expected_macos, expected_other) in [
+            (0, WaitPlan::Precise(0), WaitPlan::Precise(0), WaitPlan::Precise(0)),
+            (500, WaitPlan::Precise(500), WaitPlan::Precise(500), WaitPlan::Precise(500)),
+            (1_000, WaitPlan::Precise(1_000), WaitPlan::Precise(1_000), WaitPlan::Precise(1_000)),
+            (5_000, WaitPlan::Precise(5_000), WaitPlan::Precise(1_000), WaitPlan::Precise(5_000)),
+            (10_000, WaitPlan::Precise(10_000), WaitPlan::Precise(1_000), WaitPlan::Precise(10_000)),
+            (10_500, WaitPlan::Precise(10_000), WaitPlan::Precise(1_000), WaitPlan::Channel(1_000)),
+            (15_000, WaitPlan::Precise(10_000), WaitPlan::Precise(1_000), WaitPlan::Channel(5_000)),
+            (15_001, WaitPlan::Precise(10_000), WaitPlan::Sleep(1_000), WaitPlan::Channel(5_001)),
+            (25_000, WaitPlan::Precise(10_000), WaitPlan::Sleep(1_000), WaitPlan::Channel(10_000)),
+            (25_001, WaitPlan::Channel(10_000), WaitPlan::Sleep(1_000), WaitPlan::Channel(10_000)),
+            (145_000, WaitPlan::Channel(10_000), WaitPlan::Sleep(1_000), WaitPlan::Channel(10_000)),
+        ] {
+            assert_eq!(schedule_step_for(boundary_us, WaitProfile::Windows), expected_windows);
+            assert_eq!(schedule_step_for(boundary_us, WaitProfile::MacOs), expected_macos);
+            assert_eq!(schedule_step_for(boundary_us, WaitProfile::Other), expected_other);
         }
     }
 }

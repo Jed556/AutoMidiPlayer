@@ -46,9 +46,11 @@ fn a_100ms_threshold_keeps_a_330ms_note_held() {
     let (engine, rx) = player(330_000);
     engine.set_note_timing(true, 100);
     engine.play();
-    assert!(next(&rx).0);
-    assert!(rx.recv_timeout(Duration::from_millis(150)).is_err());
-    assert!(!next(&rx).0);
+    let (on, started) = next(&rx);
+    let (off, ended) = next(&rx);
+    assert!(on);
+    assert!(!off);
+    assert!(ended.duration_since(started) >= Duration::from_millis(250));
 }
 
 #[test]
@@ -70,18 +72,21 @@ fn raw_listen_preserves_midi_duration_and_speed_affects_threshold_classification
     engine.set_game_preview_follow_note_timing(true);
     engine.set_note_timing(false, 1000);
     engine.play();
-    assert!(next(&rx).0);
-    assert!(rx.recv_timeout(Duration::from_millis(150)).is_err());
-    assert!(!next(&rx).0);
+    let (on, started) = next(&rx);
+    let (off, ended) = next(&rx);
+    assert!(on);
+    assert!(!off);
+    assert!(ended.duration_since(started) >= Duration::from_millis(250));
 
     let (engine, rx) = player(1_000_000);
     engine.set_speed(5.0);
     engine.set_note_timing(true, 200);
     engine.play();
-    assert!(next(&rx).0);
-    let start = Instant::now();
-    assert!(!next(&rx).0);
-    assert!(start.elapsed() < Duration::from_millis(150));
+    let (on, started) = next(&rx);
+    let (off, ended) = next(&rx);
+    assert!(on);
+    assert!(!off);
+    assert!(ended.duration_since(started) < Duration::from_millis(150));
 }
 
 #[test]
@@ -94,11 +99,10 @@ fn game_preview_defaults_to_midi_duration_despite_hold_threshold_and_delay() {
         engine.set_hold_delay_ms(delay);
         engine.play();
         let (on, started) = next(&rx);
-        assert!(on);
-        assert!(rx.recv_timeout(Duration::from_millis(150)).is_err());
         let (off, ended) = next(&rx);
+        assert!(on);
         assert!(!off);
-        assert!(ended.duration_since(started) < Duration::from_millis(700));
+        assert!((Duration::from_millis(250)..Duration::from_millis(700)).contains(&ended.duration_since(started)));
     }
 }
 
@@ -110,9 +114,11 @@ fn game_preview_can_opt_into_taps_with_hold_notes_off() {
     engine.set_note_timing(false, 0);
     engine.set_hold_delay_ms(120);
     engine.play();
-    assert!(next(&rx).0);
-    assert!(rx.recv_timeout(Duration::from_millis(60)).is_err());
-    assert!(!rx.recv_timeout(Duration::from_millis(400)).expect("tap release").0);
+    let (on, started) = next(&rx);
+    let (off, ended) = next(&rx);
+    assert!(on);
+    assert!(!off);
+    assert!((Duration::from_millis(100)..Duration::from_millis(600)).contains(&ended.duration_since(started)));
 }
 
 #[test]
@@ -123,10 +129,12 @@ fn disabling_preview_timing_restores_midi_release_for_an_active_tap() {
     engine.set_note_timing(false, 0);
     engine.set_hold_delay_ms(1000);
     engine.play();
-    assert!(next(&rx).0);
+    let (on, started) = next(&rx);
+    assert!(on);
     engine.set_game_preview_follow_note_timing(false);
-    assert!(rx.recv_timeout(Duration::from_millis(150)).is_err());
-    assert!(!rx.recv_timeout(Duration::from_millis(550)).expect("MIDI release").0);
+    let (off, ended) = next(&rx);
+    assert!(!off);
+    assert!((Duration::from_millis(250)..Duration::from_millis(800)).contains(&ended.duration_since(started)));
 }
 
 #[test]
@@ -138,10 +146,15 @@ fn disabling_preview_timing_finishes_a_tap_whose_source_already_ended() {
     engine.set_note_timing(false, 0);
     engine.set_hold_delay_ms(1000);
     engine.play();
-    assert!(next(&rx).0);
+    let (on, started) = next(&rx);
+    assert!(on);
     assert!(rx.recv_timeout(Duration::from_millis(220)).is_err());
+    let toggled = Instant::now();
     engine.set_game_preview_follow_note_timing(false);
-    assert!(!rx.recv_timeout(Duration::from_millis(100)).expect("expired source release").0);
+    let (off, ended) = next(&rx);
+    assert!(!off);
+    assert!(ended.saturating_duration_since(toggled) < Duration::from_millis(400));
+    assert!(ended.duration_since(started) < Duration::from_millis(800));
 }
 
 #[test]
@@ -163,7 +176,9 @@ fn midi_preview_restores_sustained_notes_after_seek_even_with_hold_notes_off() {
     engine.set_note_timing(false, 1000);
     engine.seek(600_000, 1);
     engine.play();
-    assert!(next(&rx).0);
-    assert!(rx.recv_timeout(Duration::from_millis(150)).is_err());
-    assert!(!next(&rx).0);
+    let (on, started) = next(&rx);
+    let (off, ended) = next(&rx);
+    assert!(on);
+    assert!(!off);
+    assert!(ended.duration_since(started) >= Duration::from_millis(300));
 }

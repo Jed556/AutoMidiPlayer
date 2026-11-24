@@ -120,8 +120,9 @@ pub(crate) fn wheel_transition_ms(
             distance.min(config.page_count - distance)
         });
     let switch_ms = if switch { super::simulator::MODE_HOLD_MS + super::simulator::MODE_SETTLE_MS } else { 0 };
+    let slack_ms = 45 + 20 * pages as u64 + 25 * u64::from(switch);
     switch_ms + pages as u64 * u64::from(config.page_hold_ms + config.page_wait_ms)
-        + u64::from(config.move_delay_ms + config.select_hold_ms + config.after_select_ms) + 30
+        + u64::from(config.move_delay_ms + config.select_hold_ms + config.after_select_ms) + slack_ms
 }
 
 impl ChordWheelOutput {
@@ -411,6 +412,13 @@ impl ChordWheelOutput {
     }
     pub fn is_active(&self) -> bool {
         self.attack.is_some() || self.held.is_some() || self.page_key.is_some() || !self.held_strings.is_empty()
+    }
+    pub fn next_deadline(&self, now: Instant) -> Option<Instant> {
+        let attack = self.attack.as_ref()?;
+        match attack.stage {
+            Stage::Ready if !attack.expired && attack.owner.is_some() && now >= attack.at => None,
+            _ => Some(attack.at),
+        }
     }
 }
 
@@ -857,5 +865,69 @@ mod tests {
                 Event::Button(WheelButton::Left, true),
             ]
         );
+    }
+
+    #[test]
+    fn next_deadline_tracks_pending_stages_and_clears_once_ready() {
+        let start = Instant::now();
+        let config = config();
+        let mut output = Output::default();
+        let mut wheel = ChordWheelOutput::default();
+        assert_eq!(wheel.next_deadline(start), None);
+
+        wheel
+            .prepare(&mut output, &config, &processes(), Some(0), 0, Some(3), start)
+            .unwrap();
+        assert_eq!(wheel.next_deadline(start), Some(start));
+        wheel.tick(&mut output, start).unwrap();
+        assert_eq!(wheel.next_deadline(start), Some(at(start, 5)));
+        wheel.tick(&mut output, at(start, 5)).unwrap();
+        assert_eq!(wheel.next_deadline(at(start, 5)), Some(at(start, 12)));
+        wheel.tick(&mut output, at(start, 12)).unwrap();
+        assert_eq!(wheel.next_deadline(at(start, 12)), Some(at(start, 15)));
+        assert_eq!(wheel.next_deadline(at(start, 15)), None);
+
+        wheel.strum(&mut output, 3, 20, at(start, 15)).unwrap();
+        assert_eq!(wheel.next_deadline(at(start, 15)), Some(at(start, 35)));
+    }
+
+    #[test]
+    fn transition_budget_scales_slack_with_pages_and_mode_switches() {
+        let config = config();
+        let base = u64::from(config.move_delay_ms + config.select_hold_ms + config.after_select_ms);
+        let page = u64::from(config.page_hold_ms + config.page_wait_ms);
+        let switch = super::super::simulator::MODE_HOLD_MS + super::super::simulator::MODE_SETTLE_MS;
+
+        assert_eq!(wheel_transition_ms(&config, 0, Some(0), true, false), 2);
+        assert_eq!(wheel_transition_ms(&config, 0, Some(0), false, false), base + 45);
+        assert_eq!(wheel_transition_ms(&config, 6, Some(0), false, false), page + base + 65);
+        assert_eq!(wheel_transition_ms(&config, 6, Some(0), false, true), switch + page + base + 90);
+    }
+
+    #[test]
+    fn next_deadline_keeps_due_cleanup_for_expired_and_ownerless_ready_attacks() {
+        let start = Instant::now();
+        let config = config();
+        let mut output = Output::default();
+        let mut wheel = ChordWheelOutput::default();
+        prepare_first_page(&mut wheel, &mut output, start, 3);
+        assert_eq!(wheel.next_deadline(at(start, 15)), None);
+
+        wheel.expire(3);
+        assert_eq!(wheel.next_deadline(at(start, 15)), Some(at(start, 15)));
+        wheel.tick(&mut output, at(start, 15)).unwrap();
+        assert!(!wheel.is_active());
+        assert_eq!(wheel.next_deadline(at(start, 15)), None);
+
+        wheel
+            .prepare(&mut output, &config, &processes(), Some(1), 0, None, at(start, 20))
+            .unwrap();
+        wheel.tick(&mut output, at(start, 20)).unwrap();
+        wheel.tick(&mut output, at(start, 25)).unwrap();
+        wheel.tick(&mut output, at(start, 32)).unwrap();
+        assert_eq!(wheel.next_deadline(at(start, 35)), Some(at(start, 35)));
+        wheel.tick(&mut output, at(start, 35)).unwrap();
+        assert!(!wheel.is_active());
+        assert_eq!(wheel.next_deadline(at(start, 35)), None);
     }
 }

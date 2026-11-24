@@ -151,13 +151,15 @@ fn contained_path(root: &Path, relative: &Path) -> Result<PathBuf, String> {
 }
 
 fn stamp() -> Result<String, String> {
+    static STAMP_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     Ok(format!(
-        "{}-{}",
+        "{}-{}-{}",
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(|e| e.to_string())?
             .as_nanos(),
-        std::process::id()
+        std::process::id(),
+        STAMP_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
     ))
 }
 

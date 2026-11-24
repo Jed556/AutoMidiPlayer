@@ -10,12 +10,18 @@ use std::{
 };
 
 type KeyEvents = Arc<Mutex<Vec<(OutputKey, bool)>>>;
+type TimedKeyEvents = Arc<Mutex<Vec<(Instant, OutputKey, bool)>>>;
 
-struct Output(KeyEvents);
+struct Output {
+    events: KeyEvents,
+    times: TimedKeyEvents,
+}
 
 impl KeyboardOutput for Output {
     fn key(&mut self, key: OutputKey, up: bool) -> Result<(), String> {
-        self.0.lock().unwrap().push((key, up));
+        let now = Instant::now();
+        self.events.lock().unwrap().push((key, up));
+        self.times.lock().unwrap().push((now, key, up));
         Ok(())
     }
 }
@@ -62,12 +68,14 @@ fn mapping() -> NoteKeyMapping {
 struct Harness {
     engine: PlaybackEngine,
     output: KeyEvents,
+    times: TimedKeyEvents,
     hits: Arc<Mutex<Vec<(u8, bool)>>>,
 }
 
 impl Harness {
     fn new(events: Vec<TimedNoteEvent>) -> Self {
         let output = Arc::new(Mutex::new(Vec::new()));
+        let times = Arc::new(Mutex::new(Vec::new()));
         let hits = Arc::new(Mutex::new(Vec::new()));
         let captured_hits = hits.clone();
         let engine = PlaybackEngine::new(Some(song(events)), mapping(), true, None, move |event| {
@@ -75,11 +83,23 @@ impl Harness {
                 captured_hits.lock().unwrap().push((note, is_on));
             }
         });
-        engine.set_keyboard_output(Some(Box::new(Output(output.clone()))));
+        engine.set_keyboard_output(Some(Box::new(Output {
+            events: output.clone(),
+            times: times.clone(),
+        })));
         engine.set_note_timing(true, 0);
         engine.set_hold_delay_ms(20);
         engine.flush().unwrap();
-        Self { engine, output, hits }
+        Self { engine, output, times, hits }
+    }
+
+    fn key_time(&self, binding: &str, up: bool) -> Option<Instant> {
+        let target = key(binding);
+        self.times
+            .lock()
+            .unwrap()
+            .iter()
+            .find_map(|&(at, output, released)| (output == target && released == up).then_some(at))
     }
 
     fn count(&self, binding: &str, up: bool) -> usize {
@@ -215,12 +235,13 @@ fn a_short_source_chord_does_not_cut_off_its_longer_pad_tap() {
     h.engine.set_note_processing(settings(false));
     h.engine.play();
     wait(|| h.count("q", false) == 1);
-    let started = Instant::now();
     wait(|| h.hits.lock().unwrap().iter().filter(|(_, on)| !*on).count() == 3);
     assert_eq!(h.count("q", true), 0,
         "source NoteOff must not release the independently timed pad");
     wait(|| h.count("q", true) == 1);
-    assert!(started.elapsed() >= Duration::from_millis(150));
+    let down_at = h.key_time("q", false).unwrap();
+    let up_at = h.key_time("q", true).unwrap();
+    assert!(up_at.duration_since(down_at) >= Duration::from_millis(150));
     wait(|| h.engine.get_status() == PlaybackStatus::Stopped);
 }
 
@@ -296,13 +317,13 @@ fn disabled_unmatched_and_muted_chords_keep_individual_melody_output() {
 fn mid_chord_processing_and_track_changes_do_not_mix_pad_and_melody_output() {
     for change in ["disable", "mute", "zero_volume"] {
         let h = Harness::new(vec![
-            event(0, 0, 60, true), event(60_000, 1, 64, true), event(120_000, 2, 67, true),
-            event(180_000, 0, 60, false), event(180_000, 1, 64, false), event(180_000, 2, 67, false),
+            event(0, 0, 60, true), event(200_000, 1, 64, true), event(300_000, 2, 67, true),
+            event(360_000, 0, 60, false), event(360_000, 1, 64, false), event(360_000, 2, 67, false),
         ]);
-        let processing = NoteProcessingSettings { chord_detection_milliseconds: 150, ..settings(false) };
+        let processing = NoteProcessingSettings { chord_detection_milliseconds: 350, ..settings(false) };
         h.engine.set_note_processing(processing);
         h.engine.play();
-        wait(|| h.count("q", false) == 1 && h.engine.get_current_time_us() >= 30_000);
+        wait(|| h.count("q", false) == 1);
         match change {
             "disable" => h.engine.set_mapping(melody_mapping()),
             "mute" => h.engine.set_track_muted(2, true),
@@ -352,15 +373,15 @@ fn chord_pads_preserve_raw_and_adapted_listen_note_glow_without_keyboard_output(
 #[test]
 fn a_chord_heard_in_listen_mode_does_not_freeze_later_game_notes_after_switching_to_melody_mapping() {
     let h = Harness::new(vec![
-        event(0, 0, 60, true), event(60_000, 1, 64, true), event(120_000, 2, 67, true),
-        event(180_000, 0, 60, false), event(180_000, 1, 64, false), event(180_000, 2, 67, false),
+        event(0, 0, 60, true), event(250_000, 1, 64, true), event(350_000, 2, 67, true),
+        event(420_000, 0, 60, false), event(420_000, 1, 64, false), event(420_000, 2, 67, false),
     ]);
     h.engine.set_note_processing(NoteProcessingSettings {
-        chord_detection_milliseconds: 150, ..settings(false)
+        chord_detection_milliseconds: 400, ..settings(false)
     });
     h.engine.set_listen_mode(true);
     h.engine.play();
-    wait(|| h.engine.get_current_time_us() >= 30_000);
+    wait(|| h.hits.lock().unwrap().iter().any(|&(pitch, on)| pitch == 60 && on));
     assert!(h.output.lock().unwrap().is_empty());
     h.engine.set_mapping(melody_mapping());
     h.engine.set_listen_mode(false);

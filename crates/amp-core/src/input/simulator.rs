@@ -467,6 +467,12 @@ impl KeySimulator {
     }
 
     pub fn wheel_active(&self) -> bool { self.wheel.is_active() || self.mode_switch.is_some() }
+    pub fn wheel_next_deadline(&self, now: Instant) -> Option<Instant> {
+        self.mode_switch
+            .as_ref()
+            .map(|switch| switch.deadline)
+            .or_else(|| self.wheel.next_deadline(now))
+    }
     pub fn cancel_wheel(&mut self) {
         if let Some(output) = &mut self.output {
             if let Some(switch) = self.mode_switch.take() {

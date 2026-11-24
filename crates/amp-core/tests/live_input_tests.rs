@@ -2,9 +2,13 @@ use amp_core::input::simulator::KeyboardOutput;
 use amp_core::player::live_input::MidiMessage;
 use amp_core::{
     parse_midi_bytes, KeyboardLayout, NoteKeyMapping, OutputKey, PlaybackEngine, PlaybackStatus,
+    PlayerEvent,
 };
 use std::{
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     time::{Duration, Instant},
 };
 
@@ -41,12 +45,18 @@ fn song(ticks: u8) -> amp_core::ParsedMidi {
 #[test]
 fn live_input_works_without_song_and_survives_backing_pause_seek_stop_and_finish() {
     let events = Arc::new(Mutex::new(Vec::new()));
+    let finished = Arc::new(AtomicBool::new(false));
+    let song_finished = Arc::clone(&finished);
     let engine = PlaybackEngine::new(
         None,
         NoteKeyMapping::new(KeyboardLayout::Diatonic21),
         true,
         None,
-        |_| {},
+        move |event| {
+            if matches!(event, PlayerEvent::Finished) {
+                song_finished.store(true, Ordering::Release);
+            }
+        },
     );
     engine.set_keyboard_output(Some(Box::new(Output(events.clone()))));
     engine.set_note_timing(true, 0);
@@ -57,7 +67,7 @@ fn live_input_works_without_song_and_survives_backing_pause_seek_stop_and_finish
     assert_eq!(events.lock().unwrap().len(), 1);
 
     engine.load_song(song(96));
-    engine.play();
+    engine.request_play().recv_timeout(Duration::from_secs(2)).unwrap().unwrap();
     wait(|| engine.get_status() == PlaybackStatus::Playing);
     engine.pause();
     wait(|| engine.get_status() == PlaybackStatus::Paused);
@@ -68,10 +78,10 @@ fn live_input_works_without_song_and_survives_backing_pause_seek_stop_and_finish
     wait(|| engine.get_status() == PlaybackStatus::Stopped);
     assert_eq!(engine.midi_snapshot().pitches, [60]);
 
+    finished.store(false, Ordering::Release);
     engine.load_song(song(1));
-    engine.play();
-    wait(|| engine.get_status() == PlaybackStatus::Playing);
-    wait(|| engine.get_status() == PlaybackStatus::Stopped);
+    engine.request_play().recv_timeout(Duration::from_secs(2)).unwrap().unwrap();
+    wait(|| finished.load(Ordering::Acquire) && engine.get_status() == PlaybackStatus::Stopped);
     assert_eq!(engine.midi_snapshot().pitches, [60]);
     assert!(!events.lock().unwrap().iter().any(|(_, up)| *up));
     engine.midi_message(

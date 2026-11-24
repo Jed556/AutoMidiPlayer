@@ -9,10 +9,12 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 
 static DEFAULTS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/resources/defaults");
 static DEFAULT_SYNC_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+static TEMP_SEQ: AtomicU64 = AtomicU64::new(0);
 
 /// Available before AppState, audio, database, and playback initialization.
 pub fn check_startup_defaults() -> Result<DefaultConfigUpdates, String> {
@@ -119,8 +121,15 @@ impl ConfigManager {
     }
 
     fn reset_with(&mut self, recycle: impl FnOnce(&[PathBuf]) -> Result<(), String>) -> Result<(), String> {
-        let staging = self.base_dir.join(format!(".config-reset-{}", std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos()));
+        let staging = self.base_dir.join(format!(
+            ".config-reset-{}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|e| e.to_string())?
+                .as_nanos(),
+            TEMP_SEQ.fetch_add(1, Ordering::Relaxed),
+        ));
         let result: Result<(), String> = (|| {
             extract_defaults_checked(&DEFAULTS_DIR, &staging)?;
             let paths: Vec<_> = [&self.games_dir, &self.layouts_dir].into_iter()
@@ -204,8 +213,15 @@ impl ConfigManager {
         let mut updated: KeyboardLayoutJson = serde_json::from_value(document.clone()).map_err(|e| e.to_string())?;
         if updated.id.is_empty() { updated.id = registered.id.clone(); }
         updated.file_path = registered.file_path.clone();
-        let temporary = self.layouts_dir.join(format!(".pedal-bindings-{}-{}.tmp", std::process::id(),
-            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos()));
+        let temporary = self.layouts_dir.join(format!(
+            ".pedal-bindings-{}-{}-{}.tmp",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|e| e.to_string())?
+                .as_nanos(),
+            TEMP_SEQ.fetch_add(1, Ordering::Relaxed),
+        ));
         let result = (|| {
             let mut file = fs::OpenOptions::new().write(true).create_new(true).open(&temporary).map_err(|e| e.to_string())?;
             serde_json::to_writer_pretty(&mut file, &document).map_err(|e| e.to_string())?;
@@ -425,9 +441,20 @@ mod tests {
         fs::remove_dir_all(manager.base_dir).unwrap();
     }
 
+    fn unique_temp_dir(prefix: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "{prefix}_{}_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos(),
+            TEMP_SEQ.fetch_add(1, Ordering::Relaxed),
+        ))
+    }
+
     fn pedal_test_manager() -> ConfigManager {
-        let root = std::env::temp_dir().join(format!("amp_pedal_edit_{}_{}", std::process::id(),
-            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let root = unique_temp_dir("amp_pedal_edit");
         let mut manager = ConfigManager { base_dir: root.clone(), games_dir: root.join("Games"),
             layouts_dir: root.join("KeyboardLayouts"), games: Vec::new(), layouts: HashMap::new(),
             issues: Vec::new(), loaded: false };
@@ -522,8 +549,7 @@ mod tests {
 
     #[test]
     fn reset_restores_defaults_removes_custom_entries_and_preserves_other_data() {
-        let root = std::env::temp_dir().join(format!("amp_config_reset_{}_{}", std::process::id(),
-            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let root = unique_temp_dir("amp_config_reset");
         let mut manager = ConfigManager { base_dir: root.clone(), games_dir: root.join("Games"),
             layouts_dir: root.join("KeyboardLayouts"), games: Vec::new(), layouts: HashMap::new(),
             issues: Vec::new(), loaded: false };
@@ -565,8 +591,7 @@ mod tests {
 
     #[test]
     fn deletions_are_applied_even_when_an_unrelated_edit_is_malformed() {
-        let root = std::env::temp_dir().join(format!("amp_config_deletion_{}_{}", std::process::id(),
-            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let root = unique_temp_dir("amp_config_deletion");
         let games_dir = root.join("Games");
         let layouts_dir = root.join("KeyboardLayouts");
         let instruments = games_dir.join("NTE/Instruments");
@@ -602,8 +627,7 @@ mod tests {
 
     #[test]
     fn reload_rejects_invalid_edits_and_recovers_after_fixes_or_removals() {
-        let root = std::env::temp_dir().join(format!("amp_config_manager_{}_{}", std::process::id(),
-            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let root = unique_temp_dir("amp_config_manager");
         let games_dir = root.join("Games");
         let layouts_dir = root.join("KeyboardLayouts");
         let instruments = games_dir.join("NTE/Instruments");

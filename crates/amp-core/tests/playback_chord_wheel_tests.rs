@@ -8,10 +8,12 @@ use amp_core::{
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
+        Arc, Mutex, MutexGuard,
     },
     time::{Duration, Instant},
 };
+
+static WHEEL_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Input {
@@ -83,6 +85,7 @@ fn notes(at: u64, pitches: &[u8]) -> Vec<TimedNoteEvent> {
 }
 
 struct Harness {
+    // Drop `engine` (joining the worker thread) before releasing `_serial`.
     engine: PlaybackEngine,
     inputs: Inputs,
     focused: Arc<AtomicBool>,
@@ -90,6 +93,8 @@ struct Harness {
     errors: Arc<Mutex<Vec<String>>>,
     arrangements: Arc<Mutex<Vec<ArrangementState>>>,
     layout: KeyboardLayoutJson,
+    started_at: Instant,
+    _serial: MutexGuard<'static, ()>,
 }
 
 impl Harness {
@@ -98,10 +103,10 @@ impl Harness {
         while !predicate() {
             assert!(
                 Instant::now() < deadline,
-                "timed out waiting for {description}; status: {:?}; errors: {:?}; inputs: {:?}",
+                "timed out waiting for {description}; status: {:?}; errors: {:?}; timeline: {:?}",
                 self.engine.get_status(),
                 self.errors.lock().unwrap(),
-                self.events()
+                self.timeline()
             );
             std::thread::sleep(Duration::from_millis(2));
         }
@@ -124,6 +129,7 @@ impl Harness {
         mixed: bool,
         configure: impl FnOnce(&mut KeyboardLayoutJson, &mut KeyboardLayoutJson),
     ) -> Self {
+        let _serial = WHEEL_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let instrument: InstrumentConfigJson = serde_json::from_str(include_str!(
             "../../../src-tauri/resources/defaults/Games/Neverness to Everness/Instruments/Strings/Guitar.json"
         )).unwrap();
@@ -195,6 +201,7 @@ impl Harness {
             chord_detection_milliseconds: 30,
         });
         engine.flush().unwrap();
+        let started_at = Instant::now();
         Self {
             engine,
             inputs,
@@ -203,6 +210,8 @@ impl Harness {
             errors,
             arrangements,
             layout,
+            started_at,
+            _serial,
         }
     }
 
@@ -212,6 +221,14 @@ impl Harness {
             .unwrap()
             .iter()
             .map(|(_, input)| input.clone())
+            .collect()
+    }
+    fn timeline(&self) -> Vec<(u128, Input)> {
+        self.inputs
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(at, input)| (at.saturating_duration_since(self.started_at).as_millis(), input.clone()))
             .collect()
     }
     fn play_to_end(&self) {
@@ -247,9 +264,9 @@ impl Harness {
         assert_ne!(
             self.engine.get_status(),
             PlaybackStatus::Paused,
-            "wheel playback paused: {:?}; inputs: {:?}",
+            "wheel playback paused: {:?}; timeline: {:?}",
             self.errors.lock().unwrap(),
-            self.events()
+            self.timeline()
         );
         self.wait("playback completion", || {
             self.engine.get_status() == PlaybackStatus::Stopped
@@ -365,7 +382,8 @@ fn mixed_switches_wheels_and_remembers_the_first_chord_page() {
     h.play_to_end();
     let attacks = h.attacks();
     assert_eq!(attacks.iter().map(|s| (s.mode, s.page, s.strings)).collect::<Vec<_>>(),
-        [(Some("chords"), Some(1), 0), (Some("frets"), Some(3), 1), (Some("chords"), Some(1), 0)]);
+        [(Some("chords"), Some(1), 0), (Some("frets"), Some(3), 1), (Some("chords"), Some(1), 0)],
+        "timeline: {:?}", h.timeline());
     assert_eq!(h.strums().len(), 2);
     let mode_key = parse_key_stroke("z").unwrap().key;
     assert_eq!(h.count(Input::Key(mode_key, false)), 2);
@@ -481,7 +499,7 @@ fn seeking_inside_a_strummed_chord_does_not_replay_its_remaining_midi_members() 
     h.engine.flush().unwrap();
     h.play_to_end();
     let attacks = h.attacks();
-    assert_eq!(attacks.len(), 2, "{attacks:?}");
+    assert_eq!(attacks.len(), 2, "{attacks:?}; timeline: {:?}", h.timeline());
     assert_eq!(attacks[0].strings, 0);
     assert_eq!(attacks[1].strings, 32);
     assert_eq!(h.strums().len(), 1);
@@ -630,4 +648,25 @@ fn pausing_and_resuming_backtracks_to_reselect_active_ring_slot() {
     assert!(h.errors.lock().unwrap().is_empty());
     assert_eq!(h.count(Input::Button(WheelButton::Left, false)), 2);
     assert_eq!(h.count(Input::Key(second_string, false)), 1);
+}
+
+#[test]
+fn queued_chord_rebuild_does_not_cancel_a_manual_page_turn_or_mode_switch() {
+    let h = Harness::with_mode(notes(0, &[55, 59, 62]), false, true, true);
+    h.engine.sync_guitar_mode(false).unwrap();
+    h.engine.set_chord_wheel_page(0, false).unwrap();
+    h.engine.flush().unwrap();
+
+    h.engine.set_key_offset(1);
+    h.engine.set_chord_wheel_page(1, true).unwrap();
+    h.wait("manual page turn after queued chord rebuild", || {
+        let wheel = h.engine.chord_wheel_state().unwrap();
+        !wheel.busy && wheel.page == Some(1)
+    });
+    assert_eq!(h.engine.chord_wheel_state().unwrap().page, Some(1));
+
+    h.engine.set_key_offset(2);
+    h.engine.switch_guitar_mode(true, parse_key_stroke("z").unwrap()).unwrap();
+    assert_eq!(h.engine.guitar_mode().unwrap(), Some(true));
+    assert!(h.errors.lock().unwrap().is_empty());
 }
