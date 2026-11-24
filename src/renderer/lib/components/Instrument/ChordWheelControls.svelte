@@ -116,15 +116,43 @@
       ? Math.min(wheel.pageCount - 1, Math.max(0, Math.floor(authoritativeGlobalSlot / slotCount)))
       : null,
   );
-  const page = $derived(
+  const rawPage = $derived(
     !paged
       ? 0
       : playbackStore.isPlaying
         ? action?.page ?? authoritativePage ?? wheelState.page
         : action?.page ?? wheelState.page,
   );
-  const pageStart = $derived((page ?? 0) * slotCount);
-  const visiblePads = $derived(page === null ? [] : pads.slice(pageStart, pageStart + slotCount));
+  const page = $derived(
+    rawPage !== null && rawPage >= 0 && rawPage < wheel.pageCount ? rawPage : 0,
+  );
+  const pageStart = $derived(page * slotCount);
+  const visiblePads = $derived(pads.slice(pageStart, pageStart + slotCount));
+
+  let autoSyncKey = '';
+  $effect(() => {
+    if (!loaded || !paged || pending || wheelState.busy || playbackStore.isPlaying || needsModeSync) return;
+    if (mixed && !physicalMode) return;
+    const needsDefaultPage = wheelState.page === null || wheelState.page < 0 || wheelState.page >= wheel.pageCount;
+    if (!needsDefaultPage) {
+      autoSyncKey = '';
+      return;
+    }
+    const key = `${instrument.id}:${fretMode}:${wheel.pageCount}:${wheelState.page}`;
+    if (autoSyncKey === key) return;
+    autoSyncKey = key;
+    void (async () => {
+      try {
+        if (await api.playback.setChordWheelPage(0, false)) {
+          const beforeRead = revision;
+          const state = await api.playback.getChordWheelState();
+          if (revision === beforeRead) receiveState(state);
+        }
+      } catch {
+        // Ignore transient errors while instrument config is reloading.
+      }
+    })();
+  });
 
   // Reset manual wedge selection when switching instrument or guitar mode.
   $effect(() => {
@@ -145,7 +173,7 @@
     if (!visiblePads.length) return null;
     if (authoritativeGlobalSlot !== null) {
       const slotPage = Math.floor(authoritativeGlobalSlot / slotCount);
-      if (!paged || page === null || slotPage === page || playbackStore.isPlaying) {
+      if (!paged || slotPage === page || playbackStore.isPlaying) {
         const slot = ((authoritativeGlobalSlot % slotCount) + slotCount) % slotCount;
         if (visiblePads[slot]?.name) return slot;
       }
@@ -400,9 +428,6 @@
         {/each}
       </defs>
 
-      <!-- Outer subtle ring -->
-      <circle cx="0" cy="0" r={WHEEL_OUTER_R + 2} class="wheel-outer-ring" />
-
       <!-- 6 Background Wedges -->
       {#each wedges as wedge (wedge.index)}
         <path
@@ -512,12 +537,12 @@
           />
           <text
             x="0"
-            y={str.y + 0.3}
+            y={str.y}
+            dy="0.35em"
             class="wheel-string-num"
             class:active={str.active}
             class:muted={str.muted}
             text-anchor="middle"
-            dominant-baseline="central"
           >
             {str.label}
           </text>
@@ -531,10 +556,10 @@
     <div class="wheel-pagination-bar" role="group" aria-label={t('instrument.chordWheelPages')}>
       <button
         type="button"
-        class="wheel-page-btn prev"
+        class="wheel-page-btn prev theme-ghost-button"
         disabled={locked}
-        use:tooltip={`${t('instrument.chordWheelPreviousKey', { key: wheel.pageKeys[0].toUpperCase() })} — ${t('instrument.chordWheelSyncHint')}`}
-        onclick={() => setPage(((page ?? 0) - 1 + wheel.pageCount) % wheel.pageCount, false)}
+        use:tooltip={t('instrument.chordWheelPreviousKey', { key: wheel.pageKeys[0].toUpperCase() })}
+        onclick={() => setPage((page - 1 + wheel.pageCount) % wheel.pageCount, false)}
       >
         <kbd class="wheel-keycap">{wheel.pageKeys[0].toUpperCase()}</kbd>
         <span>{t('instrument.chordWheelPrevious')}</span>
@@ -550,7 +575,7 @@
             aria-selected={page === dotIndex}
             aria-label={t('instrument.chordWheelPage', { page: dotIndex + 1, count: wheel.pageCount })}
             disabled={locked}
-            use:tooltip={`${t('instrument.chordWheelPage', { page: dotIndex + 1, count: wheel.pageCount })} — ${t('instrument.chordWheelSyncHint')}`}
+            use:tooltip={t('instrument.chordWheelPage', { page: dotIndex + 1, count: wheel.pageCount })}
             onclick={() => setPage(dotIndex, false)}
           >
             <span class="dot-core"></span>
@@ -560,10 +585,10 @@
 
       <button
         type="button"
-        class="wheel-page-btn next"
+        class="wheel-page-btn next theme-ghost-button"
         disabled={locked}
-        use:tooltip={`${t('instrument.chordWheelNextKey', { key: wheel.pageKeys[1].toUpperCase() })} — ${t('instrument.chordWheelSyncHint')}`}
-        onclick={() => setPage(((page ?? 0) + 1) % wheel.pageCount, false)}
+        use:tooltip={t('instrument.chordWheelNextKey', { key: wheel.pageKeys[1].toUpperCase() })}
+        onclick={() => setPage((page + 1) % wheel.pageCount, false)}
       >
         <span>{t('instrument.chordWheelNext')}</span>
         <kbd class="wheel-keycap">{wheel.pageKeys[1].toUpperCase()}</kbd>
@@ -585,7 +610,7 @@
             placeholder={t('instrument.guitarModeUnknown')}
             ariaLabel={t('instrument.guitarSyncMode')}
             disabled={locked}
-            width="130px"
+            showTooltips={false}
             onchange={syncMode}
           />
         </div>
@@ -597,10 +622,17 @@
     </div>
   {/if}
 
-  {#if mixed && !physicalMode}
-    <p class="wheel-hint">{t('instrument.guitarSyncModeHint')}</p>
-  {:else if fretMode || (paged && wheel.pageCount > 1)}
-    <p class="wheel-hint">{t(fretMode ? 'instrument.guitarSharedFret' : 'instrument.chordWheelHint')}</p>
+  {#if (mixed && !physicalMode) || (paged && wheel.pageCount > 1 && !needsModeSync) || fretMode}
+    <div class="wheel-hints">
+      {#if paged && wheel.pageCount > 1 && !needsModeSync}
+        <p class="wheel-hint">{t('instrument.chordWheelSyncHint')}</p>
+      {/if}
+      {#if mixed && !physicalMode}
+        <p class="wheel-hint">{t('instrument.guitarSyncModeHint')}</p>
+      {:else if fretMode || (paged && wheel.pageCount > 1)}
+        <p class="wheel-hint">{t(fretMode ? 'instrument.guitarSharedFret' : 'instrument.chordWheelHint')}</p>
+      {/if}
+    </div>
   {/if}
 </section>
 
@@ -628,12 +660,6 @@
     height: 100%;
     overflow: visible;
     user-select: none;
-  }
-
-  .wheel-outer-ring {
-    fill: none;
-    stroke: var(--border-subtle);
-    stroke-width: 1;
   }
 
   .wheel-wedge-bg {
@@ -801,30 +827,11 @@
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    padding: 4px 10px;
-    border: none;
+    padding: 4px 6px;
     border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--text-primary);
     font: inherit;
     font-size: 12.5px;
     font-weight: 500;
-    cursor: pointer;
-    transition: background var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
-  }
-
-  .wheel-page-btn:hover:not(:disabled) {
-    background: var(--bg-hover);
-  }
-
-  .wheel-page-btn:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-
-  .wheel-page-btn:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
   }
 
   .wheel-keycap {
@@ -915,7 +922,25 @@
     align-items: center;
     gap: 6px;
     color: var(--text-tertiary);
-    font-size: 11px;
+    font-size: 12px;
+    line-height: 1.25;
+  }
+
+  .wheel-sync :global(.fluent-dropdown.variant-ghost) {
+    align-self: center;
+  }
+
+  .wheel-sync :global(.trigger-label),
+  .wheel-sync :global(.trigger-placeholder) {
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .wheel-hints {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
   }
 
   .wheel-hint {
