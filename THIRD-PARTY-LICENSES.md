@@ -10,8 +10,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 
 ## Library index
 
-<!-- amp-license: {"name":"@fluentui/svg-icons","version":"1.1.345","licenseName":"MIT","url":"https://github.com/microsoft/fluentui-system-icons","kind":"javascript","notice":"Upstream LICENSE: https://github.com/microsoft/fluentui-system-icons/blob/main/LICENSE; omitted from the npm archive.","textId":"d2773ab0b396d40041d7"} -->
-### @fluentui/svg-icons 1.1.345
+<!-- amp-license: {"name":"@fluentui/svg-icons","version":"1.1.346","licenseName":"MIT","url":"https://github.com/microsoft/fluentui-system-icons","kind":"javascript","notice":"Upstream LICENSE: https://github.com/microsoft/fluentui-system-icons/blob/main/LICENSE; omitted from the npm archive.","textId":"d2773ab0b396d40041d7"} -->
+### @fluentui/svg-icons 1.1.346
 
 - License: MIT
 - Repository/source: [https://github.com/microsoft/fluentui-system-icons](https://github.com/microsoft/fluentui-system-icons)
@@ -35,8 +35,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: javascript
 - Full notice: [928e59141142e3b9b68a](#notice-928e59141142e3b9b68a)
 
-<!-- amp-license: {"name":"@jridgewell/resolve-uri","version":"3.1.2","licenseName":"MIT","url":"https://github.com/jridgewell/resolve-uri","kind":"javascript","textId":"b8778b155bfde5a28b02"} -->
-### @jridgewell/resolve-uri 3.1.2
+<!-- amp-license: {"name":"@jridgewell/resolve-uri","version":"3.1.3","licenseName":"MIT","url":"https://github.com/jridgewell/resolve-uri","kind":"javascript","textId":"b8778b155bfde5a28b02"} -->
+### @jridgewell/resolve-uri 3.1.3
 
 - License: MIT
 - Repository/source: [https://github.com/jridgewell/resolve-uri](https://github.com/jridgewell/resolve-uri)
@@ -67,13 +67,13 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: javascript
 - Full notice: [fda6af299ef705e83f69](#notice-fda6af299ef705e83f69)
 
-<!-- amp-license: {"name":"@tauri-apps/api","version":"2.12.4","licenseName":"Apache-2.0 OR MIT","url":"https://github.com/tauri-apps/tauri","kind":"javascript","textId":"66b6afabad8cf819cf48"} -->
-### @tauri-apps/api 2.12.4
+<!-- amp-license: {"name":"@tauri-apps/api","version":"2.12.5","licenseName":"Apache-2.0 OR MIT","url":"https://github.com/tauri-apps/tauri","kind":"javascript","textId":"2404c7c09b891d4ad1e1"} -->
+### @tauri-apps/api 2.12.5
 
 - License: Apache-2.0 OR MIT
 - Repository/source: [https://github.com/tauri-apps/tauri](https://github.com/tauri-apps/tauri)
 - Category: javascript
-- Full notice: [66b6afabad8cf819cf48](#notice-66b6afabad8cf819cf48)
+- Full notice: [2404c7c09b891d4ad1e1](#notice-2404c7c09b891d4ad1e1)
 
 <!-- amp-license: {"name":"@tauri-apps/plugin-dialog","version":"2.8.4","licenseName":"MIT OR Apache-2.0","url":"https://github.com/tauri-apps/plugins-workspace","kind":"javascript","textId":"eb8a6c84630461b352ba"} -->
 ### @tauri-apps/plugin-dialog 2.8.4
@@ -411,14 +411,6 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [07c7993a082dd28479b2](#notice-07c7993a082dd28479b2)
 
-<!-- amp-license: {"name":"block-buffer","version":"0.10.4","licenseName":"MIT","url":"https://github.com/RustCrypto/utils","kind":"rust","textId":"5ff5253f2cb9347c4b3b"} -->
-### block-buffer 0.10.4
-
-- License: MIT
-- Repository/source: [https://github.com/RustCrypto/utils](https://github.com/RustCrypto/utils)
-- Category: rust
-- Full notice: [5ff5253f2cb9347c4b3b](#notice-5ff5253f2cb9347c4b3b)
-
 <!-- amp-license: {"name":"block-buffer","version":"0.12.1","licenseName":"MIT","url":"https://github.com/RustCrypto/utils","kind":"rust","textId":"775a3e20a9af71609927"} -->
 ### block-buffer 0.12.1
 
@@ -443,16 +435,16 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [30fefc3a7d6a00415418](#notice-30fefc3a7d6a00415418)
 
-<!-- amp-license: {"name":"brotli","version":"9.1.1","licenseName":"BSD-3-Clause AND MIT","url":"https://github.com/dropbox/rust-brotli","kind":"rust","textId":"39ec3e0953f05605efe5"} -->
-### brotli 9.1.1
+<!-- amp-license: {"name":"brotli","version":"9.1.3","licenseName":"BSD-3-Clause AND MIT","url":"https://github.com/dropbox/rust-brotli","kind":"rust","textId":"39ec3e0953f05605efe5"} -->
+### brotli 9.1.3
 
 - License: BSD-3-Clause AND MIT
 - Repository/source: [https://github.com/dropbox/rust-brotli](https://github.com/dropbox/rust-brotli)
 - Category: rust
 - Full notice: [39ec3e0953f05605efe5](#notice-39ec3e0953f05605efe5)
 
-<!-- amp-license: {"name":"brotli-decompressor","version":"6.2.0","licenseName":"MIT","url":"https://github.com/dropbox/rust-brotli-decompressor","kind":"rust","textId":"07c7993a082dd28479b2"} -->
-### brotli-decompressor 6.2.0
+<!-- amp-license: {"name":"brotli-decompressor","version":"6.3.2","licenseName":"MIT","url":"https://github.com/dropbox/rust-brotli-decompressor","kind":"rust","textId":"07c7993a082dd28479b2"} -->
+### brotli-decompressor 6.3.2
 
 - License: MIT
 - Repository/source: [https://github.com/dropbox/rust-brotli-decompressor](https://github.com/dropbox/rust-brotli-decompressor)
@@ -467,8 +459,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [154c1af2b38e25e5c186](#notice-154c1af2b38e25e5c186)
 
-<!-- amp-license: {"name":"bytes","version":"1.12.1","licenseName":"MIT","url":"https://github.com/tokio-rs/bytes","kind":"rust","textId":"51f778ffff2c0705f039"} -->
-### bytes 1.12.1
+<!-- amp-license: {"name":"bytes","version":"1.12.2","licenseName":"MIT","url":"https://github.com/tokio-rs/bytes","kind":"rust","textId":"51f778ffff2c0705f039"} -->
+### bytes 1.12.2
 
 - License: MIT
 - Repository/source: [https://github.com/tokio-rs/bytes](https://github.com/tokio-rs/bytes)
@@ -571,13 +563,21 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [30fefc3a7d6a00415418](#notice-30fefc3a7d6a00415418)
 
-<!-- amp-license: {"name":"const-oid","version":"0.10.2","licenseName":"MIT","url":"https://github.com/RustCrypto/formats","kind":"rust","textId":"ea753cf1e3ec3e02b9f8"} -->
-### const-oid 0.10.2
+<!-- amp-license: {"name":"const-oid","version":"0.10.3","licenseName":"MIT","url":"https://github.com/RustCrypto/formats","kind":"rust","textId":"ea753cf1e3ec3e02b9f8"} -->
+### const-oid 0.10.3
 
 - License: MIT
 - Repository/source: [https://github.com/RustCrypto/formats](https://github.com/RustCrypto/formats)
 - Category: rust
 - Full notice: [ea753cf1e3ec3e02b9f8](#notice-ea753cf1e3ec3e02b9f8)
+
+<!-- amp-license: {"name":"constant_time_eq","version":"0.6.1","licenseName":"Apache-2.0","url":"https://codeberg.org/cesarb/constant_time_eq","kind":"rust","textId":"c274f80372d90c012937"} -->
+### constant_time_eq 0.6.1
+
+- License: Apache-2.0
+- Repository/source: [https://codeberg.org/cesarb/constant_time_eq](https://codeberg.org/cesarb/constant_time_eq)
+- Category: rust
+- Full notice: [c274f80372d90c012937](#notice-c274f80372d90c012937)
 
 <!-- amp-license: {"name":"cookie","version":"0.18.2","licenseName":"MIT","url":"https://github.com/SergioBenitez/cookie-rs","kind":"rust","textId":"47c8d25246e6cb7b53b7"} -->
 ### cookie 0.18.2
@@ -659,14 +659,6 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [283ea6cc2997a1a70da0](#notice-283ea6cc2997a1a70da0)
 
-<!-- amp-license: {"name":"cpufeatures","version":"0.2.17","licenseName":"MIT","url":"https://github.com/RustCrypto/utils","kind":"rust","textId":"6334e52844d698f528b9"} -->
-### cpufeatures 0.2.17
-
-- License: MIT
-- Repository/source: [https://github.com/RustCrypto/utils](https://github.com/RustCrypto/utils)
-- Category: rust
-- Full notice: [6334e52844d698f528b9](#notice-6334e52844d698f528b9)
-
 <!-- amp-license: {"name":"cpufeatures","version":"0.3.1","licenseName":"MIT","url":"https://github.com/RustCrypto/utils","kind":"rust","textId":"ea753cf1e3ec3e02b9f8"} -->
 ### cpufeatures 0.3.1
 
@@ -675,8 +667,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [ea753cf1e3ec3e02b9f8](#notice-ea753cf1e3ec3e02b9f8)
 
-<!-- amp-license: {"name":"crc32fast","version":"1.5.4","licenseName":"MIT","url":"https://github.com/srijs/rust-crc32fast","kind":"rust","textId":"9599127e421e16595d10"} -->
-### crc32fast 1.5.4
+<!-- amp-license: {"name":"crc32fast","version":"1.5.5","licenseName":"MIT","url":"https://github.com/srijs/rust-crc32fast","kind":"rust","textId":"9599127e421e16595d10"} -->
+### crc32fast 1.5.5
 
 - License: MIT
 - Repository/source: [https://github.com/srijs/rust-crc32fast](https://github.com/srijs/rust-crc32fast)
@@ -715,14 +707,6 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [5a7d13c6710cdec29e74](#notice-5a7d13c6710cdec29e74)
 
-<!-- amp-license: {"name":"crypto-common","version":"0.1.7","licenseName":"MIT","url":"https://github.com/RustCrypto/traits","kind":"rust","textId":"692b1604961dd580cfcd"} -->
-### crypto-common 0.1.7
-
-- License: MIT
-- Repository/source: [https://github.com/RustCrypto/traits](https://github.com/RustCrypto/traits)
-- Category: rust
-- Full notice: [692b1604961dd580cfcd](#notice-692b1604961dd580cfcd)
-
 <!-- amp-license: {"name":"crypto-common","version":"0.2.2","licenseName":"MIT","url":"https://github.com/RustCrypto/traits","kind":"rust","textId":"dec912e37f888cf7a524"} -->
 ### crypto-common 0.2.2
 
@@ -747,16 +731,16 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [4b89d4518bd135ab4ee1](#notice-4b89d4518bd135ab4ee1)
 
-<!-- amp-license: {"name":"ctor","version":"1.0.13","licenseName":"MIT","url":"https://github.com/mmastrac/linktime","kind":"rust","textId":"bccaa8b6c09f94e81f06"} -->
-### ctor 1.0.13
+<!-- amp-license: {"name":"ctor","version":"1.0.14","licenseName":"MIT","url":"https://github.com/mmastrac/linktime","kind":"rust","textId":"bccaa8b6c09f94e81f06"} -->
+### ctor 1.0.14
 
 - License: MIT
 - Repository/source: [https://github.com/mmastrac/linktime](https://github.com/mmastrac/linktime)
 - Category: rust
 - Full notice: [bccaa8b6c09f94e81f06](#notice-bccaa8b6c09f94e81f06)
 
-<!-- amp-license: {"name":"ctrlc","version":"3.5.2","licenseName":"MIT","url":"https://github.com/Detegr/rust-ctrlc","kind":"rust","textId":"30fefc3a7d6a00415418"} -->
-### ctrlc 3.5.2
+<!-- amp-license: {"name":"ctrlc","version":"3.5.3","licenseName":"MIT","url":"https://github.com/Detegr/rust-ctrlc","kind":"rust","textId":"30fefc3a7d6a00415418"} -->
+### ctrlc 3.5.3
 
 - License: MIT
 - Repository/source: [https://github.com/Detegr/rust-ctrlc](https://github.com/Detegr/rust-ctrlc)
@@ -842,14 +826,6 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Repository/source: [https://www.npmjs.com/package/devalue/v/5.9.4](https://www.npmjs.com/package/devalue/v/5.9.4)
 - Category: javascript
 - Full notice: [00bde6f2eced80eb0aa5](#notice-00bde6f2eced80eb0aa5)
-
-<!-- amp-license: {"name":"digest","version":"0.10.7","licenseName":"MIT","url":"https://github.com/RustCrypto/traits","kind":"rust","textId":"9c5127ab88e8f55b26f7"} -->
-### digest 0.10.7
-
-- License: MIT
-- Repository/source: [https://github.com/RustCrypto/traits](https://github.com/RustCrypto/traits)
-- Category: rust
-- Full notice: [9c5127ab88e8f55b26f7](#notice-9c5127ab88e8f55b26f7)
 
 <!-- amp-license: {"name":"digest","version":"0.11.3","licenseName":"MIT","url":"https://github.com/RustCrypto/traits","kind":"rust","textId":"c8d7f4fd612a2da8e668"} -->
 ### digest 0.11.3
@@ -1043,8 +1019,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [30fefc3a7d6a00415418](#notice-30fefc3a7d6a00415418)
 
-<!-- amp-license: {"name":"errno","version":"0.3.14","licenseName":"MIT","url":"https://github.com/lambda-fairy/rust-errno","kind":"rust","textId":"7f91c2a4eddb48282e1f"} -->
-### errno 0.3.14
+<!-- amp-license: {"name":"errno","version":"0.3.15","licenseName":"MIT","url":"https://github.com/lambda-fairy/rust-errno","kind":"rust","textId":"7f91c2a4eddb48282e1f"} -->
+### errno 0.3.15
 
 - License: MIT
 - Repository/source: [https://github.com/lambda-fairy/rust-errno](https://github.com/lambda-fairy/rust-errno)
@@ -1059,8 +1035,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: javascript
 - Full notice: [c6cc76cbbf3a30949d55](#notice-c6cc76cbbf3a30949d55)
 
-<!-- amp-license: {"name":"esrap","version":"2.4.0","licenseName":"MIT","url":"https://github.com/sveltejs/esrap","kind":"javascript","textId":"7de433f5d779dd4d7788"} -->
-### esrap 2.4.0
+<!-- amp-license: {"name":"esrap","version":"2.4.2","licenseName":"MIT","url":"https://github.com/sveltejs/esrap","kind":"javascript","textId":"7de433f5d779dd4d7788"} -->
+### esrap 2.4.2
 
 - License: MIT
 - Repository/source: [https://github.com/sveltejs/esrap](https://github.com/sveltejs/esrap)
@@ -1123,8 +1099,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [f4bc3f3c5bfd943cf580](#notice-f4bc3f3c5bfd943cf580)
 
-<!-- amp-license: {"name":"filetime","version":"0.2.29","licenseName":"MIT","url":"https://github.com/alexcrichton/filetime","kind":"rust","textId":"84e1bbfebd74e4196cfa"} -->
-### filetime 0.2.29
+<!-- amp-license: {"name":"filetime","version":"0.2.30","licenseName":"MIT","url":"https://github.com/alexcrichton/filetime","kind":"rust","textId":"84e1bbfebd74e4196cfa"} -->
+### filetime 0.2.30
 
 - License: MIT
 - Repository/source: [https://github.com/alexcrichton/filetime](https://github.com/alexcrichton/filetime)
@@ -1139,8 +1115,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [033a9383ff21d1e4811d](#notice-033a9383ff21d1e4811d)
 
-<!-- amp-license: {"name":"flate2","version":"1.1.10","licenseName":"MIT","url":"https://github.com/rust-lang/flate2-rs","kind":"rust","textId":"1b7402ea003f3186c736"} -->
-### flate2 1.1.10
+<!-- amp-license: {"name":"flate2","version":"1.1.11","licenseName":"MIT","url":"https://github.com/rust-lang/flate2-rs","kind":"rust","textId":"1b7402ea003f3186c736"} -->
+### flate2 1.1.11
 
 - License: MIT
 - Repository/source: [https://github.com/rust-lang/flate2-rs](https://github.com/rust-lang/flate2-rs)
@@ -1210,14 +1186,6 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Repository/source: [https://github.com/servo/rust-url](https://github.com/servo/rust-url)
 - Category: rust
 - Full notice: [33ed9a8ecf556f161ec5](#notice-33ed9a8ecf556f161ec5)
-
-<!-- amp-license: {"name":"fsevent-sys","version":"4.1.0","licenseName":"MIT","url":"https://github.com/octplane/fsevent-rust/tree/master/fsevent-sys","kind":"rust","textId":"983a293c55cd84a374b9"} -->
-### fsevent-sys 4.1.0
-
-- License: MIT
-- Repository/source: [https://github.com/octplane/fsevent-rust/tree/master/fsevent-sys](https://github.com/octplane/fsevent-rust/tree/master/fsevent-sys)
-- Category: rust
-- Full notice: [983a293c55cd84a374b9](#notice-983a293c55cd84a374b9)
 
 <!-- amp-license: {"name":"futures-channel","version":"0.3.34","licenseName":"MIT","url":"https://github.com/rust-lang/futures-rs","kind":"rust","textId":"b420d8add23b5cf7663f"} -->
 ### futures-channel 0.3.34
@@ -1355,14 +1323,6 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: resource
 - Full notice: [e932c008125ce840e507](#notice-e932c008125ce840e507)
 - By S. Christian Collins. Bundled as resources/soundfonts/GeneralUser GS.sf2.
-
-<!-- amp-license: {"name":"generic-array","version":"0.14.7","licenseName":"MIT","url":"https://github.com/fizyk20/generic-array","kind":"rust","textId":"ad4fcfaf8d5b12b97409"} -->
-### generic-array 0.14.7
-
-- License: MIT
-- Repository/source: [https://github.com/fizyk20/generic-array](https://github.com/fizyk20/generic-array)
-- Category: rust
-- Full notice: [ad4fcfaf8d5b12b97409](#notice-ad4fcfaf8d5b12b97409)
 
 <!-- amp-license: {"name":"GenshinLyreMidiPlayer","version":"4.0.5","licenseName":"MIT","url":"https://github.com/sabihoshi/GenshinLyreMidiPlayer","kind":"attribution","textId":"5564602899eee7fc7aff"} -->
 ### GenshinLyreMidiPlayer 4.0.5
@@ -1772,11 +1732,11 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [7804ded9273b80f1e440](#notice-7804ded9273b80f1e440)
 
-<!-- amp-license: {"name":"inotify","version":"0.9.6","licenseName":"ISC","url":"https://github.com/hannobraun/inotify","kind":"rust","textId":"f68878c9ca61b25d4b2c"} -->
-### inotify 0.9.6
+<!-- amp-license: {"name":"inotify","version":"0.11.5","licenseName":"ISC","url":"https://github.com/hannobraun/inotify-rs","kind":"rust","textId":"f68878c9ca61b25d4b2c"} -->
+### inotify 0.11.5
 
 - License: ISC
-- Repository/source: [https://github.com/hannobraun/inotify](https://github.com/hannobraun/inotify)
+- Repository/source: [https://github.com/hannobraun/inotify-rs](https://github.com/hannobraun/inotify-rs)
 - Category: rust
 - Full notice: [f68878c9ca61b25d4b2c](#notice-f68878c9ca61b25d4b2c)
 
@@ -1813,8 +1773,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Full notice: [ce3818b53fa9f4dc73db](#notice-ce3818b53fa9f4dc73db)
 - Upstream declares MIT and author Rich Harris but omits a license file; standard SPDX MIT text preserves the declared author without inventing a year.
 
-<!-- amp-license: {"name":"itoa","version":"1.0.18","licenseName":"MIT","url":"https://github.com/dtolnay/itoa","kind":"rust","textId":"30fefc3a7d6a00415418"} -->
-### itoa 1.0.18
+<!-- amp-license: {"name":"itoa","version":"1.0.19","licenseName":"MIT","url":"https://github.com/dtolnay/itoa","kind":"rust","textId":"30fefc3a7d6a00415418"} -->
+### itoa 1.0.19
 
 - License: MIT
 - Repository/source: [https://github.com/dtolnay/itoa](https://github.com/dtolnay/itoa)
@@ -1837,16 +1797,32 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [4603441e4a5a2a389f21](#notice-4603441e4a5a2a389f21)
 
-<!-- amp-license: {"name":"jiff","version":"0.2.39","licenseName":"MIT","url":"https://github.com/BurntSushi/jiff","kind":"rust","textId":"154c1af2b38e25e5c186"} -->
-### jiff 0.2.39
+<!-- amp-license: {"name":"jiff","version":"0.2.46","licenseName":"MIT","url":"https://github.com/BurntSushi/jiff","kind":"rust","textId":"154c1af2b38e25e5c186"} -->
+### jiff 0.2.46
 
 - License: MIT
 - Repository/source: [https://github.com/BurntSushi/jiff](https://github.com/BurntSushi/jiff)
 - Category: rust
 - Full notice: [154c1af2b38e25e5c186](#notice-154c1af2b38e25e5c186)
 
-<!-- amp-license: {"name":"jiff-core","version":"0.1.2","licenseName":"MIT","url":"https://github.com/BurntSushi/jiff","kind":"rust","textId":"154c1af2b38e25e5c186"} -->
-### jiff-core 0.1.2
+<!-- amp-license: {"name":"jiff","version":"1.0.2","licenseName":"MIT","url":"https://github.com/BurntSushi/jiff","kind":"rust","textId":"154c1af2b38e25e5c186"} -->
+### jiff 1.0.2
+
+- License: MIT
+- Repository/source: [https://github.com/BurntSushi/jiff](https://github.com/BurntSushi/jiff)
+- Category: rust
+- Full notice: [154c1af2b38e25e5c186](#notice-154c1af2b38e25e5c186)
+
+<!-- amp-license: {"name":"jiff-core","version":"0.1.8","licenseName":"MIT","url":"https://github.com/BurntSushi/jiff","kind":"rust","textId":"154c1af2b38e25e5c186"} -->
+### jiff-core 0.1.8
+
+- License: MIT
+- Repository/source: [https://github.com/BurntSushi/jiff](https://github.com/BurntSushi/jiff)
+- Category: rust
+- Full notice: [154c1af2b38e25e5c186](#notice-154c1af2b38e25e5c186)
+
+<!-- amp-license: {"name":"jiff-core","version":"1.0.1","licenseName":"MIT","url":"https://github.com/BurntSushi/jiff","kind":"rust","textId":"154c1af2b38e25e5c186"} -->
+### jiff-core 1.0.1
 
 - License: MIT
 - Repository/source: [https://github.com/BurntSushi/jiff](https://github.com/BurntSushi/jiff)
@@ -1933,8 +1909,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [bbf1ea3140c4d068c74a](#notice-bbf1ea3140c4d068c74a)
 
-<!-- amp-license: {"name":"libsqlite3-sys","version":"0.39.1","licenseName":"MIT","url":"https://github.com/rusqlite/rusqlite","kind":"rust","textId":"6061b8ea5b16d94a796c"} -->
-### libsqlite3-sys 0.39.1
+<!-- amp-license: {"name":"libsqlite3-sys","version":"0.40.0","licenseName":"MIT","url":"https://github.com/rusqlite/rusqlite","kind":"rust","textId":"6061b8ea5b16d94a796c"} -->
+### libsqlite3-sys 0.40.0
 
 - License: MIT
 - Repository/source: [https://github.com/rusqlite/rusqlite](https://github.com/rusqlite/rusqlite)
@@ -2054,8 +2030,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [5ad2a6a132966114d777](#notice-5ad2a6a132966114d777)
 
-<!-- amp-license: {"name":"mime","version":"0.3.17","licenseName":"MIT","url":"https://github.com/hyperium/mime","kind":"rust","textId":"a302dc760d97dc623f85"} -->
-### mime 0.3.17
+<!-- amp-license: {"name":"mime","version":"0.3.18","licenseName":"MIT","url":"https://github.com/hyperium/mime","kind":"rust","textId":"a302dc760d97dc623f85"} -->
+### mime 0.3.18
 
 - License: MIT
 - Repository/source: [https://github.com/hyperium/mime](https://github.com/hyperium/mime)
@@ -2086,16 +2062,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [065ecd10e73c46949ccd](#notice-065ecd10e73c46949ccd)
 
-<!-- amp-license: {"name":"mio","version":"0.8.11","licenseName":"MIT","url":"https://github.com/tokio-rs/mio","kind":"rust","textId":"c804065b0956d00a65ce"} -->
-### mio 0.8.11
-
-- License: MIT
-- Repository/source: [https://github.com/tokio-rs/mio](https://github.com/tokio-rs/mio)
-- Category: rust
-- Full notice: [c804065b0956d00a65ce](#notice-c804065b0956d00a65ce)
-
-<!-- amp-license: {"name":"mio","version":"1.2.4","licenseName":"MIT","url":"https://github.com/tokio-rs/mio","kind":"rust","textId":"c804065b0956d00a65ce"} -->
-### mio 1.2.4
+<!-- amp-license: {"name":"mio","version":"1.2.5","licenseName":"MIT","url":"https://github.com/tokio-rs/mio","kind":"rust","textId":"c804065b0956d00a65ce"} -->
+### mio 1.2.5
 
 - License: MIT
 - Repository/source: [https://github.com/tokio-rs/mio](https://github.com/tokio-rs/mio)
@@ -2126,8 +2094,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [42d8a095dbffdf17dba2](#notice-42d8a095dbffdf17dba2)
 
-<!-- amp-license: {"name":"nix","version":"0.31.3","licenseName":"MIT","url":"https://github.com/nix-rust/nix","kind":"rust","textId":"b9b039b5058cfe968002"} -->
-### nix 0.31.3
+<!-- amp-license: {"name":"nix","version":"0.31.4","licenseName":"MIT","url":"https://github.com/nix-rust/nix","kind":"rust","textId":"b9b039b5058cfe968002"} -->
+### nix 0.31.4
 
 - License: MIT
 - Repository/source: [https://github.com/nix-rust/nix](https://github.com/nix-rust/nix)
@@ -2142,13 +2110,21 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [e9f8a16f9ed6671fc411](#notice-e9f8a16f9ed6671fc411)
 
-<!-- amp-license: {"name":"notify","version":"6.1.1","licenseName":"CC0-1.0","url":"https://github.com/notify-rs/notify","kind":"rust","textId":"3b9a96c5f74727eb1b07"} -->
-### notify 6.1.1
+<!-- amp-license: {"name":"notify","version":"8.2.2","licenseName":"CC0-1.0","url":"https://github.com/notify-rs/notify","kind":"rust","textId":"3b9a96c5f74727eb1b07"} -->
+### notify 8.2.2
 
 - License: CC0-1.0
 - Repository/source: [https://github.com/notify-rs/notify](https://github.com/notify-rs/notify)
 - Category: rust
 - Full notice: [3b9a96c5f74727eb1b07](#notice-3b9a96c5f74727eb1b07)
+
+<!-- amp-license: {"name":"notify-types","version":"2.3.1","licenseName":"MIT","url":"https://github.com/notify-rs/notify","kind":"rust","textId":"4b2af3889ac2bda608aa"} -->
+### notify-types 2.3.1
+
+- License: MIT
+- Repository/source: [https://github.com/notify-rs/notify](https://github.com/notify-rs/notify)
+- Category: rust
+- Full notice: [4b2af3889ac2bda608aa](#notice-4b2af3889ac2bda608aa)
 
 <!-- amp-license: {"name":"ntapi","version":"0.4.3","licenseName":"MIT","url":"https://github.com/MSxDOS/ntapi","kind":"rust","textId":"13c065e2f92386fa9d6b"} -->
 ### ntapi 0.4.3
@@ -2256,6 +2232,14 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 
 <!-- amp-license: {"name":"objc2-core-graphics","version":"0.3.2","licenseName":"MIT","url":"https://github.com/madsmtm/objc2","kind":"rust","textId":"07c7993a082dd28479b2"} -->
 ### objc2-core-graphics 0.3.2
+
+- License: MIT
+- Repository/source: [https://github.com/madsmtm/objc2](https://github.com/madsmtm/objc2)
+- Category: rust
+- Full notice: [07c7993a082dd28479b2](#notice-07c7993a082dd28479b2)
+
+<!-- amp-license: {"name":"objc2-core-services","version":"0.3.2","licenseName":"MIT","url":"https://github.com/madsmtm/objc2","kind":"rust","textId":"07c7993a082dd28479b2"} -->
+### objc2-core-services 0.3.2
 
 - License: MIT
 - Repository/source: [https://github.com/madsmtm/objc2](https://github.com/madsmtm/objc2)
@@ -2510,8 +2494,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [30fefc3a7d6a00415418](#notice-30fefc3a7d6a00415418)
 
-<!-- amp-license: {"name":"plist","version":"1.10.3","licenseName":"MIT","url":"https://github.com/ebarnard/rust-plist/","kind":"rust","textId":"5b0ae40d1a35f7ae6591"} -->
-### plist 1.10.3
+<!-- amp-license: {"name":"plist","version":"1.10.4","licenseName":"MIT","url":"https://github.com/ebarnard/rust-plist/","kind":"rust","textId":"5b0ae40d1a35f7ae6591"} -->
+### plist 1.10.4
 
 - License: MIT
 - Repository/source: [https://github.com/ebarnard/rust-plist/](https://github.com/ebarnard/rust-plist/)
@@ -2534,8 +2518,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [30fefc3a7d6a00415418](#notice-30fefc3a7d6a00415418)
 
-<!-- amp-license: {"name":"pollster","version":"1.0.1","licenseName":"MIT","url":"https://github.com/zesterer/pollster","kind":"rust","textId":"d495abbfe409b09ff382"} -->
-### pollster 1.0.1
+<!-- amp-license: {"name":"pollster","version":"1.0.3","licenseName":"MIT","url":"https://github.com/zesterer/pollster","kind":"rust","textId":"d495abbfe409b09ff382"} -->
+### pollster 1.0.3
 
 - License: MIT
 - Repository/source: [https://github.com/zesterer/pollster](https://github.com/zesterer/pollster)
@@ -2630,8 +2614,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [30fefc3a7d6a00415418](#notice-30fefc3a7d6a00415418)
 
-<!-- amp-license: {"name":"rand","version":"0.10.3","licenseName":"MIT","url":"https://github.com/rust-random/rand","kind":"rust","textId":"cc367a7134c2b07d995a"} -->
-### rand 0.10.3
+<!-- amp-license: {"name":"rand","version":"0.10.4","licenseName":"MIT","url":"https://github.com/rust-random/rand","kind":"rust","textId":"cc367a7134c2b07d995a"} -->
+### rand 0.10.4
 
 - License: MIT
 - Repository/source: [https://github.com/rust-random/rand](https://github.com/rust-random/rand)
@@ -2670,24 +2654,24 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [9e0027807b0c548ac1df](#notice-9e0027807b0c548ac1df)
 
-<!-- amp-license: {"name":"regex","version":"1.13.1","licenseName":"MIT","url":"https://github.com/rust-lang/regex","kind":"rust","textId":"14435fbcd271e2783f72"} -->
-### regex 1.13.1
+<!-- amp-license: {"name":"regex","version":"1.13.2","licenseName":"MIT","url":"https://github.com/rust-lang/regex","kind":"rust","textId":"14435fbcd271e2783f72"} -->
+### regex 1.13.2
 
 - License: MIT
 - Repository/source: [https://github.com/rust-lang/regex](https://github.com/rust-lang/regex)
 - Category: rust
 - Full notice: [14435fbcd271e2783f72](#notice-14435fbcd271e2783f72)
 
-<!-- amp-license: {"name":"regex-automata","version":"0.4.18","licenseName":"MIT","url":"https://github.com/rust-lang/regex","kind":"rust","textId":"14435fbcd271e2783f72"} -->
-### regex-automata 0.4.18
+<!-- amp-license: {"name":"regex-automata","version":"0.4.19","licenseName":"MIT","url":"https://github.com/rust-lang/regex","kind":"rust","textId":"14435fbcd271e2783f72"} -->
+### regex-automata 0.4.19
 
 - License: MIT
 - Repository/source: [https://github.com/rust-lang/regex](https://github.com/rust-lang/regex)
 - Category: rust
 - Full notice: [14435fbcd271e2783f72](#notice-14435fbcd271e2783f72)
 
-<!-- amp-license: {"name":"regex-syntax","version":"0.8.11","licenseName":"MIT","url":"https://github.com/rust-lang/regex","kind":"rust","textId":"14435fbcd271e2783f72"} -->
-### regex-syntax 0.8.11
+<!-- amp-license: {"name":"regex-syntax","version":"0.8.12","licenseName":"MIT","url":"https://github.com/rust-lang/regex","kind":"rust","textId":"14435fbcd271e2783f72"} -->
+### regex-syntax 0.8.12
 
 - License: MIT
 - Repository/source: [https://github.com/rust-lang/regex](https://github.com/rust-lang/regex)
@@ -2726,8 +2710,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [f43e81c5c4afa71a0475](#notice-f43e81c5c4afa71a0475)
 
-<!-- amp-license: {"name":"rusqlite","version":"0.41.1","licenseName":"MIT","url":"https://github.com/rusqlite/rusqlite","kind":"rust","textId":"6061b8ea5b16d94a796c"} -->
-### rusqlite 0.41.1
+<!-- amp-license: {"name":"rusqlite","version":"0.43.0","licenseName":"MIT","url":"https://github.com/rusqlite/rusqlite","kind":"rust","textId":"6061b8ea5b16d94a796c"} -->
+### rusqlite 0.43.0
 
 - License: MIT
 - Repository/source: [https://github.com/rusqlite/rusqlite](https://github.com/rusqlite/rusqlite)
@@ -2774,8 +2758,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [a3320aa8d192a02cc2c9](#notice-a3320aa8d192a02cc2c9)
 
-<!-- amp-license: {"name":"rustls-pki-types","version":"1.15.1","licenseName":"MIT","url":"https://github.com/rustls/pki-types","kind":"rust","textId":"c5e7f780f961f850c7ac"} -->
-### rustls-pki-types 1.15.1
+<!-- amp-license: {"name":"rustls-pki-types","version":"1.16.0","licenseName":"MIT","url":"https://github.com/rustls/pki-types","kind":"rust","textId":"c5e7f780f961f850c7ac"} -->
+### rustls-pki-types 1.16.0
 
 - License: MIT
 - Repository/source: [https://github.com/rustls/pki-types](https://github.com/rustls/pki-types)
@@ -2790,8 +2774,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [6205904d553962d42fd6](#notice-6205904d553962d42fd6)
 
-<!-- amp-license: {"name":"rustls-webpki","version":"0.103.16","licenseName":"ISC","url":"https://github.com/rustls/webpki","kind":"rust","textId":"3ac27594ed56fd079c95"} -->
-### rustls-webpki 0.103.16
+<!-- amp-license: {"name":"rustls-webpki","version":"0.103.17","licenseName":"ISC","url":"https://github.com/rustls/webpki","kind":"rust","textId":"3ac27594ed56fd079c95"} -->
+### rustls-webpki 0.103.17
 
 - License: ISC
 - Repository/source: [https://github.com/rustls/webpki](https://github.com/rustls/webpki)
@@ -2878,56 +2862,56 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [30fefc3a7d6a00415418](#notice-30fefc3a7d6a00415418)
 
-<!-- amp-license: {"name":"sentry","version":"0.49.5","licenseName":"MIT","url":"https://github.com/getsentry/sentry-rust","kind":"rust","textId":"20517a897be9b7eaae2a"} -->
-### sentry 0.49.5
+<!-- amp-license: {"name":"sentry","version":"0.49.6","licenseName":"MIT","url":"https://github.com/getsentry/sentry-rust","kind":"rust","textId":"20517a897be9b7eaae2a"} -->
+### sentry 0.49.6
 
 - License: MIT
 - Repository/source: [https://github.com/getsentry/sentry-rust](https://github.com/getsentry/sentry-rust)
 - Category: rust
 - Full notice: [20517a897be9b7eaae2a](#notice-20517a897be9b7eaae2a)
 
-<!-- amp-license: {"name":"sentry-backtrace","version":"0.49.5","licenseName":"MIT","url":"https://github.com/getsentry/sentry-rust","kind":"rust","textId":"20517a897be9b7eaae2a"} -->
-### sentry-backtrace 0.49.5
+<!-- amp-license: {"name":"sentry-backtrace","version":"0.49.6","licenseName":"MIT","url":"https://github.com/getsentry/sentry-rust","kind":"rust","textId":"20517a897be9b7eaae2a"} -->
+### sentry-backtrace 0.49.6
 
 - License: MIT
 - Repository/source: [https://github.com/getsentry/sentry-rust](https://github.com/getsentry/sentry-rust)
 - Category: rust
 - Full notice: [20517a897be9b7eaae2a](#notice-20517a897be9b7eaae2a)
 
-<!-- amp-license: {"name":"sentry-contexts","version":"0.49.5","licenseName":"MIT","url":"https://github.com/getsentry/sentry-rust","kind":"rust","textId":"20517a897be9b7eaae2a"} -->
-### sentry-contexts 0.49.5
+<!-- amp-license: {"name":"sentry-contexts","version":"0.49.6","licenseName":"MIT","url":"https://github.com/getsentry/sentry-rust","kind":"rust","textId":"20517a897be9b7eaae2a"} -->
+### sentry-contexts 0.49.6
 
 - License: MIT
 - Repository/source: [https://github.com/getsentry/sentry-rust](https://github.com/getsentry/sentry-rust)
 - Category: rust
 - Full notice: [20517a897be9b7eaae2a](#notice-20517a897be9b7eaae2a)
 
-<!-- amp-license: {"name":"sentry-core","version":"0.49.5","licenseName":"MIT","url":"https://github.com/getsentry/sentry-rust","kind":"rust","textId":"20517a897be9b7eaae2a"} -->
-### sentry-core 0.49.5
+<!-- amp-license: {"name":"sentry-core","version":"0.49.6","licenseName":"MIT","url":"https://github.com/getsentry/sentry-rust","kind":"rust","textId":"20517a897be9b7eaae2a"} -->
+### sentry-core 0.49.6
 
 - License: MIT
 - Repository/source: [https://github.com/getsentry/sentry-rust](https://github.com/getsentry/sentry-rust)
 - Category: rust
 - Full notice: [20517a897be9b7eaae2a](#notice-20517a897be9b7eaae2a)
 
-<!-- amp-license: {"name":"sentry-debug-images","version":"0.49.5","licenseName":"MIT","url":"https://github.com/getsentry/sentry-rust","kind":"rust","textId":"20517a897be9b7eaae2a"} -->
-### sentry-debug-images 0.49.5
+<!-- amp-license: {"name":"sentry-debug-images","version":"0.49.6","licenseName":"MIT","url":"https://github.com/getsentry/sentry-rust","kind":"rust","textId":"20517a897be9b7eaae2a"} -->
+### sentry-debug-images 0.49.6
 
 - License: MIT
 - Repository/source: [https://github.com/getsentry/sentry-rust](https://github.com/getsentry/sentry-rust)
 - Category: rust
 - Full notice: [20517a897be9b7eaae2a](#notice-20517a897be9b7eaae2a)
 
-<!-- amp-license: {"name":"sentry-panic","version":"0.49.5","licenseName":"MIT","url":"https://github.com/getsentry/sentry-rust","kind":"rust","textId":"20517a897be9b7eaae2a"} -->
-### sentry-panic 0.49.5
+<!-- amp-license: {"name":"sentry-panic","version":"0.49.6","licenseName":"MIT","url":"https://github.com/getsentry/sentry-rust","kind":"rust","textId":"20517a897be9b7eaae2a"} -->
+### sentry-panic 0.49.6
 
 - License: MIT
 - Repository/source: [https://github.com/getsentry/sentry-rust](https://github.com/getsentry/sentry-rust)
 - Category: rust
 - Full notice: [20517a897be9b7eaae2a](#notice-20517a897be9b7eaae2a)
 
-<!-- amp-license: {"name":"sentry-types","version":"0.49.5","licenseName":"MIT","url":"https://github.com/getsentry/sentry-rust","kind":"rust","textId":"20517a897be9b7eaae2a"} -->
-### sentry-types 0.49.5
+<!-- amp-license: {"name":"sentry-types","version":"0.49.6","licenseName":"MIT","url":"https://github.com/getsentry/sentry-rust","kind":"rust","textId":"20517a897be9b7eaae2a"} -->
+### sentry-types 0.49.6
 
 - License: MIT
 - Repository/source: [https://github.com/getsentry/sentry-rust](https://github.com/getsentry/sentry-rust)
@@ -2982,8 +2966,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [30fefc3a7d6a00415418](#notice-30fefc3a7d6a00415418)
 
-<!-- amp-license: {"name":"serde_spanned","version":"1.1.2","licenseName":"MIT","url":"https://github.com/toml-rs/toml","kind":"rust","textId":"4498464c2864825d7bb4"} -->
-### serde_spanned 1.1.2
+<!-- amp-license: {"name":"serde_spanned","version":"1.1.3","licenseName":"MIT","url":"https://github.com/toml-rs/toml","kind":"rust","textId":"4498464c2864825d7bb4"} -->
+### serde_spanned 1.1.3
 
 - License: MIT
 - Repository/source: [https://github.com/toml-rs/toml](https://github.com/toml-rs/toml)
@@ -3038,14 +3022,6 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [30fefc3a7d6a00415418](#notice-30fefc3a7d6a00415418)
 
-<!-- amp-license: {"name":"sha2","version":"0.10.9","licenseName":"MIT","url":"https://github.com/RustCrypto/hashes","kind":"rust","textId":"4031faf6212ee74481b2"} -->
-### sha2 0.10.9
-
-- License: MIT
-- Repository/source: [https://github.com/RustCrypto/hashes](https://github.com/RustCrypto/hashes)
-- Category: rust
-- Full notice: [4031faf6212ee74481b2](#notice-4031faf6212ee74481b2)
-
 <!-- amp-license: {"name":"sha2","version":"0.11.1","licenseName":"MIT","url":"https://github.com/RustCrypto/hashes","kind":"rust","textId":"535a6aa345e8622e7a5c"} -->
 ### sha2 0.11.1
 
@@ -3086,11 +3062,11 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [12c7116c4425c559c9d7](#notice-12c7116c4425c559c9d7)
 
-<!-- amp-license: {"name":"smallvec","version":"1.16.4","licenseName":"MIT","url":"https://github.com/servo/rust-smallvec","kind":"rust","textId":"7f194ae45c2525a57443"} -->
-### smallvec 1.16.4
+<!-- amp-license: {"name":"smallvec","version":"1.16.6","licenseName":"MIT","url":"https://github.com/smallvec/smallvec","kind":"rust","textId":"7f194ae45c2525a57443"} -->
+### smallvec 1.16.6
 
 - License: MIT
-- Repository/source: [https://github.com/servo/rust-smallvec](https://github.com/servo/rust-smallvec)
+- Repository/source: [https://github.com/smallvec/smallvec](https://github.com/smallvec/smallvec)
 - Category: rust
 - Full notice: [7f194ae45c2525a57443](#notice-7f194ae45c2525a57443)
 
@@ -3174,8 +3150,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [24fa06d8eae3c3ba93e1](#notice-24fa06d8eae3c3ba93e1)
 
-<!-- amp-license: {"name":"svelte","version":"5.57.3","licenseName":"MIT","url":"https://github.com/sveltejs/svelte","kind":"javascript","textId":"673a1ac4a9d80146239c"} -->
-### svelte 5.57.3
+<!-- amp-license: {"name":"svelte","version":"5.58.0","licenseName":"MIT","url":"https://github.com/sveltejs/svelte","kind":"javascript","textId":"673a1ac4a9d80146239c"} -->
+### svelte 5.58.0
 
 - License: MIT
 - Repository/source: [https://github.com/sveltejs/svelte](https://github.com/sveltejs/svelte)
@@ -3206,8 +3182,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [30fefc3a7d6a00415418](#notice-30fefc3a7d6a00415418)
 
-<!-- amp-license: {"name":"syn","version":"3.0.9","licenseName":"MIT","url":"https://github.com/dtolnay/syn","kind":"rust","textId":"30fefc3a7d6a00415418"} -->
-### syn 3.0.9
+<!-- amp-license: {"name":"syn","version":"3.0.10","licenseName":"MIT","url":"https://github.com/dtolnay/syn","kind":"rust","textId":"30fefc3a7d6a00415418"} -->
+### syn 3.0.10
 
 - License: MIT
 - Repository/source: [https://github.com/dtolnay/syn](https://github.com/dtolnay/syn)
@@ -3230,8 +3206,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [3a036676ec8c0dba1c24](#notice-3a036676ec8c0dba1c24)
 
-<!-- amp-license: {"name":"sysinfo","version":"0.40.1","licenseName":"MIT","url":"https://github.com/GuillaumeGomez/sysinfo","kind":"rust","textId":"0c19d7104c506a406506"} -->
-### sysinfo 0.40.1
+<!-- amp-license: {"name":"sysinfo","version":"0.40.4","licenseName":"MIT","url":"https://github.com/GuillaumeGomez/sysinfo","kind":"rust","textId":"0c19d7104c506a406506"} -->
+### sysinfo 0.40.4
 
 - License: MIT
 - Repository/source: [https://github.com/GuillaumeGomez/sysinfo](https://github.com/GuillaumeGomez/sysinfo)
@@ -3270,24 +3246,24 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [e6e853531994cb4721d5](#notice-e6e853531994cb4721d5)
 
-<!-- amp-license: {"name":"tauri","version":"2.12.5","licenseName":"MIT","url":"https://github.com/tauri-apps/tauri","kind":"rust","textId":"89ff9689dcf9dd539687"} -->
-### tauri 2.12.5
+<!-- amp-license: {"name":"tauri","version":"2.12.7","licenseName":"MIT","url":"https://github.com/tauri-apps/tauri","kind":"rust","textId":"89ff9689dcf9dd539687"} -->
+### tauri 2.12.7
 
 - License: MIT
 - Repository/source: [https://github.com/tauri-apps/tauri](https://github.com/tauri-apps/tauri)
 - Category: rust
 - Full notice: [89ff9689dcf9dd539687](#notice-89ff9689dcf9dd539687)
 
-<!-- amp-license: {"name":"tauri-codegen","version":"2.7.4","licenseName":"MIT","url":"https://github.com/tauri-apps/tauri","kind":"rust","textId":"89ff9689dcf9dd539687"} -->
-### tauri-codegen 2.7.4
+<!-- amp-license: {"name":"tauri-codegen","version":"2.7.6","licenseName":"MIT","url":"https://github.com/tauri-apps/tauri","kind":"rust","textId":"89ff9689dcf9dd539687"} -->
+### tauri-codegen 2.7.6
 
 - License: MIT
 - Repository/source: [https://github.com/tauri-apps/tauri](https://github.com/tauri-apps/tauri)
 - Category: rust
 - Full notice: [89ff9689dcf9dd539687](#notice-89ff9689dcf9dd539687)
 
-<!-- amp-license: {"name":"tauri-macros","version":"2.7.4","licenseName":"MIT","url":"https://github.com/tauri-apps/tauri","kind":"rust","textId":"89ff9689dcf9dd539687"} -->
-### tauri-macros 2.7.4
+<!-- amp-license: {"name":"tauri-macros","version":"2.7.6","licenseName":"MIT","url":"https://github.com/tauri-apps/tauri","kind":"rust","textId":"89ff9689dcf9dd539687"} -->
+### tauri-macros 2.7.6
 
 - License: MIT
 - Repository/source: [https://github.com/tauri-apps/tauri](https://github.com/tauri-apps/tauri)
@@ -3318,13 +3294,13 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [07c7993a082dd28479b2](#notice-07c7993a082dd28479b2)
 
-<!-- amp-license: {"name":"tauri-plugin-single-instance","version":"2.5.5","licenseName":"Apache-2.0 OR MIT","url":"https://github.com/tauri-apps/plugins-workspace","kind":"rust","textId":"b7f455413bfe5f9d7da5"} -->
+<!-- amp-license: {"name":"tauri-plugin-single-instance","version":"2.5.5","licenseName":"MIT","url":"https://github.com/tauri-apps/plugins-workspace","kind":"rust","textId":"07c7993a082dd28479b2"} -->
 ### tauri-plugin-single-instance 2.5.5
 
-- License: Apache-2.0 OR MIT
+- License: MIT
 - Repository/source: [https://github.com/tauri-apps/plugins-workspace](https://github.com/tauri-apps/plugins-workspace)
 - Category: rust
-- Full notice: [b7f455413bfe5f9d7da5](#notice-b7f455413bfe5f9d7da5)
+- Full notice: [07c7993a082dd28479b2](#notice-07c7993a082dd28479b2)
 
 <!-- amp-license: {"name":"tauri-plugin-updater","version":"2.14.1","licenseName":"MIT","url":"https://github.com/tauri-apps/plugins-workspace","kind":"rust","textId":"07c7993a082dd28479b2"} -->
 ### tauri-plugin-updater 2.14.1
@@ -3334,24 +3310,24 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [07c7993a082dd28479b2](#notice-07c7993a082dd28479b2)
 
-<!-- amp-license: {"name":"tauri-runtime","version":"2.12.2","licenseName":"MIT","url":"https://github.com/tauri-apps/tauri","kind":"rust","textId":"89ff9689dcf9dd539687"} -->
-### tauri-runtime 2.12.2
+<!-- amp-license: {"name":"tauri-runtime","version":"2.12.4","licenseName":"MIT","url":"https://github.com/tauri-apps/tauri","kind":"rust","textId":"89ff9689dcf9dd539687"} -->
+### tauri-runtime 2.12.4
 
 - License: MIT
 - Repository/source: [https://github.com/tauri-apps/tauri](https://github.com/tauri-apps/tauri)
 - Category: rust
 - Full notice: [89ff9689dcf9dd539687](#notice-89ff9689dcf9dd539687)
 
-<!-- amp-license: {"name":"tauri-runtime-wry","version":"2.12.3","licenseName":"MIT","url":"https://github.com/tauri-apps/tauri","kind":"rust","textId":"89ff9689dcf9dd539687"} -->
-### tauri-runtime-wry 2.12.3
+<!-- amp-license: {"name":"tauri-runtime-wry","version":"2.12.5","licenseName":"MIT","url":"https://github.com/tauri-apps/tauri","kind":"rust","textId":"89ff9689dcf9dd539687"} -->
+### tauri-runtime-wry 2.12.5
 
 - License: MIT
 - Repository/source: [https://github.com/tauri-apps/tauri](https://github.com/tauri-apps/tauri)
 - Category: rust
 - Full notice: [89ff9689dcf9dd539687](#notice-89ff9689dcf9dd539687)
 
-<!-- amp-license: {"name":"tauri-utils","version":"2.10.2","licenseName":"MIT","url":"https://github.com/tauri-apps/tauri","kind":"rust","textId":"89ff9689dcf9dd539687"} -->
-### tauri-utils 2.10.2
+<!-- amp-license: {"name":"tauri-utils","version":"2.10.4","licenseName":"MIT","url":"https://github.com/tauri-apps/tauri","kind":"rust","textId":"89ff9689dcf9dd539687"} -->
+### tauri-utils 2.10.4
 
 - License: MIT
 - Repository/source: [https://github.com/tauri-apps/tauri](https://github.com/tauri-apps/tauri)
@@ -3478,8 +3454,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [3e1bef82aa0dfee4504a](#notice-3e1bef82aa0dfee4504a)
 
-<!-- amp-license: {"name":"toml","version":"1.2.0+spec-1.1.0","licenseName":"MIT","url":"https://github.com/toml-rs/toml","kind":"rust","textId":"4498464c2864825d7bb4"} -->
-### toml 1.2.0+spec-1.1.0
+<!-- amp-license: {"name":"toml","version":"1.2.1+spec-1.1.0","licenseName":"MIT","url":"https://github.com/toml-rs/toml","kind":"rust","textId":"4498464c2864825d7bb4"} -->
+### toml 1.2.1+spec-1.1.0
 
 - License: MIT
 - Repository/source: [https://github.com/toml-rs/toml](https://github.com/toml-rs/toml)
@@ -3494,8 +3470,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [84e1bbfebd74e4196cfa](#notice-84e1bbfebd74e4196cfa)
 
-<!-- amp-license: {"name":"toml_datetime","version":"1.1.2+spec-1.1.0","licenseName":"MIT","url":"https://github.com/toml-rs/toml","kind":"rust","textId":"4498464c2864825d7bb4"} -->
-### toml_datetime 1.1.2+spec-1.1.0
+<!-- amp-license: {"name":"toml_datetime","version":"1.1.3+spec-1.1.0","licenseName":"MIT","url":"https://github.com/toml-rs/toml","kind":"rust","textId":"4498464c2864825d7bb4"} -->
+### toml_datetime 1.1.3+spec-1.1.0
 
 - License: MIT
 - Repository/source: [https://github.com/toml-rs/toml](https://github.com/toml-rs/toml)
@@ -3518,8 +3494,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [4498464c2864825d7bb4](#notice-4498464c2864825d7bb4)
 
-<!-- amp-license: {"name":"toml_edit","version":"0.25.18+spec-1.1.0","licenseName":"MIT","url":"https://github.com/toml-rs/toml","kind":"rust","textId":"4498464c2864825d7bb4"} -->
-### toml_edit 0.25.18+spec-1.1.0
+<!-- amp-license: {"name":"toml_edit","version":"0.25.19+spec-1.1.0","licenseName":"MIT","url":"https://github.com/toml-rs/toml","kind":"rust","textId":"4498464c2864825d7bb4"} -->
+### toml_edit 0.25.19+spec-1.1.0
 
 - License: MIT
 - Repository/source: [https://github.com/toml-rs/toml](https://github.com/toml-rs/toml)
@@ -3598,8 +3574,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [ff1e3c11c0eab6414ff2](#notice-ff1e3c11c0eab6414ff2)
 
-<!-- amp-license: {"name":"trash","version":"5.2.9","licenseName":"MIT","url":"https://github.com/ArturKovacs/trash","kind":"rust","textId":"2e5096718c28d1de62af"} -->
-### trash 5.2.9
+<!-- amp-license: {"name":"trash","version":"5.4.0","licenseName":"MIT","url":"https://github.com/ArturKovacs/trash","kind":"rust","textId":"2e5096718c28d1de62af"} -->
+### trash 5.4.0
 
 - License: MIT
 - Repository/source: [https://github.com/ArturKovacs/trash](https://github.com/ArturKovacs/trash)
@@ -3734,8 +3710,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [db2c904eb5685e69d3ea](#notice-db2c904eb5685e69d3ea)
 
-<!-- amp-license: {"name":"uuid","version":"1.29.0","licenseName":"MIT","url":"https://github.com/uuid-rs/uuid","kind":"rust","textId":"11cd7e6caed4b2377bdc"} -->
-### uuid 1.29.0
+<!-- amp-license: {"name":"uuid","version":"1.29.3","licenseName":"MIT","url":"https://github.com/uuid-rs/uuid","kind":"rust","textId":"11cd7e6caed4b2377bdc"} -->
+### uuid 1.29.3
 
 - License: MIT
 - Repository/source: [https://github.com/uuid-rs/uuid](https://github.com/uuid-rs/uuid)
@@ -3854,24 +3830,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [07c7993a082dd28479b2](#notice-07c7993a082dd28479b2)
 
-<!-- amp-license: {"name":"windows_x86_64_gnu","version":"0.48.5","licenseName":"MIT","url":"https://github.com/microsoft/windows-rs","kind":"rust","textId":"07c7993a082dd28479b2"} -->
-### windows_x86_64_gnu 0.48.5
-
-- License: MIT
-- Repository/source: [https://github.com/microsoft/windows-rs](https://github.com/microsoft/windows-rs)
-- Category: rust
-- Full notice: [07c7993a082dd28479b2](#notice-07c7993a082dd28479b2)
-
 <!-- amp-license: {"name":"windows_x86_64_gnu","version":"0.52.6","licenseName":"MIT","url":"https://github.com/microsoft/windows-rs","kind":"rust","textId":"07c7993a082dd28479b2"} -->
 ### windows_x86_64_gnu 0.52.6
-
-- License: MIT
-- Repository/source: [https://github.com/microsoft/windows-rs](https://github.com/microsoft/windows-rs)
-- Category: rust
-- Full notice: [07c7993a082dd28479b2](#notice-07c7993a082dd28479b2)
-
-<!-- amp-license: {"name":"windows_x86_64_msvc","version":"0.48.5","licenseName":"MIT","url":"https://github.com/microsoft/windows-rs","kind":"rust","textId":"07c7993a082dd28479b2"} -->
-### windows_x86_64_msvc 0.48.5
 
 - License: MIT
 - Repository/source: [https://github.com/microsoft/windows-rs](https://github.com/microsoft/windows-rs)
@@ -4022,14 +3982,6 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [07c7993a082dd28479b2](#notice-07c7993a082dd28479b2)
 
-<!-- amp-license: {"name":"windows-sys","version":"0.48.0","licenseName":"MIT","url":"https://github.com/microsoft/windows-rs","kind":"rust","textId":"07c7993a082dd28479b2"} -->
-### windows-sys 0.48.0
-
-- License: MIT
-- Repository/source: [https://github.com/microsoft/windows-rs](https://github.com/microsoft/windows-rs)
-- Category: rust
-- Full notice: [07c7993a082dd28479b2](#notice-07c7993a082dd28479b2)
-
 <!-- amp-license: {"name":"windows-sys","version":"0.59.0","licenseName":"MIT","url":"https://github.com/microsoft/windows-rs","kind":"rust","textId":"07c7993a082dd28479b2"} -->
 ### windows-sys 0.59.0
 
@@ -4040,14 +3992,6 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 
 <!-- amp-license: {"name":"windows-sys","version":"0.61.2","licenseName":"MIT","url":"https://github.com/microsoft/windows-rs","kind":"rust","textId":"07c7993a082dd28479b2"} -->
 ### windows-sys 0.61.2
-
-- License: MIT
-- Repository/source: [https://github.com/microsoft/windows-rs](https://github.com/microsoft/windows-rs)
-- Category: rust
-- Full notice: [07c7993a082dd28479b2](#notice-07c7993a082dd28479b2)
-
-<!-- amp-license: {"name":"windows-targets","version":"0.48.5","licenseName":"MIT","url":"https://github.com/microsoft/windows-rs","kind":"rust","textId":"07c7993a082dd28479b2"} -->
-### windows-targets 0.48.5
 
 - License: MIT
 - Repository/source: [https://github.com/microsoft/windows-rs](https://github.com/microsoft/windows-rs)
@@ -4094,8 +4038,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [8793aa4141de4b16b6fd](#notice-8793aa4141de4b16b6fd)
 
-<!-- amp-license: {"name":"winnow","version":"1.0.4","licenseName":"MIT","url":"https://github.com/winnow-rs/winnow","kind":"rust","textId":"8793aa4141de4b16b6fd"} -->
-### winnow 1.0.4
+<!-- amp-license: {"name":"winnow","version":"1.0.5","licenseName":"MIT","url":"https://github.com/winnow-rs/winnow","kind":"rust","textId":"8793aa4141de4b16b6fd"} -->
+### winnow 1.0.5
 
 - License: MIT
 - Repository/source: [https://github.com/winnow-rs/winnow](https://github.com/winnow-rs/winnow)
@@ -4110,8 +4054,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [cde87abe221f413fede5](#notice-cde87abe221f413fede5)
 
-<!-- amp-license: {"name":"wry","version":"0.57.1","licenseName":"MIT","url":"https://github.com/tauri-apps/wry","kind":"rust","textId":"86eb6a41ef640b92ac12"} -->
-### wry 0.57.1
+<!-- amp-license: {"name":"wry","version":"0.57.3","licenseName":"MIT","url":"https://github.com/tauri-apps/wry","kind":"rust","textId":"86eb6a41ef640b92ac12"} -->
+### wry 0.57.3
 
 - License: MIT
 - Repository/source: [https://github.com/tauri-apps/wry](https://github.com/tauri-apps/wry)
@@ -4214,8 +4158,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [a0e7d0739e030804991c](#notice-a0e7d0739e030804991c)
 
-<!-- amp-license: {"name":"zbus","version":"6.2.1","licenseName":"MIT","url":"https://github.com/z-galaxy/zbus/","kind":"rust","textId":"a0e7d0739e030804991c"} -->
-### zbus 6.2.1
+<!-- amp-license: {"name":"zbus","version":"6.3.0","licenseName":"MIT","url":"https://github.com/z-galaxy/zbus/","kind":"rust","textId":"a0e7d0739e030804991c"} -->
+### zbus 6.3.0
 
 - License: MIT
 - Repository/source: [https://github.com/z-galaxy/zbus/](https://github.com/z-galaxy/zbus/)
@@ -4230,8 +4174,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [a0e7d0739e030804991c](#notice-a0e7d0739e030804991c)
 
-<!-- amp-license: {"name":"zbus_macros","version":"6.2.1","licenseName":"MIT","url":"https://github.com/z-galaxy/zbus/","kind":"rust","textId":"a0e7d0739e030804991c"} -->
-### zbus_macros 6.2.1
+<!-- amp-license: {"name":"zbus_macros","version":"6.5.0","licenseName":"MIT","url":"https://github.com/z-galaxy/zbus/","kind":"rust","textId":"a0e7d0739e030804991c"} -->
+### zbus_macros 6.5.0
 
 - License: MIT
 - Repository/source: [https://github.com/z-galaxy/zbus/](https://github.com/z-galaxy/zbus/)
@@ -4278,13 +4222,21 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [cde87abe221f413fede5](#notice-cde87abe221f413fede5)
 
-<!-- amp-license: {"name":"zeroize","version":"1.9.1","licenseName":"MIT","url":"https://github.com/RustCrypto/utils","kind":"rust","textId":"836ed921bbad486c21fe"} -->
-### zeroize 1.9.1
+<!-- amp-license: {"name":"zeroize","version":"1.9.2","licenseName":"MIT","url":"https://github.com/RustCrypto/utils","kind":"rust","textId":"836ed921bbad486c21fe"} -->
+### zeroize 1.9.2
 
 - License: MIT
 - Repository/source: [https://github.com/RustCrypto/utils](https://github.com/RustCrypto/utils)
 - Category: rust
 - Full notice: [836ed921bbad486c21fe](#notice-836ed921bbad486c21fe)
+
+<!-- amp-license: {"name":"zeroize_derive","version":"1.5.0","licenseName":"MIT","url":"https://github.com/RustCrypto/utils","kind":"rust","textId":"1038b7737a0a04bd9268"} -->
+### zeroize_derive 1.5.0
+
+- License: MIT
+- Repository/source: [https://github.com/RustCrypto/utils](https://github.com/RustCrypto/utils)
+- Category: rust
+- Full notice: [1038b7737a0a04bd9268](#notice-1038b7737a0a04bd9268)
 
 <!-- amp-license: {"name":"zerotrie","version":"0.2.5","licenseName":"Unicode-3.0","url":"https://github.com/unicode-org/icu4x","kind":"rust","textId":"cde87abe221f413fede5"} -->
 ### zerotrie 0.2.5
@@ -4318,8 +4270,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: javascript
 - Full notice: [3ef5af14739275cb692d](#notice-3ef5af14739275cb692d)
 
-<!-- amp-license: {"name":"zip","version":"9.4.1","licenseName":"MIT","url":"https://github.com/zip-rs/zip2","kind":"rust","textId":"6ac8711fb340c62ce0a4"} -->
-### zip 9.4.1
+<!-- amp-license: {"name":"zip","version":"9.8.1","licenseName":"MIT","url":"https://github.com/zip-rs/zip2","kind":"rust","textId":"6ac8711fb340c62ce0a4"} -->
+### zip 9.8.1
 
 - License: MIT
 - Repository/source: [https://github.com/zip-rs/zip2](https://github.com/zip-rs/zip2)
@@ -4334,8 +4286,8 @@ Regenerate dependency entries with `pnpm licenses:generate` after updating lockf
 - Category: rust
 - Full notice: [30fefc3a7d6a00415418](#notice-30fefc3a7d6a00415418)
 
-<!-- amp-license: {"name":"zruntime","version":"0.2.2","licenseName":"MIT","url":"https://github.com/z-galaxy/zruntime","kind":"rust","textId":"23671245a8530ffd043e"} -->
-### zruntime 0.2.2
+<!-- amp-license: {"name":"zruntime","version":"0.2.4","licenseName":"MIT","url":"https://github.com/z-galaxy/zruntime","kind":"rust","textId":"23671245a8530ffd043e"} -->
+### zruntime 0.2.4
 
 - License: MIT
 - Repository/source: [https://github.com/z-galaxy/zruntime](https://github.com/z-galaxy/zruntime)
@@ -4473,8 +4425,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<!-- amp-license-text: 66b6afabad8cf819cf48 -->
-### Notice 66b6afabad8cf819cf48
+<!-- amp-license-text: 2404c7c09b891d4ad1e1 -->
+### Notice 2404c7c09b891d4ad1e1
 
 ```text
 Apache License
@@ -4677,29 +4629,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-SPDXVersion: SPDX-2.1
-DataLicense: CC0-1.0
-PackageName: tauri
-DataFormat: SPDXRef-1
-PackageSupplier: Organization: The Tauri Programme in the Commons Conservancy
-PackageHomePage: https://tauri.app
-PackageLicenseDeclared: Apache-2.0
-PackageLicenseDeclared: MIT
-PackageCopyrightText: 2019-2025, The Tauri Programme in the Commons Conservancy
-PackageSummary: <text>Tauri is a rust project that enables developers to make secure
-and small desktop applications using a web frontend.
-                </text>
-PackageComment: <text>The package includes the following libraries; see
-Relationship information.
-                </text>
-Created: 2019-05-20T09:00:00Z
-PackageDownloadLocation: git://github.com/tauri-apps/tauri
-PackageDownloadLocation: git+https://github.com/tauri-apps/tauri.git
-PackageDownloadLocation: git+ssh://github.com/tauri-apps/tauri.git
-Creator: Person: Daniel Thompson-Yvetot
 ```
 
 <!-- amp-license-text: eb8a6c84630461b352ba -->
@@ -5515,37 +5444,6 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTI
 USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<!-- amp-license-text: 5ff5253f2cb9347c4b3b -->
-### Notice 5ff5253f2cb9347c4b3b
-
-```text
-Copyright (c) 2018-2019 The RustCrypto Project Developers
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-```
-
 <!-- amp-license-text: 775a3e20a9af71609927 -->
 ### Notice 775a3e20a9af71609927
 
@@ -5750,6 +5648,85 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
+```
+
+<!-- amp-license-text: c274f80372d90c012937 -->
+### Notice c274f80372d90c012937
+
+```text
+Apache License
+Version 2.0, January 2004
+http://www.apache.org/licenses/
+
+TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+1. Definitions.
+
+"License" shall mean the terms and conditions for use, reproduction, and distribution as defined by Sections 1 through 9 of this document.
+
+"Licensor" shall mean the copyright owner or entity authorized by the copyright owner that is granting the License.
+
+"Legal Entity" shall mean the union of the acting entity and all other entities that control, are controlled by, or are under common control with that entity. For the purposes of this definition, "control" means (i) the power, direct or indirect, to cause the direction or management of such entity, whether by contract or otherwise, or (ii) ownership of fifty percent (50%) or more of the outstanding shares, or (iii) beneficial ownership of such entity.
+
+"You" (or "Your") shall mean an individual or Legal Entity exercising permissions granted by this License.
+
+"Source" form shall mean the preferred form for making modifications, including but not limited to software source code, documentation source, and configuration files.
+
+"Object" form shall mean any form resulting from mechanical transformation or translation of a Source form, including but not limited to compiled object code, generated documentation, and conversions to other media types.
+
+"Work" shall mean the work of authorship, whether in Source or Object form, made available under the License, as indicated by a copyright notice that is included in or attached to the work (an example is provided in the Appendix below).
+
+"Derivative Works" shall mean any work, whether in Source or Object form, that is based on (or derived from) the Work and for which the editorial revisions, annotations, elaborations, or other modifications represent, as a whole, an original work of authorship. For the purposes of this License, Derivative Works shall not include works that remain separable from, or merely link (or bind by name) to the interfaces of, the Work and Derivative Works thereof.
+
+"Contribution" shall mean any work of authorship, including the original version of the Work and any modifications or additions to that Work or Derivative Works thereof, that is intentionally submitted to Licensor for inclusion in the Work by the copyright owner or by an individual or Legal Entity authorized to submit on behalf of the copyright owner. For the purposes of this definition, "submitted" means any form of electronic, verbal, or written communication sent to the Licensor or its representatives, including but not limited to communication on electronic mailing lists, source code control systems, and issue tracking systems that are managed by, or on behalf of, the Licensor for the purpose of discussing and improving the Work, but excluding communication that is conspicuously marked or otherwise designated in writing by the copyright owner as "Not a Contribution."
+
+"Contributor" shall mean Licensor and any individual or Legal Entity on behalf of whom a Contribution has been received by Licensor and subsequently incorporated within the Work.
+
+2. Grant of Copyright License. Subject to the terms and conditions of this License, each Contributor hereby grants to You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable copyright license to reproduce, prepare Derivative Works of, publicly display, publicly perform, sublicense, and distribute the Work and such Derivative Works in Source or Object form.
+
+3. Grant of Patent License. Subject to the terms and conditions of this License, each Contributor hereby grants to You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable (except as stated in this section) patent license to make, have made, use, offer to sell, sell, import, and otherwise transfer the Work, where such license applies only to those patent claims licensable by such Contributor that are necessarily infringed by their Contribution(s) alone or by combination of their Contribution(s) with the Work to which such Contribution(s) was submitted. If You institute patent litigation against any entity (including a cross-claim or counterclaim in a lawsuit) alleging that the Work or a Contribution incorporated within the Work constitutes direct or contributory patent infringement, then any patent licenses granted to You under this License for that Work shall terminate as of the date such litigation is filed.
+
+4. Redistribution. You may reproduce and distribute copies of the Work or Derivative Works thereof in any medium, with or without modifications, and in Source or Object form, provided that You meet the following conditions:
+
+     (a) You must give any other recipients of the Work or Derivative Works a copy of this License; and
+
+     (b) You must cause any modified files to carry prominent notices stating that You changed the files; and
+
+     (c) You must retain, in the Source form of any Derivative Works that You distribute, all copyright, patent, trademark, and attribution notices from the Source form of the Work, excluding those notices that do not pertain to any part of the Derivative Works; and
+
+     (d) If the Work includes a "NOTICE" text file as part of its distribution, then any Derivative Works that You distribute must include a readable copy of the attribution notices contained within such NOTICE file, excluding those notices that do not pertain to any part of the Derivative Works, in at least one of the following places: within a NOTICE text file distributed as part of the Derivative Works; within the Source form or documentation, if provided along with the Derivative Works; or, within a display generated by the Derivative Works, if and wherever such third-party notices normally appear. The contents of the NOTICE file are for informational purposes only and do not modify the License. You may add Your own attribution notices within Derivative Works that You distribute, alongside or as an addendum to the NOTICE text from the Work, provided that such additional attribution notices cannot be construed as modifying the License.
+
+     You may add Your own copyright statement to Your modifications and may provide additional or different license terms and conditions for use, reproduction, or distribution of Your modifications, or for any such Derivative Works as a whole, provided Your use, reproduction, and distribution of the Work otherwise complies with the conditions stated in this License.
+
+5. Submission of Contributions. Unless You explicitly state otherwise, any Contribution intentionally submitted for inclusion in the Work by You to the Licensor shall be under the terms and conditions of this License, without any additional terms or conditions. Notwithstanding the above, nothing herein shall supersede or modify the terms of any separate license agreement you may have executed with Licensor regarding such Contributions.
+
+6. Trademarks. This License does not grant permission to use the trade names, trademarks, service marks, or product names of the Licensor, except as required for reasonable and customary use in describing the origin of the Work and reproducing the content of the NOTICE file.
+
+7. Disclaimer of Warranty. Unless required by applicable law or agreed to in writing, Licensor provides the Work (and each Contributor provides its Contributions) on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied, including, without limitation, any warranties or conditions of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A PARTICULAR PURPOSE. You are solely responsible for determining the appropriateness of using or redistributing the Work and assume any risks associated with Your exercise of permissions under this License.
+
+8. Limitation of Liability. In no event and under no legal theory, whether in tort (including negligence), contract, or otherwise, unless required by applicable law (such as deliberate and grossly negligent acts) or agreed to in writing, shall any Contributor be liable to You for damages, including any direct, indirect, special, incidental, or consequential damages of any character arising as a result of this License or out of the use or inability to use the Work (including but not limited to damages for loss of goodwill, work stoppage, computer failure or malfunction, or any and all other commercial damages or losses), even if such Contributor has been advised of the possibility of such damages.
+
+9. Accepting Warranty or Additional Liability. While redistributing the Work or Derivative Works thereof, You may choose to offer, and charge a fee for, acceptance of support, warranty, indemnity, or other liability obligations and/or rights consistent with this License. However, in accepting such obligations, You may act only on Your own behalf and on Your sole responsibility, not on behalf of any other Contributor, and only if You agree to indemnify, defend, and hold each Contributor harmless for any liability incurred by, or claims asserted against, such Contributor by reason of your accepting any such warranty or additional liability.
+
+END OF TERMS AND CONDITIONS
+
+APPENDIX: How to apply the Apache License to your work.
+
+To apply the Apache License to your work, attach the following boilerplate notice, with the fields enclosed by brackets "[]" replaced with your own identifying information. (Don't include the brackets!)  The text should be enclosed in the appropriate comment syntax for the file format. We also recommend that a file or class name and description of purpose be included on the same "printed page" as the copyright notice for easier identification within third-party archives.
+
+Copyright [yyyy] [name of copyright owner]
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 ```
 
 <!-- amp-license-text: 47c8d25246e6cb7b53b7 -->
@@ -6107,37 +6084,6 @@ Apache License
    limitations under the License.
 ```
 
-<!-- amp-license-text: 6334e52844d698f528b9 -->
-### Notice 6334e52844d698f528b9
-
-```text
-Copyright (c) 2020-2025 The RustCrypto Project Developers
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-```
-
 <!-- amp-license-text: 9599127e421e16595d10 -->
 ### Notice 9599127e421e16595d10
 
@@ -6172,37 +6118,6 @@ SOFTWARE.
 The MIT License (MIT)
 
 Copyright (c) 2019 The Crossbeam Project Developers
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-```
-
-<!-- amp-license-text: 692b1604961dd580cfcd -->
-### Notice 692b1604961dd580cfcd
-
-```text
-Copyright (c) 2021 RustCrypto Developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -6974,37 +6889,6 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<!-- amp-license-text: 9c5127ab88e8f55b26f7 -->
-### Notice 9c5127ab88e8f55b26f7
-
-```text
-Copyright (c) 2017 Artyom Pavlov
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-```
-
 <!-- amp-license-text: c8d7f4fd612a2da8e668 -->
 ### Notice c8d7f4fd612a2da8e668
 
@@ -7321,85 +7205,6 @@ LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE A
 EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
 USE OR OTHER DEALINGS IN THE SOFTWARE.
-```
-
-<!-- amp-license-text: c274f80372d90c012937 -->
-### Notice c274f80372d90c012937
-
-```text
-Apache License
-Version 2.0, January 2004
-http://www.apache.org/licenses/
-
-TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-
-1. Definitions.
-
-"License" shall mean the terms and conditions for use, reproduction, and distribution as defined by Sections 1 through 9 of this document.
-
-"Licensor" shall mean the copyright owner or entity authorized by the copyright owner that is granting the License.
-
-"Legal Entity" shall mean the union of the acting entity and all other entities that control, are controlled by, or are under common control with that entity. For the purposes of this definition, "control" means (i) the power, direct or indirect, to cause the direction or management of such entity, whether by contract or otherwise, or (ii) ownership of fifty percent (50%) or more of the outstanding shares, or (iii) beneficial ownership of such entity.
-
-"You" (or "Your") shall mean an individual or Legal Entity exercising permissions granted by this License.
-
-"Source" form shall mean the preferred form for making modifications, including but not limited to software source code, documentation source, and configuration files.
-
-"Object" form shall mean any form resulting from mechanical transformation or translation of a Source form, including but not limited to compiled object code, generated documentation, and conversions to other media types.
-
-"Work" shall mean the work of authorship, whether in Source or Object form, made available under the License, as indicated by a copyright notice that is included in or attached to the work (an example is provided in the Appendix below).
-
-"Derivative Works" shall mean any work, whether in Source or Object form, that is based on (or derived from) the Work and for which the editorial revisions, annotations, elaborations, or other modifications represent, as a whole, an original work of authorship. For the purposes of this License, Derivative Works shall not include works that remain separable from, or merely link (or bind by name) to the interfaces of, the Work and Derivative Works thereof.
-
-"Contribution" shall mean any work of authorship, including the original version of the Work and any modifications or additions to that Work or Derivative Works thereof, that is intentionally submitted to Licensor for inclusion in the Work by the copyright owner or by an individual or Legal Entity authorized to submit on behalf of the copyright owner. For the purposes of this definition, "submitted" means any form of electronic, verbal, or written communication sent to the Licensor or its representatives, including but not limited to communication on electronic mailing lists, source code control systems, and issue tracking systems that are managed by, or on behalf of, the Licensor for the purpose of discussing and improving the Work, but excluding communication that is conspicuously marked or otherwise designated in writing by the copyright owner as "Not a Contribution."
-
-"Contributor" shall mean Licensor and any individual or Legal Entity on behalf of whom a Contribution has been received by Licensor and subsequently incorporated within the Work.
-
-2. Grant of Copyright License. Subject to the terms and conditions of this License, each Contributor hereby grants to You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable copyright license to reproduce, prepare Derivative Works of, publicly display, publicly perform, sublicense, and distribute the Work and such Derivative Works in Source or Object form.
-
-3. Grant of Patent License. Subject to the terms and conditions of this License, each Contributor hereby grants to You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable (except as stated in this section) patent license to make, have made, use, offer to sell, sell, import, and otherwise transfer the Work, where such license applies only to those patent claims licensable by such Contributor that are necessarily infringed by their Contribution(s) alone or by combination of their Contribution(s) with the Work to which such Contribution(s) was submitted. If You institute patent litigation against any entity (including a cross-claim or counterclaim in a lawsuit) alleging that the Work or a Contribution incorporated within the Work constitutes direct or contributory patent infringement, then any patent licenses granted to You under this License for that Work shall terminate as of the date such litigation is filed.
-
-4. Redistribution. You may reproduce and distribute copies of the Work or Derivative Works thereof in any medium, with or without modifications, and in Source or Object form, provided that You meet the following conditions:
-
-     (a) You must give any other recipients of the Work or Derivative Works a copy of this License; and
-
-     (b) You must cause any modified files to carry prominent notices stating that You changed the files; and
-
-     (c) You must retain, in the Source form of any Derivative Works that You distribute, all copyright, patent, trademark, and attribution notices from the Source form of the Work, excluding those notices that do not pertain to any part of the Derivative Works; and
-
-     (d) If the Work includes a "NOTICE" text file as part of its distribution, then any Derivative Works that You distribute must include a readable copy of the attribution notices contained within such NOTICE file, excluding those notices that do not pertain to any part of the Derivative Works, in at least one of the following places: within a NOTICE text file distributed as part of the Derivative Works; within the Source form or documentation, if provided along with the Derivative Works; or, within a display generated by the Derivative Works, if and wherever such third-party notices normally appear. The contents of the NOTICE file are for informational purposes only and do not modify the License. You may add Your own attribution notices within Derivative Works that You distribute, alongside or as an addendum to the NOTICE text from the Work, provided that such additional attribution notices cannot be construed as modifying the License.
-
-     You may add Your own copyright statement to Your modifications and may provide additional or different license terms and conditions for use, reproduction, or distribution of Your modifications, or for any such Derivative Works as a whole, provided Your use, reproduction, and distribution of the Work otherwise complies with the conditions stated in this License.
-
-5. Submission of Contributions. Unless You explicitly state otherwise, any Contribution intentionally submitted for inclusion in the Work by You to the Licensor shall be under the terms and conditions of this License, without any additional terms or conditions. Notwithstanding the above, nothing herein shall supersede or modify the terms of any separate license agreement you may have executed with Licensor regarding such Contributions.
-
-6. Trademarks. This License does not grant permission to use the trade names, trademarks, service marks, or product names of the Licensor, except as required for reasonable and customary use in describing the origin of the Work and reproducing the content of the NOTICE file.
-
-7. Disclaimer of Warranty. Unless required by applicable law or agreed to in writing, Licensor provides the Work (and each Contributor provides its Contributions) on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied, including, without limitation, any warranties or conditions of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A PARTICULAR PURPOSE. You are solely responsible for determining the appropriateness of using or redistributing the Work and assume any risks associated with Your exercise of permissions under this License.
-
-8. Limitation of Liability. In no event and under no legal theory, whether in tort (including negligence), contract, or otherwise, unless required by applicable law (such as deliberate and grossly negligent acts) or agreed to in writing, shall any Contributor be liable to You for damages, including any direct, indirect, special, incidental, or consequential damages of any character arising as a result of this License or out of the use or inability to use the Work (including but not limited to damages for loss of goodwill, work stoppage, computer failure or malfunction, or any and all other commercial damages or losses), even if such Contributor has been advised of the possibility of such damages.
-
-9. Accepting Warranty or Additional Liability. While redistributing the Work or Derivative Works thereof, You may choose to offer, and charge a fee for, acceptance of support, warranty, indemnity, or other liability obligations and/or rights consistent with this License. However, in accepting such obligations, You may act only on Your own behalf and on Your sole responsibility, not on behalf of any other Contributor, and only if You agree to indemnify, defend, and hold each Contributor harmless for any liability incurred by, or claims asserted against, such Contributor by reason of your accepting any such warranty or additional liability.
-
-END OF TERMS AND CONDITIONS
-
-APPENDIX: How to apply the Apache License to your work.
-
-To apply the Apache License to your work, attach the following boilerplate notice, with the fields enclosed by brackets "[]" replaced with your own identifying information. (Don't include the brackets!)  The text should be enclosed in the appropriate comment syntax for the file format. We also recommend that a file or class name and description of purpose be included on the same "printed page" as the copyright notice for easier identification within third-party archives.
-
-Copyright [yyyy] [name of copyright owner]
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
 ```
 
 <!-- amp-license-text: a29c4d8a8e7cebc9cc2d -->
@@ -7888,33 +7693,6 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<!-- amp-license-text: 983a293c55cd84a374b9 -->
-### Notice 983a293c55cd84a374b9
-
-```text
-The MIT License (MIT)
-
-Copyright (c) 2015 Pierre Baillet
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-
 <!-- amp-license-text: b420d8add23b5cf7663f -->
 ### Notice b420d8add23b5cf7663f
 
@@ -7998,33 +7776,6 @@ https://www.schristiancollins.com/contact
 
 Thank you!
 -~Chris
-```
-
-<!-- amp-license-text: ad4fcfaf8d5b12b97409 -->
-### Notice ad4fcfaf8d5b12b97409
-
-```text
-The MIT License (MIT)
-
-Copyright (c) 2015 Bartłomiej Kamiński
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
 ```
 
 <!-- amp-license-text: 5564602899eee7fc7aff -->
@@ -9637,6 +9388,37 @@ For these and/or other purposes and motivations, and without any expectation of 
      c. Affirmer disclaims responsibility for clearing rights of other persons that may apply to the Work or any use thereof, including without limitation any person's Copyright and Related Rights in the Work. Further, Affirmer disclaims responsibility for obtaining any necessary consents, permissions or other rights required for any use of the Work.
 
      d. Affirmer understands and acknowledges that Creative Commons is not a party to this document and has no duty or obligation with respect to this CC0 or use of the Work.
+```
+
+<!-- amp-license-text: 4b2af3889ac2bda608aa -->
+### Notice 4b2af3889ac2bda608aa
+
+```text
+Copyright (c) 2023 Notify Contributors
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
 ```
 
 <!-- amp-license-text: 13c065e2f92386fa9d6b -->
@@ -12284,39 +12066,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<!-- amp-license-text: 4031faf6212ee74481b2 -->
-### Notice 4031faf6212ee74481b2
-
-```text
-Copyright (c) 2006-2009 Graydon Hoare
-Copyright (c) 2009-2013 Mozilla Foundation
-Copyright (c) 2016 Artyom Pavlov
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-```
-
 <!-- amp-license-text: 535a6aa345e8622e7a5c -->
 ### Notice 535a6aa345e8622e7a5c
 
@@ -12765,33 +12514,6 @@ DEALINGS IN THE SOFTWARE.
 MIT License
 
 Copyright (c) 2017 - Present Tauri Apps Contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-
-<!-- amp-license-text: b7f455413bfe5f9d7da5 -->
-### Notice b7f455413bfe5f9d7da5
-
-```text
-MIT License
-
-Copyright (c) 2017 - Present The Tauri Programme in the Commons Conservancy
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
