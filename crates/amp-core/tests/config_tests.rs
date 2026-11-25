@@ -84,14 +84,28 @@ fn legacy_chord_definitions_remain_readable_but_explicit_layout_groups_win() {
 
 #[test]
 fn guitar_pitch_and_binding_configuration_rejects_unplayable_input() {
-    use amp_core::{FretLayoutJson, GuitarConfigJson};
+    use amp_core::{FretLayoutJson, GuitarConfigJson, StrumButtonsJson};
     let mut guitar = GuitarConfigJson { tuning: vec![64, 59, 55, 50, 45, 40], fret_count: 24 };
     assert!(guitar.is_valid());
     guitar.tuning[0] = 120;
     assert!(!guitar.is_valid());
     let mut layout = FretLayoutJson { string_keys: vec!["6".into(), "5".into(), "4".into(), "3".into(), "2".into(), "1".into()],
-        wheel_layout: "NTE_Chord_Wheel".into(), mode_key: "z".into(), page_keys: None };
+        wheel_layout: "NTE_Chord_Wheel".into(), mode_key: Some("z".into()), page_keys: None, strum_buttons: None, timbre_key: None };
     assert!(layout.is_valid());
+    layout.strum_buttons = Some(StrumButtonsJson { up: "mouseLeft".into(), down: "f".into() });
+    assert!(layout.is_valid());
+    layout.strum_buttons = Some(StrumButtonsJson { up: "NotAKey".into(), down: "mouseRight".into() });
+    assert!(!layout.is_valid());
+    layout.strum_buttons = None;
+    layout.mode_key = Some("NotAKey".into());
+    assert!(!layout.is_valid());
+    layout.mode_key = None;
+    assert!(layout.is_valid());
+    layout.timbre_key = Some("v".into());
+    assert!(layout.is_valid());
+    layout.timbre_key = Some("NotAKey".into());
+    assert!(!layout.is_valid());
+    layout.timbre_key = None;
     layout.page_keys = Some(["PageUp".into(), "PageDown".into()]);
     assert!(layout.is_valid());
     layout.page_keys = Some(["q".into(), "NotAKey".into()]);

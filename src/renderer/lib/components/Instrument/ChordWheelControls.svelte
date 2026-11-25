@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { onMount, untrack } from 'svelte';
-  import type { ChordDefinition, InstrumentConfig, KeyboardLayoutConfig } from '../../../../shared/types/games';
+  import { onDestroy, onMount, untrack } from 'svelte';
+  import type { ChordDefinition, GuitarTimbre, GuitarTimbreMode, InstrumentConfig, KeyboardLayoutConfig } from '../../../../shared/types/games';
   import type { ArrangementState, ChordWheelState } from '../../../../shared/types/ipc';
   import { api } from '../../backend';
   import { playbackStore } from '../../state/playbackStore.svelte';
@@ -52,7 +52,14 @@
     onpreview: (pitches: number[]) => void;
   } = $props();
 
-  let wheelState = $state<ChordWheelState>({ page: null, selected: null, busy: false, error: null });
+  let wheelState = $state<ChordWheelState>({
+    page: null,
+    selected: null,
+    busy: false,
+    error: null,
+    timbre: 'clean',
+    timbreMode: 'auto',
+  });
   let pending = $state(false);
   let loaded = $state(false);
   let revision = 0;
@@ -105,7 +112,7 @@
     if (playbackStore.isPlaying) {
       return backtrackedGlobalSlot;
     }
-    if (activePitches.size > 0) {
+    if (activePitches.size > 0 && strummedStrings.size === 0 && manualRadialSlot === null) {
       return resolveGuitarSlotFromPitches(instrument, activePitches, fretMode, slotCount);
     }
     return null;
@@ -158,8 +165,11 @@
   $effect(() => {
     instrument.id;
     fretMode;
-    selectedRadialSlot = 0;
-    manualRadialSlot = null;
+    untrack(() => {
+      selectedRadialSlot = 0;
+      manualRadialSlot = null;
+      clearStrumPreview();
+    });
   });
 
   // Backtrack correction: when playback starts/resumes or runs, discard any diverging manual wedge override.
@@ -213,8 +223,17 @@
       }
       return active;
     }
+    if (strummedStrings.size > 0) {
+      return new Set(strummedStrings);
+    }
     if (!activePitches.size) return active;
-    if (!fretMode && activeChord?.stringPitches) {
+    if (fretMode && targetRadialSlot !== null) {
+      const globalSlot = pageStart + targetRadialSlot;
+      const activeFret = globalSlot < fretCount ? globalSlot + 1 : 0;
+      tuning.forEach((open, index) => {
+        if (activePitches.has(open + activeFret)) active.add(index);
+      });
+    } else if (!fretMode && activeChord?.stringPitches) {
       activeChord.stringPitches.forEach((pitch, index) => {
         if (typeof pitch === 'number' && activePitches.has(pitch)) active.add(index);
       });
@@ -312,11 +331,57 @@
         y,
         x1: -halfWidth,
         x2: halfWidth,
-        active: activeStrings.has(index),
+        active: activeStrings.has(index) || strummedStrings.has(index),
         muted,
       };
     });
   });
+
+  let strumTimers: ReturnType<typeof setTimeout>[] = [];
+  let strummedStrings = $state<Set<number>>(new Set());
+
+  function formatStrumBinding(binding: string | undefined, fallbackMouse: 'left' | 'right') {
+    const normalized = (binding ?? (fallbackMouse === 'left' ? 'mouseLeft' : 'mouseRight')).trim();
+    const lower = normalized.toLowerCase();
+    if (['mouseleft', 'mouse_left', 'mouse-left', 'lmb', 'leftclick', 'left_click'].includes(lower)) {
+      return t('instrument.mouseLeft');
+    }
+    if (['mouseright', 'mouse_right', 'mouse-right', 'rmb', 'rightclick', 'right_click'].includes(lower)) {
+      return t('instrument.mouseRight');
+    }
+    return normalized.toUpperCase();
+  }
+
+  const strumUpLabel = $derived(
+    t('instrument.guitarStrumUp', { key: formatStrumBinding(wheel.strumButtons?.up, 'left') }),
+  );
+  const strumDownLabel = $derived(
+    t('instrument.guitarStrumDown', { key: formatStrumBinding(wheel.strumButtons?.down, 'right') }),
+  );
+
+  function clearStrumPreview() {
+    for (const timer of strumTimers) clearTimeout(timer);
+    strumTimers = [];
+    if (strummedStrings.size) strummedStrings = new Set();
+  }
+
+  onDestroy(clearStrumPreview);
+
+  function stringPreviewPitch(stringIndex: number): number | null {
+    const open = tuning[stringIndex];
+    if (open === undefined) return null;
+    const radialSlot = targetRadialSlot ?? 0;
+    const globalSlot = pageStart + radialSlot;
+    if (fretMode) {
+      const fret = globalSlot < fretCount ? globalSlot + 1 : 0;
+      return open + fret;
+    }
+    const pad = visiblePads[radialSlot];
+    const chordPitch = pad?.stringPitches?.[stringIndex];
+    if (typeof chordPitch === 'number') return chordPitch;
+    if (chordPitch === 'muted' || chordPitch === null) return null;
+    return open;
+  }
 
   function selectWedge(index: number) {
     const pad = visiblePads[index];
@@ -338,21 +403,83 @@
   }
 
   function pluckString(stringIndex: number) {
-    const open = tuning[stringIndex];
-    if (open === undefined) return;
-    const radialSlot = targetRadialSlot ?? 0;
-    const globalSlot = pageStart + radialSlot;
-    if (fretMode) {
-      const fret = globalSlot < fretCount ? globalSlot + 1 : 0;
-      onpreview([open + fret]);
-      return;
+    const pitch = stringPreviewPitch(stringIndex);
+    if (pitch !== null) onpreview([pitch]);
+  }
+
+  function strumStrings(direction: 'up' | 'down') {
+    clearStrumPreview();
+    const count = Math.max(1, tuning.length || 6);
+    const order = Array.from({ length: count }, (_, idx) => idx);
+    if (direction === 'down') order.reverse();
+    const targets = order
+      .map(index => ({ index, pitch: stringPreviewPitch(index) }))
+      .filter((entry): entry is { index: number; pitch: number } => entry.pitch !== null);
+    targets.forEach(({ index, pitch }, step) => {
+      const startTimer = setTimeout(() => {
+        onpreview([pitch]);
+        strummedStrings = new Set([...strummedStrings, index]);
+        const endTimer = setTimeout(() => {
+          const next = new Set(strummedStrings);
+          next.delete(index);
+          strummedStrings = next;
+        }, 220);
+        strumTimers.push(endTimer);
+      }, step * 25);
+      strumTimers.push(startTimer);
+    });
+  }
+
+  const timbreKeyLabel = $derived(wheel.timbreKey?.toUpperCase() ?? '');
+  const timbreButtonTooltip = $derived(
+    timbreKeyLabel ? t('instrument.guitarTimbreButtonTooltip', { key: timbreKeyLabel }) : '',
+  );
+  const timbreModeTooltip = $derived(t('instrument.guitarTimbreModeTooltip'));
+  const timbreSyncTooltip = $derived(
+    timbreKeyLabel ? t('instrument.guitarSyncTimbreTooltip', { key: timbreKeyLabel }) : '',
+  );
+
+  function toggleMode() {
+    const next = physicalMode === 'frets' ? 'chords' : 'frets';
+    void syncMode(next);
+  }
+
+  function toggleTimbre() {
+    const next: GuitarTimbre = wheelState.timbre === 'distortion' ? 'clean' : 'distortion';
+    void setTimbreMode(next);
+  }
+
+  async function setTimbreMode(mode: GuitarTimbreMode) {
+    if (locked) return;
+    pending = true;
+    try {
+      await api.playback.setGuitarTimbreMode(mode);
+    } catch (error) {
+      notificationCenter.error(t('instrument.chordWheelError'), String(error));
+    } finally {
+      try {
+        const beforeRead = revision;
+        const state = await api.playback.getChordWheelState();
+        if (revision === beforeRead) receiveState(state);
+      } catch {
+        // Ignore transient read errors while state is updating.
+      }
+      pending = false;
     }
-    const pad = visiblePads[radialSlot];
-    const chordPitch = pad?.stringPitches?.[stringIndex];
-    if (typeof chordPitch === 'number') {
-      onpreview([chordPitch]);
-    } else if (chordPitch !== 'muted' && chordPitch !== null) {
-      onpreview([open]);
+  }
+
+  async function syncTimbre(timbre: GuitarTimbre) {
+    if (locked) return;
+    pending = true;
+    try {
+      await api.playback.syncGuitarTimbre(timbre);
+      const beforeRead = revision;
+      const state = await api.playback.getChordWheelState();
+      if (revision === beforeRead) receiveState(state);
+    } catch (error) {
+      notificationCenter.error(t('instrument.chordWheelError'), String(error));
+    } finally {
+      pending = false;
     }
   }
 
@@ -498,24 +625,50 @@
       {/each}
 
       <!-- Soundhole & 6 Strummable Center Strings -->
-      <circle cx="0" cy="0" r={HUB_HOLE_R} class="wheel-hub-hole" />
-      {#each hubStrings as str (str.index)}
-        <g
-          class="wheel-string-group"
-          class:active={str.active}
-          class:muted={str.muted}
+      <g
+        class="wheel-soundhole"
+        role="presentation"
+        oncontextmenu={(e) => {
+          e.preventDefault();
+          strumStrings('down');
+        }}
+      >
+        <circle
+          cx="0"
+          cy="0"
+          r={HUB_HOLE_R}
+          class="wheel-hub-hole"
           role="button"
-          tabindex={str.muted ? -1 : 0}
-          aria-disabled={str.muted}
-          aria-label={`${t('instrument.guitarString')} ${str.label}`}
-          onclick={() => pluckString(str.index)}
+          tabindex="0"
+          aria-label={strumUpLabel}
+          onclick={() => strumStrings('up')}
           onkeydown={(e) => {
-            if ((e.key === 'Enter' || e.key === ' ') && !str.muted) {
+            if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              pluckString(str.index);
+              strumStrings('up');
             }
           }}
-        >
+        />
+        {#each hubStrings as str (str.index)}
+          <g
+            class="wheel-string-group"
+            class:active={str.active}
+            class:muted={str.muted}
+            role="button"
+            tabindex={str.muted ? -1 : 0}
+            aria-disabled={str.muted}
+            aria-label={`${t('instrument.guitarString')} ${str.label}`}
+            onclick={(e) => {
+              e.stopPropagation();
+              pluckString(str.index);
+            }}
+            onkeydown={(e) => {
+              if ((e.key === 'Enter' || e.key === ' ') && !str.muted) {
+                e.preventDefault();
+                pluckString(str.index);
+              }
+            }}
+          >
           <!-- Invisible generous hit area for clicking/strumming the string -->
           <rect x={str.x1} y={str.y - 6.5} width={str.x2 - str.x1} height="13" fill="transparent" />
           <line
@@ -547,7 +700,8 @@
             {str.label}
           </text>
         </g>
-      {/each}
+        {/each}
+      </g>
     </svg>
   </div>
 
@@ -596,31 +750,119 @@
     </div>
   {/if}
 
-  <!-- Mode Sync & Hint Row -->
-  {#if mixed || (needsModeSync && physicalMode)}
-    <div class="wheel-meta-row">
-      {#if mixed}
-        <div class="wheel-sync">
-          <ChordIcon size={13} />
+  <!-- Mode Sync, Timbre & Strum Row -->
+  <div class="wheel-meta-row">
+    {#if mixed}
+      <div class="wheel-sync">
+        <button
+          type="button"
+          class="wheel-page-btn wheel-timbre-btn theme-ghost-button"
+          disabled={locked}
+          use:tooltip={t('instrument.guitarSyncModeHint')}
+          onclick={toggleMode}
+        >
+          {#if wheel.modeKey}
+            <kbd class="wheel-keycap">{wheel.modeKey.toUpperCase()}</kbd>
+          {:else}
+            <ChordIcon size={13} />
+          {/if}
           <span>{t('instrument.guitarSyncMode')}</span>
-          <Dropdown
-            variant="ghost"
-            options={(['chords', 'frets'] as const).map(value => ({ value, label: t(`instrument.guitarMode_${value}`) }))}
-            value={physicalMode}
-            placeholder={t('instrument.guitarModeUnknown')}
-            ariaLabel={t('instrument.guitarSyncMode')}
-            disabled={locked}
-            showTooltips={false}
-            onchange={syncMode}
-          />
-        </div>
-      {:else if needsModeSync && physicalMode}
-        <Button variant="ghost" size="sm" disabled={locked} onclick={() => syncMode(physicalMode!)}>
-          {t('instrument.guitarConfirmMode', { mode: t(`instrument.guitarMode_${physicalMode}`) })}
-        </Button>
-      {/if}
+        </button>
+        <Dropdown
+          variant="ghost"
+          animateWidth
+          options={(['chords', 'frets'] as const).map(value => ({ value, label: t(`instrument.guitarMode_${value}`) }))}
+          value={physicalMode}
+          placeholder={t('instrument.guitarModeUnknown')}
+          ariaLabel={t('instrument.guitarSyncMode')}
+          tooltipText={t('instrument.guitarSyncModeHint')}
+          disabled={locked}
+          showTooltips={false}
+          onchange={syncMode}
+        />
+      </div>
+    {:else if needsModeSync && physicalMode}
+      <Button variant="ghost" size="sm" disabled={locked} onclick={() => syncMode(physicalMode!)}>
+        {t('instrument.guitarConfirmMode', { mode: t(`instrument.guitarMode_${physicalMode}`) })}
+      </Button>
+    {/if}
+
+    {#if wheel.timbreKey}
+      <div class="wheel-sync">
+        <button
+          type="button"
+          class="wheel-page-btn wheel-timbre-btn theme-ghost-button"
+          disabled={locked}
+          use:tooltip={timbreButtonTooltip}
+          onclick={toggleTimbre}
+        >
+          <kbd class="wheel-keycap">{timbreKeyLabel}</kbd>
+          <span>{t('instrument.guitarTimbre')}</span>
+        </button>
+        <Dropdown
+          variant="ghost"
+          animateWidth
+          options={(['auto', 'clean', 'distortion'] as const).map(value => ({ value, label: t(`instrument.guitarTimbre_${value}`) }))}
+          value={wheelState.timbreMode ?? 'auto'}
+          ariaLabel={t('instrument.guitarTimbre')}
+          tooltipText={timbreModeTooltip}
+          disabled={locked}
+          showTooltips={false}
+          onchange={setTimbreMode}
+        />
+      </div>
+      <div class="wheel-sync">
+        <span use:tooltip={timbreSyncTooltip}>{t('instrument.guitarSyncTimbre')}</span>
+        <Dropdown
+          variant="ghost"
+          animateWidth
+          options={(['clean', 'distortion'] as const).map(value => ({ value, label: t(`instrument.guitarTimbre_${value}`) }))}
+          value={wheelState.timbre ?? null}
+          placeholder={t('instrument.guitarTimbreUnknown')}
+          ariaLabel={t('instrument.guitarSyncTimbre')}
+          tooltipText={timbreSyncTooltip}
+          disabled={locked}
+          showTooltips={false}
+          onchange={syncTimbre}
+        />
+      </div>
+    {/if}
+
+    <div class="wheel-strum-actions" role="group" aria-label={t('instrument.guitarStrumGroup')}>
+      <button
+        type="button"
+        class="wheel-strum-btn theme-ghost-button"
+        aria-label={strumUpLabel}
+        use:tooltip={strumUpLabel}
+        onclick={() => strumStrings('up')}
+      >
+        <span class="wheel-keycap wheel-strum-cap" aria-hidden="true">
+          <svg class="wheel-strum-icon up" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 12.2V4.4" />
+            <path d="M4.6 7.5Q6.4 6 8 4.1Q9.6 6 11.4 7.5" />
+          </svg>
+        </span>
+      </button>
+      <button
+        type="button"
+        class="wheel-strum-btn theme-ghost-button"
+        aria-label={strumDownLabel}
+        use:tooltip={strumDownLabel}
+        onclick={() => strumStrings('down')}
+        oncontextmenu={(e) => {
+          e.preventDefault();
+          strumStrings('down');
+        }}
+      >
+        <span class="wheel-keycap wheel-strum-cap" aria-hidden="true">
+          <svg class="wheel-strum-icon down" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3.8V11.6" />
+            <path d="M4.6 8.5Q6.4 10 8 11.9Q9.6 10 11.4 8.5" />
+          </svg>
+        </span>
+      </button>
     </div>
-  {/if}
+  </div>
 
   {#if (mixed && !physicalMode) || (paged && wheel.pageCount > 1 && !needsModeSync) || fretMode}
     <div class="wheel-hints">
@@ -742,6 +984,54 @@
     fill: var(--bg-primary);
     stroke: var(--border-subtle);
     stroke-width: 1;
+    cursor: pointer;
+  }
+
+  .wheel-strum-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .wheel-strum-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 24px;
+    padding: 0 2px;
+    border-radius: 999px;
+    line-height: 1;
+  }
+
+  .wheel-strum-cap {
+    width: 20px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0;
+    font-size: 11px;
+  }
+
+  .wheel-strum-icon {
+    width: 13px;
+    height: 13px;
+    display: block;
+    transition: transform var(--transition-fast);
+  }
+
+  .wheel-strum-btn:hover:not(:disabled) .wheel-strum-icon.up {
+    transform: translateY(-1.2px);
+  }
+
+  .wheel-strum-btn:hover:not(:disabled) .wheel-strum-icon.down {
+    transform: translateY(1.2px);
+  }
+
+  .wheel-strum-btn:active:not(:disabled) .wheel-strum-icon.up {
+    transform: translateY(-2px) scale(0.95);
+  }
+
+  .wheel-strum-btn:active:not(:disabled) .wheel-strum-icon.down {
+    transform: translateY(2px) scale(0.95);
   }
 
   .wheel-bezel-text {
@@ -834,6 +1124,13 @@
     font-weight: 500;
   }
 
+  .wheel-timbre-btn {
+    height: 24px;
+    padding: 0 4px;
+    font-size: 12px;
+    line-height: 1;
+  }
+
   .wheel-keycap {
     display: inline-flex;
     align-items: center;
@@ -920,20 +1217,49 @@
   .wheel-sync {
     display: inline-flex;
     align-items: center;
+    min-height: 24px;
     gap: 6px;
     color: var(--text-tertiary);
     font-size: 12px;
-    line-height: 1.25;
+    line-height: 1;
+  }
+
+  .wheel-sync > span {
+    display: inline-flex;
+    align-items: center;
+    height: 24px;
+    line-height: 1;
   }
 
   .wheel-sync :global(.fluent-dropdown.variant-ghost) {
     align-self: center;
+    align-items: center;
+    height: 24px;
   }
 
-  .wheel-sync :global(.trigger-label),
-  .wheel-sync :global(.trigger-placeholder) {
+  .wheel-sync :global(.fluent-dropdown.variant-ghost .dropdown-trigger) {
+    height: 24px;
+    padding: 0;
+    font-size: 12px;
+    line-height: 1;
+    align-items: center;
+  }
+
+  .wheel-sync :global(.fluent-dropdown.variant-ghost .trigger-content) {
+    height: 100%;
+    align-items: center;
+    line-height: 1;
+  }
+
+  .wheel-sync :global(.fluent-dropdown.variant-ghost .trigger-label),
+  .wheel-sync :global(.fluent-dropdown.variant-ghost .trigger-placeholder) {
     font-size: 12px;
     font-weight: 500;
+    line-height: 1;
+  }
+
+  .wheel-sync :global(.fluent-dropdown.variant-ghost .chevron-icon) {
+    margin-top: 0;
   }
 
   .wheel-hints {
@@ -959,8 +1285,13 @@
     .wheel-string-line,
     .wheel-string-badge,
     .wheel-page-btn,
+    .wheel-strum-icon,
     .wheel-page-dot .dot-core {
       transition: none;
+    }
+    .wheel-strum-btn:hover:not(:disabled) .wheel-strum-icon,
+    .wheel-strum-btn:active:not(:disabled) .wheel-strum-icon {
+      transform: none;
     }
     .wheel-string-line.active {
       animation: none;

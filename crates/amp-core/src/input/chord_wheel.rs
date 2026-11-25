@@ -12,6 +12,32 @@ pub enum WheelButton {
     Right,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WheelBinding {
+    Mouse(WheelButton),
+    Key(KeyStroke),
+}
+
+/// Parse a strum binding: mouse buttons (`mouseLeft`/`mouseRight`, etc.) or any keyboard stroke.
+pub fn parse_wheel_binding(binding: &str) -> Option<WheelBinding> {
+    if binding == " " {
+        return parse_key_stroke(binding).map(WheelBinding::Key);
+    }
+    let trimmed = binding.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    match trimmed.to_ascii_lowercase().as_str() {
+        "mouseleft" | "mouse_left" | "mouse-left" | "lmb" | "leftclick" | "left_click" => {
+            Some(WheelBinding::Mouse(WheelButton::Left))
+        }
+        "mouseright" | "mouse_right" | "mouse-right" | "rmb" | "rightclick" | "right_click" => {
+            Some(WheelBinding::Mouse(WheelButton::Right))
+        }
+        _ => parse_key_stroke(trimmed).map(WheelBinding::Key),
+    }
+}
+
 #[derive(
     Debug,
     Default,
@@ -48,6 +74,64 @@ impl StrumDirection {
     }
 }
 
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum GuitarTimbre {
+    #[default]
+    Clean,
+    Distortion,
+}
+
+impl GuitarTimbre {
+    pub fn from_gm_program(program: u8) -> Self {
+        if matches!(program, 29 | 30) {
+            Self::Distortion
+        } else {
+            Self::Clean
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Clean => "clean",
+            Self::Distortion => "distortion",
+        }
+    }
+}
+
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum GuitarTimbreMode {
+    #[default]
+    Auto,
+    Clean,
+    Distortion,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChordWheelState {
@@ -55,6 +139,9 @@ pub struct ChordWheelState {
     pub selected: Option<usize>,
     pub busy: bool,
     pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timbre: Option<GuitarTimbre>,
+    pub timbre_mode: GuitarTimbreMode,
 }
 
 enum Stage {
@@ -108,10 +195,16 @@ pub(crate) fn wheel_transition_ms(
     current_page: Option<usize>,
     same_selector: bool,
     switch: bool,
+    switch_timbre: bool,
 ) -> u64 {
+    let timbre_ms = if switch_timbre {
+        super::simulator::TIMBRE_HOLD_MS + super::simulator::TIMBRE_SETTLE_MS
+    } else {
+        0
+    };
     if same_selector && !switch {
         // Prepare the new owner before entering the transport's final sub-ms wait.
-        return 2;
+        return if switch_timbre { timbre_ms + 20 } else { 2 };
     }
     let target = index / config.positions.len();
     let pages = current_page.filter(|&page| page < config.page_count && target < config.page_count)
@@ -120,8 +213,8 @@ pub(crate) fn wheel_transition_ms(
             distance.min(config.page_count - distance)
         });
     let switch_ms = if switch { super::simulator::MODE_HOLD_MS + super::simulator::MODE_SETTLE_MS } else { 0 };
-    let slack_ms = 45 + 20 * pages as u64 + 25 * u64::from(switch);
-    switch_ms + pages as u64 * u64::from(config.page_hold_ms + config.page_wait_ms)
+    let slack_ms = 45 + 20 * pages as u64 + 25 * u64::from(switch) + 20 * u64::from(switch_timbre);
+    switch_ms + timbre_ms + pages as u64 * u64::from(config.page_hold_ms + config.page_wait_ms)
         + u64::from(config.move_delay_ms + config.select_hold_ms + config.after_select_ms) + slack_ms
 }
 
@@ -132,6 +225,8 @@ impl ChordWheelOutput {
             selected: self.selected,
             busy: self.is_active(),
             error: None,
+            timbre: None,
+            timbre_mode: GuitarTimbreMode::Auto,
         }
     }
     pub fn selected(&self) -> Option<usize> {
@@ -175,7 +270,7 @@ impl ChordWheelOutput {
         self.held_strings.clear();
     }
     pub fn preparation_ms(&self, config: &ChordWheelConfigJson, index: usize) -> u64 {
-        wheel_transition_ms(config, index, self.page, self.selected == Some(index), false)
+        wheel_transition_ms(config, index, self.page, self.selected == Some(index), false, false)
     }
     pub fn prepare(
         &mut self,
@@ -345,10 +440,26 @@ impl ChordWheelOutput {
             return Err("Chord selection could not finish before the next note. Reduce playback speed or mouse timing.".into());
         }
         let attack = self.attack.as_mut().unwrap();
-        output.wheel_move(&attack.processes, attack.config.strum_position)?;
-        let button = direction.button();
-        self.held = Some(button);
-        output.wheel_button(button, false)?;
+        let binding = attack
+            .config
+            .strum_binding(direction)
+            .ok_or_else(|| "Invalid strum button binding.".to_string())?;
+        match binding {
+            WheelBinding::Mouse(button) => {
+                output.wheel_move(&attack.processes, attack.config.strum_position)?;
+                self.held = Some(button);
+                output.wheel_button(button, false)?;
+            }
+            WheelBinding::Key(stroke) => {
+                if !output.wheel_focused() {
+                    return Err("The game lost focus; chord playback was paused.".into());
+                }
+                self.held_strings.push(stroke);
+                for (key, up) in stroke.press_events() {
+                    output.key(key, up)?;
+                }
+            }
+        }
         attack.stage = Stage::StrumUp;
         attack.at = now + Duration::from_millis(hold_ms.max(1));
         Ok(())
@@ -494,6 +605,9 @@ mod tests {
             page_keys: ["r".into(), "t".into()],
             page_hold_ms: 10,
             page_wait_ms: 20,
+            strum_buttons: None,
+            mode_key: None,
+            timbre_key: None,
         }
     }
 
@@ -897,11 +1011,14 @@ mod tests {
         let base = u64::from(config.move_delay_ms + config.select_hold_ms + config.after_select_ms);
         let page = u64::from(config.page_hold_ms + config.page_wait_ms);
         let switch = super::super::simulator::MODE_HOLD_MS + super::super::simulator::MODE_SETTLE_MS;
+        let timbre = super::super::simulator::TIMBRE_HOLD_MS + super::super::simulator::TIMBRE_SETTLE_MS;
 
-        assert_eq!(wheel_transition_ms(&config, 0, Some(0), true, false), 2);
-        assert_eq!(wheel_transition_ms(&config, 0, Some(0), false, false), base + 45);
-        assert_eq!(wheel_transition_ms(&config, 6, Some(0), false, false), page + base + 65);
-        assert_eq!(wheel_transition_ms(&config, 6, Some(0), false, true), switch + page + base + 90);
+        assert_eq!(wheel_transition_ms(&config, 0, Some(0), true, false, false), 2);
+        assert_eq!(wheel_transition_ms(&config, 0, Some(0), true, false, true), timbre + 20);
+        assert_eq!(wheel_transition_ms(&config, 0, Some(0), false, false, false), base + 45);
+        assert_eq!(wheel_transition_ms(&config, 6, Some(0), false, false, false), page + base + 65);
+        assert_eq!(wheel_transition_ms(&config, 6, Some(0), false, true, false), switch + page + base + 90);
+        assert_eq!(wheel_transition_ms(&config, 6, Some(0), false, true, true), switch + timbre + page + base + 110);
     }
 
     #[test]
@@ -929,5 +1046,68 @@ mod tests {
         wheel.tick(&mut output, at(start, 35)).unwrap();
         assert!(!wheel.is_active());
         assert_eq!(wheel.next_deadline(at(start, 35)), None);
+    }
+
+    #[test]
+    fn parse_wheel_binding_accepts_mouse_aliases_and_keyboard_strokes() {
+        assert_eq!(parse_wheel_binding("mouseLeft"), Some(WheelBinding::Mouse(WheelButton::Left)));
+        assert_eq!(parse_wheel_binding("mouse_right"), Some(WheelBinding::Mouse(WheelButton::Right)));
+        assert_eq!(parse_wheel_binding("lmb"), Some(WheelBinding::Mouse(WheelButton::Left)));
+        assert_eq!(parse_wheel_binding("RMB"), Some(WheelBinding::Mouse(WheelButton::Right)));
+        assert_eq!(
+            parse_wheel_binding("left"),
+            Some(WheelBinding::Key(KeyStroke::plain(Key::LeftArrow)))
+        );
+        assert_eq!(
+            parse_wheel_binding("space"),
+            Some(WheelBinding::Key(KeyStroke::plain(Key::Space)))
+        );
+        assert_eq!(parse_wheel_binding("not-a-binding"), None);
+    }
+
+    #[test]
+    fn custom_keyboard_strum_buttons_press_and_release_keys_without_mouse_clicks() {
+        use crate::input::config::StrumButtonsJson;
+
+        let start = Instant::now();
+        let mut cfg = config();
+        cfg.strum_buttons = Some(StrumButtonsJson {
+            up: "u".into(),
+            down: "j".into(),
+        });
+        let u_key = parse_key_stroke("u").unwrap().key;
+        let j_key = parse_key_stroke("j").unwrap().key;
+        let mut output = Output::default();
+        let mut wheel = ChordWheelOutput::default();
+        wheel
+            .prepare(&mut output, &cfg, &processes(), Some(0), 0, Some(1), start)
+            .unwrap();
+        for ms in [0, 5, 12] {
+            wheel.tick(&mut output, at(start, ms)).unwrap();
+        }
+        let before_down = output.events.len();
+        wheel
+            .strum_direction(&mut output, 1, StrumDirection::Down, 10, at(start, 15))
+            .unwrap();
+        assert!(wheel.is_active());
+        wheel.tick(&mut output, at(start, 25)).unwrap();
+        assert!(!wheel.is_active());
+        assert_eq!(
+            output.events[before_down..],
+            [Event::Key(j_key, false), Event::Key(j_key, true)]
+        );
+
+        wheel
+            .prepare(&mut output, &cfg, &processes(), Some(0), 0, Some(2), at(start, 30))
+            .unwrap();
+        let before_up = output.events.len();
+        wheel
+            .strum_direction(&mut output, 2, StrumDirection::Up, 10, at(start, 35))
+            .unwrap();
+        wheel.cancel(&mut output).unwrap();
+        assert_eq!(
+            output.events[before_up..],
+            [Event::Key(u_key, false), Event::Key(u_key, true)]
+        );
     }
 }

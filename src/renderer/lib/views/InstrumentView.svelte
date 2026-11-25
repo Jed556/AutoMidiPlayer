@@ -413,6 +413,9 @@
   const displayWheel = $derived(wheel ? {
     ...wheel,
     pageKeys: (fretMode ? gameStore.activeLayout?.fretboard?.pageKeys : undefined) ?? wheel.pageKeys,
+    strumButtons: (fretMode ? gameStore.activeLayout?.fretboard?.strumButtons : undefined) ?? wheel.strumButtons,
+    modeKey: gameStore.activeLayout?.fretboard?.modeKey ?? wheel.modeKey,
+    timbreKey: gameStore.activeLayout?.fretboard?.timbreKey ?? wheel.timbreKey,
     pageCount: !paged ? 1 : fretMode ? openSlot / wheel.positions.length + 1 : wheel.pageCount,
   } : null);
   const wheelItems = $derived(fretMode ? [
@@ -1708,12 +1711,15 @@
     display: inline-flex;
     align-items: center;
     flex-shrink: 0;
+    height: 24px;
     white-space: nowrap;
+    font-family: inherit;
     font-size: 12px;
     font-weight: 500;
+    line-height: 1;
     color: var(--text-primary);
     opacity: 0.35;
-    padding: 4px 0;
+    padding: 0;
     border: none;
     background: transparent;
     cursor: pointer;
@@ -1722,7 +1728,9 @@
 
   .bottom-control-label {
     display: inline-flex;
+    align-items: center;
     white-space: nowrap;
+    line-height: 1;
   }
 
   .instrument-toggle-btn.enabled:not(:disabled) {
@@ -1779,15 +1787,18 @@
     align-items: center;
     gap: 8px;
     min-width: 0;
+    height: 24px;
   }
 
   .midi-icon-label {
     display: flex;
     align-items: center;
     gap: 0;
+    height: 24px;
     color: var(--text-secondary);
     font-size: 12px;
     font-weight: 500;
+    line-height: 1;
     flex-shrink: 0;
   }
 
@@ -1804,6 +1815,7 @@
     position: relative;
     display: flex;
     align-items: center;
+    height: 24px;
     min-width: 0;
     max-width: 320px;
     transition: width var(--transition-normal);
@@ -1827,17 +1839,38 @@
     font-size: 12px;
   }
 
-  .midi-dropdown-wrap :global(.trigger-label) {
+  .midi-dropdown-wrap :global(.fluent-dropdown.variant-ghost) {
+    align-self: center;
+    align-items: center;
+    height: 24px;
+  }
+
+  .midi-dropdown-wrap :global(.fluent-dropdown.variant-ghost .dropdown-trigger) {
+    height: 24px;
+    padding: 0;
     font-size: 12px;
+    line-height: 1;
+    align-items: center;
+    border: none;
+  }
+
+  .midi-dropdown-wrap :global(.fluent-dropdown.variant-ghost .trigger-content) {
+    height: 100%;
+    align-items: center;
+    line-height: 1;
+  }
+
+  .midi-dropdown-wrap :global(.fluent-dropdown.variant-ghost .trigger-label),
+  .midi-dropdown-wrap :global(.fluent-dropdown.variant-ghost .trigger-placeholder) {
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .midi-dropdown-wrap :global(.fluent-dropdown.variant-ghost .chevron-icon) {
+    margin-top: 0;
   }
 
   @media (prefers-reduced-motion: reduce) {
     .midi-dropdown-wrap { transition: none; }
-  }
-
-  .midi-dropdown-wrap :global(.dropdown-trigger) {
-    height: 28px;
-    font-size: 12px;
-    border: none;
   }
 </style>

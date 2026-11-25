@@ -148,6 +148,8 @@ export function createAppApi(): AppWindowApi {
       syncGuitarMode: (mode) => invokeTauri<void>('Playback', 'sync_guitar_mode', { mode }),
       onArrangement: (callback) => listenTauri<ArrangementState>('playback:arrangement', callback),
       setGuitarMode: (mode) => invokeTauri<boolean>('Playback', 'set_guitar_mode', { mode }),
+      syncGuitarTimbre: (timbre) => invokeTauri<void>('Playback', 'sync_guitar_timbre', { timbre }),
+      setGuitarTimbreMode: (mode) => invokeTauri<boolean>('Playback', 'set_guitar_timbre_mode', { mode }),
       setChordWheelPage: (page, send) => invokeTauri<boolean>('Playback', 'set_chord_wheel_page', { page, send }),
       onChordWheelState: (callback) => listenTauri<ChordWheelState>('playback:chord_wheel', callback),
       setKeyMarkers: (markers) => invokeTauri<boolean>('Playback', 'set_key_markers', {

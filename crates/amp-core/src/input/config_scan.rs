@@ -75,11 +75,11 @@ pub fn scan_layouts_checked(dir: &Path) -> (HashMap<String, KeyboardLayoutJson>,
             continue;
         }
         if layout.chord_wheel.as_ref().is_some_and(|wheel| !wheel.is_valid()) {
-            issue(&mut issues, &path, "Chord wheel requires positions between 0 and 1000, delays between 1 and 1000 ms, and valid page keys");
+            issue(&mut issues, &path, "Chord wheel requires positions between 0 and 1000, delays between 1 and 1000 ms, valid page keys, and valid strumButtons, modeKey, or timbreKey bindings if specified");
             continue;
         }
         if layout.fretboard.as_ref().is_some_and(|fret| !fret.is_valid()) {
-            issue(&mut issues, &path, "Fret bindings require string keys, a wheel layout reference, a mode key, and valid page keys if specified");
+            issue(&mut issues, &path, "Fret bindings require string keys, a wheel layout reference, and valid modeKey, pageKeys, strumButtons, or timbreKey bindings if specified");
             continue;
         }
         let id = layout.id.to_lowercase();
@@ -95,9 +95,15 @@ pub fn scan_layouts_checked(dir: &Path) -> (HashMap<String, KeyboardLayoutJson>,
     }
     for layout in layouts.values() {
         if let Some(fret) = &layout.fretboard {
-            if !layouts.get(&fret.wheel_layout.to_lowercase()).is_some_and(|wheel| wheel.chord_wheel.is_some()) {
+            let wheel_layout = layouts.get(&fret.wheel_layout.to_lowercase());
+            let Some(wheel) = wheel_layout.and_then(|wheel| wheel.chord_wheel.as_ref()) else {
                 issue(&mut issues, Path::new(layout.file_path.as_deref().unwrap_or("")),
                     format!("Fret wheel layout '{}' is missing or has no chordWheel bindings", fret.wheel_layout));
+                continue;
+            };
+            if fret.mode_key.is_none() && wheel.mode_key.is_none() {
+                issue(&mut issues, Path::new(layout.file_path.as_deref().unwrap_or("")),
+                    format!("Fret layout requires modeKey or a linked '{}' chordWheel modeKey", fret.wheel_layout));
             }
         }
     }

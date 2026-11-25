@@ -1,7 +1,7 @@
 use enigo::{Direction, Enigo, Key, Keyboard, Settings};
 #[cfg(windows)]
 use enigo::{Mouse, Coordinate, Button};
-use super::{chord_wheel::{ChordWheelOutput, StrumDirection, WheelButton}, config::ChordWheelConfigJson};
+use super::{chord_wheel::{ChordWheelOutput, GuitarTimbre, GuitarTimbreMode, StrumDirection, WheelButton}, config::ChordWheelConfigJson};
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 use super::mapping::KeyStroke;
@@ -70,6 +70,11 @@ pub struct KeySimulator {
     wheel_pages: HashMap<String, Option<usize>>,
     fret_mode: Option<bool>,
     mode_switch: Option<ModeSwitch>,
+    guitar_timbre: Option<GuitarTimbre>,
+    timbre_mode: GuitarTimbreMode,
+    timbre_switch: Option<TimbreSwitch>,
+    game_identity: Option<String>,
+    game_timbres: HashMap<String, Option<GuitarTimbre>>,
 }
 
 // The game accepts Z as a toggle. Any interruption before it settles makes
@@ -82,8 +87,18 @@ struct ModeSwitch {
     deadline: Instant,
 }
 
+// The game accepts V as a Clean <-> Distortion toggle across both sub-modes.
+struct TimbreSwitch {
+    target: GuitarTimbre,
+    key: KeyStroke,
+    held: bool,
+    deadline: Instant,
+}
+
 pub(super) const MODE_HOLD_MS: u64 = 50;
 pub(super) const MODE_SETTLE_MS: u64 = 180;
+pub(super) const TIMBRE_HOLD_MS: u64 = 50;
+pub(super) const TIMBRE_SETTLE_MS: u64 = 120;
 
 /// One backend owns the physical keyboard. Wayland supplies a portal backend;
 /// other desktops initialize Enigo only when output is requested.
@@ -187,6 +202,11 @@ impl KeySimulator {
             wheel_pages: HashMap::new(),
             fret_mode: None,
             mode_switch: None,
+            guitar_timbre: Some(GuitarTimbre::Clean),
+            timbre_mode: GuitarTimbreMode::Auto,
+            timbre_switch: None,
+            game_identity: None,
+            game_timbres: HashMap::new(),
         }
     }
 
@@ -225,6 +245,7 @@ impl KeySimulator {
         self.output = output;
         self.wheel.retire();
         self.mode_switch = None;
+        self.timbre_switch = None;
         // Failed releases belong to the retired backend. A replacement must
         // not inherit ownership for keys that it has never pressed.
         #[cfg(not(windows))]
@@ -384,19 +405,50 @@ impl KeySimulator {
     pub fn expire_wheel(&mut self, owner: usize) { self.wheel.expire(owner); }
     pub fn wheel_state(&self) -> super::chord_wheel::ChordWheelState {
         let mut state = self.wheel.state();
-        state.busy |= self.mode_switch.is_some();
+        state.busy |= self.mode_switch.is_some() || self.timbre_switch.is_some();
+        state.timbre = self.guitar_timbre;
+        state.timbre_mode = self.timbre_mode;
         state
     }
     pub fn fret_mode(&self) -> Option<bool> { self.fret_mode }
     pub fn declare_mode(&mut self, mode: Option<bool>) { self.fret_mode = mode; }
+    pub fn guitar_timbre(&self) -> Option<GuitarTimbre> { self.guitar_timbre }
+    pub fn declare_timbre(&mut self, timbre: Option<GuitarTimbre>) {
+        self.guitar_timbre = timbre;
+        if let Some(id) = &self.game_identity {
+            self.game_timbres.insert(id.clone(), timbre);
+        }
+    }
+    pub fn timbre_mode(&self) -> GuitarTimbreMode { self.timbre_mode }
+    pub fn set_timbre_mode(&mut self, mode: GuitarTimbreMode) { self.timbre_mode = mode; }
+    pub fn set_game_identity(&mut self, identity: Option<String>) {
+        if self.game_identity == identity { return; }
+        if let Some(prev) = self.game_identity.take() {
+            self.game_timbres.insert(prev, self.guitar_timbre);
+        }
+        if let Some(next) = identity {
+            self.guitar_timbre = self.game_timbres.get(&next).copied().unwrap_or(Some(GuitarTimbre::Clean));
+            self.game_identity = Some(next);
+        }
+    }
     pub fn page_for_context(&self, context: Option<&str>) -> Option<usize> {
         let context = context?;
         if self.wheel_context.as_deref() == Some(context) { return self.wheel.state().page; }
         self.wheel_pages.get(context).copied().unwrap_or(Some(0))
     }
-    pub fn target_preparation_ms(&self, config: &ChordWheelConfigJson, index: usize, target_fret: bool, context: Option<&str>) -> u64 {
-        if self.fret_mode == Some(target_fret) { return self.wheel.preparation_ms(config, index); }
-        super::chord_wheel::wheel_transition_ms(config, index, self.page_for_context(context), false, true)
+    pub fn target_preparation_ms(
+        &self,
+        config: &ChordWheelConfigJson,
+        index: usize,
+        target_fret: bool,
+        target_timbre: Option<GuitarTimbre>,
+        context: Option<&str>,
+    ) -> u64 {
+        let switch_mode = self.fret_mode != Some(target_fret);
+        let switch_timbre = target_timbre.is_some_and(|t| self.guitar_timbre != Some(t));
+        let same_selector = !switch_mode && self.wheel.selected() == Some(index);
+        let page = if switch_mode { self.page_for_context(context) } else { self.wheel.state().page };
+        super::chord_wheel::wheel_transition_ms(config, index, page, same_selector, switch_mode, switch_timbre)
     }
     pub fn begin_mode_switch(&mut self, target_fret: bool, context: &str, key: KeyStroke, config: &ChordWheelConfigJson, processes: &[String]) {
         let result = (|| {
@@ -429,6 +481,38 @@ impl KeySimulator {
         }
         Ok(())
     }
+    pub fn begin_timbre_switch(&mut self, target: GuitarTimbre, key: KeyStroke, config: &ChordWheelConfigJson, processes: &[String]) {
+        let result = (|| {
+            self.prepare()?;
+            let output = self.output.as_mut().unwrap();
+            output.wheel_move(processes, config.strum_position)?;
+            if !output.wheel_focused() { return Err("Focus the selected game before switching guitar timbre.".into()); }
+            self.timbre_switch = Some(TimbreSwitch { target, key, held: true,
+                deadline: Instant::now() + Duration::from_millis(TIMBRE_HOLD_MS) });
+            self.guitar_timbre = None;
+            if let Some(id) = &self.game_identity {
+                self.game_timbres.insert(id.clone(), None);
+            }
+            for (key, up) in key.press_events() { output.key(key, up)?; }
+            Ok(())
+        })();
+        if let Err(error) = result { self.cancel_wheel(); self.error = Some(error); }
+    }
+    fn tick_timbre_switch(&mut self, now: Instant) -> Result<(), String> {
+        let Some(switch) = self.timbre_switch.as_mut() else { return Ok(()); };
+        let output = self.output.as_mut().ok_or("Guitar output is unavailable.")?;
+        if !output.wheel_focused() { return Err("The game lost focus during a timbre switch. Synchronize the guitar timbre before resuming.".into()); }
+        if now < switch.deadline { return Ok(()); }
+        if switch.held {
+            output.key(switch.key.key, true)?;
+            switch.held = false;
+            switch.deadline = now + Duration::from_millis(TIMBRE_SETTLE_MS);
+        } else {
+            let switch = self.timbre_switch.take().unwrap();
+            self.declare_timbre(Some(switch.target));
+        }
+        Ok(())
+    }
     pub fn dispatch_succeeded(&self) -> bool { self.error.is_none() }
     pub fn fail_wheel(&mut self, error: &str) {
         self.cancel_wheel();
@@ -456,21 +540,26 @@ impl KeySimulator {
     }
 
     pub fn tick_wheel(&mut self) {
-        if let Err(error) = self.tick_mode_switch(Instant::now()) {
+        let now = Instant::now();
+        if let Err(error) = self.tick_mode_switch(now) {
+            self.cancel_wheel(); self.error = Some(error); return;
+        }
+        if let Err(error) = self.tick_timbre_switch(now) {
             self.cancel_wheel(); self.error = Some(error); return;
         }
         if let Some(output) = &mut self.output {
-            if let Err(error) = self.wheel.tick(output.as_mut(), Instant::now()) {
+            if let Err(error) = self.wheel.tick(output.as_mut(), now) {
                 self.cancel_wheel(); self.error = Some(error);
             }
         }
     }
 
-    pub fn wheel_active(&self) -> bool { self.wheel.is_active() || self.mode_switch.is_some() }
+    pub fn wheel_active(&self) -> bool { self.wheel.is_active() || self.mode_switch.is_some() || self.timbre_switch.is_some() }
     pub fn wheel_next_deadline(&self, now: Instant) -> Option<Instant> {
         self.mode_switch
             .as_ref()
             .map(|switch| switch.deadline)
+            .or_else(|| self.timbre_switch.as_ref().map(|switch| switch.deadline))
             .or_else(|| self.wheel.next_deadline(now))
     }
     pub fn cancel_wheel(&mut self) {
@@ -483,6 +572,19 @@ impl KeySimulator {
                         if let Err(error) = output.key(key, true) { failure = Some(error); }
                     }
                     if let Some(error) = failure { self.mode_switch = Some(switch); self.error = Some(error); }
+                }
+            }
+            if let Some(switch) = self.timbre_switch.take() {
+                self.guitar_timbre = None;
+                if let Some(id) = &self.game_identity {
+                    self.game_timbres.insert(id.clone(), None);
+                }
+                if switch.held {
+                    let mut failure = None;
+                    for key in [Some(switch.key.key), switch.key.shift.then_some(Key::Shift), switch.key.control.then_some(Key::Control)].into_iter().flatten() {
+                        if let Err(error) = output.key(key, true) { failure = Some(error); }
+                    }
+                    if let Some(error) = failure { self.timbre_switch = Some(switch); self.error = Some(error); }
                 }
             }
             if let Err(error) = self.wheel.cancel(output.as_mut()) { self.error = Some(error); }

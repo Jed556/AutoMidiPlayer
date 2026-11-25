@@ -42,6 +42,7 @@
     showTooltips?: boolean;
     tooltipText?: string;
     variant?: 'standard' | 'ghost';
+    animateWidth?: boolean;
     chevronSize?: number;
     width?: string;
     minWidth?: string;
@@ -69,6 +70,7 @@
     showTooltips = true,
     tooltipText = '',
     variant = 'standard',
+    animateWidth = false,
     chevronSize,
     width = '',
     minWidth = '',
@@ -292,6 +294,10 @@
     cancelFlyoutMorph();
     cancelSubmenuClose();
     if (changeTimer) clearTimeout(changeTimer);
+    if (labelWrapEl && labelWidthEndHandler) {
+      labelWrapEl.removeEventListener('transitionend', labelWidthEndHandler);
+      labelWidthEndHandler = null;
+    }
   });
 
   function positionSubmenu(node: HTMLDivElement) {
@@ -359,6 +365,80 @@
       return first.items[0];
     }
     return first || null;
+  });
+
+  let useAnimatedWidth = $derived(animateWidth && variant === 'ghost' && !width);
+  let displayLabel = $derived(selectedOption?.label ?? placeholder);
+  let labelWrapEl = $state<HTMLSpanElement | null>(null);
+  let labelInnerEl = $state<HTMLSpanElement | null>(null);
+  let lastAnimatedLabel: string | null = null;
+  let pendingFromWidth: number | null = null;
+  let labelWidthEndHandler: ((e: TransitionEvent) => void) | null = null;
+
+  $effect.pre(() => {
+    const nextLabel = displayLabel;
+    const enabled = useAnimatedWidth;
+    untrack(() => {
+      if (!enabled || !labelWrapEl || lastAnimatedLabel === null || lastAnimatedLabel === nextLabel) return;
+      if (labelWidthEndHandler) {
+        labelWrapEl.removeEventListener('transitionend', labelWidthEndHandler);
+        labelWidthEndHandler = null;
+      }
+      pendingFromWidth = Math.ceil(labelWrapEl.getBoundingClientRect().width);
+    });
+  });
+
+  $effect(() => {
+    const nextLabel = displayLabel;
+    const enabled = useAnimatedWidth;
+    untrack(() => {
+      const prev = lastAnimatedLabel;
+      lastAnimatedLabel = nextLabel;
+      const fromWidth = pendingFromWidth;
+      pendingFromWidth = null;
+      if (!enabled || !labelWrapEl || !labelInnerEl || prev === null || prev === nextLabel || fromWidth === null) {
+        return;
+      }
+      const targetWidth = Math.ceil(labelInnerEl.getBoundingClientRect().width || labelInnerEl.scrollWidth || labelInnerEl.offsetWidth);
+      const isOff = animationStore.isOff
+        || document.documentElement.classList.contains('no-animations')
+        || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (isOff || targetWidth <= 0 || Math.abs(targetWidth - fromWidth) < 1) {
+        labelWrapEl.style.transition = 'none';
+        labelWrapEl.style.width = 'auto';
+        labelWrapEl.style.overflow = 'visible';
+        labelWrapEl.style.setProperty('--gradient-sweep-mask', '#000000');
+        labelWrapEl.classList.add('unmasked');
+        return;
+      }
+
+      const durationSec = Math.max(0.14, animationStore.timing);
+      const easeCurve = 'cubic-bezier(0.4, 0, 0.2, 1)';
+      labelWrapEl.classList.remove('unmasked');
+      labelWrapEl.style.overflow = 'hidden';
+      labelWrapEl.style.transition = 'none';
+      labelWrapEl.style.width = `${fromWidth}px`;
+      labelWrapEl.style.setProperty('--gradient-sweep-mask', 'transparent');
+      void labelWrapEl.offsetWidth;
+
+      labelWrapEl.style.transition = `width ${durationSec}s ${easeCurve}, --gradient-sweep-mask ${durationSec}s ${easeCurve}`;
+      labelWrapEl.style.width = `${targetWidth}px`;
+      labelWrapEl.style.setProperty('--gradient-sweep-mask', '#000000');
+
+      const wrap = labelWrapEl;
+      const onEnd = (e: TransitionEvent) => {
+        if (e.target !== wrap || e.propertyName !== 'width') return;
+        wrap.removeEventListener('transitionend', onEnd);
+        if (labelWidthEndHandler === onEnd) labelWidthEndHandler = null;
+        wrap.style.transition = 'none';
+        wrap.style.width = 'auto';
+        wrap.style.overflow = 'visible';
+        wrap.style.setProperty('--gradient-sweep-mask', '#000000');
+        wrap.classList.add('unmasked');
+      };
+      labelWidthEndHandler = onEnd;
+      wrap.addEventListener('transitionend', onEnd);
+    });
   });
 
   function toggle(e: MouseEvent) {
@@ -482,6 +562,17 @@
     <div class="trigger-content">
       {#if children}
         {@render children()}
+      {:else if useAnimatedWidth}
+        {#if selectedOption?.icon}
+          <FluentIcon name={selectedOption.icon} size={14} class="opt-icon" />
+        {/if}
+        <span
+          class="trigger-label gradient-width unmasked"
+          class:trigger-placeholder={!selectedOption}
+          bind:this={labelWrapEl}
+        >
+          <span class="gradient-width-inner" bind:this={labelInnerEl}>{displayLabel}</span>
+        </span>
       {:else if selectedOption}
         {#if selectedOption.icon}
           <FluentIcon name={selectedOption.icon} size={14} class="opt-icon" />
@@ -738,6 +829,35 @@
     line-height: 1.25;
     display: inline-block;
     transition: color var(--transition-fast, 0.15s ease);
+  }
+
+  .fluent-dropdown.variant-ghost .trigger-label.gradient-width {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    line-height: inherit;
+    --gradient-sweep-mask: #000000;
+    -webkit-mask-image: linear-gradient(to right, #000000 0%, #000000 calc(100% - 14px), var(--gradient-sweep-mask) 100%);
+    mask-image: linear-gradient(to right, #000000 0%, #000000 calc(100% - 14px), var(--gradient-sweep-mask) 100%);
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    will-change: width;
+  }
+
+  .fluent-dropdown.variant-ghost .trigger-label.gradient-width.unmasked {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .fluent-dropdown.variant-ghost .gradient-width-inner {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    width: max-content;
+    white-space: nowrap;
+    line-height: inherit;
   }
 
   .fluent-dropdown.variant-ghost .chevron-icon {

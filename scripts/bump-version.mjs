@@ -84,7 +84,7 @@ export function findLastBumpCommit(targetAfter = 'HEAD') {
     const tag = git('describe', '--tags', '--abbrev=0', '--first-parent', '--match', 'v[0-9]*', targetAfter);
     releaseVersion(tag);
     taggedCommit = existsRef(tag);
-  } catch {}
+  } catch { }
 
   // Compare actual versions; -S '"version"' only finds changes in occurrence count.
   const changes = git('log', '--first-parent', '--format=%H', targetAfter, '--', 'package.json').split('\n').filter(Boolean);
@@ -365,7 +365,7 @@ export async function summaryStep() {
   md += '| # | Original commit | Amended commit | Classification | Version | Description |\n';
   md += '| :-: | :---: | :---: | :--- | :--- | :--- |\n';
   for (const commit of summary.commits) {
-    md += `| ${commit.index} | \`${commit.sha.slice(0, 7)}\` | ${commit.amendedSha ? `\`${commit.amendedSha.slice(0, 7)}\`` : '—'} | ${commit.typeLabel} | \`${commit.version}\` | ${escapeCell(commit.message.split('\n')[0])} |\n`;
+    md += `| ${commit.index} | \`${commit.sha.slice(0, 7)}\` | ${commit.amendedSha ? `\`${commit.amendedSha.slice(0, 7)}\`` : '-'} | ${commit.typeLabel} | \`${commit.version}\` | ${escapeCell(commit.message.split('\n')[0])} |\n`;
   }
   console.log(`📊 [SUMMARY] Version Bumper Execution Summary\n${md}`);
   if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, `${md}\n`);

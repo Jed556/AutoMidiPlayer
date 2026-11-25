@@ -24,6 +24,7 @@ pub enum ChordBinding {
     Key(KeyStroke),
     Wheel(usize),
     WheelUp(usize),
+    FretStrum { slot: usize, direction: StrumDirection },
     Pluck { slot: usize, strings: u8 },
     Frets { slot: usize, strings: u8 },
 }
@@ -33,12 +34,13 @@ impl ChordBinding {
         match self {
             Self::Wheel(_) => Some(StrumDirection::Down),
             Self::WheelUp(_) => Some(StrumDirection::Up),
+            Self::FretStrum { direction, .. } => Some(direction),
             _ => None,
         }
     }
 
     pub fn is_wheel_strum(self) -> bool {
-        matches!(self, Self::Wheel(_) | Self::WheelUp(_))
+        self.strum_direction().is_some()
     }
 }
 
@@ -137,6 +139,7 @@ pub struct NoteKeyMapping {
     chord_pads: Vec<ChordPad>,
     chord_wheel: Option<super::config::ChordWheelConfigJson>,
     fret_wheel: Option<super::config::ChordWheelConfigJson>,
+    timbre_key: Option<KeyStroke>,
     chord_strings: Vec<Vec<Option<u8>>>,
     chord_names: Vec<String>,
     chord_has_unknown_string: Vec<bool>,
@@ -225,6 +228,7 @@ impl NoteKeyMapping {
             chord_pads: Vec::new(),
             chord_wheel: None,
             fret_wheel: None,
+            timbre_key: None,
             chord_strings: Vec::new(),
             chord_names: Vec::new(),
             chord_has_unknown_string: Vec::new(),
@@ -261,6 +265,7 @@ impl NoteKeyMapping {
             chord_pads: Vec::new(),
             chord_wheel: None,
             fret_wheel: None,
+            timbre_key: None,
             chord_strings: Vec::new(),
             chord_names: Vec::new(),
             chord_has_unknown_string: Vec::new(),
@@ -289,6 +294,7 @@ impl NoteKeyMapping {
         self.chord_pads = pads;
         self.chord_wheel = None;
         self.fret_wheel = None;
+        self.timbre_key = None;
         self.chord_strings.clear();
         self.chord_names.clear();
         self.chord_has_unknown_string.clear();
@@ -340,6 +346,7 @@ impl NoteKeyMapping {
         if let Some(wheel) = wheel {
             let mut wheel = wheel.clone();
             if instrument.paged_chords == Some(false) { wheel.page_count = 1; }
+            self.timbre_key = wheel.timbre_key.as_deref().and_then(parse_key_stroke);
             self.chord_wheel = Some(wheel);
             // Chord mode has no chromatic keys. Keep its pitch set for detection
             // and Listen Mode without sending piano-mode keys for unmatched notes.
@@ -365,6 +372,7 @@ impl NoteKeyMapping {
     pub fn wheel_for_mode(&self, frets: bool) -> Option<&super::config::ChordWheelConfigJson> {
         if frets { self.fret_wheel.as_ref() } else { self.chord_wheel.as_ref() }
     }
+    pub fn timbre_key(&self) -> Option<KeyStroke> { self.timbre_key }
     pub fn is_mixed(&self) -> bool { self.mixed }
     pub fn is_chord_only(&self) -> bool { self.map.is_empty() && !self.chord_pads.is_empty() }
     pub fn string_pitches(&self, slot: usize) -> &[Option<u8>] {
@@ -395,14 +403,25 @@ impl NoteKeyMapping {
         if let Some(page_keys) = &fretboard.page_keys {
             resolved_wheel.page_keys.clone_from(page_keys);
         }
+        if let Some(strum_buttons) = &fretboard.strum_buttons {
+            resolved_wheel.strum_buttons = Some(strum_buttons.clone());
+        }
+        if let Some(mode_key) = &fretboard.mode_key {
+            resolved_wheel.mode_key = Some(mode_key.clone());
+        }
+        if let Some(timbre_key) = &fretboard.timbre_key {
+            resolved_wheel.timbre_key = Some(timbre_key.clone());
+        }
         resolved_wheel.page_count = if instrument.paged_frets == Some(false) { 1 }
             else { (guitar.fret_count as usize).div_ceil(wheel.positions.len()) + 1 };
+        self.timbre_key = resolved_wheel.timbre_key.as_deref().and_then(parse_key_stroke);
         self.fret_wheel = Some(resolved_wheel);
         self.playable_notes = guitar.tuning.iter().flat_map(|pitch| *pitch..=(*pitch + guitar.fret_count)).collect();
         self.playable_notes.sort_unstable();
         self.playable_notes.dedup();
         self.frets = Some(FretMapping { tuning: guitar.tuning.clone(), fret_count: guitar.fret_count,
-            string_strokes: strokes, mode_key: parse_key_stroke(&fretboard.mode_key) });
+            string_strokes: strokes,
+            mode_key: fretboard.mode_key.as_deref().or(wheel.mode_key.as_deref()).and_then(parse_key_stroke) });
         self
     }
 
@@ -427,6 +446,7 @@ impl NoteKeyMapping {
         }).collect();
         chord.frets = fret.frets;
         chord.playable_notes = fret.playable_notes;
+        chord.timbre_key = fret.timbre_key.or(chord.timbre_key);
         if mixed { chord.fret_wheel = fret.fret_wheel; }
         chord.mixed = mixed;
         chord
@@ -452,11 +472,20 @@ impl NoteKeyMapping {
     }
     pub fn wheel_context_for_mode(&self, frets: bool) -> Option<String> {
         self.wheel_for_mode(frets).map(|wheel| {
-            // Rebinding page keys does not change the current page in the game.
+            // Rebinding page, strum, mode, or timbre keys does not change the current page in the game.
             let mut identity = wheel.clone();
             identity.page_keys = Default::default();
+            identity.strum_buttons = None;
+            identity.mode_key = None;
+            identity.timbre_key = None;
             format!("{}:{}:{frets}:{}", self.game_target_id.as_deref().unwrap_or(""),
                 self.game_process_names.join("|"), serde_json::to_string(&identity).unwrap_or_default())
+        })
+    }
+
+    pub fn game_identity(&self) -> Option<String> {
+        self.chord_wheel().map(|_| {
+            format!("{}:{}", self.game_target_id.as_deref().unwrap_or(""), self.game_process_names.join("|"))
         })
     }
 

@@ -1,7 +1,7 @@
 import type { MidiFile } from './midi.js';
 import type { PlaybackStatus } from './playback.js';
 import type { MediaControlAction, MediaControlsSnapshot } from './mediaControls.js';
-import type { GameInfo, GameStatus, GameConfigState, KeyboardLayoutConfig, DefaultConfigUpdates, DefaultConfigChoice } from './games.js';
+import type { GameInfo, GameStatus, GameConfigState, GuitarTimbre, GuitarTimbreMode, KeyboardLayoutConfig, DefaultConfigUpdates, DefaultConfigChoice } from './games.js';
 import type { AppSettings, HotkeyBinding, DesktopHotkeyBinding, PedalBindings } from './settings.js';
 import type { OnlineMidiItem } from './onlineMidi.js';
 
@@ -30,6 +30,7 @@ export interface ArrangementState {
   strings: number;
   page: number | null;
   strum?: 'down' | 'up' | null;
+  timbre?: GuitarTimbre | null;
   omittedMelody: number;
   omittedAccompaniment: number;
 }
@@ -39,6 +40,8 @@ export interface ChordWheelState {
   selected?: number | null;
   busy: boolean;
   error: string | null;
+  timbre?: GuitarTimbre | null;
+  timbreMode?: GuitarTimbreMode;
 }
 
 export interface PlaybackApi {
@@ -62,6 +65,8 @@ export interface PlaybackApi {
   syncGuitarMode: (mode: 'chords' | 'frets') => Promise<void>;
   onArrangement: (callback: (state: ArrangementState) => void) => () => void;
   setGuitarMode: (mode: 'chords' | 'frets') => Promise<boolean>;
+  syncGuitarTimbre: (timbre: GuitarTimbre) => Promise<void>;
+  setGuitarTimbreMode: (mode: GuitarTimbreMode) => Promise<boolean>;
   setChordWheelPage: (page: number, send: boolean) => Promise<boolean>;
   onChordWheelState: (callback: (state: ChordWheelState) => void) => () => void;
   setKeyMarkers: (markers: any[]) => Promise<boolean>;

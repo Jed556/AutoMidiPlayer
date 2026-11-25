@@ -2,8 +2,9 @@ use amp_core::{
     input::{chord_wheel::WheelButton, simulator::KeyboardOutput},
     parse_key_stroke,
     player::{engine::ArrangementState, NoteProcessingSettings},
-    InstrumentConfigJson, KeyboardLayout, KeyboardLayoutJson, NoteKeyMapping, OutputKey,
-    ParsedMidi, PlaybackEngine, PlaybackStatus, PlayerEvent, TempoMap, TimedNoteEvent,
+    ControlEventKind, GameConfig, GuitarTimbre, GuitarTimbreMode, InstrumentConfigJson, KeyboardLayout,
+    KeyboardLayoutJson, NoteKeyMapping, OutputKey, ParsedMidi, PlaybackEngine, PlaybackStatus,
+    PlayerEvent, TempoMap, TimedControlEvent, TimedNoteEvent,
 };
 use std::{
     sync::{
@@ -669,4 +670,157 @@ fn queued_chord_rebuild_does_not_cancel_a_manual_page_turn_or_mode_switch() {
     h.engine.switch_guitar_mode(true, parse_key_stroke("z").unwrap()).unwrap();
     assert_eq!(h.engine.guitar_mode().unwrap(), Some(true));
     assert!(h.errors.lock().unwrap().is_empty());
+}
+
+#[test]
+fn fret_mode_six_string_strums_dispatch_right_and_left_mouse_buttons() {
+    let fret5_down = notes(0, &[45, 50, 55, 60, 64, 69]);
+    let fret5_up = [
+        notes(600_000, &[69]),
+        notes(605_000, &[64]),
+        notes(610_000, &[60]),
+        notes(615_000, &[55]),
+        notes(620_000, &[50]),
+        notes(625_000, &[45]),
+    ]
+    .concat();
+    let h = Harness::new_mode([fret5_down, fret5_up].concat(), true);
+    h.play_to_end();
+
+    let wheel = h.layout.chord_wheel.as_ref().unwrap();
+    let events = h.events();
+    assert!(
+        events
+            .windows(2)
+            .any(|w| w[0] == Input::Move(wheel.strum_position) && w[1] == Input::Button(WheelButton::Right, false)),
+        "expected down-strum (Right button) in fret mode: {events:?}"
+    );
+    assert!(
+        events
+            .windows(2)
+            .any(|w| w[0] == Input::Move(wheel.strum_position) && w[1] == Input::Button(WheelButton::Left, false)),
+        "expected up-strum (Left button) in fret mode: {events:?}"
+    );
+    let attacks = h.attacks();
+    assert_eq!(
+        attacks
+            .iter()
+            .map(|a| (a.mode, a.slot, a.strings, a.strum))
+            .collect::<Vec<_>>(),
+        [
+            (Some("frets"), Some(4), 0, Some("down")),
+            (Some("frets"), Some(4), 0, Some("up")),
+        ]
+    );
+}
+
+#[test]
+fn timbre_switches_automatically_and_supports_manual_switch_and_focus_loss_resync() {
+    let h = Harness::with_mode(
+        [notes(0, &[55, 59, 62]), notes(1_500_000, &[88])].concat(),
+        false,
+        true,
+        true,
+    );
+    let mut song = ParsedMidi {
+        title: "Timbre test".into(),
+        duration_us: 1_700_000,
+        bpm: 120.0,
+        ppqn: 480,
+        tracks: vec![],
+        events: [notes(0, &[55, 59, 62]), notes(1_500_000, &[88])].concat(),
+        control_events: vec![
+            TimedControlEvent {
+                time_us: 0,
+                channel: 0,
+                kind: ControlEventKind::ProgramChange { program: 27 },
+            },
+            TimedControlEvent {
+                time_us: 600_000,
+                channel: 0,
+                kind: ControlEventKind::ProgramChange { program: 30 },
+            },
+        ],
+        tempo_map: TempoMap::new(480, &[]),
+        key_signatures: vec![],
+        guitar_pro: None,
+    };
+    song.events.sort();
+    h.engine.load_song(song);
+    h.engine.sync_guitar_mode(false).unwrap();
+    h.engine.sync_guitar_timbre(GuitarTimbre::Clean).unwrap();
+    h.play_to_end();
+
+    let v_key = parse_key_stroke("v").unwrap().key;
+    assert_eq!(h.count(Input::Key(v_key, false)), 1);
+    assert_eq!(h.count(Input::Key(v_key, true)), 1);
+    assert_eq!(h.engine.guitar_timbre().unwrap(), Some(GuitarTimbre::Distortion));
+    let attacks = h.attacks();
+    assert_eq!(
+        attacks
+            .iter()
+            .map(|a| (a.mode, a.timbre))
+            .collect::<Vec<_>>(),
+        [
+            (Some("chords"), Some("clean")),
+            (Some("frets"), Some("distortion")),
+        ]
+    );
+
+    // Manual switch preserves timbre across Z mode changes, and focus loss forces resync.
+    let z_key = parse_key_stroke("z").unwrap();
+    h.engine.switch_guitar_mode(false, z_key).unwrap();
+    assert_eq!(h.engine.guitar_timbre().unwrap(), Some(GuitarTimbre::Distortion));
+    h.engine.switch_guitar_timbre(GuitarTimbre::Clean, parse_key_stroke("v").unwrap()).unwrap();
+    assert_eq!(h.engine.guitar_timbre().unwrap(), Some(GuitarTimbre::Clean));
+
+    h.engine.set_guitar_timbre_mode(GuitarTimbreMode::Distortion).unwrap();
+    // Test mid-press focus loss during a manual timbre toggle:
+    std::thread::scope(|scope| {
+        let handle = scope.spawn(|| h.engine.switch_guitar_timbre(GuitarTimbre::Distortion, parse_key_stroke("v").unwrap()));
+        h.wait("manual V down", || h.count(Input::Key(v_key, false)) == 3);
+        h.focused.store(false, Ordering::Release);
+        assert!(handle.join().unwrap().is_err());
+    });
+    assert_eq!(h.count(Input::Key(v_key, true)), 3);
+    assert_eq!(h.engine.guitar_timbre().unwrap(), None);
+    assert!(h.engine.request_play().recv().unwrap().unwrap_err().contains("timbre"));
+    h.engine.sync_guitar_timbre(GuitarTimbre::Clean).unwrap();
+    assert_eq!(h.engine.guitar_timbre().unwrap(), Some(GuitarTimbre::Clean));
+}
+
+#[test]
+fn custom_keyboard_strum_buttons_dispatch_key_presses_instead_of_mouse_buttons() {
+    use amp_core::input::config::StrumButtonsJson;
+
+    let rolled_down = notes(0, &[55, 59, 62]);
+    let rolled_up = [notes(600_000, &[62]), notes(608_000, &[59]), notes(616_000, &[55])].concat();
+    let h = Harness::new([rolled_down, rolled_up].concat());
+
+    let mut layout = h.layout.clone();
+    layout.chord_wheel.as_mut().unwrap().strum_buttons = Some(StrumButtonsJson {
+        up: "u".into(),
+        down: "j".into(),
+    });
+    let instrument: InstrumentConfigJson = serde_json::from_str(include_str!(
+        "../../../src-tauri/resources/defaults/Games/Neverness to Everness/Instruments/Strings/Guitar.json"
+    ))
+    .unwrap();
+    let game: GameConfig = serde_json::from_str(include_str!(
+        "../../../src-tauri/resources/defaults/Games/Neverness to Everness/game.json"
+    ))
+    .unwrap();
+    let mapping = NoteKeyMapping::from_pairs(KeyboardLayout::Chromatic36, &[])
+        .with_chord_pads(&instrument, &layout)
+        .with_game_target(&game);
+    h.engine.set_mapping(mapping);
+    h.play_to_end();
+
+    let u_key = parse_key_stroke("u").unwrap().key;
+    let j_key = parse_key_stroke("j").unwrap().key;
+    assert_eq!(h.count(Input::Key(j_key, false)), 1);
+    assert_eq!(h.count(Input::Key(j_key, true)), 1);
+    assert_eq!(h.count(Input::Key(u_key, false)), 1);
+    assert_eq!(h.count(Input::Key(u_key, true)), 1);
+    assert_eq!(h.count(Input::Button(WheelButton::Right, false)), 0);
 }

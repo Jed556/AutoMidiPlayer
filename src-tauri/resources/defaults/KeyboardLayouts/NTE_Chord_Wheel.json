@@ -11,6 +11,12 @@
     "pageCount": 4,
     "pageKeys": ["r", "t"],
     "pageHoldMs": 35,
-    "pageWaitMs": 145
+    "pageWaitMs": 145,
+    "strumButtons": {
+      "up": "mouseLeft",
+      "down": "mouseRight"
+    },
+    "modeKey": "z",
+    "timbreKey": "v"
   }
 }

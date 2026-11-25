@@ -61,24 +61,63 @@ impl GuitarConfigJson {
     }
 }
 
+/// Strum up/down bindings accept mouse buttons (`"mouseLeft"` / `"mouseRight"`) or keyboard keys.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StrumButtonsJson {
+    pub up: String,
+    pub down: String,
+}
+
+impl Default for StrumButtonsJson {
+    fn default() -> Self {
+        Self { up: "mouseLeft".into(), down: "mouseRight".into() }
+    }
+}
+
+impl StrumButtonsJson {
+    pub fn is_valid(&self) -> bool {
+        super::chord_wheel::parse_wheel_binding(&self.up).is_some()
+            && super::chord_wheel::parse_wheel_binding(&self.down).is_some()
+    }
+
+    pub fn binding_for(&self, direction: super::chord_wheel::StrumDirection) -> Option<super::chord_wheel::WheelBinding> {
+        let raw = match direction {
+            super::chord_wheel::StrumDirection::Up => &self.up,
+            super::chord_wheel::StrumDirection::Down => &self.down,
+        };
+        super::chord_wheel::parse_wheel_binding(raw)
+    }
+}
+
 /// Fret bindings reuse an existing wheel layout's calibration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FretLayoutJson {
     pub string_keys: Vec<String>,
     pub wheel_layout: String,
-    pub mode_key: String,
+    /// Chords <-> Frets toggle key. Omit to inherit the linked wheel's mode key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode_key: Option<String>,
     /// Previous and next page keys. Omit to inherit the linked wheel's keys.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub page_keys: Option<[String; 2]>,
+    /// Up and down strum mouse/key bindings. Omit to inherit the linked wheel's bindings.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub strum_buttons: Option<StrumButtonsJson>,
+    /// Timbre toggle key (e.g. Clean <-> Distortion). Omit to inherit the linked wheel's key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timbre_key: Option<String>,
 }
 
 impl FretLayoutJson {
     pub fn is_valid(&self) -> bool {
         !self.wheel_layout.trim().is_empty() && !self.string_keys.is_empty() && self.string_keys.len() <= 6
             && self.string_keys.iter().all(|binding| super::mapping::parse_key_stroke(binding).is_some())
-            && super::mapping::parse_key_stroke(&self.mode_key).is_some()
+            && self.mode_key.as_ref().is_none_or(|key| super::mapping::parse_key_stroke(key).is_some())
             && self.page_keys.as_ref().is_none_or(|keys| keys.iter().all(|key| super::mapping::parse_key_stroke(key).is_some()))
+            && self.strum_buttons.as_ref().is_none_or(StrumButtonsJson::is_valid)
+            && self.timbre_key.as_ref().is_none_or(|key| super::mapping::parse_key_stroke(key).is_some())
     }
 }
 
@@ -95,9 +134,22 @@ pub struct ChordWheelConfigJson {
     pub page_keys: [String; 2],
     pub page_hold_ms: u16,
     pub page_wait_ms: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub strum_buttons: Option<StrumButtonsJson>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timbre_key: Option<String>,
 }
 
 impl ChordWheelConfigJson {
+    pub fn strum_binding(&self, direction: super::chord_wheel::StrumDirection) -> Option<super::chord_wheel::WheelBinding> {
+        match &self.strum_buttons {
+            Some(buttons) => buttons.binding_for(direction),
+            None => Some(super::chord_wheel::WheelBinding::Mouse(direction.button())),
+        }
+    }
+
     pub fn is_valid(&self) -> bool {
         !self.positions.is_empty()
             && self.positions.iter().chain(std::iter::once(&self.strum_position))
@@ -109,6 +161,9 @@ impl ChordWheelConfigJson {
             && self.page_keys.iter().all(|key| super::mapping::parse_key_stroke(key).is_some())
             && (1..=1000).contains(&self.page_hold_ms)
             && (1..=1000).contains(&self.page_wait_ms)
+            && self.strum_buttons.as_ref().is_none_or(StrumButtonsJson::is_valid)
+            && self.mode_key.as_ref().is_none_or(|key| super::mapping::parse_key_stroke(key).is_some())
+            && self.timbre_key.as_ref().is_none_or(|key| super::mapping::parse_key_stroke(key).is_some())
     }
 }
 

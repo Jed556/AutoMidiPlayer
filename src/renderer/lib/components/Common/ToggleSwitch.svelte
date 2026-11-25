@@ -151,7 +151,7 @@
     background: var(--switch-thumb-checked, #000000);
   }
 
-  /* Pure scale smear keyframes — independent of translation for silky 60/120fps glide */
+  /* Pure scale smear keyframes - independent of translation for silky 60/120fps glide */
   @keyframes thumb-smear-on {
     0% {
       transform: scale(1, 1);

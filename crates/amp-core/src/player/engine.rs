@@ -10,7 +10,7 @@ use crate::midi::{
     process_note_pitch,
     detect::KeyChangeMarker,
 };
-use crate::input::{NoteKeyMapping, KeySimulator};
+use crate::input::{GuitarTimbre, GuitarTimbreMode, KeySimulator, NoteKeyMapping};
 use crate::input::mapping::ChordBinding;
 use crate::audio::{AudioSynth, SynthMode};
 use enigo::Key;
@@ -142,6 +142,8 @@ pub struct ArrangementState {
     pub page: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub strum: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timbre: Option<&'static str>,
     pub omitted_melody: usize,
     pub omitted_accompaniment: usize,
 }
@@ -152,6 +154,7 @@ struct WheelAttack {
     at: u64,
     slot: usize,
     fret: bool,
+    timbre: Option<GuitarTimbre>,
     members: usize,
 }
 
@@ -174,6 +177,10 @@ enum Command {
     SyncGuitarMode(bool, Sender<Result<(), String>>),
     SwitchGuitarMode(bool, crate::input::mapping::KeyStroke, Sender<Result<(), String>>),
     GetGuitarMode(Sender<Option<bool>>),
+    SyncGuitarTimbre(GuitarTimbre, Sender<Result<(), String>>),
+    SetGuitarTimbreMode(GuitarTimbreMode, Sender<Result<(), String>>),
+    SwitchGuitarTimbre(GuitarTimbre, crate::input::mapping::KeyStroke, Sender<Result<(), String>>),
+    GetGuitarTimbre(Sender<Option<GuitarTimbre>>),
     ObserveKeyboard(ServiceStatus),
     Fence(Sender<()>),
     MidiStart(u64),
@@ -243,6 +250,26 @@ impl PlaybackEngine {
     pub fn switch_guitar_mode(&self, fret: bool, key: crate::input::mapping::KeyStroke) -> Result<(), String> {
         let (tx, rx) = crossbeam_channel::bounded(1);
         self.cmd_tx.send(Command::SwitchGuitarMode(fret, key, tx)).map_err(|e| e.to_string())?;
+        rx.recv_timeout(Duration::from_secs(2)).map_err(|e| e.to_string())?
+    }
+    pub fn guitar_timbre(&self) -> Result<Option<GuitarTimbre>, String> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        self.cmd_tx.send(Command::GetGuitarTimbre(tx)).map_err(|e| e.to_string())?;
+        rx.recv_timeout(Duration::from_secs(2)).map_err(|e| e.to_string())
+    }
+    pub fn sync_guitar_timbre(&self, timbre: GuitarTimbre) -> Result<(), String> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        self.cmd_tx.send(Command::SyncGuitarTimbre(timbre, tx)).map_err(|e| e.to_string())?;
+        rx.recv_timeout(Duration::from_secs(2)).map_err(|e| e.to_string())?
+    }
+    pub fn set_guitar_timbre_mode(&self, mode: GuitarTimbreMode) -> Result<(), String> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        self.cmd_tx.send(Command::SetGuitarTimbreMode(mode, tx)).map_err(|e| e.to_string())?;
+        rx.recv_timeout(Duration::from_secs(2)).map_err(|e| e.to_string())?
+    }
+    pub fn switch_guitar_timbre(&self, timbre: GuitarTimbre, key: crate::input::mapping::KeyStroke) -> Result<(), String> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        self.cmd_tx.send(Command::SwitchGuitarTimbre(timbre, key, tx)).map_err(|e| e.to_string())?;
         rx.recv_timeout(Duration::from_secs(2)).map_err(|e| e.to_string())?
     }
     pub fn chord_wheel_state(&self) -> Result<crate::input::chord_wheel::ChordWheelState, String> {
@@ -642,10 +669,12 @@ fn run_playback_loop(
 ) {
     let mut key_sim = KeySimulator::new();
     let mut manual_mode_switch: Option<(bool, Sender<Result<(), String>>)> = None;
+    let mut manual_timbre_switch: Option<(GuitarTimbre, Sender<Result<(), String>>)> = None;
     let mut wheel_contexts = [mapping.wheel_context_for_mode(false), mapping.wheel_context_for_mode(true)];
     if !mapping.is_mixed() && mapping.chord_wheel().is_some() {
         key_sim.declare_mode(Some(mapping.chord_pads().is_empty() && mapping.frets().is_some()));
     }
+    key_sim.set_game_identity(mapping.game_identity());
     key_sim.set_wheel_context(mapping.wheel_context());
     let mut log_played_notes = false;
     let mut midi = LiveInput::default();
@@ -729,8 +758,9 @@ fn run_playback_loop(
             match cmd {
                 Command::GetChordWheelState(reply) => { let _ = reply.send(key_sim.wheel_state()); }
                 Command::GetGuitarMode(reply) => { let _ = reply.send(key_sim.fret_mode()); }
+                Command::GetGuitarTimbre(reply) => { let _ = reply.send(key_sim.guitar_timbre()); }
                 Command::SwitchGuitarMode(fret, key, reply) => {
-                    let result = if status == PlaybackStatus::Playing || key_sim.wheel_active() || manual_mode_switch.is_some() {
+                    let result = if status == PlaybackStatus::Playing || key_sim.wheel_active() || manual_mode_switch.is_some() || manual_timbre_switch.is_some() {
                         Err("Pause playback and wait for pending guitar input.".into())
                     } else if !config_available.load(Ordering::Acquire) || mapping.chord_wheel().is_none() {
                         Err("Select a guitar with a valid wheel layout.".into())
@@ -757,6 +787,46 @@ fn run_playback_loop(
                         key_sim.set_wheel_context(wheel_contexts[fret as usize].clone());
                         rebuild_chords = true;
                         Ok(())
+                    };
+                    let _ = reply.send(result);
+                }
+                Command::SyncGuitarTimbre(timbre, reply) => {
+                    let result = if status == PlaybackStatus::Playing || key_sim.wheel_active() || manual_mode_switch.is_some() || manual_timbre_switch.is_some() {
+                        Err("Pause playback and wait for pending input before synchronizing the timbre.".into())
+                    } else if mapping.timbre_key().is_none() {
+                        Err("Select a guitar layout with a timbre binding first.".into())
+                    } else {
+                        key_sim.declare_timbre(Some(timbre));
+                        rebuild_chords = true;
+                        Ok(())
+                    };
+                    let _ = reply.send(result);
+                }
+                Command::SetGuitarTimbreMode(mode, reply) => {
+                    let result = if status == PlaybackStatus::Playing || key_sim.wheel_active() || manual_mode_switch.is_some() || manual_timbre_switch.is_some() {
+                        Err("Pause playback and wait for pending guitar input.".into())
+                    } else {
+                        if key_sim.timbre_mode() != mode {
+                            key_sim.set_timbre_mode(mode);
+                            rebuild_chords = true;
+                        }
+                        Ok(())
+                    };
+                    let _ = reply.send(result);
+                }
+                Command::SwitchGuitarTimbre(timbre, key, reply) => {
+                    let result = if status == PlaybackStatus::Playing || key_sim.wheel_active() || manual_mode_switch.is_some() || manual_timbre_switch.is_some() {
+                        Err("Pause playback and wait for pending guitar input.".into())
+                    } else if !config_available.load(Ordering::Acquire) || mapping.chord_wheel().is_none() || mapping.timbre_key().is_none() {
+                        Err("Select a guitar with a valid timbre binding.".into())
+                    } else if key_sim.guitar_timbre().is_none() {
+                        Err("Sync the current game timbre in Instrument View before changing timbre.".into())
+                    } else if key_sim.guitar_timbre() == Some(timbre) {
+                        Ok(())
+                    } else {
+                        key_sim.begin_timbre_switch(timbre, key, mapping.chord_wheel().unwrap(), mapping.game_process_names());
+                        manual_timbre_switch = Some((timbre, reply));
+                        continue;
                     };
                     let _ = reply.send(result);
                 }
@@ -824,6 +894,10 @@ fn run_playback_loop(
                     if send_input && !listen_mode && mapping.chord_wheel().is_some()
                         && key_sim.fret_mode().and_then(|fret| mapping.wheel_for_mode(fret)).is_none() {
                         let _ = reply.send(Err("Synchronize the current guitar mode in Instrument View before playback.".into()));
+                        continue;
+                    }
+                    if send_input && !listen_mode && mapping.timbre_key().is_some() && key_sim.guitar_timbre().is_none() {
+                        let _ = reply.send(Err("Synchronize the current game timbre in Instrument View before playback.".into()));
                         continue;
                     }
                     if status != PlaybackStatus::Playing {
@@ -1197,6 +1271,7 @@ fn run_playback_loop(
                         key_sim.declare_mode(None);
                     }
                     wheel_contexts = next_contexts;
+                    key_sim.set_game_identity(new_mapping.game_identity());
                     key_sim.set_wheel_context(wheel_contexts[key_sim.fret_mode().unwrap_or(false) as usize].clone());
                     key_releases.clear();
                     active_held_notes.clear();
@@ -1304,6 +1379,9 @@ fn run_playback_loop(
                     let start = GuitarPlanStart {
                         from_index: 0,
                         initial_fret_mode: key_sim.fret_mode().unwrap_or(false),
+                        initial_timbre: key_sim.guitar_timbre().unwrap_or_default(),
+                        timbre_mode: key_sim.timbre_mode(),
+                        has_timbre_key: mapping.timbre_key().is_some(),
                         initial_chord_page: key_sim
                             .page_for_context(wheel_contexts[0].as_deref())
                             .unwrap_or(0),
@@ -1374,6 +1452,9 @@ fn run_playback_loop(
                     let start = GuitarPlanStart {
                         from_index: event_idx,
                         initial_fret_mode: key_sim.fret_mode().unwrap_or(false),
+                        initial_timbre: key_sim.guitar_timbre().unwrap_or_default(),
+                        timbre_mode: key_sim.timbre_mode(),
+                        has_timbre_key: mapping.timbre_key().is_some(),
                         initial_chord_page: key_sim.page_for_context(wheel_contexts[0].as_deref()).unwrap_or(0),
                         initial_fret_page: key_sim.page_for_context(wheel_contexts[1].as_deref()).unwrap_or(0),
                         speed, hold_ms: tap_duration_ms,
@@ -1428,10 +1509,11 @@ fn run_playback_loop(
                         ChordBinding::Wheel(slot)
                         | ChordBinding::WheelUp(slot)
                         | ChordBinding::Pluck { slot, .. } => (slot, false),
-                        ChordBinding::Frets { slot, .. } => (slot, true),
+                        ChordBinding::FretStrum { slot, .. }
+                        | ChordBinding::Frets { slot, .. } => (slot, true),
                         ChordBinding::Key(_) => continue,
                     };
-                    wheel_attacks.push(WheelAttack { owner, at: song.events[owner].time_us, slot, fret, members: members[&note.chord_id] });
+                    wheel_attacks.push(WheelAttack { owner, at: song.events[owner].time_us, slot, fret, timbre: note.timbre, members: members[&note.chord_id] });
                 }
             }
         }
@@ -1444,12 +1526,13 @@ fn run_playback_loop(
             .is_some_and(|synth| synth.output_status().state == ServiceState::Ready); }
         if !config_available.load(Ordering::Acquire) { midi.gate(false, &mut key_sim, &audio_synth); }
         midi.tick(Instant::now(), &mut key_sim, &audio_synth, repress_gap_ms);
-        if manual_mode_switch.is_some() && !config_available.load(Ordering::Acquire) {
+        if (manual_mode_switch.is_some() || manual_timbre_switch.is_some()) && !config_available.load(Ordering::Acquire) {
             key_sim.cancel_wheel();
         }
         key_sim.tick_wheel();
         if let Some(error) = key_sim.take_error() {
             if let Some((_, reply)) = manual_mode_switch.take() { let _ = reply.send(Err(error.clone())); }
+            if let Some((_, reply)) = manual_timbre_switch.take() { let _ = reply.send(Err(error.clone())); }
             if mapping.chord_wheel().is_some() {
                 let mut state = key_sim.wheel_state();
                 state.error = Some(error.clone());
@@ -1491,6 +1574,15 @@ fn run_playback_loop(
             if let Some((fret, reply)) = manual_mode_switch.take() {
                 let result = if key_sim.fret_mode() == Some(fret) { Ok(()) }
                     else { Err("The guitar mode change was interrupted. Sync the current game mode.".into()) };
+                let _ = reply.send(result);
+            }
+            if let Some((timbre, reply)) = manual_timbre_switch.take() {
+                let result = if key_sim.guitar_timbre() == Some(timbre) {
+                    rebuild_chords = true;
+                    Ok(())
+                } else {
+                    Err("The guitar timbre change was interrupted. Sync the current game timbre.".into())
+                };
                 let _ = reply.send(result);
             }
         }
@@ -1544,6 +1636,7 @@ fn run_playback_loop(
             arrangement.slot = None;
             arrangement.strings = 0;
             arrangement.strum = None;
+            arrangement.timbre = None;
             arrangement_clear_at = None;
             callback(PlayerEvent::Arrangement(arrangement.clone()));
         }
@@ -1622,11 +1715,12 @@ fn run_playback_loop(
             if let Some(attack) = next_attack {
                 if let Some(config) = mapping.wheel_for_mode(attack.fret) {
                     let context = wheel_contexts[attack.fret as usize].as_deref();
-                    let budget_us = key_sim.target_preparation_ms(config, attack.slot, attack.fret, context) * 1000;
+                    let budget_us = key_sim.target_preparation_ms(config, attack.slot, attack.fret, attack.timbre, context) * 1000;
                     let until_us = (attack.at.saturating_sub(current_us) as f64 / speed) as u64;
                     if until_us <= budget_us {
                         prepared_next = true;
-                        if !mapping.is_mixed() || key_sim.fret_mode() == Some(attack.fret) {
+                        if (!mapping.is_mixed() || key_sim.fret_mode() == Some(attack.fret))
+                            && attack.timbre.is_none_or(|t| key_sim.guitar_timbre() == Some(t)) {
                             key_sim.reconcile_wheel(config, attack.slot, Some(attack.owner));
                         }
                         if !key_sim.wheel_active() {
@@ -1636,13 +1730,21 @@ fn run_playback_loop(
                                 } else {
                                     key_sim.fail_wheel("Synchronize the current guitar mode before Mixed playback.");
                                 }
+                            } else if attack.timbre.is_some_and(|t| key_sim.guitar_timbre() != Some(t)) {
+                                if let (Some(_), Some(key)) = (key_sim.guitar_timbre(), mapping.timbre_key()) {
+                                    key_sim.begin_timbre_switch(attack.timbre.unwrap(), key, config, mapping.game_process_names());
+                                } else {
+                                    key_sim.fail_wheel("Synchronize the current game timbre before playback.");
+                                }
                             } else {
                                 key_sim.prepare_wheel(config, mapping.game_process_names(), attack.slot, attack.owner);
                             }
                         }
                         // Starting and seeking get preparation time before the song
                         // clock runs. Later page changes must fit between attacks.
-                        if wheel_starting && !key_sim.wheel_ready(attack.owner) {
+                        if wheel_starting && (!key_sim.wheel_ready(attack.owner)
+                            || (mapping.is_mixed() && key_sim.fret_mode() != Some(attack.fret))
+                            || attack.timbre.is_some_and(|t| key_sim.guitar_timbre() != Some(t))) {
                             let plan = wheel_step(&key_sim, Instant::now());
                             pending_command = wait_step(&cmd_rx, sleeper, plan);
                             last_instant = Instant::now();
@@ -1659,15 +1761,17 @@ fn run_playback_loop(
                     if let Some(config) = mapping.wheel_for_mode(prev.fret) {
                         let target_page = prev.slot / config.positions.len();
                         let out_of_sync = (mapping.is_mixed() && key_sim.fret_mode() != Some(prev.fret))
+                            || prev.timbre.is_some_and(|t| key_sim.guitar_timbre() != Some(t))
                             || key_sim.wheel_state().page != Some(target_page)
                             || key_sim.wheel_selected() != Some(prev.slot);
                         if out_of_sync || (wheel_starting && key_sim.wheel_active()) {
                             let prev_context = wheel_contexts[prev.fret as usize].as_deref();
                             let can_correct = wheel_starting
-                                || next_attack.is_none_or(|next| next.fret == prev.fret && next.slot == prev.slot);
+                                || next_attack.is_none_or(|next| next.fret == prev.fret && next.slot == prev.slot && next.timbre == prev.timbre);
                             if can_correct {
                                 if out_of_sync {
-                                    if !mapping.is_mixed() || key_sim.fret_mode() == Some(prev.fret) {
+                                    if (!mapping.is_mixed() || key_sim.fret_mode() == Some(prev.fret))
+                                        && prev.timbre.is_none_or(|t| key_sim.guitar_timbre() == Some(t)) {
                                         key_sim.reconcile_wheel(config, prev.slot, None);
                                     }
                                     if !key_sim.wheel_active() {
@@ -1676,6 +1780,12 @@ fn run_playback_loop(
                                                 key_sim.begin_mode_switch(prev.fret, context, key, config, mapping.game_process_names());
                                             } else {
                                                 key_sim.fail_wheel("Synchronize the current guitar mode before Mixed playback.");
+                                            }
+                                        } else if prev.timbre.is_some_and(|t| key_sim.guitar_timbre() != Some(t)) {
+                                            if let (Some(_), Some(key)) = (key_sim.guitar_timbre(), mapping.timbre_key()) {
+                                                key_sim.begin_timbre_switch(prev.timbre.unwrap(), key, config, mapping.game_process_names());
+                                            } else {
+                                                key_sim.fail_wheel("Synchronize the current game timbre before playback.");
                                             }
                                         } else {
                                             key_sim.sync_wheel_slot(config, mapping.game_process_names(), prev.slot);
@@ -1858,6 +1968,7 @@ fn run_playback_loop(
                             ChordBinding::Key(stroke) => (note.trigger && !restoring).then_some(stroke),
                             ChordBinding::Wheel(_)
                             | ChordBinding::WheelUp(_)
+                            | ChordBinding::FretStrum { .. }
                             | ChordBinding::Pluck { .. }
                             | ChordBinding::Frets { .. } => None,
                         },
@@ -1905,7 +2016,9 @@ fn run_playback_loop(
                             if let Ok(index) = wheel_attacks.binary_search_by_key(&owner_index, |a| a.owner) {
                                 let attack = wheel_attacks[index];
                                 key_sim.tick_wheel();
-                                if !key_sim.wheel_ready(owner_index) && (!mapping.is_mixed() || key_sim.fret_mode() == Some(attack.fret)) {
+                                if !key_sim.wheel_ready(owner_index)
+                                    && (!mapping.is_mixed() || key_sim.fret_mode() == Some(attack.fret))
+                                    && attack.timbre.is_none_or(|t| key_sim.guitar_timbre() == Some(t)) {
                                     if let Some(config) = mapping.wheel_for_mode(attack.fret) {
                                         key_sim.reconcile_wheel(config, attack.slot, Some(owner_index));
                                         let target_page = attack.slot / config.positions.len();
@@ -1917,7 +2030,7 @@ fn run_playback_loop(
                                         }
                                     }
                                 }
-                                if !key_sim.wheel_ready(owner_index) {
+                                if !key_sim.wheel_ready(owner_index) || attack.timbre.is_some_and(|t| key_sim.guitar_timbre() != Some(t)) {
                                     // An overloaded scheduler must never turn a missed attack into a late one.
                                     key_sim.expire_wheel(owner_index);
                                     arrangement.omitted_melody += 1;
@@ -1949,6 +2062,10 @@ fn run_playback_loop(
                                         arrangement.page = key_sim.wheel_state().page;
                                         arrangement.strings = strings;
                                         arrangement.strum = strum_dir;
+                                        arrangement.timbre = attack.timbre
+                                            .or_else(|| key_sim.guitar_timbre())
+                                            .filter(|_| mapping.timbre_key().is_some())
+                                            .map(GuitarTimbre::as_str);
                                         arrangement_clear_at = Some(started + Duration::from_millis(tap_duration_ms));
                                         callback(PlayerEvent::Arrangement(arrangement.clone()));
                                     }

@@ -1158,6 +1158,115 @@ fn nte_guitar_dispatches_right_and_left_strums_and_protects_bm_unknown_string() 
 }
 
 #[test]
+fn nte_guitar_dispatches_fret_mode_brushes_and_program_timbre_switches() {
+    let gp_fret_brushes = parse_midi_bytes(&build_gp_for_xml(
+        r#"<GPIF>
+  <Score><Title>Fret Strums and Timbre</Title></Score>
+  <MasterTrack><Tracks>0</Tracks><Automations><Automation><Type>Tempo</Type><Bar>0</Bar><Position>0</Position><Value>120 2</Value></Automation></Automations></MasterTrack>
+  <Tracks><Track id="0">
+    <GeneralMidi><Program>27</Program><Volume>100</Volume><Balance>64</Balance></GeneralMidi>
+    <Properties><Property name="Tuning"><Pitches>40 45 50 55 59 64</Pitches></Property></Properties>
+  </Track></Tracks>
+  <MasterBars><MasterBar><Time>4/4</Time><Bars>0</Bars></MasterBar><MasterBar><Time>4/4</Time><Bars>1</Bars></MasterBar></MasterBars>
+  <Bars><Bar id="0"><Voices>0 -1</Voices></Bar><Bar id="1"><Voices>1 -1</Voices></Bar></Bars>
+  <Voices><Voice id="0"><Beats>0 1</Beats></Voice><Voice id="1"><Beats>2</Beats></Voice></Voices>
+  <Beats>
+    <Beat id="0"><Notes>0 1 2 3 4 5</Notes><Rhythm ref="h"/><Properties><Property name="Brush"><Direction>Down</Direction></Property></Properties></Beat>
+    <Beat id="1"><Rhythm ref="h"/></Beat>
+    <Beat id="2"><Notes>0 1 2 3 4 5</Notes><Rhythm ref="q"/><Properties><Property name="Brush"><Direction>Up</Direction></Property></Properties></Beat>
+  </Beats>
+  <Notes>
+    <Note id="0"><Properties><Property name="String"><String>0</String></Property><Property name="Fret"><Fret>5</Fret></Property></Properties></Note>
+    <Note id="1"><Properties><Property name="String"><String>1</String></Property><Property name="Fret"><Fret>5</Fret></Property></Properties></Note>
+    <Note id="2"><Properties><Property name="String"><String>2</String></Property><Property name="Fret"><Fret>5</Fret></Property></Properties></Note>
+    <Note id="3"><Properties><Property name="String"><String>3</String></Property><Property name="Fret"><Fret>5</Fret></Property></Properties></Note>
+    <Note id="4"><Properties><Property name="String"><String>4</String></Property><Property name="Fret"><Fret>5</Fret></Property></Properties></Note>
+    <Note id="5"><Properties><Property name="String"><String>5</String></Property><Property name="Fret"><Fret>5</Fret></Property></Properties></Note>
+  </Notes>
+  <Rhythms><Rhythm id="q"><NoteValue>Quarter</NoteValue></Rhythm><Rhythm id="h"><NoteValue>Half</NoteValue></Rhythm></Rhythms>
+</GPIF>"#,
+    ))
+    .unwrap();
+
+    let (mut gp_with_distortion, mut chord_layout, fret_layout) = (
+        gp_fret_brushes,
+        serde_json::from_str::<KeyboardLayoutJson>(include_str!(
+            "../../../src-tauri/resources/defaults/KeyboardLayouts/NTE_Chord_Wheel.json"
+        ))
+        .unwrap(),
+        serde_json::from_str::<KeyboardLayoutJson>(include_str!(
+            "../../../src-tauri/resources/defaults/KeyboardLayouts/NTE_Fret_Wheel.json"
+        ))
+        .unwrap(),
+    );
+    gp_with_distortion.control_events.push(amp_core::TimedControlEvent {
+        time_us: 1_200_000,
+        channel: 0,
+        kind: amp_core::ControlEventKind::ProgramChange { program: 30 },
+    });
+    let instrument: InstrumentConfigJson = serde_json::from_str(include_str!(
+        "../../../src-tauri/resources/defaults/Games/Neverness to Everness/Instruments/Strings/Guitar.json"
+    ))
+    .unwrap();
+    let game: amp_core::GameConfig = serde_json::from_str(include_str!(
+        "../../../src-tauri/resources/defaults/Games/Neverness to Everness/game.json"
+    ))
+    .unwrap();
+    chord_layout.chord_wheel.as_mut().unwrap().timbre_key = Some("v".into());
+    let mapping = NoteKeyMapping::from_pairs(KeyboardLayout::Chromatic36, &[])
+        .with_frets(&instrument, &fret_layout, chord_layout.chord_wheel.as_ref().unwrap())
+        .with_game_target(&game);
+
+    let strum_pos = chord_layout.chord_wheel.as_ref().unwrap().strum_position;
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let arrangements = Arc::new(Mutex::new(Vec::<ArrangementState>::new()));
+    let cap_arr = arrangements.clone();
+    let engine = PlaybackEngine::new(Some(gp_with_distortion), mapping, true, None, move |ev| {
+        if let PlayerEvent::Arrangement(state) = ev {
+            cap_arr.lock().unwrap().push(state);
+        }
+    });
+    engine.set_keyboard_output(Some(Box::new(MockOutput {
+        events: events.clone(),
+        focused: Arc::new(AtomicBool::new(true)),
+    })));
+    engine.set_listen_mode(false);
+    engine.set_hold_delay_ms(20);
+    engine.set_note_processing(NoteProcessingSettings {
+        merge_notes: false,
+        merge_tolerance_ms: 25,
+        chord_detection_milliseconds: 30,
+    });
+    engine.flush().unwrap();
+    engine.request_play().recv_timeout(Duration::from_secs(5)).unwrap().unwrap();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while engine.get_status() != PlaybackStatus::Stopped {
+        assert!(Instant::now() < deadline, "timed out playing fret brushes");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+
+    let recorded = events.lock().unwrap().clone();
+    assert!(recorded.windows(2).any(|w| w[0] == WheelInput::Move(strum_pos) && w[1] == WheelInput::Button(WheelButton::Right, false)));
+    assert!(recorded.windows(2).any(|w| w[0] == WheelInput::Move(strum_pos) && w[1] == WheelInput::Button(WheelButton::Left, false)));
+    let v_key = amp_core::parse_key_stroke("v").unwrap().key;
+    assert_eq!(recorded.iter().filter(|e| **e == WheelInput::Key(v_key, false)).count(), 1);
+    let attacks: Vec<_> = arrangements
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|a| a.slot.is_some())
+        .map(|a| (a.mode, a.slot, a.strum, a.timbre))
+        .collect();
+    assert_eq!(
+        attacks,
+        vec![
+            (Some("frets"), Some(4), Some("down"), Some("clean")),
+            (Some("frets"), Some(4), Some("up"), Some("distortion")),
+        ]
+    );
+}
+
+#[test]
 fn library_scanner_and_metadata_support_guitar_pro_files_alongside_midi() {
     let tmp = TempDir::new("amp_gp_scan");
     let gp_path = tmp.path().join("campfire_tab.gp");

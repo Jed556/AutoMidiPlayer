@@ -1,7 +1,13 @@
 //! Song-only note preparation. The source MIDI and its control events remain unchanged.
 use std::collections::{HashMap, VecDeque};
 
-use crate::{input::mapping::{ChordBinding, ChordPad}, midi::TimedNoteEvent};
+use crate::{
+    input::{
+        mapping::{ChordBinding, ChordPad},
+        GuitarTimbre,
+    },
+    midi::TimedNoteEvent,
+};
 
 #[path = "arrangement.rs"]
 mod arrangement;
@@ -30,6 +36,7 @@ pub(super) struct ChordNote {
     pub binding: ChordBinding,
     /// Only the first NoteOn presses the pad. Every other member is suppressed.
     pub trigger: bool,
+    pub timbre: Option<GuitarTimbre>,
 }
 
 /// Both sides of each pair use the same FIFO identity as the playback engine.
@@ -154,7 +161,7 @@ where
             .max_by_key(|(index, _)| (pads[*index].bass_pitch_class.is_some(), std::cmp::Reverse(*index)))
             .map(|(index, _)| index) else { continue };
         for (member, &index) in members.iter().enumerate() {
-            let assignment = ChordNote { chord_id, binding: pads[pad].binding, trigger: member == 0 };
+            let assignment = ChordNote { chord_id, binding: pads[pad].binding, trigger: member == 0, timbre: None };
             result[index] = Some(assignment);
             result[partners[index].expect("Complete candidate note")] = Some(ChordNote { trigger: false, ..assignment });
         }

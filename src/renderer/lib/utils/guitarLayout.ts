@@ -11,7 +11,7 @@ export function dispatchedGuitarPositions(instrument: InstrumentConfig, action: 
   const { mode, slot, strings } = action;
   const voicing = instrument.chords?.[slot]?.stringPitches;
   const sharedFret = slot < guitar.fretCount ? slot + 1 : 0;
-  const strum = mode === 'chords' && strings === 0;
+  const strum = (mode === 'chords' || mode === 'frets') && strings === 0;
   return guitar.tuning.flatMap((open, string) => {
     if (!strum && !(strings & (1 << string))) return [];
     const pitch = mode === 'frets' ? open + sharedFret : voicing?.[string];

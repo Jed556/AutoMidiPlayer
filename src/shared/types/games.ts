@@ -7,6 +7,8 @@ export interface ChordDefinition {
 
 export type InstrumentLayoutStyle = 'sky' | 'genshin' | 'heartopia' | 'drums' | 'guitar' | 'none';
 export type InstrumentInputMode = 'keyboard' | 'chords' | 'frets' | 'mixed';
+export type GuitarTimbre = 'clean' | 'distortion';
+export type GuitarTimbreMode = 'auto' | 'clean' | 'distortion';
 export type KeyMatrix<T> = Array<Array<T | null>>;
 
 export interface InstrumentConfig {
@@ -38,6 +40,11 @@ export interface InstrumentConfig {
   noteMap?: string[]; // key names or notes
 }
 
+export interface StrumButtonsConfig {
+  up: string;
+  down: string;
+}
+
 export interface KeyboardLayoutConfig {
   id: string;
   name: string;
@@ -48,8 +55,10 @@ export interface KeyboardLayoutConfig {
   fretboard?: {
     stringKeys: string[];
     wheelLayout: string;
-    modeKey: string;
+    modeKey?: string;
     pageKeys?: [string, string];
+    strumButtons?: StrumButtonsConfig;
+    timbreKey?: string;
   };
   chordWheel?: {
     positions: Array<[number, number]>;
@@ -61,6 +70,9 @@ export interface KeyboardLayoutConfig {
     pageKeys: [string, string];
     pageHoldMs: number;
     pageWaitMs: number;
+    strumButtons?: StrumButtonsConfig;
+    modeKey?: string;
+    timbreKey?: string;
   };
   sustainKey?: string | null;
   sostenutoKey?: string | null;

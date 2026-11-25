@@ -278,3 +278,65 @@ fn configured_chord_mode_selects_existing_pad_or_wheel_bindings() {
     let invalid = melody_mapping(&instrument, &layout).with_chord_pads(&instrument, &layout);
     assert!(invalid.chord_pads().is_empty(), "wheel mode must not fall back to pad keys");
 }
+
+#[test]
+fn timbre_key_inherits_across_submodes_can_override_and_preserves_wheel_context() {
+    use amp_core::input::config::StrumButtonsJson;
+
+    let (instrument, mut chord_layout, mut fret_layout) = nte_layouts();
+    let empty = NoteKeyMapping::from_pairs(KeyboardLayout::Chromatic36, &[]);
+    let v = parse_key_stroke("v").unwrap();
+    let b = parse_key_stroke("b").unwrap();
+    let z = parse_key_stroke("z").unwrap();
+    let x = parse_key_stroke("x").unwrap();
+
+    // Bundled NTE JSONs expose pageKeys, modeKey, timbreKey, and strumButtons explicitly.
+    let wheel_cfg = chord_layout.chord_wheel.as_ref().unwrap();
+    assert_eq!(wheel_cfg.page_keys, ["r", "t"]);
+    assert_eq!(wheel_cfg.mode_key.as_deref(), Some("z"));
+    assert_eq!(wheel_cfg.timbre_key.as_deref(), Some("v"));
+    assert_eq!(wheel_cfg.strum_buttons, Some(StrumButtonsJson::default()));
+
+    let fret_cfg = fret_layout.fretboard.as_ref().unwrap();
+    assert_eq!(fret_cfg.mode_key.as_deref(), Some("z"));
+    assert_eq!(fret_cfg.timbre_key.as_deref(), Some("v"));
+    assert_eq!(fret_cfg.strum_buttons, Some(StrumButtonsJson::default()));
+
+    let chords = empty.clone().with_chord_pads(&instrument, &chord_layout);
+    let frets = empty.clone().with_frets(&instrument, &fret_layout, wheel_cfg);
+    let mixed = empty.clone().with_guitar_chords(&instrument, &chord_layout, &fret_layout, true);
+    assert_eq!(chords.timbre_key(), Some(v));
+    assert_eq!(frets.timbre_key(), Some(v));
+    assert_eq!(mixed.timbre_key(), Some(v));
+    assert_eq!(frets.frets().unwrap().mode_key, Some(z));
+
+    // Omitting optional bindings on the fret layout inherits from the linked chord wheel.
+    let mut inherited_fret = fret_layout.clone();
+    let fb = inherited_fret.fretboard.as_mut().unwrap();
+    fb.mode_key = None;
+    fb.timbre_key = None;
+    fb.strum_buttons = None;
+    let inherited = empty.clone().with_frets(&instrument, &inherited_fret, wheel_cfg);
+    assert_eq!(inherited.timbre_key(), Some(v));
+    assert_eq!(inherited.frets().unwrap().mode_key, Some(z));
+    assert_eq!(inherited.wheel_for_mode(true).unwrap().strum_buttons, Some(StrumButtonsJson::default()));
+
+    let fb_override = fret_layout.fretboard.as_mut().unwrap();
+    fb_override.timbre_key = Some("b".into());
+    fb_override.mode_key = Some("x".into());
+    fb_override.strum_buttons = Some(StrumButtonsJson { up: "u".into(), down: "j".into() });
+    let overridden = empty.clone().with_frets(&instrument, &fret_layout, wheel_cfg);
+    assert_eq!(overridden.timbre_key(), Some(b));
+    assert_eq!(overridden.frets().unwrap().mode_key, Some(x));
+    assert_eq!(
+        overridden.wheel_for_mode(true).unwrap().strum_buttons,
+        Some(StrumButtonsJson { up: "u".into(), down: "j".into() })
+    );
+    assert_eq!(overridden.wheel_context(), frets.wheel_context());
+
+    chord_layout.chord_wheel.as_mut().unwrap().timbre_key = None;
+    fret_layout.fretboard.as_mut().unwrap().timbre_key = None;
+    let cleared = empty.with_chord_pads(&instrument, &chord_layout);
+    assert_eq!(cleared.timbre_key(), None);
+    assert_eq!(cleared.wheel_context(), chords.wheel_context());
+}

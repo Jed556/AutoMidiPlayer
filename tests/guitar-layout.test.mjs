@@ -54,6 +54,14 @@ test('guitar display uses the dispatched shape, string mask, and open selector',
   assert.deepEqual(dispatchedGuitarPositions(instrument, { ...attack, mode: 'frets', page: 4, slot: 24, strings: 0b100001 }), [
     { string: 0, fret: 0, pitch: 64 }, { string: 5, fret: 0, pitch: 40 },
   ]);
+  assert.deepEqual(dispatchedGuitarPositions(instrument, { ...attack, mode: 'frets', page: 0, slot: 4, strings: 0, strum: 'down' }), [
+    { string: 0, fret: 5, pitch: 69 },
+    { string: 1, fret: 5, pitch: 64 },
+    { string: 2, fret: 5, pitch: 60 },
+    { string: 3, fret: 5, pitch: 55 },
+    { string: 4, fret: 5, pitch: 50 },
+    { string: 5, fret: 5, pitch: 45 },
+  ]);
   assert.deepEqual(dispatchedGuitarPositions(instrument, { ...attack, slot: null }), []);
 });
 

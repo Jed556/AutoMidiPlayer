@@ -1738,17 +1738,27 @@ async fn set_guitar_mode(mode: String, state: State<'_, AppState>) -> Result<boo
                 let (game, instrument) = manager.games.iter().flat_map(|game| game.instruments.iter().map(move |instrument| (game, instrument)))
                     .find(|(_, instrument)| instrument.file_path.as_ref().is_some_and(|path| selected_sources.iter().any(|source| source == Path::new(path))))
                     .ok_or("The selected guitar is unavailable.")?;
+                let matching_layouts: Vec<_> = manager.layouts.values()
+                    .filter(|layout| layout.file_path.as_ref().is_some_and(|path| selected_sources.iter().any(|source| source == Path::new(path))))
+                    .collect();
                 let current = selected_sources.iter().find_map(|source| manager.layouts.values().find(|layout|
                     layout.file_path.as_ref().is_some_and(|path| source == Path::new(path))));
-                let fret_layout = current.filter(|layout| layout.fretboard.is_some()).or_else(|| {
+                let fret_layout = matching_layouts.iter().copied().find_map(|layout| layout.fretboard.as_ref()).or_else(|| {
                     instrument.fret_layouts.iter().filter_map(|id| manager.layouts.get(&id.to_lowercase()))
                         .min_by_key(|layout| (
                             !current.is_some_and(|wheel| layout.fretboard.as_ref().is_some_and(|f| f.wheel_layout.eq_ignore_ascii_case(&wheel.id))),
                             !layout.file_path.as_ref().is_some_and(|p| selected_sources.contains(&PathBuf::from(p))),
                         ))
+                        .and_then(|layout| layout.fretboard.as_ref())
                 })
-                    .and_then(|layout| layout.fretboard.as_ref()).ok_or("The guitar has no fret mode binding.")?;
-                let binding = amp_core::parse_key_stroke(&fret_layout.mode_key).ok_or("Invalid guitar mode binding.")?;
+                    .ok_or("The guitar has no fret mode binding.")?;
+                let wheel_mode_key = manager.layouts.get(&fret_layout.wheel_layout.to_lowercase())
+                    .and_then(|layout| layout.chord_wheel.as_ref())
+                    .and_then(|wheel| wheel.mode_key.as_deref())
+                    .or_else(|| matching_layouts.iter().find_map(|layout| layout.chord_wheel.as_ref().and_then(|wheel| wheel.mode_key.as_deref())));
+                let mode_key = fret_layout.mode_key.as_deref().or(wheel_mode_key)
+                    .ok_or("The guitar has no mode switch binding.")?;
+                let binding = amp_core::parse_key_stroke(mode_key).ok_or("Invalid guitar mode binding.")?;
                 (game.config.id.clone(), binding)
             };
             let pid = monitor.lock().map_err(|e| e.to_string())?.check_statuses().into_iter()
@@ -1756,6 +1766,99 @@ async fn set_guitar_mode(mode: String, state: State<'_, AppState>) -> Result<boo
                 .ok_or("Start the selected game and open its guitar controls first.")?;
             if !focus_window_by_pid(pid) { return Err("Could not focus the selected game window.".into()); }
             engine.switch_guitar_mode(fret, binding)?;
+            Ok(true)
+        }).await.map_err(|e| e.to_string())?
+    }
+}
+
+#[tauri::command]
+async fn sync_guitar_timbre(timbre: String, state: State<'_, AppState>) -> Result<(), String> {
+    let timbre = match timbre.as_str() {
+        "clean" => amp_core::GuitarTimbre::Clean,
+        "distortion" => amp_core::GuitarTimbre::Distortion,
+        _ => return Err("Unknown guitar timbre.".into()),
+    };
+    let engine = Arc::clone(&state.engine);
+    tauri::async_runtime::spawn_blocking(move || engine.sync_guitar_timbre(timbre)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn set_guitar_timbre_mode(mode: String, state: State<'_, AppState>) -> Result<bool, String> {
+    let parsed_mode = match mode.as_str() {
+        "auto" => amp_core::GuitarTimbreMode::Auto,
+        "clean" => amp_core::GuitarTimbreMode::Clean,
+        "distortion" => amp_core::GuitarTimbreMode::Distortion,
+        _ => return Err("Unknown guitar timbre mode.".into()),
+    };
+    let engine = Arc::clone(&state.engine);
+    #[cfg(not(windows))]
+    {
+        tauri::async_runtime::spawn_blocking(move || {
+            engine.set_guitar_timbre_mode(parsed_mode)?;
+            match parsed_mode {
+                amp_core::GuitarTimbreMode::Clean => { let _ = engine.sync_guitar_timbre(amp_core::GuitarTimbre::Clean); }
+                amp_core::GuitarTimbreMode::Distortion => { let _ = engine.sync_guitar_timbre(amp_core::GuitarTimbre::Distortion); }
+                amp_core::GuitarTimbreMode::Auto => {}
+            }
+            Ok::<_, String>(())
+        }).await.map_err(|e| e.to_string())??;
+        return Ok(true);
+    }
+    #[cfg(windows)]
+    {
+        let monitor = Arc::clone(&state.process_monitor);
+        let configs = Arc::clone(&state.config_manager);
+        let sources = Arc::clone(&state.config_sources);
+        tauri::async_runtime::spawn_blocking(move || {
+            if engine.get_status() == PlaybackStatus::Playing { return Err("Pause playback before changing guitar timbre.".into()); }
+            let target = match parsed_mode {
+                amp_core::GuitarTimbreMode::Auto => None,
+                amp_core::GuitarTimbreMode::Clean => Some(amp_core::GuitarTimbre::Clean),
+                amp_core::GuitarTimbreMode::Distortion => Some(amp_core::GuitarTimbre::Distortion),
+            };
+            let mut switched_in_game = false;
+            if let Some(target) = target {
+                let selected_sources = sources.lock().map_err(|e| e.to_string())?.clone();
+                let resolved = {
+                    let manager = configs.lock().map_err(|e| e.to_string())?;
+                    manager.games.iter()
+                        .flat_map(|game| game.instruments.iter().map(move |instrument| (game, instrument)))
+                        .find(|(_, instrument)| instrument.file_path.as_ref().is_some_and(|path| selected_sources.iter().any(|source| source == Path::new(path))))
+                        .and_then(|(game, _)| {
+                            let matching_layouts: Vec<_> = manager.layouts.values()
+                                .filter(|layout| layout.file_path.as_ref().is_some_and(|path| selected_sources.iter().any(|source| source == Path::new(path))))
+                                .collect();
+                            let fret_timbre = matching_layouts.iter()
+                                .find_map(|layout| layout.fretboard.as_ref().and_then(|f| f.timbre_key.as_deref()));
+                            let wheel_timbre = matching_layouts.iter().find_map(|layout| {
+                                layout.chord_wheel.as_ref()
+                                    .or_else(|| layout.fretboard.as_ref()
+                                        .and_then(|f| manager.layouts.get(&f.wheel_layout.to_lowercase()))
+                                        .and_then(|w| w.chord_wheel.as_ref()))
+                                    .and_then(|w| w.timbre_key.as_deref())
+                            });
+                            let key_str = fret_timbre.or(wheel_timbre)?;
+                            let binding = amp_core::parse_key_stroke(key_str)?;
+                            Some((game.config.id.clone(), binding))
+                        })
+                };
+                if let Some((game_id, binding)) = resolved {
+                    if let Some(pid) = monitor.lock().map_err(|e| e.to_string())?.check_statuses().into_iter()
+                        .find(|game| game.id == game_id && game.is_running).and_then(|game| game.pid)
+                    {
+                        let current_timbre = engine.guitar_timbre()?.ok_or("Sync the current game timbre in Instrument View before changing timbre.")?;
+                        if current_timbre != target {
+                            if !focus_window_by_pid(pid) { return Err("Could not focus the selected game window.".into()); }
+                            engine.switch_guitar_timbre(target, binding)?;
+                            switched_in_game = true;
+                        }
+                    }
+                }
+            }
+            engine.set_guitar_timbre_mode(parsed_mode)?;
+            if let Some(target) = target.filter(|_| !switched_in_game) {
+                let _ = engine.sync_guitar_timbre(target);
+            }
             Ok(true)
         }).await.map_err(|e| e.to_string())?
     }
@@ -2786,6 +2889,8 @@ pub fn run() {
             sync_guitar_mode,
             set_chord_wheel_page,
             set_guitar_mode,
+            sync_guitar_timbre,
+            set_guitar_timbre_mode,
             tap_note_preview,
             set_game_instrument_mapping,
             // Phase 9 modular config commands

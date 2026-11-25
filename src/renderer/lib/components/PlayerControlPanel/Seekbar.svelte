@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { createFrameResizeObserver } from '../../utils/frameResizeObserver';
-  import { portal } from '../../actions/portal';
-  import { animationStore } from '../../state/animationStore.svelte';
+  import { onMount, onDestroy } from "svelte";
+  import { createFrameResizeObserver } from "../../utils/frameResizeObserver";
+  import { portal } from "../../actions/portal";
+  import { animationStore } from "../../state/animationStore.svelte";
 
   interface Props {
     songId?: string;
@@ -40,18 +40,18 @@
     isSnapToTickEnabled = false,
     animateThumbTransitions = true,
     animationDurationMs,
-    thumbToolTipOptions = '',
-    thumbToolTipFallback = '0:00',
+    thumbToolTipOptions = "",
+    thumbToolTipFallback = "0:00",
     disabled = false,
     previewValue = $bindable(0),
     isPreviewActive = $bindable(false),
     isSelectionRangeEnabled = false,
     selectionStart = 0,
     selectionEnd = 0,
-    class: className = '',
+    class: className = "",
     onseek,
     onchange,
-    onpreview
+    onpreview,
   }: Props = $props();
 
   // Support both min/max and minimum/maximum property aliases matching WPF
@@ -62,7 +62,9 @@
   let activeAnimDurationMs = $derived(
     !animateThumbTransitions || animationStore.isOff
       ? 0
-      : (animationDurationMs !== undefined ? animationDurationMs : animationStore.durationMs)
+      : animationDurationMs !== undefined
+        ? animationDurationMs
+        : animationStore.durationMs,
   );
 
   let isHovered = $state(false);
@@ -79,7 +81,7 @@
   let hoverPercent = $state(0);
   let showHoverFill = $state(false);
   let isTooltipVisible = $state(false);
-  let tooltipText = $state('0:00');
+  let tooltipText = $state("0:00");
   let tooltipX = $state(0);
 
   let containerElement: HTMLDivElement | null = $state(null);
@@ -113,25 +115,50 @@
   // 2. Click target value during easing to clicked section
   // 3. Normal bound value (playback position)
   let displayValue = $derived(
-    isScrubbing ? currentDragValue : (isEasingToClick ? clickAnimTargetValue : value)
+    isScrubbing
+      ? currentDragValue
+      : isEasingToClick
+        ? clickAnimTargetValue
+        : value,
   );
 
   let progressPercent = $derived(
     effectiveMax > effectiveMin
-      ? Math.max(0, Math.min(100, ((displayValue - effectiveMin) / (effectiveMax - effectiveMin)) * 100))
-      : 0
+      ? Math.max(
+          0,
+          Math.min(
+            100,
+            ((displayValue - effectiveMin) / (effectiveMax - effectiveMin)) *
+              100,
+          ),
+        )
+      : 0,
   );
 
   let selectionRangeLeft = $derived(
     effectiveMax > effectiveMin
-      ? Math.max(0, Math.min(100, ((selectionStart - effectiveMin) / (effectiveMax - effectiveMin)) * 100))
-      : 0
+      ? Math.max(
+          0,
+          Math.min(
+            100,
+            ((selectionStart - effectiveMin) / (effectiveMax - effectiveMin)) *
+              100,
+          ),
+        )
+      : 0,
   );
 
   let selectionRangeWidth = $derived(
     effectiveMax > effectiveMin && selectionEnd > selectionStart
-      ? Math.max(0, Math.min(100 - selectionRangeLeft, ((selectionEnd - selectionStart) / (effectiveMax - effectiveMin)) * 100))
-      : 0
+      ? Math.max(
+          0,
+          Math.min(
+            100 - selectionRangeLeft,
+            ((selectionEnd - selectionStart) / (effectiveMax - effectiveMin)) *
+              100,
+          ),
+        )
+      : 0,
   );
 
   // Tooltip horizontal clamping within container bounds (matches WPF ComputePopupOffsets)
@@ -167,11 +194,11 @@
       updateFixedPopupCoords();
       const onScroll = () => updateFixedPopupCoords();
       const onResize = () => updateFixedPopupCoords();
-      window.addEventListener('scroll', onScroll, true);
-      window.addEventListener('resize', onResize);
+      window.addEventListener("scroll", onScroll, true);
+      window.addEventListener("resize", onResize);
       return () => {
-        window.removeEventListener('scroll', onScroll, true);
-        window.removeEventListener('resize', onResize);
+        window.removeEventListener("scroll", onScroll, true);
+        window.removeEventListener("resize", onResize);
       };
     }
   });
@@ -189,7 +216,7 @@
   function formatPreviewText(val: number): string {
     if (thumbToolTipOptions) {
       const opts = thumbToolTipOptions
-        .split('|')
+        .split("|")
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
       if (opts.length > 0) {
@@ -213,7 +240,11 @@
     return `${minutes}:${secStr}`;
   }
 
-  function resolveTargetValueFromEvent(e: PointerEvent): { ratio: number; value: number; x: number } {
+  function resolveTargetValueFromEvent(e: PointerEvent): {
+    ratio: number;
+    value: number;
+    x: number;
+  } {
     if (!trackElement) return { ratio: 0, value: effectiveMin, x: 0 };
     const rect = trackElement.getBoundingClientRect();
     const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
@@ -237,7 +268,10 @@
     if (isPointerDown || isScrubbing) return;
 
     // Check if moving to an inner element
-    if (e.relatedTarget && containerElement?.contains(e.relatedTarget as Node)) {
+    if (
+      e.relatedTarget &&
+      containerElement?.contains(e.relatedTarget as Node)
+    ) {
       return;
     }
 
@@ -264,7 +298,10 @@
     if (isPointerDown) {
       // Check drag threshold (WPF HasExceededDragThreshold ~4px)
       if (!isScrubbing) {
-        const dist = Math.hypot(e.clientX - startPointerX, e.clientY - startPointerY);
+        const dist = Math.hypot(
+          e.clientX - startPointerX,
+          e.clientY - startPointerY,
+        );
         if (dist >= 4) {
           isScrubbing = true;
           isEasingToClick = false;
@@ -364,9 +401,12 @@
       isEasingToClick = false;
     } else {
       if (easingResetTimer) clearTimeout(easingResetTimer);
-      easingResetTimer = setTimeout(() => {
-        isEasingToClick = false;
-      }, Math.max(10, activeAnimDurationMs));
+      easingResetTimer = setTimeout(
+        () => {
+          isEasingToClick = false;
+        },
+        Math.max(10, activeAnimDurationMs),
+      );
     }
 
     // Restore hover state if cursor is still over container
@@ -408,28 +448,34 @@
       isEasingToClick = false;
     } else {
       if (easingResetTimer) clearTimeout(easingResetTimer);
-      easingResetTimer = setTimeout(() => {
-        isEasingToClick = false;
-      }, Math.max(10, activeAnimDurationMs));
+      easingResetTimer = setTimeout(
+        () => {
+          isEasingToClick = false;
+        },
+        Math.max(10, activeAnimDurationMs),
+      );
     }
   }
 
   function handleKeyDown(e: KeyboardEvent) {
     if (disabled) return;
-    const step = isSnapToTickEnabled && tickFrequency > 0 ? tickFrequency : (effectiveMax - effectiveMin) / 100 || 1;
+    const step =
+      isSnapToTickEnabled && tickFrequency > 0
+        ? tickFrequency
+        : (effectiveMax - effectiveMin) / 100 || 1;
     let nextVal = value;
 
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+    if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
       nextVal = Math.max(effectiveMin, value - step);
-    } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+    } else if (e.key === "ArrowRight" || e.key === "ArrowUp") {
       nextVal = Math.min(effectiveMax, value + step);
-    } else if (e.key === 'PageDown') {
+    } else if (e.key === "PageDown") {
       nextVal = Math.max(effectiveMin, value - step * 5);
-    } else if (e.key === 'PageUp') {
+    } else if (e.key === "PageUp") {
       nextVal = Math.min(effectiveMax, value + step * 5);
-    } else if (e.key === 'Home') {
+    } else if (e.key === "Home") {
       nextVal = effectiveMin;
-    } else if (e.key === 'End') {
+    } else if (e.key === "End") {
       nextVal = effectiveMax;
     } else {
       return;
@@ -441,10 +487,11 @@
     onchange?.(value);
   }
 
-  let resizeObserver: ReturnType<typeof createFrameResizeObserver> | null = null;
+  let resizeObserver: ReturnType<typeof createFrameResizeObserver> | null =
+    null;
 
   onMount(() => {
-    if (typeof ResizeObserver !== 'undefined' && containerElement) {
+    if (typeof ResizeObserver !== "undefined" && containerElement) {
       resizeObserver = createFrameResizeObserver((entries) => {
         for (const entry of entries) {
           if (entry.target === containerElement) {
@@ -480,7 +527,11 @@
   class:is-hovered={isHovered}
   class:is-pointer-down={isPointerDown}
   class:is-scrubbing={isScrubbing}
-  style="--seek-duration: {isEasingToClick && !isScrubbing ? activeAnimDurationMs : 0}ms; --anim-fast-ms: {animationStore.isOff ? 0 : Math.round(activeAnimDurationMs * 0.75)}ms;"
+  style="--seek-duration: {isEasingToClick && !isScrubbing
+    ? activeAnimDurationMs
+    : 0}ms; --anim-fast-ms: {animationStore.isOff
+    ? 0
+    : Math.round(activeAnimDurationMs * 0.75)}ms;"
   bind:this={containerElement}
   onpointerenter={handlePointerEnter}
   onpointerleave={handlePointerLeave}
@@ -517,16 +568,10 @@
     ></div>
 
     <!-- Filled Track (WPF SliderRepeatButtonFilled: White when idle, Accent on hover/drag, smooth easing) -->
-    <div
-      class="filled-track"
-      style="width: {progressPercent}%;"
-    ></div>
+    <div class="filled-track" style="width: {progressPercent}%;"></div>
 
     <!-- Thumb (WPF SliderThumb: 12x12 white circular handle, smoothly eases to clicked area) -->
-    <div
-      class="seekbar-thumb"
-      style="left: {progressPercent}%;"
-    ></div>
+    <div class="seekbar-thumb" style="left: {progressPercent}%;"></div>
   </div>
 
   <!-- Tooltip Popup (Portaled to document.body with max z-index so it is NEVER masked by containers) -->
@@ -565,7 +610,7 @@
   }
 
   /* All internal elements must have pointer-events: none so that the container is the single,
-     uninterrupted pointer event target — completely preventing any flicker or child-crossing leave events */
+     uninterrupted pointer event target - completely preventing any flicker or child-crossing leave events */
   .hit-area,
   .seekbar-track,
   .selection-range,
@@ -643,7 +688,7 @@
     bottom: 0;
     height: 4px;
     border-radius: 2px;
-    background-color: var(--text-primary, #FFFFFF);
+    background-color: var(--text-primary, #ffffff);
     transition:
       background-color var(--transition-fast, 0.16s ease),
       width var(--seek-duration, 0s) cubic-bezier(0.4, 0, 0.2, 1);
@@ -653,12 +698,14 @@
   .amp-seekbar.is-hovered .filled-track,
   .amp-seekbar.is-pointer-down .filled-track,
   .amp-seekbar.is-scrubbing .filled-track {
-    background-color: var(--accent-color, var(--accent, #1DB954));
+    background-color: var(--accent-color, var(--accent, #1db954));
   }
 
   /* Immediate zero-lag width tracking only when actively scrubbing (dragging) */
   .amp-seekbar.is-scrubbing .filled-track {
-    transition: background-color var(--transition-fast, 0.16s ease), width 0s linear !important;
+    transition:
+      background-color var(--transition-fast, 0.16s ease),
+      width 0s linear !important;
   }
 
   /* Thumb Handle matching WPF SliderThumb.
@@ -669,7 +716,7 @@
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    background: var(--text-primary, #FFFFFF);
+    background: var(--text-primary, #ffffff);
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
     transform: translate(-50%, -50%) scale(0);
     opacity: 0;
@@ -710,7 +757,9 @@
     background: rgba(30, 30, 30, 0.95);
     color: #f3f4f6;
     border: none;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+    box-shadow:
+      0 10px 25px -5px rgba(0, 0, 0, 0.5),
+      0 8px 10px -6px rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     pointer-events: none;
@@ -729,7 +778,9 @@
     background: rgba(255, 255, 255, 0.96);
     color: #18181b;
     border: none;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+    box-shadow:
+      0 10px 25px -5px rgba(0, 0, 0, 0.15),
+      0 8px 10px -6px rgba(0, 0, 0, 0.08);
   }
 
   .seekbar-popup.visible {

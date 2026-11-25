@@ -182,7 +182,7 @@ Use conventional commit messages so the versioning workflow can assign a version
 
 This project was originally forked from **[sabihoshi/GenshinLyreMidiPlayer][GenshinLyreMidiPlayer]** [v4.0.5](https://github.com/sabihoshi/GenshinLyreMidiPlayer/releases/tag/v4.0.5) and later detached into its own repository to enable multi-game support and features that do not fit the original Genshin Impact-only design. Huge thanks for the original work! 🔥
 
-Special thanks to **[Lunaferlone](https://github.com/Lunaferlone)** for helping with QA and testing! 💖
+Special thanks to **[Lunaferlone](https://github.com/Lunaferlone)** for helping with QA and testing throughout the rewrite development process! 💖
 
 # License
 

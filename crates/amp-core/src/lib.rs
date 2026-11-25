@@ -17,9 +17,9 @@ pub use midi::{
     GUITAR_PRO_EXTENSIONS, SUPPORTED_SONG_EXTENSIONS,
 };
 pub use input::{
-    char_to_key, parse_key_str, parse_key_stroke, KeyStroke, scan_games, scan_keyboard_layouts, ChordConfigJson, FretLayoutJson, GameConfig, GuitarConfigJson,
+    char_to_key, parse_key_str, parse_key_stroke, parse_wheel_binding, GuitarTimbre, GuitarTimbreMode, KeyStroke, scan_games, scan_keyboard_layouts, ChordConfigJson, FretLayoutJson, GameConfig, GuitarConfigJson,
     InstrumentConfigJson, KeySimulator, KeyboardLayout, KeyboardLayoutJson, LoadedGameBundle,
-    NoteKeyMapping, StrumDirection,
+    NoteKeyMapping, StrumButtonsJson, StrumDirection, WheelBinding,
 };
 pub use player::{PlaybackEngine, PlaybackStatus, PlayerEvent, ActiveTrackNote, note_durations, OverlapBehavior};
 pub use audio::{AudioDevice, AudioSynth, SynthMode, AudioError};

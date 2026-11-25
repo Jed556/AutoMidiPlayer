@@ -13,6 +13,11 @@
     ],
     "wheelLayout": "NTE_Chord_Wheel",
     "modeKey": "z",
-    "pageKeys": ["r", "t"]
+    "pageKeys": ["r", "t"],
+    "strumButtons": {
+      "up": "mouseLeft",
+      "down": "mouseRight"
+    },
+    "timbreKey": "v"
   }
 }
