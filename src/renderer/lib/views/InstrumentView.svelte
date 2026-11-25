@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, untrack } from 'svelte';
   import { midiInputStore } from '../state/midiInputStore.svelte';
   import { playbackStore } from '../state/playbackStore.svelte';
   import { scheduledPlaybackStore } from '../state/scheduledPlaybackStore.svelte';
@@ -24,7 +24,7 @@
   import GameIcon from '../components/Common/GameIcon.svelte';
   import { toastOffset } from '../actions/toastOffset';
   import { createDropdownState } from '../ui/dropdownState.svelte';
-  import { InstrumentInput, keyboardPitches } from '../utils/instrumentInput';
+  import { chordPadPitches, InstrumentInput, keyboardPitches, resolveGuitarKeyAction } from '../utils/instrumentInput';
   import { PressHighlights } from '../utils/pressHighlights';
   import type { ArrangementState } from '../../../shared/types/ipc';
   import { createPianoRows, createPianoSlots, hasInGameInstrumentLayout, pianoRange, type PianoSlot } from '../utils/instrumentKeyboard';
@@ -34,7 +34,7 @@
   import ChordPadsLayout from '../components/Instrument/ChordPadsLayout.svelte';
   import type { InstrumentInputMode } from '../../../shared/types/games';
   import ChordWheelControls from '../components/Instrument/ChordWheelControls.svelte';
-  import { fretRomanNumeral } from '../utils/guitarLayout';
+  import { fretRomanNumeral, type GuitarPosition } from '../utils/guitarLayout';
 
   let topBarWidth = $state(0);
   const showTopLabels = $derived(topBarWidth >= 700);
@@ -375,11 +375,25 @@
   let modeRead = $state(false);
   let syncRevision = 0;
 
+  let lastModeContext = '';
+
   $effect(() => {
-    if (!wheel || gameStore.activeInputMode === 'keyboard' || modePending || playbackStore.isPlaying) return;
+    if (!wheel || gameStore.activeInputMode === 'keyboard') {
+      lastModeContext = '';
+      modeRead = false;
+      syncedMode = null;
+      return;
+    }
+    if (modePending) return;
+    // Re-read whenever playback toggles so returning to this view or pausing keeps mode in sync.
+    playbackStore.isPlaying;
+    const contextKey = `${gameStore.activeGame?.id ?? ''}:${selectedInstrumentId}:${gameStore.activeLayout?.id ?? ''}:${gameStore.activeInputMode}`;
+    if (contextKey !== lastModeContext) {
+      lastModeContext = contextKey;
+      modeRead = false;
+      syncedMode = null;
+    }
     const revision = ++syncRevision;
-    modeRead = false;
-    syncedMode = null;
     void gameStore.hasPlaybackMapping().then(async ready => {
       if (!ready || revision !== syncRevision) return;
       const mode = await api.playback.getGuitarMode();
@@ -400,8 +414,11 @@
   let highlightedActions = $state.raw<ArrangementState[]>([]);
   const displayingDispatch = $derived(performing || (!playbackStore.isListenMode && highlightedActions.length > 0));
   const displayedAction = $derived(highlightedActions.at(-1) ?? playbackStore.arrangement);
+  const physicalMode = $derived<PhysicalMode | null>(mixed
+    ? ((displayingDispatch && (displayedAction?.mode === 'frets' || displayedAction?.mode === 'chords') ? displayedAction.mode : null) ?? syncedMode)
+    : (gameStore.activeInputMode === 'frets' || gameStore.activeInputMode === 'chords' ? gameStore.activeInputMode : null));
   const guitarMode = $derived(mixed
-    ? (displayingDispatch ? displayedAction?.mode : null) ?? syncedMode ?? 'mixed'
+    ? (displayingDispatch ? displayedAction?.mode : null) ?? syncedMode ?? (playbackStore.isPlaying && playbackStore.isListenMode ? 'chords' : 'mixed')
     : gameStore.activeInputMode);
   const fretMode = $derived(guitarMode === 'frets');
   const wheelLayout = $derived(gameStore.activeLayout?.chordWheel ? gameStore.activeLayout :
@@ -418,6 +435,27 @@
     timbreKey: gameStore.activeLayout?.fretboard?.timbreKey ?? wheel.timbreKey,
     pageCount: !paged ? 1 : fretMode ? openSlot / wheel.positions.length + 1 : wheel.pageCount,
   } : null);
+  const fretLayout = $derived(
+    gameStore.activeLayout?.fretboard?.stringKeys?.length
+      ? gameStore.activeLayout
+      : selectedInstrument?.pluckStrings && wheelLayout
+        ? gameStore.getLinkedFretLayout(selectedInstrument, wheelLayout.id)
+        : null,
+  );
+  const guitarStringKeys = $derived(fretLayout?.fretboard?.stringKeys ?? []);
+  const needsModeSync = $derived(modeRead && syncedMode === null);
+  let chordWheelRef = $state<{
+    pressString: (source: string, stringIndex: number) => number | null;
+    releaseString: (source: string) => void;
+    clearHeldStrings: () => void;
+    strum: (direction: 'up' | 'down') => boolean;
+    stepWedge: (delta: -1 | 1) => boolean;
+    stepPage: (delta: -1 | 1) => boolean;
+    toggleMixedMode: () => boolean;
+    toggleTimbreMode: () => boolean;
+  }>();
+  let guitarPreviewPositions = $state.raw<GuitarPosition[]>([]);
+  let guitarPreviewChord = $state<string | null>(null);
   const wheelItems = $derived(fretMode ? [
     ...Array.from({ length: openSlot }, (_, index) => ({ name: index < fretCount ? fretRomanNumeral(index + 1) : '', pitchClasses: [] })),
     { name: t('instrument.guitarOpen'), pitchClasses: [] },
@@ -514,6 +552,7 @@
 
   onDestroy(() => {
     instrumentInput.clear();
+    chordWheelRef?.clearHeldStrings();
     pitchesToShow.clear();
     actionsToShow.clear();
     for (const timer of previewTimers.values()) clearTimeout(timer);
@@ -581,8 +620,11 @@
 
   // Clear held input when navigation, an overlay, or the displayed mapping changes.
   $effect(() => {
-    inputEnabled; gameStore.activeGame?.id; selectedInstrumentId; selectedLayoutId;
-    instrumentInput.clear();
+    inputEnabled; gameStore.activeGame?.id; selectedInstrumentId; selectedLayoutId; gameStore.activeInputMode;
+    untrack(() => {
+      instrumentInput.clear();
+      chordWheelRef?.clearHeldStrings();
+    });
   });
 
   function handleKeyDown(event: KeyboardEvent) {
@@ -594,20 +636,84 @@
     )) return;
     if ((event.key === 'Enter' || event.key === ' ') && target instanceof HTMLElement
       && target.closest('button, a')) return;
+    const source = `keyboard:${event.code || event.key}`;
+
+    if (isGuitarStage && selectedInstrument && displayWheel && chordWheelRef) {
+      const inDropdown = target instanceof HTMLElement && Boolean(target.closest('.fluent-dropdown'));
+      const inHorizontalNav = target instanceof HTMLElement
+        && Boolean(target.closest('.fluent-dropdown, [role="tablist"], [role="tab"], .fret-scroll'));
+      const guitarAction = resolveGuitarKeyAction(event.key, {
+        stringKeys: guitarStringKeys,
+        strumButtons: displayWheel.strumButtons,
+        pageKeys: displayWheel.pageKeys,
+        modeKey: displayWheel.modeKey,
+        timbreKey: displayWheel.timbreKey,
+        allowPageKeys: paged && displayWheel.pageCount > 1 && !needsModeSync,
+        allowModeKey: mixed,
+        allowTimbreKey: Boolean(displayWheel.timbreKey),
+        allowArrows: !inDropdown,
+        allowWedgeArrows: !inHorizontalNav,
+      });
+      if (!guitarAction) return;
+      event.preventDefault();
+      if (event.repeat) return;
+      switch (guitarAction.type) {
+        case 'string': {
+          const pitch = chordWheelRef.pressString(source, guitarAction.index);
+          if (pitch !== null) {
+            if (instrumentInput.press(source, [pitch])) previewNote(pitch);
+            else chordWheelRef.releaseString(source);
+          }
+          break;
+        }
+        case 'strum':
+          chordWheelRef.strum(guitarAction.direction);
+          break;
+        case 'page':
+          chordWheelRef.stepPage(guitarAction.delta);
+          break;
+        case 'wedge':
+          chordWheelRef.stepWedge(guitarAction.delta);
+          break;
+        case 'mode':
+          chordWheelRef.toggleMixedMode();
+          break;
+        case 'timbre':
+          chordWheelRef.toggleTimbreMode();
+          break;
+      }
+      return;
+    }
+
+    if (gameStore.activeInputMode === 'chords' && chordMode === 'pads' && selectedInstrument) {
+      const pitches = chordPadPitches(event.key, selectedInstrument.chords ?? [], gameStore.activeLayout?.chordKeys ?? []);
+      if (!pitches.length) return;
+      event.preventDefault();
+      if (!event.repeat && instrumentInput.press(source, pitches)) {
+        pitches.forEach(previewNote);
+      }
+      return;
+    }
+
     const bindings = mappedKeys;
     const pitches = keyboardPitches(event.key, bindings);
     if (!pitches.length) return;
     event.preventDefault();
-    if (!event.repeat && instrumentInput.press(`keyboard:${event.code || event.key}`, pitches)) {
+    if (!event.repeat && instrumentInput.press(source, pitches)) {
       pitches.forEach(previewNote);
     }
   }
 
   function handleKeyUp(event: KeyboardEvent) {
-    instrumentInput.release(`keyboard:${event.code || event.key}`);
+    const source = `keyboard:${event.code || event.key}`;
+    instrumentInput.release(source);
+    chordWheelRef?.releaseString(source);
   }
 
-  function clearInput() { instrumentInput.clear(); }
+  function clearInput() {
+    instrumentInput.clear();
+    chordWheelRef?.clearHeldStrings();
+  }
 
   function previewNote(pitch: number) {
     // Manual interaction previews audio even while playback is in game mode.
@@ -627,6 +733,26 @@
       previewTimers.delete(pitch);
     }, 180));
     previewNote(pitch);
+  }
+
+  function isInteractiveStageTarget(target: EventTarget | null): boolean {
+    return target instanceof Element && Boolean(target.closest(
+      'button, a, input, select, textarea, [role="button"], [role="tab"], [role="menuitem"], [role="option"], [role="listbox"], .fluent-dropdown',
+    ));
+  }
+
+  function handleStageClick(event: MouseEvent) {
+    if (!inputEnabled || !isGuitarStage || !chordWheelRef || event.defaultPrevented || event.button !== 0) return;
+    if (isInteractiveStageTarget(event.target) || document.querySelector('[role="listbox"]')) return;
+    if (window.getSelection()?.toString()) return;
+    chordWheelRef.strum('up');
+  }
+
+  function handleStageContextMenu(event: MouseEvent) {
+    if (!inputEnabled || !isGuitarStage || !chordWheelRef || event.defaultPrevented) return;
+    if (isInteractiveStageTarget(event.target) || document.querySelector('[role="listbox"]')) return;
+    event.preventDefault();
+    chordWheelRef.strum('down');
   }
 </script>
 
@@ -779,6 +905,9 @@
   <!-- Main Instrument Display Area -->
   <div
     class="inst-stage-viewer"
+    role="presentation"
+    onclick={handleStageClick}
+    oncontextmenu={handleStageContextMenu}
     use:fitInstrumentStage={{
       stage: selectedStage,
       gameSelected,
@@ -798,21 +927,27 @@
         <ChordPadsLayout chords={selectedInstrument.chords ?? []} bindings={gameStore.activeLayout?.chordKeys ?? []} activePitches={litPitches} dispatchedPads={displayingDispatch ? activeSlots : undefined} onpreview={pitches => pitches.forEach(triggerKey)} />
       {:else if isGuitarStage && selectedInstrument && displayWheel}
         <ChordWheelControls
+          bind:this={chordWheelRef}
           wheel={displayWheel}
           pads={wheelItems}
           instrument={selectedInstrument}
           {fretMode}
           {paged}
           {mixed}
-          needsModeSync={modeRead && syncedMode === null}
-          physicalMode={guitarMode === 'frets' || guitarMode === 'chords' ? guitarMode : null}
+          {needsModeSync}
+          {physicalMode}
           onsyncmode={syncMode}
           performing={displayingDispatch}
           action={displayingDispatch ? displayedAction : null}
           attacks={highlightedActions}
           activePitches={litPitches}
           {activeSlots}
+          stringKeys={guitarStringKeys}
           onpreview={pitches => pitches.forEach(triggerKey)}
+          onpreviewpositions={(positions, chord) => {
+            guitarPreviewPositions = positions;
+            guitarPreviewChord = chord;
+          }}
         />
       {:else if !isGuitarStage}
         <InstrumentLayout {layoutStyle} rows={mappedRows} activePitches={highlightedPitches} onplay={triggerKey} />
@@ -833,6 +968,8 @@
           attacks={highlightedActions}
           activePitches={litPitches}
           accessibleChords={selectedInstrument.pagedChords === false ? wheel?.positions.length : undefined}
+          previewPositions={guitarPreviewPositions}
+          previewChord={guitarPreviewChord}
         />
       {:else}
         <div class="piano-strip-header">

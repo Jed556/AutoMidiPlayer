@@ -345,6 +345,15 @@ class GameStore {
     return ready;
   }
 
+  getLinkedFretLayout(instrument: InstrumentConfig | null, wheelLayoutId: string | undefined, game = this.activeGame) {
+    if (!game || !instrument || !wheelLayoutId) return null;
+    const compatible = this.getInstrumentLayouts(instrument, game, 'frets')
+      .filter(layout => layout.fretboard?.wheelLayout.toLowerCase() === wheelLayoutId.toLowerCase());
+    if (!compatible.length) return null;
+    const selectedFret = this.selectedLayoutIds[`${game.id}/${instrument.id}/frets`];
+    return compatible.find(layout => layout.id === selectedFret) ?? compatible[0];
+  }
+
   syncActiveInstrumentMapping(instrumentId?: string, layoutId?: string) {
     if (!this.activeGame || this.activeGame.isMissing) {
       this.publishSettingsContext();
@@ -389,10 +398,7 @@ class GameStore {
     const configPaths = [this.activeGame.filePath, inst.filePath, targetLayout?.filePath]
       .filter((path): path is string => Boolean(path));
     if (this.activeInputMode === 'chords' && inst.pluckStrings && targetLayout?.chordWheel) {
-      const selectedFret = this.selectedLayoutIds[`${selectionKey}/frets`];
-      const compatible = this.getInstrumentLayouts(inst, this.activeGame, 'frets')
-        .filter(layout => layout.fretboard?.wheelLayout.toLowerCase() === targetLayout.id.toLowerCase());
-      const path = (compatible.find(layout => layout.id === selectedFret) ?? compatible[0])?.filePath;
+      const path = this.getLinkedFretLayout(inst, targetLayout.id)?.filePath;
       if (path) configPaths.push(path);
     }
     return this.applyMapping(effectiveLayoutName, keyPairs, configPaths.length ? configPaths : undefined, this.activeInputMode === 'mixed');

@@ -23,6 +23,8 @@
     action,
     attacks,
     accessibleChords,
+    previewPositions = [],
+    previewChord = null,
   }: {
     instrument: InstrumentConfig;
     activePitches: Set<number>;
@@ -31,6 +33,8 @@
     action: ArrangementState | null;
     attacks: ArrangementState[];
     accessibleChords?: number;
+    previewPositions?: GuitarPosition[];
+    previewChord?: string | null;
   } = $props();
   const tuning = $derived(instrument.guitar?.tuning ?? []);
   const count = $derived(instrument.guitar?.fretCount ?? 24);
@@ -38,14 +42,20 @@
   const positions = $derived(
     performing
       ? dispatchedGuitarPositions(instrument, latest)
-      : guitarVoicing(instrument, activePitches),
+      : previewPositions.length > 0
+        ? previewPositions
+        : guitarVoicing(instrument, activePitches),
   );
   const chord = $derived(
     performing
       ? latest?.slot != null && latest.mode === "chords"
         ? instrument.chords?.[latest.slot]?.name
         : null
-      : guitarChord(instrument, activePitches),
+      : previewPositions.length > 0
+        ? mode === "chords"
+          ? previewChord
+          : null
+        : guitarChord(instrument, activePitches),
   );
   const strumArrow = $derived(
     performing && (latest?.mode === "chords" || latest?.mode === "frets")

@@ -11,6 +11,7 @@
     guitarVoicing,
     resolveGuitarSlotFromPitches,
     wheelAngleDelta,
+    type GuitarPosition,
   } from '../../utils/guitarLayout';
   import { tooltip } from '../../actions/tooltip';
   import { t } from '../../i18n';
@@ -33,7 +34,9 @@
     attacks,
     activePitches,
     activeSlots,
+    stringKeys = [],
     onpreview,
+    onpreviewpositions,
   }: {
     wheel: NonNullable<KeyboardLayoutConfig['chordWheel']>;
     pads: ChordDefinition[];
@@ -49,7 +52,9 @@
     attacks: ArrangementState[];
     activePitches: Set<number>;
     activeSlots: ReadonlySet<number>;
+    stringKeys?: string[];
     onpreview: (pitches: number[]) => void;
+    onpreviewpositions?: (positions: GuitarPosition[], chord: string | null) => void;
   } = $props();
 
   let wheelState = $state<ChordWheelState>({
@@ -112,7 +117,7 @@
     if (playbackStore.isPlaying) {
       return backtrackedGlobalSlot;
     }
-    if (activePitches.size > 0 && strummedStrings.size === 0 && manualRadialSlot === null) {
+    if (activePitches.size > 0 && strummedStrings.size === 0 && heldStrings.size === 0 && manualRadialSlot === null) {
       return resolveGuitarSlotFromPitches(instrument, activePitches, fretMode, slotCount);
     }
     return null;
@@ -169,6 +174,7 @@
       selectedRadialSlot = 0;
       manualRadialSlot = null;
       clearStrumPreview();
+      clearHeldStrings();
     });
   });
 
@@ -223,8 +229,8 @@
       }
       return active;
     }
-    if (strummedStrings.size > 0) {
-      return new Set(strummedStrings);
+    if (strummedStrings.size > 0 || heldStringIndices.size > 0) {
+      return new Set([...strummedStrings.keys(), ...heldStringIndices]);
     }
     if (!activePitches.size) return active;
     if (fretMode && targetRadialSlot !== null) {
@@ -311,8 +317,9 @@
   const highlightSectorPath = $derived(sectorPath(WHEEL_INNER_R, WHEEL_OUTER_R, 0, sectorSpanDeg, sectorGapWidth));
   const highlightInnerArc = $derived(innerArcPath(highlightArcR, -highlightArcHalf, highlightArcHalf));
 
+  const svgId = $props.id();
   const bezelTextArcs = [0, 90, 180, 270].map((centerDeg, idx) => ({
-    id: `wheel-bezel-arc-${idx}`,
+    id: `${svgId}-bezel-arc-${idx}`,
     d: innerArcPath(TEXT_RING_R, centerDeg - 34, centerDeg + 34),
   }));
 
@@ -322,23 +329,40 @@
     const offset = (count - 1) / 2;
     return Array.from({ length: count }, (_, index) => {
       const y = (index - offset) * spacing;
-      const halfWidth = Math.max(12, Math.sqrt(Math.max(0, HUB_HOLE_R * HUB_HOLE_R - y * y)) - 3);
       const chordVal = activeChord?.stringPitches?.[index];
       const muted = !fretMode && activeChord !== null && (chordVal === 'muted' || chordVal === null);
       return {
         index,
-        label: String(index + 1),
+        stringNumber: index + 1,
+        label: (stringKeys[index]?.trim() || String(index + 1)).toUpperCase(),
+        key: stringKeys[index] ?? '',
         y,
-        x1: -halfWidth,
-        x2: halfWidth,
-        active: activeStrings.has(index) || strummedStrings.has(index),
+        x1: -HUB_HOLE_R,
+        x2: HUB_HOLE_R,
+        active: activeStrings.has(index) || strummedStrings.has(index) || heldStringIndices.has(index),
         muted,
       };
     });
   });
 
   let strumTimers: ReturnType<typeof setTimeout>[] = [];
-  let strummedStrings = $state<Set<number>>(new Set());
+  let strummedStrings = $state<Map<number, GuitarPosition>>(new Map());
+  let heldStrings = $state<Map<string, GuitarPosition>>(new Map());
+  const heldStringIndices = $derived(new Set([...heldStrings.values()].map(pos => pos.string)));
+
+  const manualPreviewPositions = $derived.by(() => {
+    if (strummedStrings.size === 0 && heldStrings.size === 0) return [];
+    const byString = new Map<number, GuitarPosition>();
+    for (const pos of strummedStrings.values()) byString.set(pos.string, pos);
+    for (const pos of heldStrings.values()) byString.set(pos.string, pos);
+    return [...byString.values()].sort((a, b) => a.string - b.string);
+  });
+  const manualPreviewChord = $derived(
+    !fretMode && manualPreviewPositions.length > 0 ? (activeChord?.name ?? null) : null,
+  );
+  $effect(() => {
+    onpreviewpositions?.(manualPreviewPositions, manualPreviewChord);
+  });
 
   function formatStrumBinding(binding: string | undefined, fallbackMouse: 'left' | 'right') {
     const normalized = (binding ?? (fallbackMouse === 'left' ? 'mouseLeft' : 'mouseRight')).trim();
@@ -362,25 +386,31 @@
   function clearStrumPreview() {
     for (const timer of strumTimers) clearTimeout(timer);
     strumTimers = [];
-    if (strummedStrings.size) strummedStrings = new Set();
+    if (strummedStrings.size) strummedStrings = new Map();
   }
 
-  onDestroy(clearStrumPreview);
+  onDestroy(() => {
+    clearStrumPreview();
+    if (heldStrings.size) heldStrings = new Map();
+    onpreviewpositions?.([], null);
+  });
 
-  function stringPreviewPitch(stringIndex: number): number | null {
+  function stringPreviewPosition(stringIndex: number): GuitarPosition | null {
     const open = tuning[stringIndex];
     if (open === undefined) return null;
     const radialSlot = targetRadialSlot ?? 0;
     const globalSlot = pageStart + radialSlot;
     if (fretMode) {
       const fret = globalSlot < fretCount ? globalSlot + 1 : 0;
-      return open + fret;
+      return { string: stringIndex, fret, pitch: open + fret };
     }
     const pad = visiblePads[radialSlot];
     const chordPitch = pad?.stringPitches?.[stringIndex];
-    if (typeof chordPitch === 'number') return chordPitch;
+    if (typeof chordPitch === 'number') {
+      return { string: stringIndex, fret: Math.max(0, chordPitch - open), pitch: chordPitch };
+    }
     if (chordPitch === 'muted' || chordPitch === null) return null;
-    return open;
+    return { string: stringIndex, fret: 0, pitch: open };
   }
 
   function selectWedge(index: number) {
@@ -403,8 +433,20 @@
   }
 
   function pluckString(stringIndex: number) {
-    const pitch = stringPreviewPitch(stringIndex);
-    if (pitch !== null) onpreview([pitch]);
+    const pos = stringPreviewPosition(stringIndex);
+    if (!pos) return;
+    onpreview([pos.pitch]);
+    const next = new Map(strummedStrings);
+    next.set(pos.string, pos);
+    strummedStrings = next;
+    const endTimer = setTimeout(() => {
+      const after = new Map(strummedStrings);
+      if (after.get(pos.string) === pos) {
+        after.delete(pos.string);
+        strummedStrings = after;
+      }
+    }, 220);
+    strumTimers.push(endTimer);
   }
 
   function strumStrings(direction: 'up' | 'down') {
@@ -413,21 +455,87 @@
     const order = Array.from({ length: count }, (_, idx) => idx);
     if (direction === 'down') order.reverse();
     const targets = order
-      .map(index => ({ index, pitch: stringPreviewPitch(index) }))
-      .filter((entry): entry is { index: number; pitch: number } => entry.pitch !== null);
-    targets.forEach(({ index, pitch }, step) => {
+      .map(index => stringPreviewPosition(index))
+      .filter((pos): pos is GuitarPosition => pos !== null);
+    targets.forEach((pos, step) => {
       const startTimer = setTimeout(() => {
-        onpreview([pitch]);
-        strummedStrings = new Set([...strummedStrings, index]);
+        onpreview([pos.pitch]);
+        const next = new Map(strummedStrings);
+        next.set(pos.string, pos);
+        strummedStrings = next;
         const endTimer = setTimeout(() => {
-          const next = new Set(strummedStrings);
-          next.delete(index);
-          strummedStrings = next;
+          const after = new Map(strummedStrings);
+          if (after.get(pos.string) === pos) {
+            after.delete(pos.string);
+            strummedStrings = after;
+          }
         }, 220);
         strumTimers.push(endTimer);
       }, step * 25);
       strumTimers.push(startTimer);
     });
+  }
+
+  export function pressString(source: string, stringIndex: number): number | null {
+    if (heldStrings.has(source)) return null;
+    const pos = stringPreviewPosition(stringIndex);
+    if (!pos) return null;
+    const next = new Map(heldStrings);
+    next.set(source, pos);
+    heldStrings = next;
+    return pos.pitch;
+  }
+
+  export function releaseString(source: string): void {
+    if (!heldStrings.has(source)) return;
+    const next = new Map(heldStrings);
+    next.delete(source);
+    heldStrings = next;
+  }
+
+  export function clearHeldStrings(): void {
+    untrack(() => {
+      if (heldStrings.size) heldStrings = new Map();
+    });
+  }
+
+  export function strum(direction: 'up' | 'down'): boolean {
+    strumStrings(direction);
+    return true;
+  }
+
+  export function stepWedge(delta: -1 | 1): boolean {
+    if (playbackStore.isPlaying || !visiblePads.length) return false;
+    const current = targetRadialSlot ?? 0;
+    const len = visiblePads.length;
+    for (let offset = 1; offset <= len; offset++) {
+      const candidate = (current + delta * offset + len * 2) % len;
+      if (visiblePads[candidate]?.name) {
+        manualRadialSlot = candidate;
+        selectedRadialSlot = candidate;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  export function stepPage(delta: -1 | 1): boolean {
+    if (locked || !paged || wheel.pageCount <= 1 || needsModeSync) return false;
+    const nextPage = (page + delta + wheel.pageCount) % wheel.pageCount;
+    void setPage(nextPage, false);
+    return true;
+  }
+
+  export function toggleMixedMode(): boolean {
+    if (locked || !mixed) return false;
+    toggleMode();
+    return true;
+  }
+
+  export function toggleTimbreMode(): boolean {
+    if (locked || !wheel.timbreKey) return false;
+    toggleTimbre();
+    return true;
   }
 
   const timbreKeyLabel = $derived(wheel.timbreKey?.toUpperCase() ?? '');
@@ -445,7 +553,8 @@
   }
 
   function toggleTimbre() {
-    const next: GuitarTimbre = wheelState.timbre === 'distortion' ? 'clean' : 'distortion';
+    const current = wheelState.timbreMode === 'auto' ? wheelState.timbre : wheelState.timbreMode;
+    const next: GuitarTimbre = current === 'distortion' ? 'clean' : 'distortion';
     void setTimbreMode(next);
   }
 
@@ -553,6 +662,9 @@
         {#each bezelTextArcs as arc}
           <path id={arc.id} d={arc.d} fill="none" />
         {/each}
+        <clipPath id={`${svgId}-soundhole-clip`}>
+          <circle cx="0" cy="0" r={HUB_HOLE_R} />
+        </clipPath>
       </defs>
 
       <!-- 6 Background Wedges -->
@@ -649,58 +761,61 @@
             }
           }}
         />
-        {#each hubStrings as str (str.index)}
-          <g
-            class="wheel-string-group"
-            class:active={str.active}
-            class:muted={str.muted}
-            role="button"
-            tabindex={str.muted ? -1 : 0}
-            aria-disabled={str.muted}
-            aria-label={`${t('instrument.guitarString')} ${str.label}`}
-            onclick={(e) => {
-              e.stopPropagation();
-              pluckString(str.index);
-            }}
-            onkeydown={(e) => {
-              if ((e.key === 'Enter' || e.key === ' ') && !str.muted) {
-                e.preventDefault();
+        <g clip-path={`url(#${svgId}-soundhole-clip)`}>
+          {#each hubStrings as str (str.index)}
+            <g
+              class="wheel-string-group"
+              class:active={str.active}
+              class:muted={str.muted}
+              role="button"
+              tabindex={str.muted ? -1 : 0}
+              aria-disabled={str.muted}
+              aria-label={`${t('instrument.guitarString')} ${str.stringNumber}${str.key ? ` (${str.key.toUpperCase()})` : ''}`}
+              onclick={(e) => {
+                e.stopPropagation();
                 pluckString(str.index);
-              }
-            }}
-          >
-          <!-- Invisible generous hit area for clicking/strumming the string -->
-          <rect x={str.x1} y={str.y - 6.5} width={str.x2 - str.x1} height="13" fill="transparent" />
-          <line
-            x1={str.x1}
-            y1={str.y}
-            x2={str.x2}
-            y2={str.y}
-            class="wheel-string-line"
-            class:active={str.active}
-            class:muted={str.muted}
-          />
-          <circle
-            cx="0"
-            cy={str.y}
-            r="5.6"
-            class="wheel-string-badge"
-            class:active={str.active}
-            class:muted={str.muted}
-          />
-          <text
-            x="0"
-            y={str.y}
-            dy="0.35em"
-            class="wheel-string-num"
-            class:active={str.active}
-            class:muted={str.muted}
-            text-anchor="middle"
-          >
-            {str.label}
-          </text>
+              }}
+              onkeydown={(e) => {
+                if ((e.key === 'Enter' || e.key === ' ') && !str.muted) {
+                  e.preventDefault();
+                  pluckString(str.index);
+                }
+              }}
+            >
+            <!-- Invisible generous hit area for clicking/strumming the string -->
+            <rect x={str.x1} y={str.y - 6.5} width={str.x2 - str.x1} height="13" fill="transparent" />
+            <line
+              x1={str.x1}
+              y1={str.y}
+              x2={str.x2}
+              y2={str.y}
+              class="wheel-string-line"
+              class:active={str.active}
+              class:muted={str.muted}
+            />
+            <circle
+              cx="0"
+              cy={str.y}
+              r="5.6"
+              class="wheel-string-badge"
+              class:active={str.active}
+              class:muted={str.muted}
+            />
+            <text
+              x="0"
+              y={str.y}
+              dy="0.35em"
+              class="wheel-string-num"
+              class:active={str.active}
+              class:muted={str.muted}
+              text-anchor="middle"
+            >
+              {str.label}
+            </text>
+          </g>
+          {/each}
         </g>
-        {/each}
+        <circle cx="0" cy="0" r={HUB_HOLE_R} class="wheel-hub-hole-rim" aria-hidden="true" />
       </g>
     </svg>
   </div>
@@ -982,9 +1097,21 @@
 
   .wheel-hub-hole {
     fill: var(--bg-primary);
-    stroke: var(--border-subtle);
-    stroke-width: 1;
+    stroke: none;
+    outline: none;
     cursor: pointer;
+  }
+
+  .wheel-hub-hole:focus-visible {
+    stroke: var(--accent);
+    stroke-width: 2;
+  }
+
+  .wheel-hub-hole-rim {
+    fill: none;
+    stroke: var(--border-subtle);
+    stroke-width: 1.5;
+    pointer-events: none;
   }
 
   .wheel-strum-actions {
